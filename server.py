@@ -419,6 +419,7 @@ def create_asgi_app():
         "streamable_http_path": "/mcp",
         "host": "0.0.0.0" if IS_VERCEL else HOST,
         "stateless_http": IS_VERCEL,
+        "max_request_body_size": 20 * 1024 * 1024,
     }
     if IS_VERCEL:
         kwargs["transport_security"] = TransportSecuritySettings(
