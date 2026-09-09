@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Laser mcp</title>
+  <style>
+    :root {
+      --bg: #14110d;
+      --panel: #1e1a14;
+      --ink: #f3eadc;
+      --muted: #9a8f7e;
+      --line: #3a3328;
+      --laser: #ff7a18;
+      --laser-dim: #c45a10;
+      --ok: #8fd18b;
+      --bad: #e07a6a;
+      --field: #2a241c;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font: 15px/1.45 "Segoe UI", sans-serif; }
+    body {
+      background-image:
+        linear-gradient(rgba(255,122,24,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,122,24,0.04) 1px, transparent 1px);
+      background-size: 28px 28px;
+    }
+    header {
+      display: flex; justify-content: space-between; align-items: center; gap: 16px;
+      padding: 16px 22px; border-bottom: 1px solid var(--line); background: rgba(20,17,13,0.92);
+    }
+    .brand { display: flex; align-items: baseline; gap: 12px; }
+    .brand h1 { margin: 0; font-size: 22px; letter-spacing: 0.08em; text-transform: uppercase; }
+    .brand h1 span { color: var(--laser); }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .chip { border: 1px solid var(--line); padding: 4px 8px; color: var(--muted); font-size: 12px; }
+    .chip strong { color: var(--ink); font-weight: 600; }
+    main { display: grid; grid-template-columns: 280px minmax(280px, 1fr) minmax(320px, 1.1fr); min-height: calc(100vh - 68px); }
+    section { border-right: 1px solid var(--line); background: var(--panel); min-height: 100%; }
+    section:last-child { border-right: 0; }
+    .pad { padding: 16px; }
+    h2 { margin: 0 0 12px; font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+    input, select, button, textarea {
+      width: 100%; background: var(--field); color: var(--ink); border: 1px solid var(--line);
+      padding: 8px 10px; font: inherit;
+    }
+    input:focus, select:focus { outline: 1px solid var(--laser); }
+    .groups { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; }
+    .groups button { width: auto; padding: 4px 8px; font-size: 12px; cursor: pointer; }
+    .groups button.active, button.primary { background: var(--laser); border-color: var(--laser); color: #1a1008; font-weight: 650; }
+    .list { height: calc(100vh - 380px); overflow: auto; display: flex; flex-direction: column; gap: 4px; }
+    .cad-list { height: auto; max-height: 240px; margin-bottom: 16px; }
+    .gen { text-align: left; cursor: pointer; }
+    .gen small { display: block; color: var(--muted); font-size: 12px; }
+    .gen.active { border-color: var(--laser); }
+    .actions { display: flex; gap: 8px; margin-top: 14px; }
+    .actions button { cursor: pointer; }
+    button.ghost, a.ghost-link {
+      background: transparent; color: var(--ink); text-decoration: none;
+      display: flex; align-items: center; justify-content: center; text-align: center;
+    }
+    .fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .fields label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+    .fields label.wide { grid-column: 1 / -1; }
+    .fields label.check { flex-direction: row; align-items: center; gap: 8px; }
+    .fields label.check input { width: auto; }
+    details { margin-top: 14px; color: var(--muted); }
+    .status { min-height: 22px; margin-top: 10px; color: var(--muted); font-size: 13px; }
+    .status.ok { color: var(--ok); }
+    .status.bad { color: var(--bad); }
+    .preview-frame {
+      height: calc(100vh - 220px); border: 1px solid var(--line); background: #0c0b09;
+      display: flex; align-items: center; justify-content: center; overflow: auto;
+    }
+    .preview-frame img { max-width: 100%; max-height: 100%; background: #fff; }
+    .meta { display: flex; justify-content: space-between; gap: 12px; color: var(--muted); font-size: 13px; margin-top: 10px; }
+    @media (max-width: 980px) {
+      main { grid-template-columns: 1fr; }
+      section { border-right: 0; border-bottom: 1px solid var(--line); }
+      .list, .preview-frame { height: 360px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <h1>Laser <span>mcp</span></h1>
+      <span class="chip">Payas STEM</span>
+    </div>
+    <div class="chips" id="defaults"></div>
+  </header>
+  <main>
+    <section class="pad">
+      <h2>Payas CAD</h2>
+      <div class="list cad-list" id="cad"></div>
+      <h2>Generator</h2>
+      <input id="search" placeholder="ABox, TypeTray, STEMTrafficLight…">
+      <div class="groups" id="groups"></div>
+      <div class="list" id="list"></div>
+    </section>
+    <section class="pad">
+      <h2 id="selected-title">Parametreler</h2>
+      <p id="selected-desc" class="status"></p>
+      <form id="form">
+        <div class="fields" id="primary"></div>
+        <details>
+          <summary>Gelişmiş ayarlar</summary>
+          <div class="fields" id="advanced"></div>
+        </details>
+        <div class="actions">
+          <button type="submit" class="primary" id="generate">SVG üret</button>
+          <a class="ghost-link" id="download" href="/files/Laser%20mcp.svg" download="Laser mcp.svg">İndir</a>
+        </div>
+      </form>
+      <div class="status" id="status">Generator seç, ölçüleri gir, üret.</div>
+    </section>
+    <section class="pad">
+      <h2>Önizleme · Laser mcp.svg</h2>
+      <div class="preview-frame" id="preview"><span class="status">Henüz SVG yok</span></div>
+      <div class="meta">
+        <span id="metrics">—</span>
+        <span id="bed">1500 × 3000 mm tabla</span>
+      </div>
+    </section>
+  </main>
+  <script>
+    const PRIMARY = new Set(["x", "y", "h", "thickness", "burn", "outside", "bottom_edge"]);
+    const CAD_FIELDS = {
+      traffic_light: [
+        {name:"thickness", type:"number", default:3},
+        {name:"burn", type:"number", default:0.15},
+        {name:"led", type:"number", default:5},
+        {name:"base_width", type:"number", default:120},
+        {name:"base_depth", type:"number", default:80},
+        {name:"base_height", type:"number", default:45},
+        {name:"tower_height", type:"number", default:110}
+      ],
+      product_box: [
+        {name:"x", type:"number", default:220},
+        {name:"y", type:"number", default:160},
+        {name:"h", type:"number", default:50},
+        {name:"thickness", type:"number", default:3},
+        {name:"burn", type:"number", default:0.15}
+      ]
+    };
+    const state = { generators: [], groups: [], defaults: {}, products: [], selected: "ABox", product: null, group: "", q: "" };
+
+    const $ = (id) => document.getElementById(id);
+
+    function chip(label, value) {
+      const el = document.createElement("span");
+      el.className = "chip";
+      el.innerHTML = label + " <strong>" + value + "</strong>";
+      return el;
+    }
+
+    function renderDefaults() {
+      const box = $("defaults");
+      box.innerHTML = "";
+      const d = state.defaults;
+      box.append(
+        chip("malzeme", "3 mm kavak"),
+        chip("kerf", (d.burn ?? 0.15) + " mm"),
+        chip("tabla", (d.bed_width ?? 1500) + " × " + (d.bed_height ?? 3000)),
+        chip("çıktı", "SVG")
+      );
+    }
+
+    function renderGroups() {
+      const box = $("groups");
+      box.innerHTML = "";
+      ["", ...state.groups].forEach((g) => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.textContent = g || "Hepsi";
+        if ((g || "") === state.group) b.classList.add("active");
+        b.onclick = () => { state.group = g; renderList(); renderGroups(); };
+        box.appendChild(b);
+      });
+    }
+
+    function renderCad() {
+      const box = $("cad");
+      box.innerHTML = "";
+      state.products.forEach((p) => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "gen" + (state.product === p.id ? " active" : "");
+        b.innerHTML = p.title + "<small>" + p.tool + "</small>";
+        b.onclick = () => selectProduct(p);
+        box.appendChild(b);
+      });
+    }
+
+    async function selectProduct(product) {
+      state.product = product.id;
+      state.selected = null;
+      renderCad();
+      renderList();
+      $("selected-title").textContent = product.title;
+      $("selected-desc").textContent = product.description || "";
+      const primary = $("primary");
+      const advanced = $("advanced");
+      primary.innerHTML = "";
+      advanced.innerHTML = "";
+      (CAD_FIELDS[product.id] || []).forEach((p) => primary.appendChild(field(p)));
+      if (!(CAD_FIELDS[product.id] || []).length) {
+        $("selected-desc").textContent = (product.description || "") + " Prototip ölçüleri gömülü; SVG üret yeterli.";
+      }
+    }
+
+    function renderList() {
+      const q = state.q.toLowerCase();
+      const box = $("list");
+      box.innerHTML = "";
+      state.generators
+        .filter((g) => (!state.group || g.group === state.group) && (!q || (g.name + g.description).toLowerCase().includes(q)))
+        .forEach((g) => {
+          const b = document.createElement("button");
+          b.type = "button";
+          b.className = "gen" + (g.name === state.selected ? " active" : "");
+          b.innerHTML = g.name + "<small>" + (g.description || g.group) + "</small>";
+          b.onclick = () => selectGenerator(g.name);
+          box.appendChild(b);
+        });
+    }
+
+    function field(param) {
+      const label = document.createElement("label");
+      label.textContent = param.name;
+      if (param.help) label.title = param.help;
+      let input;
+      if (param.type === "boolean") {
+        label.className = "check wide";
+        input = document.createElement("input");
+        input.type = "checkbox";
+        input.checked = Boolean(param.default);
+      } else if (param.choices) {
+        label.classList.add("wide");
+        input = document.createElement("select");
+        param.choices.forEach((c) => {
+          const o = document.createElement("option");
+          o.value = c;
+          o.textContent = c;
+          if (String(c) === String(param.default)) o.selected = true;
+          input.appendChild(o);
+        });
+      } else {
+        input = document.createElement("input");
+        input.type = param.type === "string" ? "text" : "number";
+        if (param.type !== "string") input.step = "any";
+        if (param.name === "x") input.value = 220;
+        else if (param.name === "y") input.value = 160;
+        else if (param.name === "h") input.value = 50;
+        else if (param.name === "thickness") input.value = state.defaults.thickness ?? 3;
+        else if (param.name === "burn") input.value = state.defaults.burn ?? 0.15;
+        else input.value = param.default ?? "";
+      }
+      input.name = param.name;
+      input.dataset.type = param.type;
+      label.appendChild(input);
+      return label;
+    }
+
+    function renderForm(schema) {
+      $("selected-title").textContent = schema.resolved_name || schema.name;
+      $("selected-desc").textContent = schema.description || "";
+      const primary = $("primary");
+      const advanced = $("advanced");
+      primary.innerHTML = "";
+      advanced.innerHTML = "";
+      (schema.parameters || []).forEach((p) => {
+        (PRIMARY.has(p.name) ? primary : advanced).appendChild(field(p));
+      });
+    }
+
+    function collectParams() {
+      const params = {};
+      $("form").querySelectorAll("[name]").forEach((el) => {
+        if (el.type === "checkbox") params[el.name] = el.checked;
+        else if (el.dataset.type === "integer") params[el.name] = el.value === "" ? null : parseInt(el.value, 10);
+        else if (el.dataset.type === "number") params[el.name] = el.value === "" ? null : parseFloat(el.value);
+        else params[el.name] = el.value;
+      });
+      Object.keys(params).forEach((k) => { if (params[k] === null || params[k] === "") delete params[k]; });
+      return params;
+    }
+
+    async function selectGenerator(name) {
+      state.selected = name;
+      state.product = null;
+      renderCad();
+      renderList();
+      const res = await fetch("/api/schema?generator=" + encodeURIComponent(name));
+      const schema = await res.json();
+      if (!res.ok) { setStatus(schema.error || "Şema alınamadı", false); return; }
+      renderForm(schema);
+    }
+
+    function setStatus(text, ok) {
+      const el = $("status");
+      el.textContent = text;
+      el.className = "status " + (ok === true ? "ok" : ok === false ? "bad" : "");
+    }
+
+    function showPreview(url, metrics, report) {
+      const frame = $("preview");
+      frame.innerHTML = "";
+      const img = document.createElement("img");
+      img.alt = "Laser mcp.svg";
+      img.src = url + (url.includes("?") ? "&" : "?") + "t=" + Date.now();
+      frame.appendChild(img);
+      if (metrics) {
+        $("metrics").textContent = (metrics.width_mm || "—") + " × " + (metrics.height_mm || "—") + " mm · " + (metrics.path_count || 0) + " kesim";
+      }
+      if (report) {
+        $("bed").textContent = report.fits_bed ? "Tabla: sığar" : (report.errors || []).join(" · ") || "Tabla kontrolü";
+        $("bed").style.color = report.fits_bed ? "var(--ok)" : "var(--bad)";
+      }
+    }
+
+    async function generate(ev) {
+      ev.preventDefault();
+      $("generate").disabled = true;
+      setStatus("Üretiliyor…");
+      try {
+        const endpoint = state.product
+          ? "/api/cad/" + encodeURIComponent(state.product)
+          : "/api/generate";
+        const payload = state.product
+          ? { parameters: collectParams() }
+          : { generator: state.selected, parameters: collectParams() };
+        const res = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.error || "Üretim başarısız");
+        const check = await fetch("/api/validate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ file_id: data.file_id })
+        });
+        const report = await check.json();
+        showPreview(data.svg_url, report.metrics, report);
+        $("download").href = data.svg_url;
+        setStatus((data.title || data.generator || data.product) + " · " + data.bytes + " byte · Laser mcp.svg", true);
+      } catch (err) {
+        setStatus(err.message, false);
+      } finally {
+        $("generate").disabled = false;
+      }
+    }
+
+    async function boot() {
+      const cad = await fetch("/api/cad/products");
+      const cadData = await cad.json();
+      state.products = cadData.products || [];
+      renderCad();
+      const res = await fetch("/api/generators");
+      const data = await res.json();
+      state.generators = data.generators || [];
+      state.groups = data.groups || [];
+      state.defaults = data.defaults || {};
+      renderDefaults();
+      renderGroups();
+      renderList();
+      $("search").oninput = (e) => { state.q = e.target.value; renderList(); };
+      $("form").onsubmit = generate;
+      await selectGenerator("ABox");
+      try {
+        const prev = await fetch("/api/preview?file_id=" + encodeURIComponent("Laser mcp.svg"));
+        if (prev.ok) {
+          const p = await prev.json();
+          const v = await fetch("/api/validate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ file_id: p.file_id })
+          });
+          const report = v.ok ? await v.json() : null;
+          showPreview(p.preview_url, p, report);
+        }
+      } catch (_) {}
+    }
+
+    boot();
+  </script>
+</body>
+</html>
