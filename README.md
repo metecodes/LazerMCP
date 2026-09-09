@@ -22,7 +22,8 @@ cd C:\Project\boxes-mcp
 
 Tarayıcıda `http://127.0.0.1:8000` — Payas CAD veya generator seç, SVG üret.
 
-Cursor’da MCP URL: `http://127.0.0.1:8000/mcp` (Streamable HTTP). ChatGPT connector şart değil.
+Cursor MCP: `http://127.0.0.1:8000/mcp`  
+Claude connector URL: `https://mcp.metehanavci.com/mcp` (kök `/` değil; Claude POST atar, `/mcp` gerekir)
 
 ## Ortam değişkenleri
 
@@ -43,6 +44,8 @@ Hepsi isteğe bağlıdır.
 Yardım: `payas_defaults`, `list_cad_tools`, `list_generator_names`, `get_generator_schema`, `generate_svg`, `validate_svg`, `render_preview`
 
 Tam generator listesi UI’da `GET /api/generators`.
+
+Kullanıcı görsel gönderdiğinde `create_from_reference` kullanılır (yapboz, çizim, logo, foto). İsimli kit araçları isteğe bağlıdır.
 
 ## Payas varsayılanları
 

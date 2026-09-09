@@ -25,6 +25,7 @@ IS_VERCEL = os.environ.get("VERCEL") == "1"
 WEB_DIR = Path(__file__).resolve().parent / "web"
 PUBLIC_PATHS = {"/", "/health"}
 MCP_TOOLS = [
+    "create_from_reference",
     "payas_defaults",
     "list_cad_tools",
     "list_generator_names",
@@ -40,7 +41,15 @@ MCP_TOOLS = [
     "create_astronaut",
 ]
 
-mcp = MCPServer("Laser mcp")
+mcp = MCPServer(
+    "Laser mcp",
+    instructions=(
+        "Payas STEM laser CAD. When the user sends ANY image (puzzle, drawing, logo, worksheet, photo), "
+        "you MUST call create_from_reference with that image as image_base64. "
+        "Never say you can only make six named kits. Those create_* kit tools are optional shortcuts. "
+        "Defaults: 3 mm poplar plywood, kerf 0.15 mm, bed 1500×3000 mm, SVG only."
+    ),
+)
 
 
 def _public_base(request: Request) -> str:
@@ -89,6 +98,25 @@ def _extract_token(scope: dict[str, Any]) -> str | None:
     return values[0] if values else None
 
 
+class McpOriginAlias:
+    """Claude/ChatGPT often POST the origin URL. Keep GET / as the UI; send other methods to /mcp."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http":
+            path = scope.get("path") or ""
+            method = (scope.get("method") or "GET").upper()
+            if path in {"", "/"} and method not in {"GET", "HEAD"}:
+                scope = dict(scope)
+                scope["path"] = "/mcp"
+                query = scope.get("query_string") or b""
+                raw = b"/mcp" + ((b"?" + query) if query else b"")
+                scope["raw_path"] = raw
+        await self.app(scope, receive, send)
+
+
 class BearerGate:
     """Protect /mcp, /api, /files when MCP_AUTH_TOKEN is set. UI and /health stay public."""
 
@@ -118,12 +146,37 @@ class BearerGate:
         await send({"type": "http.response.body", "body": body})
 
 
+@mcp.tool(
+    description=(
+        "Turn ANY user reference image into a Payas STEM laser SVG. "
+        "Use this for puzzles, drawings, logos, worksheets, photos — not only the six named kits. "
+        "Pass PNG/JPEG/WebP as image_base64 (raw base64 or a data: URL). "
+        "style=cut_and_etch (outer cut, inner etch), cut, or etch. width_mm is the output width."
+    )
+)
+def create_from_reference(
+    image_base64: str,
+    width_mm: float = 200.0,
+    style: str = "cut_and_etch",
+    invert: bool | None = None,
+    threshold: int = 140,
+) -> dict[str, Any]:
+    return payas_cad.create_from_reference(
+        image_base64=image_base64,
+        width_mm=width_mm,
+        style=style,
+        invert=invert,
+        threshold=threshold,
+        public_base_url=_tool_public_base(),
+    )
+
+
 @mcp.tool(description="Payas STEM defaults: 3mm kavak, kerf 0.15, 1500x3000, SVG.")
 def payas_defaults() -> dict[str, Any]:
     return boxespy.payas_defaults()
 
 
-@mcp.tool(description="List Payas STEM CAD product tools. Use these instead of Boxes.py source.")
+@mcp.tool(description="List Payas STEM CAD tools. create_from_reference handles any uploaded image; kit tools are optional.")
 def list_cad_tools() -> dict[str, Any]:
     return payas_cad.list_cad_tools()
 
@@ -293,6 +346,42 @@ async def api_cad_products(request: Request) -> Response:
     return JSONResponse(payas_cad.list_cad_tools())
 
 
+@mcp.custom_route("/api/cad/from_reference", methods=["POST"])
+async def api_from_reference(request: Request) -> Response:
+    try:
+        ctype = (request.headers.get("content-type") or "").lower()
+        if "multipart/form-data" in ctype:
+            form = await request.form()
+            upload = form.get("image")
+            image_bytes = await upload.read() if upload is not None and hasattr(upload, "read") else None
+            width_mm = float(form.get("width_mm") or 200)
+            style = str(form.get("style") or "cut_and_etch")
+            invert_raw = form.get("invert")
+            invert = None if invert_raw in (None, "", "auto") else str(invert_raw).lower() in {"1", "true", "yes"}
+            threshold = int(form.get("threshold") or 140)
+            result = payas_cad.create_from_reference(
+                image_bytes=image_bytes,
+                width_mm=width_mm,
+                style=style,
+                invert=invert,
+                threshold=threshold,
+                public_base_url=_public_base(request),
+            )
+            return JSONResponse(result)
+        body = await request.json()
+        result = payas_cad.create_from_reference(
+            image_base64=body.get("image_base64") or (body.get("parameters") or {}).get("image_base64"),
+            width_mm=float(body.get("width_mm") or (body.get("parameters") or {}).get("width_mm") or 200),
+            style=str(body.get("style") or (body.get("parameters") or {}).get("style") or "cut_and_etch"),
+            invert=(body.get("parameters") or body).get("invert"),
+            threshold=int(body.get("threshold") or (body.get("parameters") or {}).get("threshold") or 140),
+            public_base_url=_public_base(request),
+        )
+        return JSONResponse(result)
+    except Exception as exc:
+        return _error(exc)
+
+
 @mcp.custom_route("/api/cad/{product_id}", methods=["POST"])
 async def api_cad_create(request: Request) -> Response:
     product_id = request.path_params["product_id"]
@@ -336,7 +425,7 @@ def create_asgi_app():
             enable_dns_rebinding_protection=False,
         )
     starlette_app = mcp.streamable_http_app(**kwargs)
-    return BearerGate(starlette_app, AUTH_TOKEN)
+    return McpOriginAlias(BearerGate(starlette_app, AUTH_TOKEN))
 
 
 app = create_asgi_app()

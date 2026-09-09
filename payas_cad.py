@@ -8,6 +8,12 @@ import boxes_adapter as boxespy
 
 CAD_PRODUCTS = [
     {
+        "id": "from_reference",
+        "tool": "create_from_reference",
+        "title": "Referans görsel",
+        "description": "Gönderilen her görseli (yapboz, çizim, logo, foto) lazer kesim SVG’ye çevirir. Varsayılan araç.",
+    },
+    {
         "id": "traffic_light",
         "tool": "create_traffic_light",
         "title": "Trafik lambası",
@@ -57,7 +63,12 @@ def list_cad_tools() -> dict[str, Any]:
         "defaults": dict(boxespy.PAYAS_DEFAULTS),
         "count": len(CAD_PRODUCTS),
         "products": CAD_PRODUCTS,
+        "policy": (
+            "When the user sends any image, always call create_from_reference. "
+            "Do not refuse custom work. Named kits are optional shortcuts only."
+        ),
         "generic": [
+            "create_from_reference",
             "payas_defaults",
             "list_cad_tools",
             "list_generator_names",
@@ -220,6 +231,42 @@ def create_astronaut(public_base_url: str = "http://127.0.0.1:8000") -> dict[str
     return _save_build(svg_bytes, "astronaut", "Astronot", public_base_url, extra)
 
 
+def create_from_reference(
+    image_base64: str | None = None,
+    width_mm: float = 200.0,
+    style: str = "cut_and_etch",
+    invert: bool | None = None,
+    threshold: int = 140,
+    image_bytes: bytes | None = None,
+    public_base_url: str = "http://127.0.0.1:8000",
+) -> dict[str, Any]:
+    from image_trace import trace_reference_svg
+
+    traced = trace_reference_svg(
+        image_base64=image_base64,
+        image_bytes=image_bytes,
+        width_mm=width_mm,
+        style=style,
+        invert=invert,
+        threshold=threshold,
+    )
+    extra = {
+        "product": "from_reference",
+        "title": "Referans görsel",
+        "generator": "create_from_reference",
+        "style": traced["style"],
+        "cut_paths": traced["cut_paths"],
+        "etch_paths": traced["etch_paths"],
+        "dimensions": {
+            "width_mm": traced["width_mm"],
+            "height_mm": traced["height_mm"],
+            "thickness": boxespy.PAYAS_DEFAULTS["thickness"],
+            "burn": boxespy.PAYAS_DEFAULTS["burn"],
+        },
+    }
+    return _save_build(traced["svg_bytes"], "from_reference", "Referans görsel", public_base_url, extra)
+
+
 CREATE = {
     "traffic_light": lambda params, url: create_traffic_light(public_base_url=url, **params),
     "robot_bank": lambda params, url: create_robot_bank(public_base_url=url),
@@ -227,6 +274,7 @@ CREATE = {
     "product_box": lambda params, url: create_product_box(public_base_url=url, **params),
     "yacht": lambda params, url: create_yacht(public_base_url=url),
     "astronaut": lambda params, url: create_astronaut(public_base_url=url),
+    "from_reference": lambda params, url: create_from_reference(public_base_url=url, **params),
 }
 
 CREATE_KEYS = {
@@ -239,6 +287,7 @@ CREATE_KEYS = {
     "drawing_robot": (),
     "yacht": (),
     "astronaut": (),
+    "from_reference": ("image_base64", "width_mm", "style", "invert", "threshold"),
 }
 
 

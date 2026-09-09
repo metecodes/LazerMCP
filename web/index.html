@@ -126,6 +126,12 @@
   <script>
     const PRIMARY = new Set(["x", "y", "h", "thickness", "burn", "outside", "bottom_edge"]);
     const CAD_FIELDS = {
+      from_reference: [
+        {name:"image", type:"file"},
+        {name:"width_mm", type:"number", default:200},
+        {name:"style", type:"string", choices:["cut_and_etch","cut","etch"], default:"cut_and_etch"},
+        {name:"threshold", type:"number", default:140}
+      ],
       traffic_light: [
         {name:"thickness", type:"number", default:3},
         {name:"burn", type:"number", default:0.15},
@@ -275,7 +281,12 @@
       label.textContent = param.name;
       if (param.help) label.title = param.help;
       let input;
-      if (param.type === "boolean") {
+      if (param.type === "file") {
+        label.classList.add("wide");
+        input = document.createElement("input");
+        input.type = "file";
+        input.accept = "image/png,image/jpeg,image/webp";
+      } else if (param.type === "boolean") {
         label.className = "check wide";
         input = document.createElement("input");
         input.type = "checkbox";
@@ -370,17 +381,39 @@
       }
     }
 
+    function fileToDataUrl(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(new Error("Görsel okunamadı"));
+        reader.readAsDataURL(file);
+      });
+    }
+
     async function generate(ev) {
       ev.preventDefault();
       $("generate").disabled = true;
       setStatus("Üretiliyor…");
       try {
-        const endpoint = state.product
-          ? "/api/cad/" + encodeURIComponent(state.product)
-          : "/api/generate";
-        const payload = state.product
-          ? { parameters: collectParams() }
-          : { generator: state.selected, parameters: collectParams() };
+        let endpoint;
+        let payload;
+        if (state.product === "from_reference") {
+          const fileInput = $("form").querySelector('input[type="file"]');
+          if (!fileInput || !fileInput.files || !fileInput.files[0]) {
+            throw new Error("Referans görsel seç");
+          }
+          const params = collectParams();
+          params.image_base64 = await fileToDataUrl(fileInput.files[0]);
+          delete params.image;
+          endpoint = "/api/cad/from_reference";
+          payload = { parameters: params };
+        } else if (state.product) {
+          endpoint = "/api/cad/" + encodeURIComponent(state.product);
+          payload = { parameters: collectParams() };
+        } else {
+          endpoint = "/api/generate";
+          payload = { generator: state.selected, parameters: collectParams() };
+        }
         const res = await api(endpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
