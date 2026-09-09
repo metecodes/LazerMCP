@@ -1,0 +1,13 @@
+{
+  "product": "Payas STEM Dene Yap - Trafik Lambasi",
+  "units": "mm",
+  "source": "User specification, 2026-09-08; not vendor datasheets",
+  "components": {
+    "led": {"quantity": 3, "colors": ["red", "yellow", "green"], "hole_diameter": 5, "flange_diameter": null, "retention": "unresolved"},
+    "switch": {"quantity": 3, "cutout": [13, 19], "body_envelope": null, "clip_panel_thickness_range": null},
+    "resistor": {"quantity": 3, "resistance_ohms": 220, "body_envelope": null},
+    "battery_holder": {"quantity": 1, "cells": "3xAA", "external_envelope": null, "mount": "loose inside base; no wooden bracket"},
+    "wires": {"quantity": null, "bundle_diameter": null, "routing_holes": 3, "routing_hole_diameter": 4}
+  },
+  "unresolved_policy": "Do not infer missing component dimensions. Physical electronic fit remains unverified."
+}

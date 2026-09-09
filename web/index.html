@@ -109,13 +109,13 @@
         </details>
         <div class="actions">
           <button type="submit" class="primary" id="generate">SVG üret</button>
-          <a class="ghost-link" id="download" href="/files/Laser%20mcp.svg" download="Laser mcp.svg">İndir</a>
+          <a class="ghost-link" id="download" href="/files/latest.svg" download="latest.svg">İndir</a>
         </div>
       </form>
       <div class="status" id="status">Generator seç, ölçüleri gir, üret.</div>
     </section>
     <section class="pad">
-      <h2>Önizleme · Laser mcp.svg</h2>
+      <h2 id="preview-title">Önizleme · latest.svg</h2>
       <div class="preview-frame" id="preview"><span class="status">Henüz SVG yok</span></div>
       <div class="meta">
         <span id="metrics">—</span>
@@ -143,9 +143,54 @@
         {name:"burn", type:"number", default:0.15}
       ]
     };
+    const TOKEN_KEY = "mcp_auth_token";
     const state = { generators: [], groups: [], defaults: {}, products: [], selected: "ABox", product: null, group: "", q: "" };
 
     const $ = (id) => document.getElementById(id);
+
+    function getToken() {
+      return sessionStorage.getItem(TOKEN_KEY) || "";
+    }
+
+    function captureTokenFromUrl() {
+      const params = new URLSearchParams(location.search);
+      const token = params.get("token");
+      if (token) {
+        sessionStorage.setItem(TOKEN_KEY, token);
+        params.delete("token");
+        const next = location.pathname + (params.toString() ? "?" + params.toString() : "") + location.hash;
+        history.replaceState({}, "", next);
+      }
+    }
+
+    function authHeaders(extra) {
+      const headers = Object.assign({}, extra || {});
+      const token = getToken();
+      if (token) headers["Authorization"] = "Bearer " + token;
+      return headers;
+    }
+
+    function withToken(url) {
+      const token = getToken();
+      if (!token || !url) return url;
+      const parsed = new URL(url, location.origin);
+      parsed.searchParams.set("token", token);
+      return parsed.pathname + parsed.search + parsed.hash;
+    }
+
+    async function api(url, opts) {
+      const options = opts || {};
+      const headers = authHeaders(options.headers || {});
+      const res = await fetch(url, Object.assign({}, options, { headers }));
+      if (res.status === 401) {
+        const token = window.prompt("MCP token gerekli (MCP_AUTH_TOKEN)");
+        if (token) {
+          sessionStorage.setItem(TOKEN_KEY, token);
+          return api(url, options);
+        }
+      }
+      return res;
+    }
 
     function chip(label, value) {
       const el = document.createElement("span");
@@ -253,7 +298,11 @@
         else if (param.name === "y") input.value = 160;
         else if (param.name === "h") input.value = 50;
         else if (param.name === "thickness") input.value = state.defaults.thickness ?? 3;
-        else if (param.name === "burn") input.value = state.defaults.burn ?? 0.15;
+        else if (param.name === "burn") {
+          input.value = state.defaults.burn ?? 0.15;
+          input.readOnly = true;
+          input.title = "Payas kerf sabit 0.15 mm";
+        }
         else input.value = param.default ?? "";
       }
       input.name = param.name;
@@ -283,6 +332,7 @@
         else params[el.name] = el.value;
       });
       Object.keys(params).forEach((k) => { if (params[k] === null || params[k] === "") delete params[k]; });
+      params.burn = state.defaults.burn ?? 0.15;
       return params;
     }
 
@@ -291,7 +341,7 @@
       state.product = null;
       renderCad();
       renderList();
-      const res = await fetch("/api/schema?generator=" + encodeURIComponent(name));
+      const res = await api("/api/schema?generator=" + encodeURIComponent(name));
       const schema = await res.json();
       if (!res.ok) { setStatus(schema.error || "Şema alınamadı", false); return; }
       renderForm(schema);
@@ -307,8 +357,9 @@
       const frame = $("preview");
       frame.innerHTML = "";
       const img = document.createElement("img");
-      img.alt = "Laser mcp.svg";
-      img.src = url + (url.includes("?") ? "&" : "?") + "t=" + Date.now();
+      img.alt = "Kesim SVG";
+      const stamped = withToken(url);
+      img.src = stamped + (stamped.includes("?") ? "&" : "?") + "t=" + Date.now();
       frame.appendChild(img);
       if (metrics) {
         $("metrics").textContent = (metrics.width_mm || "—") + " × " + (metrics.height_mm || "—") + " mm · " + (metrics.path_count || 0) + " kesim";
@@ -330,22 +381,24 @@
         const payload = state.product
           ? { parameters: collectParams() }
           : { generator: state.selected, parameters: collectParams() };
-        const res = await fetch(endpoint, {
+        const res = await api(endpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload)
         });
         const data = await res.json();
         if (!res.ok || !data.success) throw new Error(data.error || "Üretim başarısız");
-        const check = await fetch("/api/validate", {
+        const check = await api("/api/validate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ file_id: data.file_id })
         });
         const report = await check.json();
         showPreview(data.svg_url, report.metrics, report);
-        $("download").href = data.svg_url;
-        setStatus((data.title || data.generator || data.product) + " · " + data.bytes + " byte · Laser mcp.svg", true);
+        $("download").href = withToken(data.svg_url);
+        $("download").setAttribute("download", data.file_id || "latest.svg");
+        $("preview-title").textContent = "Önizleme · " + (data.file_id || "latest.svg");
+        setStatus((data.title || data.generator || data.product) + " · " + data.bytes + " byte · " + data.file_id, true);
       } catch (err) {
         setStatus(err.message, false);
       } finally {
@@ -354,11 +407,12 @@
     }
 
     async function boot() {
-      const cad = await fetch("/api/cad/products");
+      captureTokenFromUrl();
+      const cad = await api("/api/cad/products");
       const cadData = await cad.json();
       state.products = cadData.products || [];
       renderCad();
-      const res = await fetch("/api/generators");
+      const res = await api("/api/generators");
       const data = await res.json();
       state.generators = data.generators || [];
       state.groups = data.groups || [];
@@ -370,16 +424,19 @@
       $("form").onsubmit = generate;
       await selectGenerator("ABox");
       try {
-        const prev = await fetch("/api/preview?file_id=" + encodeURIComponent("Laser mcp.svg"));
+        const prev = await api("/api/preview?file_id=" + encodeURIComponent("latest.svg"));
         if (prev.ok) {
           const p = await prev.json();
-          const v = await fetch("/api/validate", {
+          const v = await api("/api/validate", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ file_id: p.file_id })
           });
           const report = v.ok ? await v.json() : null;
           showPreview(p.preview_url, p, report);
+          $("preview-title").textContent = "Önizleme · " + (p.file_id || "latest.svg");
+          $("download").href = withToken(p.preview_url);
+          $("download").setAttribute("download", p.file_id || "latest.svg");
         }
       } catch (_) {}
     }

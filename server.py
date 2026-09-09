@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
+import hmac
 import os
 from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qs
 
 from starlette.requests import Request
 from starlette.responses import FileResponse, JSONResponse, Response
 
 from mcp.server.mcpserver import MCPServer
+from mcp.server.transport_security import TransportSecuritySettings
 
 import boxes_adapter as boxespy
 import payas_cad
@@ -17,7 +20,25 @@ import payas_cad
 HOST = os.environ.get("MCP_HOST", "127.0.0.1")
 PORT = int(os.environ.get("MCP_PORT", "8000"))
 PUBLIC_BASE_URL = os.environ.get("MCP_PUBLIC_BASE_URL", "")
+AUTH_TOKEN = os.environ.get("MCP_AUTH_TOKEN", "").strip()
+IS_VERCEL = os.environ.get("VERCEL") == "1"
 WEB_DIR = Path(__file__).resolve().parent / "web"
+PUBLIC_PATHS = {"/", "/health"}
+MCP_TOOLS = [
+    "payas_defaults",
+    "list_cad_tools",
+    "list_generator_names",
+    "get_generator_schema",
+    "generate_svg",
+    "validate_svg",
+    "render_preview",
+    "create_traffic_light",
+    "create_robot_bank",
+    "create_drawing_robot",
+    "create_product_box",
+    "create_yacht",
+    "create_astronaut",
+]
 
 mcp = MCPServer("Laser mcp")
 
@@ -30,8 +51,71 @@ def _public_base(request: Request) -> str:
     return f"{proto}://{host}"
 
 
+def _tool_public_base() -> str:
+    if PUBLIC_BASE_URL:
+        return PUBLIC_BASE_URL.rstrip("/")
+    vercel = os.environ.get("VERCEL_PROJECT_PRODUCTION_URL") or os.environ.get("VERCEL_URL")
+    if vercel:
+        if vercel.startswith("http://") or vercel.startswith("https://"):
+            return vercel.rstrip("/")
+        return f"https://{vercel}".rstrip("/")
+    return f"http://{HOST}:{PORT}"
+
+
 def _error(exc: Exception, status: int = 400) -> JSONResponse:
     return JSONResponse({"success": False, "error": str(exc)}, status_code=status)
+
+
+def _token_ok(provided: str | None, expected: str) -> bool:
+    if not provided:
+        return False
+    left = provided.encode("utf-8")
+    right = expected.encode("utf-8")
+    if len(left) != len(right):
+        hmac.compare_digest(right, right)
+        return False
+    return hmac.compare_digest(left, right)
+
+
+def _extract_token(scope: dict[str, Any]) -> str | None:
+    for key, value in scope.get("headers", []):
+        if key.decode("latin-1").lower() == "authorization":
+            text = value.decode("latin-1").strip()
+            if text.lower().startswith("bearer "):
+                return text[7:].strip()
+            return None
+    query = parse_qs(scope.get("query_string", b"").decode("latin-1"))
+    values = query.get("token") or []
+    return values[0] if values else None
+
+
+class BearerGate:
+    """Protect /mcp, /api, /files when MCP_AUTH_TOKEN is set. UI and /health stay public."""
+
+    def __init__(self, app, token: str | None):
+        self.app = app
+        self.token = token or None
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http" or not self.token:
+            await self.app(scope, receive, send)
+            return
+        path = scope.get("path") or ""
+        method = scope.get("method") or "GET"
+        if method == "OPTIONS" or path in PUBLIC_PATHS:
+            await self.app(scope, receive, send)
+            return
+        if _token_ok(_extract_token(scope), self.token):
+            await self.app(scope, receive, send)
+            return
+        body = b'{"error":"unauthorized"}'
+        headers = [
+            (b"content-type", b"application/json"),
+            (b"content-length", str(len(body)).encode("ascii")),
+            (b"www-authenticate", b'Bearer realm="Laser mcp"'),
+        ]
+        await send({"type": "http.response.start", "status": 401, "headers": headers})
+        await send({"type": "http.response.body", "body": body})
 
 
 @mcp.tool(description="Payas STEM defaults: 3mm kavak, kerf 0.15, 1500x3000, SVG.")
@@ -44,9 +128,9 @@ def list_cad_tools() -> dict[str, Any]:
     return payas_cad.list_cad_tools()
 
 
-@mcp.tool(description="List Boxes.py generators. Optional group filter. Payas defaults are included.")
-def list_generators(group: str | None = None) -> dict[str, Any]:
-    return boxespy.list_generators(group)
+@mcp.tool(description="Compact Boxes.py generator names. Prefer create_* product tools.")
+def list_generator_names(group: str | None = None) -> dict[str, Any]:
+    return boxespy.list_generator_names(group)
 
 
 @mcp.tool(description="Return parameter schema for one Boxes.py generator.")
@@ -54,9 +138,9 @@ def get_generator_schema(generator: str) -> dict[str, Any]:
     return boxespy.get_generator_schema(generator)
 
 
-@mcp.tool(description="Generate an SVG via a Boxes.py class. Payas defaults apply unless overridden.")
+@mcp.tool(description="Generate an SVG via a Boxes.py class. Payas defaults apply unless overridden. Kerf is locked at 0.15.")
 def generate_svg(generator: str, parameters: dict[str, Any] | None = None) -> dict[str, Any]:
-    return boxespy.generate_svg(generator, parameters, public_base_url=PUBLIC_BASE_URL or f"http://{HOST}:{PORT}")
+    return boxespy.generate_svg(generator, parameters, public_base_url=_tool_public_base())
 
 
 @mcp.tool(description="Validate a generated SVG: well-formed XML and 1500×3000 mm bed fit.")
@@ -66,7 +150,7 @@ def validate_svg(file_id: str) -> dict[str, Any]:
 
 @mcp.tool(description="Return a preview URL for a previously generated SVG.")
 def render_preview(file_id: str) -> dict[str, Any]:
-    return boxespy.render_preview(file_id, public_base_url=PUBLIC_BASE_URL or f"http://{HOST}:{PORT}")
+    return boxespy.render_preview(file_id, public_base_url=_tool_public_base())
 
 
 @mcp.tool(description="Payas STEM trafik lambası SVG. led=LED çapı mm.")
@@ -87,18 +171,18 @@ def create_traffic_light(
         base_depth=base_depth,
         base_height=base_height,
         tower_height=tower_height,
-        public_base_url=PUBLIC_BASE_URL or f"http://{HOST}:{PORT}",
+        public_base_url=_tool_public_base(),
     )
 
 
-@mcp.tool(description="Payas STEM robot kumbara (Hayal kumbara) kesim SVG.")
+@mcp.tool(description="Payas STEM robot kumbara (PayasRobot) kesim SVG.")
 def create_robot_bank() -> dict[str, Any]:
-    return payas_cad.create_robot_bank(public_base_url=PUBLIC_BASE_URL or f"http://{HOST}:{PORT}")
+    return payas_cad.create_robot_bank(public_base_url=_tool_public_base())
 
 
 @mcp.tool(description="Payas STEM ressam/çizim robotu kesim SVG.")
 def create_drawing_robot() -> dict[str, Any]:
-    return payas_cad.create_drawing_robot(public_base_url=PUBLIC_BASE_URL or f"http://{HOST}:{PORT}")
+    return payas_cad.create_drawing_robot(public_base_url=_tool_public_base())
 
 
 @mcp.tool(description="Basit ürün kutusu SVG. x, y, h mm, dış ölçü.")
@@ -111,18 +195,18 @@ def create_product_box(
 ) -> dict[str, Any]:
     return payas_cad.create_product_box(
         x=x, y=y, h=h, thickness=thickness, burn=burn,
-        public_base_url=PUBLIC_BASE_URL or f"http://{HOST}:{PORT}",
+        public_base_url=_tool_public_base(),
     )
 
 
 @mcp.tool(description="Payas STEM statik yat kiti kesim SVG.")
 def create_yacht() -> dict[str, Any]:
-    return payas_cad.create_yacht(public_base_url=PUBLIC_BASE_URL or f"http://{HOST}:{PORT}")
+    return payas_cad.create_yacht(public_base_url=_tool_public_base())
 
 
 @mcp.tool(description="Payas STEM açık şase astronot kiti kesim SVG.")
 def create_astronaut() -> dict[str, Any]:
-    return payas_cad.create_astronaut(public_base_url=PUBLIC_BASE_URL or f"http://{HOST}:{PORT}")
+    return payas_cad.create_astronaut(public_base_url=_tool_public_base())
 
 
 @mcp.custom_route("/", methods=["GET"])
@@ -132,29 +216,18 @@ async def ui(request: Request) -> Response:
 
 @mcp.custom_route("/api/status", methods=["GET"])
 async def api_status(request: Request) -> Response:
+    health = boxespy.health_status()
     return JSONResponse(
         {
             "name": "Laser mcp",
-            "status": "ok",
+            "status": health["status"],
             "mcp": "/mcp",
             "ui": "/",
-            "boxes_path": boxespy.BOXES_PATH,
+            "auth_required": bool(AUTH_TOKEN),
+            "boxes": health["boxes"],
+            "generator_count": health["generator_count"],
             "defaults": boxespy.PAYAS_DEFAULTS,
-            "tools": [
-                "payas_defaults",
-                "list_cad_tools",
-                "list_generators",
-                "get_generator_schema",
-                "generate_svg",
-                "validate_svg",
-                "render_preview",
-                "create_traffic_light",
-                "create_robot_bank",
-                "create_drawing_robot",
-                "create_product_box",
-                "create_yacht",
-                "create_astronaut",
-            ],
+            "tools": MCP_TOOLS,
             "cad_products": payas_cad.CAD_PRODUCTS,
         }
     )
@@ -162,7 +235,10 @@ async def api_status(request: Request) -> Response:
 
 @mcp.custom_route("/health", methods=["GET"])
 async def health(request: Request) -> Response:
-    return JSONResponse({"status": "ok"})
+    payload = boxespy.health_status()
+    payload["auth_required"] = bool(AUTH_TOKEN)
+    status = 200 if payload["status"] == "ok" else 503
+    return JSONResponse(payload, status_code=status)
 
 
 @mcp.custom_route("/api/generators", methods=["GET"])
@@ -196,14 +272,14 @@ async def api_generate(request: Request) -> Response:
 async def api_validate(request: Request) -> Response:
     try:
         body = await request.json()
-        return JSONResponse(boxespy.validate_svg(body.get("file_id") or "Laser mcp.svg"))
+        return JSONResponse(boxespy.validate_svg(body.get("file_id") or boxespy.LATEST_SVG))
     except Exception as exc:
         return _error(exc)
 
 
 @mcp.custom_route("/api/preview", methods=["GET"])
 async def api_preview(request: Request) -> Response:
-    file_id = request.query_params.get("file_id") or "Laser mcp.svg"
+    file_id = request.query_params.get("file_id") or boxespy.LATEST_SVG
     try:
         return JSONResponse(boxespy.render_preview(file_id, public_base_url=_public_base(request)))
     except FileNotFoundError as exc:
@@ -248,10 +324,30 @@ async def serve_file(request: Request) -> Response:
     return FileResponse(path, media_type="image/svg+xml", filename=path.name)
 
 
+def create_asgi_app():
+    """ASGI app for local uvicorn and Vercel (`app` export)."""
+    kwargs: dict[str, Any] = {
+        "streamable_http_path": "/mcp",
+        "host": "0.0.0.0" if IS_VERCEL else HOST,
+        "stateless_http": IS_VERCEL,
+    }
+    if IS_VERCEL:
+        kwargs["transport_security"] = TransportSecuritySettings(
+            enable_dns_rebinding_protection=False,
+        )
+    starlette_app = mcp.streamable_http_app(**kwargs)
+    return BearerGate(starlette_app, AUTH_TOKEN)
+
+
+app = create_asgi_app()
+
+
+def main() -> None:
+    import uvicorn
+
+    config = uvicorn.Config(app, host=HOST, port=PORT, log_level="info")
+    uvicorn.Server(config).run()
+
+
 if __name__ == "__main__":
-    mcp.run(
-        transport="streamable-http",
-        host=HOST,
-        port=PORT,
-        streamable_http_path="/mcp",
-    )
+    main()

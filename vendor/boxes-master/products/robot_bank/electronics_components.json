@@ -1,0 +1,8 @@
+{
+ "product":"Payas STEM Robot Kumbara electronic enclosure revision", "units":"mm",
+ "led":{"quantity":3,"cutout_diameter_mm":5,"source":"../../components.json: components.led.hole_diameter; user specification","model":null,"flange_mm":null,"retention":"UNRESOLVED; confirm actual LED/holder before production"},
+ "switch":{"quantity":1,"cutout_mm":[13,19],"source":"../../components.json: components.switch.cutout; user specification","model":null,"body_envelope_mm":null,"clip_panel_thickness_mm":null,"status":"UNRESOLVED actual switch body and retention"},
+ "battery_holder":{"quantity":1,"cells":"3xAA","candidate":"Pololu 142, no integral switch","envelope_mm":[58,48,15],"source":"https://www.pololu.com/product/142/specs","checked_date":"2026-09-09","mount":"Two removable straps to divider and wooden support shelf","terminal_and_wire_envelope_mm":null},
+ "coin_sensor":{"model":null,"dimensions_mm":null,"status":"UNRESOLVED: no sensor interface fabricated; coin-triggered lighting is not implemented"},
+ "wiring":{"led_resistors_and_driver":"UNRESOLVED; select after LED and trigger circuit specification","lead_clearance_requirement_mm":10,"note":"10 mm is available assembly space in front of battery, not a claimed electronic dimension; insulate connections"}
+}

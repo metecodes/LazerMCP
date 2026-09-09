@@ -18,8 +18,8 @@ CAD_PRODUCTS = [
         "id": "robot_bank",
         "tool": "create_robot_bank",
         "title": "Robot kumbara",
-        "module": "products.robot_bank.generate",
-        "description": "Hayal kumbara gövde, kollar, raylar, para kapağı.",
+        "generator": "PayasRobot",
+        "description": "Hayal kumbara gövde, kollar, raylar, para kapağı (PayasRobot).",
     },
     {
         "id": "drawing_robot",
@@ -60,7 +60,7 @@ def list_cad_tools() -> dict[str, Any]:
         "generic": [
             "payas_defaults",
             "list_cad_tools",
-            "list_generators",
+            "list_generator_names",
             "get_generator_schema",
             "generate_svg",
             "validate_svg",
@@ -160,11 +160,22 @@ def _save_build(svg_bytes: bytes, product: str, title: str, public_base_url: str
 
 
 def create_robot_bank(public_base_url: str = "http://127.0.0.1:8000") -> dict[str, Any]:
-    from products.robot_bank.generate import build
-
-    svg_bytes, report, _box = build()
-    extra = {"status": report.get("status"), "layout": report.get("layout")}
-    return _save_build(svg_bytes, "robot_bank", "Robot kumbara", public_base_url, extra)
+    result = boxespy.generate_svg(
+        "PayasRobot",
+        {
+            "x": 120,
+            "y": 100,
+            "h": 180,
+            "thickness": 3.0,
+            "burn": 0.15,
+            "labels": False,
+        },
+        public_base_url=public_base_url,
+    )
+    result["product"] = "robot_bank"
+    result["title"] = "Robot kumbara"
+    result["generator"] = "PayasRobot"
+    return result
 
 
 def create_drawing_robot(public_base_url: str = "http://127.0.0.1:8000") -> dict[str, Any]:

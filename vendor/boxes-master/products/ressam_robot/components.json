@@ -1,0 +1,124 @@
+{
+  "product": "Payas STEM Dene Yap - Ressam Robot",
+  "units": "mm",
+  "status": "specified_prototype_components",
+  "components": {
+    "motor": {
+      "quantity": 1,
+      "candidate": "Pololu 1094, 298:1 Micro Metal Gearmotor LP 6V",
+      "source": "https://www.pololu.com/product/1094/specs",
+      "rated_voltage_v": 6,
+      "no_load_rpm_at_rated_voltage": 45,
+      "gearbox_cross_section_mm": [
+        10,
+        12
+      ],
+      "shaft_diameter_mm": 3,
+      "shaft_shape": "D",
+      "full_envelope_mm": [
+        12,
+        10,
+        25.6
+      ],
+      "mounting_holes": {
+        "thread": "M1.6",
+        "centres_mm": [
+          [
+            -4.5,
+            0
+          ],
+          [
+            4.5,
+            0
+          ]
+        ]
+      },
+      "note": "LP without encoder, manufacturer drawing page 4; envelope excludes output shaft. 3AA performance requires load test.",
+      "shaft_length_mm": 9,
+      "front_boss_diameter_mm": 4,
+      "front_boss_height_mm": 0.7,
+      "dimension_source": "https://www.pololu.com/file/0J949/micro-metal-gearmotors-dimensions.pdf"
+    },
+    "battery_holder": {
+      "quantity": 1,
+      "candidate": "Pololu 1152 enclosed 3-AA holder",
+      "source": "https://www.pololu.com/product/1152",
+      "envelope_mm": [
+        70,
+        49,
+        19
+      ],
+      "integrated_switch": true,
+      "lid_travel_mm": null,
+      "note": "Holder face exposed through back window; release two straps and pull complete holder out for battery service. Verify switch not under a strap.",
+      "wood_window_mm": [
+        71.5,
+        50.5
+      ]
+    },
+    "shaft_hub": {
+      "quantity": 1,
+      "model": "Pololu 1996",
+      "shaft_diameter_mm": 3,
+      "diameter_mm": 17.5,
+      "height_mm": 5,
+      "mounting_pattern_mm": [
+        [
+          6.35,
+          0
+        ],
+        [
+          -6.35,
+          0
+        ],
+        [
+          0,
+          6.35
+        ],
+        [
+          0,
+          -6.35
+        ]
+      ],
+      "thread": "M3",
+      "source": "https://www.pololu.com/file/0J661/1996-3mm-m3-hub-dimensions.pdf"
+    },
+    "marker": {
+      "quantity": 1,
+      "model": null,
+      "diameter_mm": null,
+      "length_mm": null,
+      "selection_requirement": "Straight round barrel 8 to 14 mm diameter, at least 35 mm straight clamping length; height adjustable. This is holder design capacity, not an invented product dimension."
+    },
+    "switch": {
+      "quantity": 1,
+      "type": "integrated in Pololu 1152 battery holder",
+      "wood_cutout": "none; expose holder on service back",
+      "note": "Not a separate rocker switch."
+    },
+    "fasteners": {
+      "motor": "2 x M1.6x4 screws (3 mm panel, 1 mm engagement)",
+      "hub": "4 x M3x5 screws (3 mm crank, 2 mm engagement)",
+      "moving_joints": "5 mm spacers between crank/rocker and beam; M3x16 moving pins, M3x18 fixed rocker pivot, washers and nyloc nuts. Keep free-running clearance.",
+      "right_pivot_spacer_mm": 6,
+      "interlink_washer_mm": 5,
+      "ties": "Releasable 2.5 mm wide ties for pen, battery and service panel; lengths selected at assembly"
+    }
+  },
+  "manufacturing": {
+    "material": "poplar plywood",
+    "nominal_thickness_mm": 3,
+    "initial_full_kerf_mm": 0.15,
+    "boxes_burn_per_side_mm": 0.075,
+    "sheet_mm": [
+      1500,
+      3000
+    ],
+    "placement": "compact top left",
+    "holding_bridges_required": true,
+    "initial_bridge_toolpath_gap_mm": 1.0,
+    "bridge_status": "starting design parameter; verify retained width and holding strength by test cut",
+    "bridge_policy": "Two registered 1 mm non-cut arclength gaps per outer contour; closed design separately retained in validation report. Snip and sand nibs flush before assembly, especially at mating edges."
+  },
+  "export_policy": "No fabrication SVG until component interfaces, motion, joints, kerf, intentional bridge gaps and all remaining cut paths validate."
+}

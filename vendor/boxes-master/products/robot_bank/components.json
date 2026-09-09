@@ -1,0 +1,15 @@
+{
+  "product": "Payas STEM Robot Kumbara", "units": "mm",
+  "release": "PASSIVE_MECHANICAL_PROTOTYPE",
+  "electronics": {
+    "led": {"quantity_requested": 3, "model": null, "hole_diameter_mm": null, "status": "UNRESOLVED; no electronic cutouts exported"},
+    "battery_holder": {"cells_requested": "2xAA", "envelope_mm": null, "status": "UNRESOLVED"},
+    "coin_sensor": {"type_requested": "coin contact", "geometry_mm": null, "status": "UNRESOLVED"},
+    "switch": {"cutout_mm": null, "status": "UNRESOLVED"}
+  },
+  "mechanical_design": {
+    "material_mm": 3, "kerf_mm": 0.15,
+    "fasteners": {"description": "M3 screws, washers and nuts for fixed arms and rear cover", "quantity": 6, "wood_stack_mm": 6, "clearance_hole_mm": 3.2, "screw_length_mm": null, "length_policy": "Select using actual washer/nut stack; hardware not yet physically verified"},
+    "coin_slot_mm": [34,4], "coin_design_envelope_max_mm": [32,3], "coin_policy": "Design acceptance envelope, not a measurement of any currency. Actual coins require insertion test."
+  }
+}

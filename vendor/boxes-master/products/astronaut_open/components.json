@@ -1,0 +1,242 @@
+{
+  "product": "Payas STEM open-frame stationary astronaut V1",
+  "units": "mm",
+  "motor": {
+    "quantity": 1,
+    "candidate": "Pololu 1094, 298:1 Micro Metal Gearmotor LP 6V",
+    "source": "https://www.pololu.com/product/1094/specs",
+    "rated_voltage_v": 6,
+    "no_load_rpm_at_rated_voltage": 45,
+    "gearbox_cross_section_mm": [
+      10,
+      12
+    ],
+    "shaft_diameter_mm": 3,
+    "shaft_shape": "D",
+    "full_envelope_mm": [
+      12,
+      10,
+      25.6
+    ],
+    "mounting_holes": {
+      "thread": "M1.6",
+      "centres_mm": [
+        [
+          -4.5,
+          0
+        ],
+        [
+          4.5,
+          0
+        ]
+      ]
+    },
+    "note": "LP without encoder, manufacturer drawing page 4; envelope excludes output shaft. 3AA performance requires load test.",
+    "shaft_length_mm": 9,
+    "front_boss_diameter_mm": 4,
+    "front_boss_height_mm": 0.7,
+    "dimension_source": "https://www.pololu.com/file/0J949/micro-metal-gearmotors-dimensions.pdf"
+  },
+  "hub": {
+    "quantity": 1,
+    "model": "Pololu 1996",
+    "shaft_diameter_mm": 3,
+    "diameter_mm": 17.5,
+    "height_mm": 5,
+    "mounting_pattern_mm": [
+      [
+        6.35,
+        0
+      ],
+      [
+        -6.35,
+        0
+      ],
+      [
+        0,
+        6.35
+      ],
+      [
+        0,
+        -6.35
+      ]
+    ],
+    "thread": "M3",
+    "source": "https://www.pololu.com/file/0J661/1996-3mm-m3-hub-dimensions.pdf"
+  },
+  "battery": {
+    "quantity": 1,
+    "cells": "3xAA",
+    "candidate": "Pololu 142, no integral switch",
+    "envelope_mm": [
+      58,
+      48,
+      15
+    ],
+    "source": "https://www.pololu.com/product/142/specs",
+    "checked_date": "2026-09-09",
+    "mount": "Rear panel, two removable straps. Rotate 58mm dimension vertically: X=-24..24, Y=18..33, Z=20..78.",
+    "terminal_and_wire_envelope_mm": null
+  },
+  "switch": {
+    "quantity": 1,
+    "model": "E-Switch R1966ABLKBLKFF",
+    "cutout_mm": [
+      13.05,
+      19.55
+    ],
+    "cutout_allowed_mm": [
+      [
+        13,
+        13.1
+      ],
+      [
+        19.5,
+        19.6
+      ]
+    ],
+    "panel_thickness_mm": [
+      2,
+      3
+    ],
+    "source": "https://configured-product-images.s3.amazonaws.com/2D/specs/R1966ABLKBLKFF.pdf",
+    "drawing_revision": "C / 2026-05-14",
+    "body_nominal_xy_mm": [
+      12.9,
+      18.5
+    ],
+    "body_and_terminal_conservative_envelope_mm": [
+      13.15,
+      18.75,
+      23.2
+    ],
+    "installation_reserved_xyz_mm": [
+      16,
+      24,
+      30
+    ],
+    "envelope_note": "Conservative depth sums 15.8 + 6.6 + 0.8 general tolerances; 30mm reservation also allows wiring, not a measured product dimension.",
+    "status": "DIMENSIONED_SELECTED; 3mm is maximum permitted panel thickness; DC life with selected motor requires prototype test"
+  },
+  "mechanical_hardware": {
+    "guide_pin_diameter_mm": 4,
+    "crank_pin_diameter_mm": 4,
+    "guide_slot_mm": [
+      4.4,
+      44
+    ],
+    "yoke_slot_mm": [
+      40,
+      4.4
+    ],
+    "crank_radius_mm": 16,
+    "guide_to_figure_gap_mm": 26.7,
+    "fastener_selection": "Resolved by hardware table and hardware_check; nominal axial running clearance 0.4mm; inspect actual stack thickness before assembly",
+    "base_screw_head_limit_mm": [
+      7.5,
+      3
+    ],
+    "base_mounting": "Four M3 screws through upper base and box floor; lower layer has 8mm head recesses and is bonded to upper layer"
+  },
+  "release": "Open-frame reference prototype. 26 tab-slot pairs, selected hardware, physical fit and load test pending.",
+  "revision": "OPEN_FRAME_V1",
+  "hardware": {
+    "shoulder": {
+      "quantity": 3,
+      "model": "Accu SSH-M3-5-416-R360",
+      "thread": "M3",
+      "shoulder_diameter_mm": 4,
+      "shoulder_length_mm": 5,
+      "thread_length_mm": 4,
+      "head_diameter_mm": 6,
+      "head_height_mm": 3,
+      "source": "https://www.accu.co.uk/metric-socket-shoulder-screws/269864-SSH-M3-5-416-R360"
+    },
+    "slide_washer": {
+      "quantity": 6,
+      "model": "Accu HPW-4.5-10-0.8-PC",
+      "id_mm": 4.5,
+      "od_mm": 10,
+      "thickness_mm": 0.8,
+      "source": "https://www.accu.co.uk/metric-flat-washers/465897-HPW-4-5-10-0-8-PC"
+    },
+    "stop_washer": {
+      "quantity": 21,
+      "model": "BelMetric WF3YLW",
+      "id_mm": 3.2,
+      "od_mm": 7,
+      "thickness_mm": 0.5,
+      "source": "https://belmetric.com/content/A-PDF_Drawings/WF3YLW.pdf"
+    },
+    "guide_standoff": {
+      "quantity": 2,
+      "model": "Harwin R30-1002502",
+      "thread": "M3 female/female through",
+      "length_mm": 25,
+      "af_mm": 5,
+      "source": "https://www.harwin.com/products/R30-1002502"
+    },
+    "crank_standoff": {
+      "quantity": 1,
+      "model": "Harwin R30-1000702",
+      "thread": "M3 female/female through",
+      "length_mm": 7,
+      "af_mm": 5,
+      "source": "https://www.harwin.com/products/R30-1000702"
+    },
+    "motor_screw": {
+      "quantity": 2,
+      "model": "Accu SHK-M1.6-4-V2-A2",
+      "thread": "M1.6",
+      "length_mm": 4,
+      "head_diameter_mm": 3,
+      "head_height_mm": 0.96,
+      "countersink_deg": 90,
+      "source": "https://www.accu.co.uk/api/product-datasheet?id=474255",
+      "postprocess": "Countersink existing 1.8mm holes to fit heads flush, maximum head recess 0mm below flush; do not laser-cut a 3mm through hole."
+    },
+    "screw_M3x8": {
+      "quantity": 3,
+      "specification": "ISO 4762 A2 M3 x 8, full thread",
+      "head_diameter_mm": 5.5,
+      "head_height_mm": 3,
+      "use": "2 figure-to-guide standoffs, 1 crank-to-standoff"
+    },
+    "screw_M3x6": {
+      "quantity": 4,
+      "specification": "ISO 4762 A2 M3 x 6, full thread",
+      "head_diameter_mm": 5.5,
+      "head_height_mm": 3,
+      "use": "crank-to-Pololu hub"
+    },
+    "screw_M3x16": {
+      "quantity": 2,
+      "specification": "ISO 4762 A2 M3 x 16, full thread",
+      "head_diameter_mm": 5.5,
+      "head_height_mm": 3,
+      "use": "figure, two wooden spacers and yoke sandwich"
+    },
+    "screw_M3x10": {
+      "quantity": 4,
+      "specification": "ISO 4762 A2 M3 x 10, full thread",
+      "head_diameter_mm": 5.5,
+      "head_height_mm": 3,
+      "use": "base to frame floor; NO washer beneath recessed head"
+    },
+    "nut_M3": {
+      "quantity": 6,
+      "specification": "DIN 934 M3 steel, 5.5mm AF, 2.4mm high",
+      "use": "4 base, 2 figure/yoke; removable low-strength threadlocker on metal threads"
+    },
+    "small_sundries": {
+      "items": [
+        "2 reusable battery straps, maximum 2.5mm wide",
+        "red/black flexible wire",
+        "2 insulated 4.8mm female quick-connect terminals for switch",
+        "heatshrink",
+        "wood glue for base layers",
+        "removable low-strength metal threadlocker"
+      ]
+    }
+  }
+}
