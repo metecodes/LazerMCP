@@ -2,6 +2,6 @@
 __pycache__/
 *.pyc
 .env
-output/*.svg
-output/*.png
-output/*.json
+check_*.py
+output/*
+!output/.gitkeep
