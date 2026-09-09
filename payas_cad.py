@@ -8,10 +8,16 @@ import boxes_adapter as boxespy
 
 CAD_PRODUCTS = [
     {
+        "id": "number_match_puzzle",
+        "tool": "create_design",
+        "title": "Sayı eşleme yapboz",
+        "description": "1–10 sayı-nokta jigsaw kartları. create_design preset=number_match_puzzle. Referans fotoğrafı izlemez.",
+    },
+    {
         "id": "from_reference",
         "tool": "create_from_reference",
         "title": "Referans görsel",
-        "description": "Gönderilen her görseli (yapboz, çizim, logo, foto) lazer kesim SVG’ye çevirir. Varsayılan araç.",
+        "description": "Foto/logo izleme. Eğitim kartı/yapboz için create_design kullanın.",
     },
     {
         "id": "traffic_light",
@@ -64,20 +70,28 @@ def list_cad_tools() -> dict[str, Any]:
         "count": len(CAD_PRODUCTS),
         "products": CAD_PRODUCTS,
         "policy": (
-            "When the user sends any image, always call create_from_reference. "
-            "Do not refuse custom work. Named kits are optional shortcuts only."
+            "New educational cards/puzzles = create_design (preset or primitives). "
+            "Do not request a new MCP tool. Photos/logos = create_from_reference. "
+            "Named create_* kit tools are only for those exact products. Never hand-write SVG."
         ),
+        "design": _design_api(),
         "generic": [
+            "create_design",
             "create_from_reference",
             "payas_defaults",
             "list_cad_tools",
-            "list_generator_names",
             "get_generator_schema",
             "generate_svg",
             "validate_svg",
             "render_preview",
         ],
     }
+
+
+def _design_api() -> dict[str, Any]:
+    from design_engine import list_design_api
+
+    return list_design_api()
 
 
 def _traffic_params(
@@ -267,6 +281,56 @@ def create_from_reference(
     return _save_build(traced["svg_bytes"], "from_reference", "Referans görsel", public_base_url, extra)
 
 
+def create_design(
+    preset: str | None = None,
+    primitives: list[Any] | None = None,
+    parameters: dict[str, Any] | None = None,
+    svg: str | None = None,
+    public_base_url: str = "http://127.0.0.1:8000",
+) -> dict[str, Any]:
+    from design_engine import compile_design, import_svg_document
+
+    if svg:
+        built = import_svg_document(svg)
+    else:
+        built = compile_design(preset=preset, primitives=primitives, parameters=parameters)
+    name = str(built.get("preset") or preset or "design")
+    title = "İçe aktarılan SVG" if built.get("imported") else "Parametrik tasarım"
+    if name in {"number_match_puzzle", "number_match"}:
+        title = "Sayı eşleme yapboz"
+    extra = {
+        "product": name,
+        "title": title,
+        "generator": name,
+        "preset": name,
+        "count": built.get("count"),
+        "imported": bool(built.get("imported")),
+        "dimensions": {
+            "width_mm": built.get("width_mm"),
+            "height_mm": built.get("height_mm"),
+            "card_w": built.get("card_w"),
+            "card_h": built.get("card_h"),
+            "thickness": boxespy.PAYAS_DEFAULTS["thickness"],
+            "burn": boxespy.PAYAS_DEFAULTS["burn"],
+        },
+    }
+    return _save_build(built["svg_bytes"], name, title, public_base_url, extra)
+
+
+def create_number_match_puzzle(
+    count: int = 10,
+    card_w: float = 108.0,
+    card_h: float = 64.0,
+    columns: int = 2,
+    public_base_url: str = "http://127.0.0.1:8000",
+) -> dict[str, Any]:
+    return create_design(
+        preset="number_match_puzzle",
+        parameters={"count": count, "card_w": card_w, "card_h": card_h, "columns": columns},
+        public_base_url=public_base_url,
+    )
+
+
 CREATE = {
     "traffic_light": lambda params, url: create_traffic_light(public_base_url=url, **params),
     "robot_bank": lambda params, url: create_robot_bank(public_base_url=url),
@@ -275,6 +339,7 @@ CREATE = {
     "yacht": lambda params, url: create_yacht(public_base_url=url),
     "astronaut": lambda params, url: create_astronaut(public_base_url=url),
     "from_reference": lambda params, url: create_from_reference(public_base_url=url, **params),
+    "number_match_puzzle": lambda params, url: create_number_match_puzzle(public_base_url=url, **params),
 }
 
 CREATE_KEYS = {
@@ -288,6 +353,7 @@ CREATE_KEYS = {
     "yacht": (),
     "astronaut": (),
     "from_reference": ("image_base64", "width_mm", "style", "invert", "threshold"),
+    "number_match_puzzle": ("count", "card_w", "card_h", "columns"),
 }
 
 

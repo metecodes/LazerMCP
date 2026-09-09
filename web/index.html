@@ -126,6 +126,12 @@
   <script>
     const PRIMARY = new Set(["x", "y", "h", "thickness", "burn", "outside", "bottom_edge"]);
     const CAD_FIELDS = {
+      number_match_puzzle: [
+        {name:"count", type:"number", default:10},
+        {name:"card_w", type:"number", default:108},
+        {name:"card_h", type:"number", default:64},
+        {name:"columns", type:"number", default:2}
+      ],
       from_reference: [
         {name:"image", type:"file"},
         {name:"width_mm", type:"number", default:200},

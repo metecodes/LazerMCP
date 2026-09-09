@@ -25,10 +25,10 @@ IS_VERCEL = os.environ.get("VERCEL") == "1"
 WEB_DIR = Path(__file__).resolve().parent / "web"
 PUBLIC_PATHS = {"/", "/health"}
 MCP_TOOLS = [
+    "create_design",
     "create_from_reference",
     "payas_defaults",
     "list_cad_tools",
-    "list_generator_names",
     "get_generator_schema",
     "generate_svg",
     "validate_svg",
@@ -44,10 +44,11 @@ MCP_TOOLS = [
 mcp = MCPServer(
     "Laser mcp",
     instructions=(
-        "Payas STEM laser CAD. When the user sends ANY image (puzzle, drawing, logo, worksheet, photo), "
-        "you MUST call create_from_reference with that image as image_base64. "
-        "Never say you can only make six named kits. Those create_* kit tools are optional shortcuts. "
-        "Defaults: 3 mm poplar plywood, kerf 0.15 mm, bed 1500×3000 mm, SVG only."
+        "You are a Payas STEM laser CAD server. Never write SVG yourself. "
+        "Never ask for a new MCP tool. New cards, puzzles, worksheets: call create_design "
+        "with preset='number_match_puzzle' or primitives (jigsaw_grid / token_grid). "
+        "Photos/logos: create_from_reference. Named create_* kit tools are only for those exact products. "
+        "Defaults: 3 mm poplar, kerf 0.15 mm, 1500×3000 mm bed, SVG."
     ),
 )
 
@@ -148,10 +149,32 @@ class BearerGate:
 
 @mcp.tool(
     description=(
-        "Turn ANY user reference image into a Payas STEM laser SVG. "
-        "Use this for puzzles, drawings, logos, worksheets, photos — not only the six named kits. "
-        "Pass PNG/JPEG/WebP as image_base64 (raw base64 or a data: URL). "
-        "style=cut_and_etch (outer cut, inner etch), cut, or etch. width_mm is the output width."
+        "Compile a laser SVG from a preset or primitives. Use this for any new educational card, "
+        "jigsaw, or worksheet instead of requesting a new tool. "
+        "preset=number_match_puzzle (parameters: count, card_w, card_h, columns) OR "
+        "primitives=[{type:'jigsaw_grid',count:10}] or [{type:'token_grid',count:10,columns:5}]. "
+        "Optional svg= existing SVG to import. Never hand-write geometry."
+    )
+)
+def create_design(
+    preset: str | None = None,
+    primitives: list[dict[str, Any]] | None = None,
+    parameters: dict[str, Any] | None = None,
+    svg: str | None = None,
+) -> dict[str, Any]:
+    return payas_cad.create_design(
+        preset=preset,
+        primitives=primitives,
+        parameters=parameters,
+        svg=svg,
+        public_base_url=_tool_public_base(),
+    )
+
+
+@mcp.tool(
+    description=(
+        "Trace a photo/logo into SVG. Do NOT use for number-matching jigsaw or printable cards — "
+        "that is create_design. Pass image_base64. style: cut_and_etch, cut, or etch."
     )
 )
 def create_from_reference(
@@ -176,22 +199,17 @@ def payas_defaults() -> dict[str, Any]:
     return boxespy.payas_defaults()
 
 
-@mcp.tool(description="List Payas STEM CAD tools. create_from_reference handles any uploaded image; kit tools are optional.")
+@mcp.tool(description="List CAD tools. New puzzles/cards = create_design. Photos = create_from_reference. Do not request new tools.")
 def list_cad_tools() -> dict[str, Any]:
     return payas_cad.list_cad_tools()
 
 
-@mcp.tool(description="Compact Boxes.py generator names. Prefer create_* product tools.")
-def list_generator_names(group: str | None = None) -> dict[str, Any]:
-    return boxespy.list_generator_names(group)
-
-
-@mcp.tool(description="Return parameter schema for one Boxes.py generator.")
+@mcp.tool(description="Parameter schema for one Boxes.py class. Not used for puzzles or uploaded pictures.")
 def get_generator_schema(generator: str) -> dict[str, Any]:
     return boxespy.get_generator_schema(generator)
 
 
-@mcp.tool(description="Generate an SVG via a Boxes.py class. Payas defaults apply unless overridden. Kerf is locked at 0.15.")
+@mcp.tool(description="Boxes.py class SVG only (ABox, TypeTray, …). Puzzles/cards = create_design. Photos = create_from_reference.")
 def generate_svg(generator: str, parameters: dict[str, Any] | None = None) -> dict[str, Any]:
     return boxespy.generate_svg(generator, parameters, public_base_url=_tool_public_base())
 
@@ -344,6 +362,31 @@ async def api_preview(request: Request) -> Response:
 @mcp.custom_route("/api/cad/products", methods=["GET"])
 async def api_cad_products(request: Request) -> Response:
     return JSONResponse(payas_cad.list_cad_tools())
+
+
+@mcp.custom_route("/api/cad/design", methods=["POST"])
+async def api_cad_design(request: Request) -> Response:
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    try:
+        payload = body if isinstance(body, dict) else {}
+        params = dict(payload.get("parameters") or {}) if isinstance(payload.get("parameters"), dict) else {}
+        for key in ("count", "card_w", "card_h", "columns"):
+            if key in payload and key not in params:
+                params[key] = payload[key]
+        return JSONResponse(
+            payas_cad.create_design(
+                preset=payload.get("preset") or params.get("preset"),
+                primitives=payload.get("primitives") or params.get("primitives"),
+                parameters=params,
+                svg=payload.get("svg") or params.get("svg"),
+                public_base_url=_public_base(request),
+            )
+        )
+    except Exception as exc:
+        return _error(exc)
 
 
 @mcp.custom_route("/api/cad/from_reference", methods=["POST"])
