@@ -41,6 +41,19 @@ ASSEMBLY_TYPES = frozenset(
         "kerf_test",
         "burn_test",
         "kerf",
+        "motor_mount",
+        "motor_plate",
+        "mount_plate",
+        "solar",
+        "solar_panel",
+        "carrier",
+        "tray",
+        "support",
+        "brace",
+        "shaft",
+        "axle",
+        "adapter",
+        "washer_plate",
     }
 )
 
@@ -124,19 +137,96 @@ GRAMMAR = {
         "Call validate_assembly if unsure. ready_to_cut false means edit primitives, not a new kit."
     ),
     "never": "Never request a new MCP tool. Never hand-write SVG. Call create_design with primitives.",
+    "not_a_generator": (
+        "create_design compiles YOUR primitives with Boxes.py. The result is method=compose_primitives, "
+        "generator=create_design. That is the drawing — not a missed windmill kit and not a Boxes.py catalog class."
+    ),
+    "mill": {
+        "note": "Example only. There is no create_mill tool. Door/window are slots in the front wall.",
+        "primitives": [
+            {
+                "type": "box",
+                "x": 70,
+                "y": 52,
+                "h": 180,
+                "bottom": True,
+                "walls": {
+                    "front": {
+                        "holes": [{"x": 35, "y": 158, "d": 4}],
+                        "slots": [
+                            {"x": 35, "y": 36, "w": 24, "h": 40},
+                            {"x": 35, "y": 88, "w": 26, "h": 32},
+                        ],
+                    },
+                    "back": {"holes": [{"x": 35, "y": 158, "d": 4}]},
+                },
+            },
+            {"type": "triangle", "w": 70, "h": 24, "count": 2, "label": "roof-support"},
+            {"type": "panel", "w": 80, "h": 58, "edges": "eeee", "count": 2, "label": "roof"},
+            {"type": "panel", "w": 78, "h": 48, "edges": "eeee", "label": "solar"},
+            {
+                "type": "panel",
+                "w": 36,
+                "h": 36,
+                "edges": "eeee",
+                "holes": [{"x": 18, "y": 18, "d": 4}, {"x": 8, "y": 8, "d": 3}, {"x": 28, "y": 8, "d": 3}],
+                "label": "motor-mount",
+            },
+            {"type": "propeller", "blades": 4, "d": 48, "blade_w": 12, "hole": 4, "label": "propeller"},
+            {"type": "disc", "d": 14, "hole": 4, "count": 2, "label": "spacer"},
+        ],
+    },
 }
 
 HINT = (
-    "Odd outlines are allowed. 4-blade mill: "
-    '{type:"propeller", blades:4, d:80, blade_w:18, hole:4}. '
-    "Any silhouette: {type:\"contour\", points:[[x,y],...], hole:4} in mm. "
-    "Scale: parameters.reference={feature, mm, drawn_mm}. "
-    "Calibrate once: {type:\"coupon\"}. "
+    "create_design draws the mill from primitives — there is no windmill generator. "
+    "Door/window = slots on the front wall. Motor plate/solar/roof brace = type=panel. "
+    "4-blade rotor = type=propeller. Odd outline = type=contour with points:[[x,y],...] mm. "
+    "Scale: parameters.reference={feature, mm, drawn_mm}. Calibrate once: {type:\"coupon\"}. "
     "Do not use disc for a propeller. Do not ask for a new kit tool."
 )
 
 _EDGE_OK = set("eEfFhH")
 _MAX_PARTS = 48
+
+# Incoming AIs send these as parts. They are features on a wall, not a part type.
+_NOT_A_PART = {
+    "slot": (
+        "type=slot is not a part. Cut openings on a wall: "
+        "box.walls.front.slots=[{x,y,w,h}] or panel.slots=[{x,y,w,h}]. "
+        "Door and window are slots in the front panel, not separate sliding pieces."
+    ),
+    "slots": (
+        "slots belong on a panel or box wall, not as their own primitive. "
+        "Example: {type:panel, w:70, h:180, slots:[{x:35,y:50,w:22,h:28}]}."
+    ),
+    "door": (
+        "A door is a slot cut into the front wall, not a separate part. "
+        "Put it on box.walls.front.slots. Do not add type=door."
+    ),
+    "window": (
+        "A window is a slot cut into the front wall, not a separate part. "
+        "Put it on box.walls.front.slots. Do not add type=window."
+    ),
+    "hole": "holes go on panel.holes or box.walls.*.holes as [{x,y,d}].",
+    "holes": "holes go on panel.holes or box.walls.*.holes as [{x,y,d}].",
+}
+
+_TYPE_ALIAS = {
+    "motor_mount": "panel",
+    "motor_plate": "panel",
+    "mount_plate": "panel",
+    "solar": "panel",
+    "solar_panel": "panel",
+    "carrier": "panel",
+    "tray": "panel",
+    "support": "panel",
+    "brace": "panel",
+    "shaft": "disc",
+    "axle": "disc",
+    "adapter": "disc",
+    "washer_plate": "disc",
+}
 
 
 def _num(value: Any, default: float | None = None) -> float:
@@ -160,9 +250,41 @@ def is_assembly(primitives: list[Any] | None) -> bool:
     if not primitives:
         return False
     for item in primitives:
-        if isinstance(item, dict) and _kind(item) in ASSEMBLY_TYPES:
+        if not isinstance(item, dict):
+            continue
+        kind = _kind(item)
+        if kind in _NOT_A_PART or kind in _TYPE_ALIAS or kind in ASSEMBLY_TYPES:
             return True
     return False
+
+
+def _prepare_parts(primitives: list[Any]) -> list[dict[str, Any]]:
+    parts: list[dict[str, Any]] = []
+    unknown: list[str] = []
+    for part in primitives:
+        if not isinstance(part, dict):
+            continue
+        kind = _kind(part)
+        if kind in _NOT_A_PART:
+            raise ValueError(_NOT_A_PART[kind] + " " + HINT)
+        item = dict(part)
+        if kind in _TYPE_ALIAS:
+            item["type"] = _TYPE_ALIAS[kind]
+            item.setdefault("label", kind)
+            kind = item["type"]
+        if kind in ASSEMBLY_TYPES:
+            parts.append(item)
+        else:
+            unknown.append(kind)
+    if unknown:
+        raise ValueError(
+            "Unknown part type(s): "
+            + ", ".join(unknown)
+            + ". Door/window/slot are openings on a wall (box.walls.front.slots), not parts. "
+            "Motor plate, solar carrier, roof brace = type=panel. Shaft washer = type=disc. "
+            + HINT
+        )
+    return parts
 
 
 def _edges4(raw: Any, default: str = "eeee") -> str:
@@ -360,7 +482,7 @@ class PayasToolbox(Boxes):
         self.move(tw, th, move, label=label)
 
     def _render_part(self, part: dict[str, Any]) -> int:
-        kind = _kind(part)
+        kind = _TYPE_ALIAS.get(_kind(part), _kind(part))
         count = _int(part.get("count") or part.get("n"), 1)
         label = str(part.get("label") or kind or "")
         if kind in {"coupon", "kerf_test", "burn_test", "kerf"}:
@@ -497,7 +619,7 @@ class PayasToolbox(Boxes):
 def compile_toolbox(primitives: list[Any], parameters: dict[str, Any] | None = None) -> dict[str, Any]:
     if not primitives:
         raise ValueError("primitives is empty")
-    parts = [p for p in primitives if isinstance(p, dict) and _kind(p) in ASSEMBLY_TYPES]
+    parts = _prepare_parts(primitives)
     if not parts:
         raise ValueError("no assembly primitives (box, panel, disc, triangle, propeller, contour, coupon). " + HINT)
     params = parameters or {}
@@ -535,11 +657,18 @@ def compile_toolbox(primitives: list[Any], parameters: dict[str, Any] | None = N
         "count": len(parts),
         "card_w": None,
         "card_h": None,
-        "preset": "toolbox",
+        "preset": "composed",
+        "composed": True,
+        "method": "compose_primitives",
+        "compiler": "create_design",
         "parts": [str(p.get("label") or _kind(p)) for p in parts],
         "path_count": metrics.get("path_count"),
         "assembly": assembly,
         "nesting": nesting,
         "scale": scale_info,
         "primitives": parts,
+        "note": (
+            "This SVG is the parts you passed, compiled with Boxes.py. "
+            "It is not a named windmill generator and not a catalog preset."
+        ),
     }

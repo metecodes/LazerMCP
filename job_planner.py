@@ -53,6 +53,8 @@ _ASSEMBLY = (
     "3-d",
     "assemble",
     "assembly",
+    "solar",
+    "gunes",
     "kule",
     "house",
     "barn",
@@ -173,7 +175,8 @@ def _rules() -> list[str]:
         "Notches and closed cuts get ~1 mm holding nicks. Do not omit them.",
         "Look at the photo, read millimetres from it, then compose primitives (box/panel/disc/triangle/propeller/contour).",
         "If the user stated a size, use it. Else pick ONE photo length and set parameters.reference = {feature, mm, drawn_mm}.",
-        "After create_design, read assembly.ok and ready_to_cut. If false, fix the recipe — do not cut.",
+        "create_design compiles your primitives (method=compose_primitives). That is the drawing, not a wrong generator.",
+        "Door/window = slots on the front wall, not type=slot and not separate sliding parts.",
         "create_from_reference only traces 2D artwork (logo, photo, jigsaw etch). Assembly = create_design primitives.",
         "generate_svg only if the plan names a Boxes.py class. Named create_* kits only when the plan names an existing Payas product.",
         "First uncalibrated laser: add {type:coupon} once. Do not bolt a coupon onto every mill.",
@@ -182,11 +185,29 @@ def _rules() -> list[str]:
 
 
 def _assembly_recipe(text: str, width: float | None, height: float | None) -> list[dict[str, Any]]:
-    x = float(width or 80)
-    y = float(height or width or 80)
+    millish = any(
+        k in text
+        for k in (
+            "degirmen",
+            "windmill",
+            "pervane",
+            "propeller",
+            "cati",
+            "gable",
+            "solar",
+            "gunes",
+            "güneş",
+        )
+    )
+    x = float(width or (70 if millish else 80))
+    y = float(height or width or (52 if millish else 80))
     x = max(50.0, min(400.0, x))
-    y = max(50.0, min(400.0, y))
-    h = round(max(80.0, min(280.0, max(x, y) * 1.5)), 1)
+    y = max(45.0, min(400.0, y))
+    if millish:
+        y = min(y, max(45.0, round(x * 0.75, 1)))
+        h = round(max(140.0, min(320.0, x * 2.5)), 1)
+    else:
+        h = round(max(80.0, min(280.0, max(x, y) * 1.5)), 1)
     recipe: list[dict[str, Any]] = [
         {
             "type": "box",
@@ -197,21 +218,37 @@ def _assembly_recipe(text: str, width: float | None, height: float | None) -> li
             "walls": {"front": {"holes": [], "slots": []}},
         }
     ]
-    millish = any(k in text for k in ("degirmen", "windmill", "pervane", "propeller", "cati", "gable"))
     if millish:
         shaft = 4.0
-        prop = round(min(x, y) * 0.65, 1)
+        prop = round(min(x, y) * 0.7, 1)
+        cx = round(x / 2, 1)
         recipe[0]["walls"] = {
             "front": {
-                "holes": [{"x": round(x / 2, 1), "y": round(h * 0.82, 1), "d": shaft}],
-                "slots": [{"x": round(x / 2, 1), "y": round(h * 0.32, 1), "w": round(x * 0.28, 1), "h": round(h * 0.28, 1)}],
+                "holes": [{"x": cx, "y": round(h * 0.88, 1), "d": shaft}],
+                "slots": [
+                    {"x": cx, "y": round(h * 0.20, 1), "w": round(x * 0.34, 1), "h": round(h * 0.22, 1)},
+                    {"x": cx, "y": round(h * 0.48, 1), "w": round(x * 0.36, 1), "h": round(h * 0.18, 1)},
+                ],
             },
-            "back": {"holes": [{"x": round(x / 2, 1), "y": round(h * 0.82, 1), "d": shaft}]},
+            "back": {"holes": [{"x": cx, "y": round(h * 0.88, 1), "d": shaft}]},
         }
         recipe.extend(
             [
-                {"type": "triangle", "w": round(x, 1), "h": round(max(18.0, y * 0.35), 1), "count": 2, "label": "gable"},
+                {"type": "triangle", "w": round(x, 1), "h": round(max(18.0, y * 0.42), 1), "count": 2, "label": "roof-support"},
                 {"type": "panel", "w": round(x + 10, 1), "h": round(y + 6, 1), "edges": "eeee", "count": 2, "label": "roof"},
+                {"type": "panel", "w": round(x + 8, 1), "h": round(max(28.0, y * 0.9), 1), "edges": "eeee", "label": "solar"},
+                {
+                    "type": "panel",
+                    "w": round(max(28.0, x * 0.5), 1),
+                    "h": round(max(28.0, y * 0.55), 1),
+                    "edges": "eeee",
+                    "holes": [
+                        {"x": round(max(14.0, x * 0.25), 1), "y": round(max(14.0, y * 0.275), 1), "d": shaft},
+                        {"x": 8, "y": 8, "d": 3},
+                        {"x": round(max(20.0, x * 0.5) - 8, 1), "y": 8, "d": 3},
+                    ],
+                    "label": "motor-mount",
+                },
                 {"type": "propeller", "blades": 4, "d": prop, "blade_w": round(max(10.0, prop * 0.22), 1), "hole": shaft, "label": "propeller"},
                 {"type": "disc", "d": 14, "hole": shaft, "count": 2, "label": "spacer"},
             ]
@@ -409,6 +446,8 @@ def plan_laser_job(
             "parameters.reference = {feature, mm, drawn_mm} so create_design scales the recipe. "
             "Edit next_arguments.primitives accordingly, then call create_design. "
             "A 4-blade rotor is type=propeller (not disc). An odd silhouette is type=contour with points:[[x,y],...] mm. "
+            "Door and window are slots on the front wall, not type=slot and not extra sliding parts. "
+            "Motor plate / solar carrier / roof brace = type=panel. "
             "Do not ask for a mill kit. Do not 2D-trace this as the assembly. "
             "Add type=coupon only if they asked to calibrate this laser/sheet."
         )
@@ -419,7 +458,7 @@ def plan_laser_job(
                 "then adjust millimetres from the picture."
             )
         return _compose_plan(
-            "Compose cut parts with the toolbox: finger-joint box + extra panels/discs. "
+            "Compose the mill/house with create_design primitives (that call is the drawing). "
             "The draft recipe is a starting grammar — overwrite sizes from the photo.",
             width,
             height,

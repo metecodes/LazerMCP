@@ -55,8 +55,10 @@ mcp = MCPServer(
         "generate_svg only if the plan names a Boxes.py class. Named create_* only if the plan names that Payas product. "
         "For ANY image of a thing to build: (1) look at the photo and describe parts, "
         "(2) call plan_laser_job with user_request, what_you_see, has_photo=true, "
-        "(3) execute next_tool. If next_tool is create_design, fill millimetres from the photo "
-        "into primitives (box/panel/disc/triangle/propeller/contour). "
+        "(3) execute next_tool. If that is create_design, the call IS the drawing: "
+        "Boxes.py compiles your primitives. method=compose_primitives and generator=create_design "
+        "means success — not a missed mill kit and not a Boxes.py catalog class. "
+        "Door/window are slots cut into the front wall, not separate sliding parts. "
         "If the user stated a size, use it. Else pick ONE photo length and pass "
         "parameters.reference={feature, mm, drawn_mm} so the whole recipe scales. "
         "A 4-blade rotor is type=propeller, not a disc. Odd silhouettes are type=contour with points in mm. "
@@ -187,11 +189,13 @@ def plan_laser_job(
 
 @mcp.tool(
     description=(
-        "Toolbox compiler. Prefer this after plan_laser_job. "
-        "primitives: box (finger-joint walls+floor via Boxes.py), panel (rectangularWall + holes/slots), "
-        "disc (washer), triangle (gable), propeller (n-blade rotor), contour (closed points [[x,y],...] mm), "
-        "coupon (kerf/fit test: f/F pair + 100 mm bar). "
-        "Scale the recipe with parameters.scale or parameters.reference={feature, mm, drawn_mm}. "
+        "Toolbox compiler. This IS the drawing tool — not a catalog preset. "
+        "Passing primitives does not select a 'toolbox generator'; Boxes.py cuts those parts. "
+        "primitives: box (finger-joint walls+floor), panel (motor plate, solar, roof), "
+        "disc (washer/shaft adapter), triangle (roof support), propeller (n-blade rotor), "
+        "contour (closed points [[x,y],...] mm), coupon (kerf test). "
+        "Door/window = slots on box.walls.front, not type=slot. "
+        "Scale with parameters.scale or parameters.reference={feature, mm, drawn_mm}. "
         "preset=jigsaw_puzzle or number_match_puzzle only when the plan says so. "
         "Never request a new tool. Never hand-write SVG."
     )

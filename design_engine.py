@@ -75,22 +75,34 @@ def list_design_api() -> dict[str, Any]:
                 "primitives": [
                     {
                         "type": "box",
-                        "x": 80,
-                        "y": 80,
-                        "h": 140,
+                        "x": 70,
+                        "y": 52,
+                        "h": 180,
                         "bottom": True,
                         "walls": {
                             "front": {
-                                "holes": [{"x": 40, "y": 120, "d": 4}],
-                                "slots": [{"x": 40, "y": 45, "w": 22, "h": 32}],
+                                "holes": [{"x": 35, "y": 158, "d": 4}],
+                                "slots": [
+                                    {"x": 35, "y": 36, "w": 24, "h": 40},
+                                    {"x": 35, "y": 88, "w": 26, "h": 32},
+                                ],
                             },
-                            "back": {"holes": [{"x": 40, "y": 120, "d": 4}]},
+                            "back": {"holes": [{"x": 35, "y": 158, "d": 4}]},
                         },
                     },
-                    {"type": "triangle", "w": 80, "h": 28, "count": 2, "label": "gable"},
-                    {"type": "panel", "w": 90, "h": 86, "edges": "eeee", "count": 2, "label": "roof"},
-                    {"type": "propeller", "blades": 4, "d": 50, "blade_w": 12, "hole": 4, "label": "propeller"},
-                    {"type": "disc", "d": 12, "hole": 4, "count": 2, "label": "spacer"},
+                    {"type": "triangle", "w": 70, "h": 24, "count": 2, "label": "roof-support"},
+                    {"type": "panel", "w": 80, "h": 58, "edges": "eeee", "count": 2, "label": "roof"},
+                    {"type": "panel", "w": 78, "h": 48, "edges": "eeee", "label": "solar"},
+                    {
+                        "type": "panel",
+                        "w": 36,
+                        "h": 36,
+                        "edges": "eeee",
+                        "holes": [{"x": 18, "y": 18, "d": 4}, {"x": 8, "y": 8, "d": 3}, {"x": 28, "y": 8, "d": 3}],
+                        "label": "motor-mount",
+                    },
+                    {"type": "propeller", "blades": 4, "d": 48, "blade_w": 12, "hole": 4, "label": "propeller"},
+                    {"type": "disc", "d": 14, "hole": 4, "count": 2, "label": "spacer"},
                 ],
                 "parameters": {
                     "reference": {"feature": "footprint_x", "mm": 80, "drawn_mm": 80},
@@ -288,7 +300,7 @@ def compile_design(
         built = _compile_primitives(primitives, params)
         from toolbox import is_assembly
 
-        built["preset"] = "toolbox" if is_assembly(primitives) else (
+        built["preset"] = "composed" if is_assembly(primitives) else (
             primitives[0].get("type") if isinstance(primitives[0], dict) else "primitives"
         )
         return built

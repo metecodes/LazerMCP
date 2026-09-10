@@ -382,24 +382,36 @@ def create_design(
             "grammar": GRAMMAR,
         }
     name = str(built.get("preset") or preset or "design")
-    title = "İçe aktarılan SVG" if built.get("imported") else "Takım çantası"
+    title = "İçe aktarılan SVG" if built.get("imported") else "Bestelenmiş kesim"
     if name in {"number_match_puzzle", "number_match"}:
         title = "Sayı eşleme kartları"
     if name in {"jigsaw_puzzle", "classic_jigsaw"}:
         title = "Klasik yapboz"
-    if name in {"toolbox", "box", "panel", "disc"}:
-        title = "Takım çantası"
+    composed = bool(built.get("composed")) or name in {"toolbox", "composed", "box", "panel", "disc"}
+    if composed and name not in {"number_match_puzzle", "number_match", "jigsaw_puzzle", "classic_jigsaw"}:
+        name = "composed"
+        title = "Bestelenmiş kesim"
     extra = {
         "product": name,
         "title": title,
-        "generator": name,
-        "preset": name,
+        "generator": "create_design" if composed else name,
+        "preset": None if composed else name,
+        "method": built.get("method") or ("compose_primitives" if composed else "preset"),
+        "compiler": built.get("compiler") or ("create_design" if composed else name),
+        "note": built.get("note")
+        or (
+            "This SVG is YOUR primitives compiled with Boxes.py. "
+            "It is not a Boxes.py catalog generator and not a missed windmill kit."
+            if composed
+            else None
+        ),
         "count": built.get("count"),
         "imported": bool(built.get("imported")),
         "assembly": built.get("assembly"),
         "nesting": built.get("nesting"),
         "scale": built.get("scale"),
         "primitives": built.get("primitives"),
+        "parts": built.get("parts"),
         "dimensions": {
             "width_mm": built.get("width_mm"),
             "height_mm": built.get("height_mm"),

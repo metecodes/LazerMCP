@@ -95,7 +95,7 @@ def expand_faces(primitives: list[Any]) -> list[dict[str, Any]]:
         label = str(part.get("label") or kind or "part")
         for i in range(n):
             name = label if n == 1 else f"{label}-{i + 1}"
-            if kind in {"panel", "wall", "rect", "roof", "roof_panel"}:
+            if kind in {"panel", "wall", "rect", "roof", "roof_panel", "motor_mount", "motor_plate", "mount_plate", "solar", "solar_panel", "carrier", "tray", "support", "brace"}:
                 faces.append(
                     {
                         "name": name,
@@ -128,7 +128,7 @@ def expand_faces(primitives: list[Any]) -> list[dict[str, Any]]:
                         "features": _features(part),
                     }
                 )
-            elif kind in {"disc", "disk", "circle", "washer", "spacer"}:
+            elif kind in {"disc", "disk", "circle", "washer", "spacer", "shaft", "axle", "adapter", "washer_plate"}:
                 faces.append(
                     {
                         "name": name,
