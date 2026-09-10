@@ -2,10 +2,25 @@
 
 Payas STEM lazer kesim için MCP sunucusu. Boxes.py’yi Python’dan çağırır; kaynak kodunu modele dökmez.
 
-Kurum içi, ücretsiz katman: tüm CAD ürünleri (kutu, trafik lambası, kumbara, ressam, yat, astronot) ve generator’lar açıktır. Ücretli Vercel, ChatGPT Plus veya token zorunlu değildir.
+Bu sunucu bir **takım çantası**dır, ürün kataloğu değil. Gelen AI fotoğrafa bakar, `plan_laser_job` çağırır, sonra `create_design` ile primitive’lerden (kutu, panel, disk, üçgen, pervane, kontur) kesimi **besteler**. Her maket için yeni `create_*` aracı eklenmez.
 
 Yerel arayüz: `http://127.0.0.1:8000`  
-MCP: `http://127.0.0.1:8000/mcp`
+MCP: `http://127.0.0.1:8000/mcp`  
+Canlı: `https://mcp.metehanavci.com/mcp`
+
+## İş akışı
+
+1. Fotoğrafa bak (`what_you_see`).
+2. `plan_laser_job` — dilbilgisi, ölçek, sonraki araç.
+3. `create_design` — Boxes.py `rectangularWall` / FingerJoint / kontur. Ölçek: `parameters.reference = {feature, mm, drawn_mm}`.
+4. `assembly.ok` ve `ready_to_cut` true değilse tarifi düzelt; kesme.
+5. İsteğe bağlı `validate_assembly` / `validate_svg`.
+
+2D sanat (logo, siluet, yapboz kazıması) için `create_from_reference`. Duvar/çatı/pervane için **değil**.
+
+İsimli kitler yalnız mevcut Payas ürünleridir: trafik lambası, robot kumbara, ressam, ürün kutusu, yat, astronot.
+
+Kalibrasyon: `{type: coupon}` bir kez (f/F deneme + 100 mm çubuk). Her değirmene eklenmez.
 
 ## Gereksinimler
 
@@ -20,10 +35,8 @@ cd C:\Project\boxes-mcp
 .\.venv\Scripts\python.exe server.py
 ```
 
-Tarayıcıda `http://127.0.0.1:8000` — Payas CAD veya generator seç, SVG üret.
-
-Cursor MCP: `http://127.0.0.1:8000/mcp`  
-Claude connector URL: `https://mcp.metehanavci.com/mcp` (kök `/` değil; Claude POST atar, `/mcp` gerekir)
+Tarayıcıda `http://127.0.0.1:8000`. Cursor MCP: `http://127.0.0.1:8000/mcp`.  
+Claude connector: `https://mcp.metehanavci.com/mcp` (kök `/` değil).
 
 ## Ortam değişkenleri
 
@@ -34,35 +47,32 @@ Hepsi isteğe bağlıdır.
 | `BOXES_PATH` | `C:\Project\boxes-master` veya `vendor/boxes-master` | Boxes.py kök dizini |
 | `MCP_HOST` | `127.0.0.1` | Bind adresi. Dışarı açmak için `0.0.0.0` |
 | `MCP_PORT` | `8000` | Port |
-| `MCP_PUBLIC_BASE_URL` | (boş) | Dosya URL kökü. Boşsa istek host’u veya Vercel URL’si kullanılır |
-| `MCP_AUTH_TOKEN` | (boş) | Kurum içi varsayılan: boş bırakın. Dolarsanız `/mcp`, `/api/*`, `/files/*` Bearer ister |
+| `MCP_PUBLIC_BASE_URL` | (boş) | Dosya URL kökü |
+| `MCP_AUTH_TOKEN` | (boş) | Boşsa herkese açık. Dolarsanız `/mcp`, `/api/*`, `/files/*` Bearer ister |
 
 ## MCP araçları
 
-Ürün: `create_traffic_light`, `create_robot_bank`, `create_drawing_robot`, `create_product_box`, `create_yacht`, `create_astronaut`
+Tercih edilen: `plan_laser_job`, `create_design`, `create_from_reference`, `validate_assembly`, `validate_svg`, `payas_defaults`
 
-Yardım: `payas_defaults`, `list_cad_tools`, `list_generator_names`, `get_generator_schema`, `generate_svg`, `validate_svg`, `render_preview`
+Plan söylemedikçe: `generate_svg`, `get_generator_schema`
 
-Tam generator listesi UI’da `GET /api/generators`.
-
-Kullanıcı görsel gönderdiğinde `create_from_reference` kullanılır (yapboz, çizim, logo, foto). İsimli kit araçları isteğe bağlıdır.
+İsimli kit: `create_traffic_light`, `create_robot_bank`, `create_drawing_robot`, `create_product_box`, `create_yacht`, `create_astronaut`
 
 ## Payas varsayılanları
 
 - 3 mm kavak kontrplak
 - Kerf/burn kilitli: **0.15 mm**
 - Tabla: **1500 × 3000 mm**
-- Çıktı: SVG (`file_id` + `svg_url`)
+- Çıktı: SVG (`file_id` + `svg_url`), isteğe bağlı DXF
+- Kesim `#FF0000`, kazıma `#000000`, LaserCAD Y-up
+- Kapalı kesimlerde ~1 mm tutucu nick
+- Nesting yalnızca öteleme (döndürme/ayna yok)
 
-## Vercel (Hobby / ücretsiz)
+## Vercel
 
 `server.py` top-level ASGI `app` export eder. Boxes.py `vendor/boxes-master` ile gelir.
 
-Hobby yeter: fonksiyon süresi 300 sn’ye kadar. Yat/astronot yerelde ~3–6 sn.
-
-Push sonrası isteğe bağlı: `MCP_PUBLIC_BASE_URL`. Token koymayın; herkes tüm araçları kullanır.
-
-Vercel proje ayarında **Deployment Protection** kapalı olsun (Standard Protection off), yoksa yalnızca Vercel hesabı olanlar açar.
+Hobby yeter. Push sonrası isteğe bağlı: `MCP_PUBLIC_BASE_URL`. **Deployment Protection** kapalı olsun.
 
 SVG Vercel’de `/tmp` altındadır (geçici).
 

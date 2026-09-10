@@ -78,9 +78,21 @@ def list_cad_tools() -> dict[str, Any]:
         "policy": (
             "Toolbox, not a catalog. Look at the photo, call plan_laser_job, then create_design "
             "with box/panel/disc/triangle/propeller/contour primitives (Boxes.py). Do not ask for a new kit tool. "
+            "Scale with parameters.reference={feature, mm, drawn_mm}. Coupon {type:coupon} only to calibrate. "
             "create_from_reference is 2D artwork only. Named create_* only for existing Payas products. "
-            "Never write SVG yourself. Cuts keep ~1 mm holding nicks."
+            "generate_svg only if the plan names a Boxes.py class. Never write SVG yourself. Cuts keep ~1 mm holding nicks. "
+            "create_design returns assembly (finger/shaft/slot/gable seating) and nesting (translation-only pack). "
+            "If assembly.ok is false, fix primitives and call create_design again — do not tell the user to cut."
         ),
+        "preferred": [
+            "plan_laser_job",
+            "create_design",
+            "create_from_reference",
+            "validate_assembly",
+            "validate_svg",
+            "payas_defaults",
+        ],
+        "avoid_unless_plan_says": ["generate_svg", "get_generator_schema"],
         "design": _design_api(),
         "generic": [
             "plan_laser_job",
@@ -91,6 +103,7 @@ def list_cad_tools() -> dict[str, Any]:
             "get_generator_schema",
             "generate_svg",
             "validate_svg",
+            "validate_assembly",
             "render_preview",
         ],
     }
@@ -383,6 +396,10 @@ def create_design(
         "preset": name,
         "count": built.get("count"),
         "imported": bool(built.get("imported")),
+        "assembly": built.get("assembly"),
+        "nesting": built.get("nesting"),
+        "scale": built.get("scale"),
+        "primitives": built.get("primitives"),
         "dimensions": {
             "width_mm": built.get("width_mm"),
             "height_mm": built.get("height_mm"),
@@ -393,7 +410,46 @@ def create_design(
         },
     }
     fmt = str((parameters or {}).get("format") or "svg")
+    asm = extra.get("assembly")
+    nest = extra.get("nesting")
+    extra["ready_to_cut"] = (not isinstance(asm, dict) or bool(asm.get("ok", True))) and (
+        not isinstance(nest, dict) or bool(nest.get("ok", True))
+    )
     return _save_build(built["svg_bytes"], name, title, public_base_url, extra, dxf_bytes=_dxf_from_built(built, fmt))
+
+
+def validate_assembly(
+    file_id: str | None = None,
+    primitives: list[Any] | None = None,
+) -> dict[str, Any]:
+    """Mechanical fit from a recipe, or reload assembly + nesting from a generated file."""
+    from assembly import check_assembly
+
+    if primitives:
+        report = check_assembly(primitives)
+        return {
+            "success": bool(report.get("ok")),
+            "source": "primitives",
+            "assembly": report,
+            "ready_to_cut": bool(report.get("ok")),
+        }
+    if not file_id:
+        return {
+            "success": False,
+            "error": "Pass primitives (before cut) or file_id (after create_design).",
+        }
+    svg_report = boxespy.validate_svg(file_id)
+    return {
+        "success": bool(svg_report.get("success")) and bool((svg_report.get("assembly") or {}).get("ok", True)),
+        "source": "file",
+        "file_id": svg_report.get("file_id"),
+        "assembly": svg_report.get("assembly"),
+        "nesting": svg_report.get("nesting"),
+        "errors": svg_report.get("errors") or [],
+        "ready_to_cut": bool(svg_report.get("success"))
+        and bool((svg_report.get("assembly") or {}).get("ok", True))
+        and bool((svg_report.get("nesting") or {}).get("ok", True)),
+    }
 
 
 def create_number_match_puzzle(

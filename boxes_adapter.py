@@ -563,7 +563,23 @@ def validate_svg(file_id: str) -> dict[str, Any]:
         metrics["has_live_text"] = True
     else:
         metrics["has_live_text"] = False
-    return {
+    nesting_geom: dict[str, Any] | None = None
+    try:
+        from nesting import inspect_nesting
+
+        nesting_geom = inspect_nesting(raw)
+        if nesting_geom.get("errors"):
+            errors.extend(str(e) for e in nesting_geom["errors"])
+    except Exception:
+        nesting_geom = None
+    sidecar = None
+    side_path = path.with_suffix(".json")
+    if side_path.is_file():
+        try:
+            sidecar = json.loads(side_path.read_text(encoding="utf-8"))
+        except Exception:
+            sidecar = None
+    result = {
         "success": not errors,
         "file_id": path.name,
         "well_formed": well_formed,
@@ -571,7 +587,14 @@ def validate_svg(file_id: str) -> dict[str, Any]:
         "bed": {"width": bed_w, "height": bed_h},
         "metrics": metrics,
         "errors": errors,
+        "nesting": nesting_geom,
     }
+    if sidecar:
+        if sidecar.get("assembly"):
+            result["assembly"] = sidecar["assembly"]
+        if sidecar.get("nesting") and not result.get("nesting"):
+            result["nesting"] = sidecar["nesting"]
+    return result
 
 
 def render_preview(file_id: str, public_base_url: str = "http://127.0.0.1:8000") -> dict[str, Any]:
@@ -599,6 +622,16 @@ def save_generated_svg(
     name = (extra or {}).get("generator") or (extra or {}).get("product") or generator
     file_id, svg_bytes = _write_svg(svg_bytes, str(name))
     result = _public_result(file_id, public_base_url, svg_bytes, extra)
+    if extra and (extra.get("assembly") is not None or extra.get("nesting") is not None):
+        side = file_id[:-4] + ".json" if file_id.lower().endswith(".svg") else f"{file_id}.json"
+        payload = {
+            "file_id": file_id,
+            "assembly": extra.get("assembly"),
+            "nesting": extra.get("nesting"),
+            "product": extra.get("product"),
+        }
+        (OUTPUT_DIR / side).write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        result["report_id"] = side
     if dxf_bytes:
         dxf_id = file_id[:-4] + ".dxf" if file_id.lower().endswith(".svg") else f"{file_id}.dxf"
         (OUTPUT_DIR / dxf_id).write_bytes(dxf_bytes)

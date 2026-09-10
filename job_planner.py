@@ -6,6 +6,7 @@ import re
 from typing import Any
 
 from boxes_adapter import PAYAS_DEFAULTS
+from scale import MEASURE
 from toolbox import GRAMMAR
 
 _KITS = (
@@ -171,9 +172,12 @@ def _rules() -> list[str]:
         "Cut #FF0000, etch #000000, LaserCAD Y-up, 3 mm poplar, kerf 0.15 mm.",
         "Notches and closed cuts get ~1 mm holding nicks. Do not omit them.",
         "Look at the photo, read millimetres from it, then compose primitives (box/panel/disc/triangle/propeller/contour).",
+        "If the user stated a size, use it. Else pick ONE photo length and set parameters.reference = {feature, mm, drawn_mm}.",
+        "After create_design, read assembly.ok and ready_to_cut. If false, fix the recipe — do not cut.",
         "create_from_reference only traces 2D artwork (logo, photo, jigsaw etch). Assembly = create_design primitives.",
+        "generate_svg only if the plan names a Boxes.py class. Named create_* kits only when the plan names an existing Payas product.",
+        "First uncalibrated laser: add {type:coupon} once. Do not bolt a coupon onto every mill.",
         "number_match_puzzle is only for number-to-dot matching cards.",
-        "Named create_* kits only when the plan names an existing Payas product.",
     ]
 
 
@@ -215,6 +219,23 @@ def _assembly_recipe(text: str, width: float | None, height: float | None) -> li
     return recipe
 
 
+def _wants_coupon(text: str) -> bool:
+    return any(
+        k in text
+        for k in (
+            "kupon",
+            "coupon",
+            "kerf",
+            "kalibrasyon",
+            "burn test",
+            "burntest",
+            "ilk kesim",
+            "olcum cubugu",
+            "ölçüm çubuğu",
+        )
+    )
+
+
 def _compose_plan(
     summary: str,
     width: float | None,
@@ -224,14 +245,26 @@ def _compose_plan(
     text: str,
 ) -> dict[str, Any]:
     recipe = _assembly_recipe(text, width, height)
+    if _wants_coupon(text):
+        recipe = [{"type": "coupon", "x": 40, "label": "kerf-coupon"}] + recipe
+    params: dict[str, Any] = {"format": fmt}
+    box = next((p for p in recipe if isinstance(p, dict) and p.get("type") == "box"), None)
+    if width and box:
+        params["reference"] = {
+            "feature": "footprint_x",
+            "mm": width,
+            "drawn_mm": box.get("x"),
+            "note": "Change mm if the photo/user length differs; drawn_mm is the current recipe x.",
+        }
     return {
         "success": True,
         "method": "compose_primitives",
         "summary": summary,
         "next_tool": "create_design",
-        "next_arguments": {"primitives": recipe, "parameters": {"format": fmt}},
+        "next_arguments": {"primitives": recipe, "parameters": params},
         "look_again": look,
         "grammar": GRAMMAR,
+        "measure": MEASURE,
         "cannot_do": [],
         "rules": _rules(),
         "defaults": dict(PAYAS_DEFAULTS),
@@ -269,7 +302,7 @@ def plan_laser_job(
                 "parameters": {"count": 10},
             },
             "look_again": "No photo trace. Call create_design with those arguments.",
-            "grammar": GRAMMAR,
+            "grammar": GRAMMAR, "measure": MEASURE,
             "rules": rules,
             "defaults": dict(PAYAS_DEFAULTS),
         }
@@ -284,7 +317,7 @@ def plan_laser_job(
             "next_tool": tool,
             "next_arguments": {},
             "look_again": f"Call {tool}. Do not request a new tool. Do not draw SVG yourself.",
-            "grammar": GRAMMAR,
+            "grammar": GRAMMAR, "measure": MEASURE,
             "rules": rules,
             "defaults": dict(PAYAS_DEFAULTS),
         }
@@ -317,7 +350,7 @@ def plan_laser_job(
                     "Compress the photo to ~1200px JPEG and call create_from_reference "
                     "with next_arguments, then validate_svg."
                 ),
-                "grammar": GRAMMAR,
+                "grammar": GRAMMAR, "measure": MEASURE,
                 "rules": rules,
                 "defaults": dict(PAYAS_DEFAULTS),
             }
@@ -340,7 +373,28 @@ def plan_laser_job(
                 },
             },
             "look_again": "Call create_design with those arguments.",
+            "grammar": GRAMMAR, "measure": MEASURE,
+            "rules": rules,
+            "defaults": dict(PAYAS_DEFAULTS),
+        }
+
+    if _wants_coupon(text) and not _wants_assembly(text) and not _wants_trace_only(text):
+        return {
+            "success": True,
+            "method": "kerf_coupon",
+            "summary": "Kerf/fit coupon: Boxes.py FingerJoint f/F pair plus a 100 mm reference bar.",
+            "next_tool": "create_design",
+            "next_arguments": {
+                "primitives": [{"type": "coupon", "x": 40, "label": "kerf-coupon"}],
+                "parameters": {"format": fmt},
+            },
+            "look_again": (
+                "Call create_design. Dry-fit male f into female F. Measure the 100 mm bar; "
+                "burn ≈ shrinkage/2. Keep Payas burn at 0.15 unless the bar says otherwise. "
+                "Do not add this coupon to every later mill."
+            ),
             "grammar": GRAMMAR,
+            "measure": MEASURE,
             "rules": rules,
             "defaults": dict(PAYAS_DEFAULTS),
         }
@@ -351,9 +405,12 @@ def plan_laser_job(
         look = (
             "LOOK at the photo again. Read millimetres from what you see "
             "(footprint, wall height, door/window, shaft, propeller diameter and blade count). "
+            "If the user stated cm/mm, that is box x/y. Otherwise pick ONE length and set "
+            "parameters.reference = {feature, mm, drawn_mm} so create_design scales the recipe. "
             "Edit next_arguments.primitives accordingly, then call create_design. "
             "A 4-blade rotor is type=propeller (not disc). An odd silhouette is type=contour with points:[[x,y],...] mm. "
-            "Do not ask for a mill kit. Do not 2D-trace this as the assembly."
+            "Do not ask for a mill kit. Do not 2D-trace this as the assembly. "
+            "Add type=coupon only if they asked to calibrate this laser/sheet."
         )
         if not photo:
             look = (
@@ -392,7 +449,7 @@ def plan_laser_job(
                 "and describe those parts in what_you_see — then compose with create_design. "
                 "If it is 2D artwork, compress JPEG ~1200px and call create_from_reference."
             ),
-            "grammar": GRAMMAR,
+            "grammar": GRAMMAR, "measure": MEASURE,
             "rules": rules,
             "defaults": dict(PAYAS_DEFAULTS),
         }
@@ -411,7 +468,7 @@ def plan_laser_job(
             "Look at the photo. Describe walls, roofs, holes, discs in what_you_see. "
             "Then call plan_laser_job with has_photo=true. Do not ask us to add a new kit."
         ),
-        "grammar": GRAMMAR,
+        "grammar": GRAMMAR, "measure": MEASURE,
         "rules": rules,
         "defaults": dict(PAYAS_DEFAULTS),
     }

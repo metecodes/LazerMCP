@@ -37,6 +37,10 @@ ASSEMBLY_TYPES = frozenset(
         "fan",
         "cross",
         "plus",
+        "coupon",
+        "kerf_test",
+        "burn_test",
+        "kerf",
     }
 )
 
@@ -100,7 +104,25 @@ GRAMMAR = {
         "Count blades/sides from the photo, then call create_design with type=propeller or type=contour. "
         "Read millimetres off the picture. Never hand-write SVG."
     ),
+    "coupon": {
+        "type": "coupon",
+        "x": 40,
+        "note": (
+            "Male f + female F of the same length (Boxes.py FingerJoint) plus a 100 mm reference bar. "
+            "First job on an uncalibrated laser/sheet. Do not add this to every mill — only if they asked to calibrate."
+        ),
+    },
+    "scale": (
+        "If the user stated cm/mm, that is the footprint. Otherwise pick ONE length from the photo. "
+        "parameters.reference = {feature, mm, drawn_mm} scales the whole recipe so that feature becomes mm. "
+        "Do not invent a second size. Coupon parts are not scaled."
+    ),
     "coords": "Wall holes: x,y mm from the bottom-left of that part. Contour points: mm in the part's own plane.",
+    "assembly": (
+        "create_design nests parts (no rotate) and checks f/F lengths, coaxial shafts, tab-slots ≈ 3 mm, "
+        "gable width = box x, roof cover, and propeller floor clearance. "
+        "Call validate_assembly if unsure. ready_to_cut false means edit primitives, not a new kit."
+    ),
     "never": "Never request a new MCP tool. Never hand-write SVG. Call create_design with primitives.",
 }
 
@@ -108,6 +130,8 @@ HINT = (
     "Odd outlines are allowed. 4-blade mill: "
     '{type:"propeller", blades:4, d:80, blade_w:18, hole:4}. '
     "Any silhouette: {type:\"contour\", points:[[x,y],...], hole:4} in mm. "
+    "Scale: parameters.reference={feature, mm, drawn_mm}. "
+    "Calibrate once: {type:\"coupon\"}. "
     "Do not use disc for a propeller. Do not ask for a new kit tool."
 )
 
@@ -339,6 +363,9 @@ class PayasToolbox(Boxes):
         kind = _kind(part)
         count = _int(part.get("count") or part.get("n"), 1)
         label = str(part.get("label") or kind or "")
+        if kind in {"coupon", "kerf_test", "burn_test", "kerf"}:
+            self._coupon(part)
+            return 3
         if kind in {"box"}:
             self._box(part)
             return 4 + int(bool(part.get("bottom", True))) + int(bool(part.get("lid")))
@@ -456,14 +483,27 @@ class PayasToolbox(Boxes):
                 label="lid",
             )
 
+    def _coupon(self, part: dict[str, Any]) -> None:
+        """Dry-fit FingerJoint pair + 100 mm bar (Boxes.py rectangularWall, not hand-drawn)."""
+        x = _num(part.get("x") or part.get("w") or part.get("length"), 40)
+        x = max(20.0, min(120.0, x))
+        strip_h = max(12.0, float(self.thickness) * 4)
+        label = str(part.get("label") or "coupon")
+        self.rectangularWall(x, strip_h, "fefe", move="up", label=f"{label}-male")
+        self.rectangularWall(x, strip_h, "FeFe", move="up", label=f"{label}-female")
+        self.rectangularWall(100, 8, "eeee", move="up", label=f"{label}-100mm")
+
 
 def compile_toolbox(primitives: list[Any], parameters: dict[str, Any] | None = None) -> dict[str, Any]:
     if not primitives:
         raise ValueError("primitives is empty")
     parts = [p for p in primitives if isinstance(p, dict) and _kind(p) in ASSEMBLY_TYPES]
     if not parts:
-        raise ValueError("no assembly primitives (box, panel, disc, triangle, propeller, contour). " + HINT)
+        raise ValueError("no assembly primitives (box, panel, disc, triangle, propeller, contour, coupon). " + HINT)
     params = parameters or {}
+    from scale import scale_primitives
+
+    parts, scale_info = scale_primitives(parts, params)
     thickness = float(params.get("thickness") or PAYAS_DEFAULTS["thickness"])
     box = PayasToolbox()
     box.parseArgs(
@@ -482,6 +522,11 @@ def compile_toolbox(primitives: list[Any], parameters: dict[str, Any] | None = N
     box.render()
     data = box.close()
     svg_bytes = data.getvalue() if hasattr(data, "getvalue") else data.read()
+    from assembly import check_assembly
+    from nesting import nest_svg
+
+    assembly = check_assembly(parts, thickness=thickness, burn=PAYAS_DEFAULTS["burn"])
+    svg_bytes, nesting = nest_svg(svg_bytes)
     metrics = _svg_metrics(svg_bytes.decode("utf-8", errors="replace"))
     return {
         "svg_bytes": svg_bytes,
@@ -493,4 +538,8 @@ def compile_toolbox(primitives: list[Any], parameters: dict[str, Any] | None = N
         "preset": "toolbox",
         "parts": [str(p.get("label") or _kind(p)) for p in parts],
         "path_count": metrics.get("path_count"),
+        "assembly": assembly,
+        "nesting": nesting,
+        "scale": scale_info,
+        "primitives": parts,
     }

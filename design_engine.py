@@ -40,6 +40,7 @@ PRIMITIVE_TYPES = (
     "propeller",
     "contour",
     "polygon",
+    "coupon",
     "jigsaw_grid",
     "jigsaw_card",
     "token_grid",
@@ -90,8 +91,12 @@ def list_design_api() -> dict[str, Any]:
                     {"type": "panel", "w": 90, "h": 86, "edges": "eeee", "count": 2, "label": "roof"},
                     {"type": "propeller", "blades": 4, "d": 50, "blade_w": 12, "hole": 4, "label": "propeller"},
                     {"type": "disc", "d": 12, "hole": 4, "count": 2, "label": "spacer"},
-                ]
+                ],
+                "parameters": {
+                    "reference": {"feature": "footprint_x", "mm": 80, "drawn_mm": 80},
+                },
             },
+            "coupon": {"primitives": [{"type": "coupon", "x": 40}]},
             "jigsaw_puzzle": {
                 "preset": "jigsaw_puzzle",
                 "parameters": {"width_mm": 300, "height_mm": 300, "rows": 10, "cols": 10},
@@ -112,6 +117,7 @@ def list_design_api() -> dict[str, Any]:
             "This server is a toolbox, not a catalog. Do not ask for a new kit tool. "
             "Look at the photo, call plan_laser_job, then create_design with Boxes.py primitives "
             "(box/panel/disc/triangle/propeller/contour) using millimetres you read from the photo. "
+            "Scale with parameters.reference={feature, mm, drawn_mm}. Calibrate once with type=coupon. "
             "create_from_reference only 2D-traces artwork. Never hand-write SVG."
         ),
     }
@@ -247,7 +253,7 @@ def _compile_primitives(primitives: list[Any], parameters: dict[str, Any] | None
     if kind in {"text", "label", "number"}:
         return _compile_text(first, params)
     raise ValueError(
-        "Pass assembly primitives (box, panel, disc, triangle, propeller, contour) or type=jigsaw_grid / token_grid / text. "
+        "Pass assembly primitives (box, panel, disc, triangle, propeller, contour, coupon) or type=jigsaw_grid / token_grid / text. "
         f"Got type={kind!r}. Primitive types: {', '.join(PRIMITIVE_TYPES)}"
     )
 

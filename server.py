@@ -33,6 +33,7 @@ MCP_TOOLS = [
     "get_generator_schema",
     "generate_svg",
     "validate_svg",
+    "validate_assembly",
     "render_preview",
     "create_traffic_light",
     "create_robot_bank",
@@ -49,14 +50,21 @@ mcp = MCPServer(
         "This server is a toolbox, not a catalog. Never ask for a new kit or MCP tool. "
         "Never write SVG or DXF yourself and never flip, rotate, or mirror geometry. "
         "Never offer to prepare a file outside this server. "
+        "Preferred tools: plan_laser_job, create_design, create_from_reference, "
+        "validate_assembly, validate_svg, payas_defaults. "
+        "generate_svg only if the plan names a Boxes.py class. Named create_* only if the plan names that Payas product. "
         "For ANY image of a thing to build: (1) look at the photo and describe parts, "
         "(2) call plan_laser_job with user_request, what_you_see, has_photo=true, "
         "(3) execute next_tool. If next_tool is create_design, fill millimetres from the photo "
-        "into primitives (box/panel/disc/triangle/propeller/contour) — finger joints and outlines come from Boxes.py. "
+        "into primitives (box/panel/disc/triangle/propeller/contour). "
+        "If the user stated a size, use it. Else pick ONE photo length and pass "
+        "parameters.reference={feature, mm, drawn_mm} so the whole recipe scales. "
         "A 4-blade rotor is type=propeller, not a disc. Odd silhouettes are type=contour with points in mm. "
+        "First uncalibrated laser: add {type:coupon} once (FingerJoint dry-fit + 100 mm bar). Do not add it to every mill. "
         "create_from_reference only 2D-traces artwork or etches a photo onto a jigsaw. "
         "Do not skip the plan. Do not use number_match_puzzle unless the plan says so. "
-        "Named create_* kits only for existing Payas products the plan names. "
+        "create_design returns assembly (f/F, shaft, slots, gable seating) and nesting (translation-only pack on 1500×3000). "
+        "If assembly.ok or ready_to_cut is false, fix primitives and call create_design again; do not tell the user to cut. "
         "Defaults: 3 mm poplar, kerf 0.15 mm, 1500×3000 mm bed, SVG, optional DXF, "
         "cut #FF0000, etch #000000, LaserCAD Y-up. "
         "Notches and closed cuts keep ~1 mm holding nicks so pieces do not fall; do not omit them."
@@ -160,10 +168,10 @@ class BearerGate:
 
 @mcp.tool(
     description=(
-        "STEP 2 after you looked at the photo: Laser MCP teaches the toolbox grammar. "
+        "STEP 2 after you looked at the photo: Laser MCP teaches the toolbox grammar and how to scale. "
         "Pass user_request, what_you_see (parts you see: walls, roof, holes, discs), has_photo, want_dxf. "
-        "Then execute next_tool. If next_tool is create_design, overwrite millimetres from the photo. "
-        "Never ask for a new kit. Do not draw SVG yourself."
+        "Then execute next_tool. If next_tool is create_design, overwrite millimetres from the photo "
+        "or set parameters.reference. Never ask for a new kit. Do not draw SVG yourself."
     )
 )
 def plan_laser_job(
@@ -181,7 +189,9 @@ def plan_laser_job(
     description=(
         "Toolbox compiler. Prefer this after plan_laser_job. "
         "primitives: box (finger-joint walls+floor via Boxes.py), panel (rectangularWall + holes/slots), "
-        "disc (washer), triangle (gable), propeller (n-blade rotor), contour (closed points [[x,y],...] mm). "
+        "disc (washer), triangle (gable), propeller (n-blade rotor), contour (closed points [[x,y],...] mm), "
+        "coupon (kerf/fit test: f/F pair + 100 mm bar). "
+        "Scale the recipe with parameters.scale or parameters.reference={feature, mm, drawn_mm}. "
         "preset=jigsaw_puzzle or number_match_puzzle only when the plan says so. "
         "Never request a new tool. Never hand-write SVG."
     )
@@ -264,14 +274,28 @@ def get_generator_schema(generator: str) -> dict[str, Any]:
     return boxespy.get_generator_schema(generator)
 
 
-@mcp.tool(description="Boxes.py class SVG only (ABox, TypeTray, …). Photos of things to build: plan_laser_job then create_design primitives.")
+@mcp.tool(description="Boxes.py class SVG only (ABox, TypeTray, …). Use only if plan_laser_job next_tool is generate_svg. Photos of things to build: plan_laser_job then create_design primitives.")
 def generate_svg(generator: str, parameters: dict[str, Any] | None = None) -> dict[str, Any]:
     return boxespy.generate_svg(generator, parameters, public_base_url=_tool_public_base())
 
 
-@mcp.tool(description="Validate a generated SVG: well-formed XML and 1500×3000 mm bed fit.")
+@mcp.tool(description="Validate a generated SVG: XML, 1500×3000 bed, nested part spacing. Loads assembly report if present.")
 def validate_svg(file_id: str) -> dict[str, Any]:
     return boxespy.validate_svg(file_id)
+
+
+@mcp.tool(
+    description=(
+        "Mechanical fit + assembly check. Pass primitives to check a recipe before cut, "
+        "or file_id after create_design. Fingers must be complementary f/F of the same length (Boxes.py). "
+        "Shaft holes on opposite walls must share diameter and height. ready_to_cut must be true before cutting."
+    )
+)
+def validate_assembly(
+    file_id: str | None = None,
+    primitives: list[Any] | None = None,
+) -> dict[str, Any]:
+    return payas_cad.validate_assembly(file_id=file_id, primitives=primitives)
 
 
 @mcp.tool(description="Return a preview URL for a previously generated SVG.")
