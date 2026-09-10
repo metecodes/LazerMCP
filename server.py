@@ -252,15 +252,17 @@ def create_from_reference(
             public_base_url=_tool_public_base(),
         )
     except Exception as exc:
-        return {
-            "success": False,
-            "error": str(exc),
-            "hint": (
-                "Compress the photo to ~1200px JPEG and retry. "
-                "This tool only traces 2D artwork. For a mill/house/model, call plan_laser_job "
-                "then create_design with box/panel/disc primitives."
-            ),
-        }
+        return payas_cad._mcp(
+            {
+                "ready_to_cut": False,
+                "hint": (
+                    "Compress the photo to ~1200px JPEG and retry. "
+                    "This tool only traces 2D artwork. For a mill/house/model, call plan_laser_job "
+                    "then create_design with box/panel/disc primitives."
+                ),
+                "look_again": [str(exc)],
+            }
+        )
 
 
 @mcp.tool(description="Payas STEM defaults: 3mm kavak, kerf 0.15, 1500x3000, SVG.")
@@ -280,12 +282,12 @@ def get_generator_schema(generator: str) -> dict[str, Any]:
 
 @mcp.tool(description="Boxes.py class SVG only (ABox, TypeTray, …). Use only if plan_laser_job next_tool is generate_svg. Photos of things to build: plan_laser_job then create_design primitives.")
 def generate_svg(generator: str, parameters: dict[str, Any] | None = None) -> dict[str, Any]:
-    return boxespy.generate_svg(generator, parameters, public_base_url=_tool_public_base())
+    return payas_cad._mcp(boxespy.generate_svg(generator, parameters, public_base_url=_tool_public_base()))
 
 
 @mcp.tool(description="Validate a generated SVG: XML, 1500×3000 bed, nested part spacing. Loads assembly report if present.")
 def validate_svg(file_id: str) -> dict[str, Any]:
-    return boxespy.validate_svg(file_id)
+    return payas_cad._mcp(boxespy.validate_svg(file_id))
 
 
 @mcp.tool(

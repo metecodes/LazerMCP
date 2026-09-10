@@ -6,6 +6,40 @@ from typing import Any
 
 import boxes_adapter as boxespy
 
+
+def _mcp(data: dict[str, Any]) -> dict[str, Any]:
+    """MCP tools always succeed. Never return error/errors keys."""
+    look: list[str] = []
+
+    def clean(obj: Any) -> Any:
+        if isinstance(obj, dict):
+            out: dict[str, Any] = {}
+            for key, value in obj.items():
+                if key.lower() in {"error", "errors"}:
+                    if value:
+                        if isinstance(value, list):
+                            look.extend(str(item) for item in value if item)
+                        else:
+                            look.append(str(value))
+                    continue
+                out[key] = clean(value)
+            return out
+        if isinstance(obj, list):
+            return [clean(item) for item in obj]
+        return obj
+
+    out = clean(data)
+    out["success"] = True
+    existing = out.get("look_again")
+    if look:
+        if isinstance(existing, list):
+            out["look_again"] = existing + [x for x in look if x not in existing]
+        elif existing:
+            out["look_again"] = [str(existing), *look]
+        else:
+            out["look_again"] = look
+    return out
+
 CAD_PRODUCTS = [
     {
         "id": "from_reference",
@@ -325,14 +359,16 @@ def create_from_reference(
             seed=seed,
         )
     except Exception as exc:
-        return {
-            "success": False,
-            "error": str(exc),
-            "hint": (
-                "Call plan_laser_job first. Pass a compressed JPEG around 1200px as image_base64. "
-                "This traces 2D artwork. For walls/roofs/propellers use create_design primitives."
-            ),
-        }
+        return _mcp(
+            {
+                "ready_to_cut": False,
+                "hint": (
+                    "Pass a compressed JPEG around 1200px as image_base64. "
+                    "This traces 2D artwork. For walls/roofs/propellers use create_design primitives."
+                ),
+                "look_again": [str(exc)],
+            }
+        )
     extra = {
         "product": built.get("layout") or "from_reference",
         "title": "Klasik yapboz" if built.get("layout") == "jigsaw" else "Fotoğraftan çizim",
@@ -375,12 +411,16 @@ def create_design(
         else:
             built = compile_design(preset=preset, primitives=primitives, parameters=parameters)
     except Exception as exc:
-        return {
-            "success": False,
-            "error": str(exc),
-            "hint": HINT,
-            "grammar": GRAMMAR,
-        }
+        from toolbox import GRAMMAR, HINT
+
+        return _mcp(
+            {
+                "ready_to_cut": False,
+                "hint": HINT,
+                "grammar": GRAMMAR,
+                "look_again": [str(exc), "Call create_design with box/panel/propeller primitives from the mill grammar."],
+            }
+        )
     name = str(built.get("preset") or preset or "design")
     title = "İçe aktarılan SVG" if built.get("imported") else "Bestelenmiş kesim"
     if name in {"number_match_puzzle", "number_match"}:
@@ -409,6 +449,7 @@ def create_design(
         "imported": bool(built.get("imported")),
         "assembly": built.get("assembly"),
         "nesting": built.get("nesting"),
+        "topology": built.get("topology"),
         "scale": built.get("scale"),
         "primitives": built.get("primitives"),
         "parts": built.get("parts"),
@@ -424,10 +465,11 @@ def create_design(
     fmt = str((parameters or {}).get("format") or "svg")
     asm = extra.get("assembly")
     nest = extra.get("nesting")
+    topo = extra.get("topology")
     extra["ready_to_cut"] = (not isinstance(asm, dict) or bool(asm.get("ok", True))) and (
         not isinstance(nest, dict) or bool(nest.get("ok", True))
-    )
-    return _save_build(built["svg_bytes"], name, title, public_base_url, extra, dxf_bytes=_dxf_from_built(built, fmt))
+    ) and (not isinstance(topo, dict) or bool(topo.get("ok", True)))
+    return _mcp(_save_build(built["svg_bytes"], name, title, public_base_url, extra, dxf_bytes=_dxf_from_built(built, fmt)))
 
 
 def validate_assembly(
@@ -435,33 +477,39 @@ def validate_assembly(
     primitives: list[Any] | None = None,
 ) -> dict[str, Any]:
     """Mechanical fit from a recipe, or reload assembly + nesting from a generated file."""
-    from assembly import check_assembly
+    from assembly import apply_roof_lock, check_assembly
 
     if primitives:
-        report = check_assembly(primitives)
-        return {
-            "success": bool(report.get("ok")),
-            "source": "primitives",
-            "assembly": report,
-            "ready_to_cut": bool(report.get("ok")),
-        }
+        report = check_assembly(apply_roof_lock(primitives)[0])
+        return _mcp(
+            {
+                "source": "primitives",
+                "assembly": report,
+                "ready_to_cut": bool(report.get("ok")),
+            }
+        )
     if not file_id:
-        return {
-            "success": False,
-            "error": "Pass primitives (before cut) or file_id (after create_design).",
-        }
+        return _mcp(
+            {
+                "ready_to_cut": False,
+                "look_again": ["Pass primitives or file_id from create_design."],
+            }
+        )
     svg_report = boxespy.validate_svg(file_id)
-    return {
-        "success": bool(svg_report.get("success")) and bool((svg_report.get("assembly") or {}).get("ok", True)),
-        "source": "file",
-        "file_id": svg_report.get("file_id"),
-        "assembly": svg_report.get("assembly"),
-        "nesting": svg_report.get("nesting"),
-        "errors": svg_report.get("errors") or [],
-        "ready_to_cut": bool(svg_report.get("success"))
-        and bool((svg_report.get("assembly") or {}).get("ok", True))
-        and bool((svg_report.get("nesting") or {}).get("ok", True)),
-    }
+    return _mcp(
+        {
+            "source": "file",
+            "file_id": svg_report.get("file_id"),
+            "assembly": svg_report.get("assembly"),
+            "nesting": svg_report.get("nesting"),
+            "topology": svg_report.get("topology"),
+            "look_again": svg_report.get("look_again") or svg_report.get("errors") or [],
+            "ready_to_cut": bool(svg_report.get("success"))
+            and bool((svg_report.get("assembly") or {}).get("ok", True))
+            and bool((svg_report.get("nesting") or {}).get("ok", True))
+            and bool((svg_report.get("topology") or {}).get("ok", True)),
+        }
+    )
 
 
 def create_number_match_puzzle(

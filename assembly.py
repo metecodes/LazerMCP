@@ -62,23 +62,26 @@ def expand_faces(primitives: list[Any]) -> list[dict[str, Any]]:
             top = str(part.get("top") or "e")[:1]
             bottom_on = bool(part.get("bottom", True))
             lid_on = bool(part.get("lid", False))
+            gable_top = bool(part.get("gable_top") or part.get("lock_roof"))
             b = "F" if bottom_on else "e"
+            wall_top = "F" if gable_top else top
+            side_top = "e" if gable_top else top
             walls = part.get("walls") if isinstance(part.get("walls"), dict) else {}
             faces.append(
-                {"name": "front", "kind": "wall", "w": x, "h": h, "edges": f"{b}F{top}F", "features": _features(walls.get("front") or {})}
+                {"name": "front", "kind": "wall", "w": x, "h": h, "edges": f"{b}F{wall_top}F", "features": _features(walls.get("front") or {})}
             )
             faces.append(
-                {"name": "back", "kind": "wall", "w": x, "h": h, "edges": f"{b}F{top}F", "features": _features(walls.get("back") or {})}
+                {"name": "back", "kind": "wall", "w": x, "h": h, "edges": f"{b}F{wall_top}F", "features": _features(walls.get("back") or {})}
             )
             if bottom_on:
                 faces.append(
                     {"name": "bottom", "kind": "floor", "w": x, "h": y, "edges": "ffff", "features": _features(walls.get("bottom") or {})}
                 )
             faces.append(
-                {"name": "left", "kind": "wall", "w": y, "h": h, "edges": f"{b}f{top}f", "features": _features(walls.get("left") or {})}
+                {"name": "left", "kind": "wall", "w": y, "h": h, "edges": f"{b}f{side_top}f", "features": _features(walls.get("left") or {})}
             )
             faces.append(
-                {"name": "right", "kind": "wall", "w": y, "h": h, "edges": f"{b}f{top}f", "features": _features(walls.get("right") or {})}
+                {"name": "right", "kind": "wall", "w": y, "h": h, "edges": f"{b}f{side_top}f", "features": _features(walls.get("right") or {})}
             )
             if lid_on:
                 faces.append(
@@ -147,7 +150,62 @@ def expand_faces(primitives: list[Any]) -> list[dict[str, Any]]:
 
 def _edge_length(face: dict[str, Any], index: int) -> float:
     w, h = float(face.get("w") or 0), float(face.get("h") or 0)
+    if face.get("kind") == "gable":
+        if index == 0:
+            return w
+        if index == 1:
+            return h
+        return round(math.hypot(w, h), 2)
     return w if index % 2 == 0 else h
+
+
+def apply_roof_lock(primitives: list[Any] | None) -> tuple[list[Any], list[dict[str, Any]]]:
+    """Put Boxes.py FingerJoint on gable↔wall and roof↔hypotenuse so the roof actually locks."""
+    parts: list[Any] = [dict(p) if isinstance(p, dict) else p for p in (primitives or [])]
+    locks: list[dict[str, Any]] = []
+    box = next((p for p in parts if isinstance(p, dict) and _kind(p) == "box"), None)
+    gables = [p for p in parts if isinstance(p, dict) and _kind(p) in {"triangle", "gable"}]
+    roofs = [
+        p
+        for p in parts
+        if isinstance(p, dict)
+        and _kind(p) in {"panel", "wall", "rect", "roof", "roof_panel"}
+        and "roof" in str(p.get("label") or p.get("type") or "").lower()
+    ]
+    if not box or not gables:
+        return parts, locks
+    bx = _num(box.get("x") or box.get("w"), 80)
+    by = _num(box.get("y") or box.get("d"), 80)
+    box["gable_top"] = True
+    box["top"] = "F"
+    rise = max(_num(g.get("h") or g.get("rise"), 24) for g in gables)
+    slope = round(math.hypot(bx, rise), 2)
+    for gable in gables:
+        gable["w"] = bx
+        gable["h"] = _num(gable.get("h") or gable.get("rise"), rise)
+        gable["edges"] = "feF" if roofs else "fee"
+        locks.append(
+            {
+                "joint": "gable-to-wall",
+                "via": "Boxes.py FingerJoint: gable bottom f into front/back top F",
+                "length_mm": bx,
+                "result": "LOCK",
+            }
+        )
+    n_roofs = sum(max(1, int(r.get("count") or r.get("n") or 1)) for r in roofs)
+    for roof in roofs:
+        roof["w"] = slope
+        roof["h"] = max(_num(roof.get("h") or roof.get("y"), by), by)
+        roof["edges"] = "fefe" if n_roofs == 1 else "feee"
+        locks.append(
+            {
+                "joint": "roof-to-gable",
+                "via": "Boxes.py FingerJoint: roof f into gable hypotenuse F",
+                "length_mm": slope,
+                "result": "LOCK",
+            }
+        )
+    return parts, locks
 
 
 def _check_seating(
@@ -160,31 +218,49 @@ def _check_seating(
     roofs: list[dict[str, Any]],
     props: list[dict[str, Any]],
     front: dict[str, Any] | None,
-) -> None:
+) -> list[dict[str, Any]]:
+    """Require FingerJoint lock, not just overlapping bounding boxes."""
+    roof_lock: list[dict[str, Any]] = []
     if roofs and len(gables) < 2:
-        errors.append(f"pitched roof needs 2 gables that sit on the front/back (got {len(gables)})")
-    elif gables and len(gables) == 1:
-        warnings.append("one gable only; a pitched roof usually needs two matching triangles")
+        errors.append("pitched roof needs 2 gables locked to front/back top F (got fewer)")
     for gable in gables:
+        edges = str(gable.get("edges") or "eee")
         if abs(float(gable["w"]) - bx) > 2.0:
-            errors.append(
-                f"gable {gable['name']} width {gable['w']} mm does not seat on box x={bx} mm (front/back)"
+            errors.append(f"gable {gable['name']} width {gable['w']} mm must equal box x={bx} mm to lock")
+        if not edges or edges[0] != "f":
+            errors.append(f"gable {gable['name']} bottom must be f to lock into the wall top F")
+        else:
+            roof_lock.append(
+                {
+                    "joint": "gable-to-wall",
+                    "part": gable["name"],
+                    "result": "LOCK",
+                    "via": "FingerJoint f/F",
+                    "length_mm": bx,
+                }
             )
-    if gables and roofs:
-        if len(roofs) < 2:
-            warnings.append(f"two roof panels expected for a pitched roof (got {len(roofs)})")
-        rise = max(float(g["h"]) for g in gables)
-        slope = math.hypot(by / 2.0, rise)
-        for roof in roofs:
-            short, long = sorted([float(roof["w"]), float(roof["h"])])
-            if long < bx - 5:
-                errors.append(
-                    f"roof {roof['name']} {roof['w']}×{roof['h']} mm is shorter than box x={bx} mm"
-                )
-            if short < by - 8 and short < slope - 8:
-                warnings.append(
-                    f"roof {roof['name']} may not cover depth {by} mm or gable slope {slope:.1f} mm"
-                )
+        if roofs and (len(edges) < 3 or edges[2] != "F"):
+            errors.append(f"gable {gable['name']} hypotenuse must be F so the roof can lock")
+    slope = math.hypot(bx, max((float(g["h"]) for g in gables), default=0.0)) if gables else 0.0
+    for roof in roofs:
+        edges = str(roof.get("edges") or "eeee")
+        if "f" not in edges:
+            errors.append(f"roof {roof['name']} needs an f edge to lock into the gable hypotenuse F")
+        else:
+            roof_lock.append(
+                {
+                    "joint": "roof-to-gable",
+                    "part": roof["name"],
+                    "result": "LOCK",
+                    "via": "FingerJoint f/F",
+                    "length_mm": round(slope, 2),
+                }
+            )
+        dims = sorted([float(roof["w"]), float(roof["h"])])
+        if slope and dims[1] < slope - 8:
+            warnings.append(f"roof {roof['name']} may be short of gable slope {slope:.1f} mm")
+        if dims[0] < by - 8:
+            warnings.append(f"roof {roof['name']} may not cover depth {by} mm")
     if front and props:
         holes = front.get("features") or {}
         for hole in holes.get("holes") or []:
@@ -198,6 +274,7 @@ def _check_seating(
                     errors.append(
                         f"{prop['name']} radius {radius} mm would hit the floor from shaft height y={y} mm"
                     )
+    return roof_lock
 
 
 def check_assembly(
@@ -216,9 +293,10 @@ def check_assembly(
     if not faces:
         return {
             "ok": False,
-            "errors": ["no parts to assemble"],
+            "look_again": ["Pass box/panel/disc/triangle/propeller primitives to assemble."],
             "warnings": [],
             "joints": [],
+            "roof_lock": [],
             "shaft_pairs": [],
             "assembled_mm": None,
             "sequence": [],
@@ -373,11 +451,12 @@ def check_assembly(
             assembled[2] = round(assembled[2] + max(float(g["h"]) for g in gables), 2)
         if props:
             assembled[1] = round(assembled[1] + t + max(float(p.get("d") or 0) for p in props) / 2, 2)
-        _check_seating(errors, warnings, bx, by, t, gables, roofs, props, front)
+        roof_lock = _check_seating(errors, warnings, bx, by, t, gables, roofs, props, front)
     else:
         assembled = None
+        roof_lock = []
         if gables and roofs:
-            warnings.append("gables/roofs without a box: cannot verify they seat on the same width")
+            warnings.append("gables/roofs without a box: cannot lock them to a wall top")
 
     sequence = []
     names = {f["name"] for f in faces}
@@ -389,9 +468,9 @@ def check_assembly(
         if wall in names:
             sequence.append(f"Insert {wall} wall fingers into matching F holes / floor edge.")
     if any(f.get("kind") == "gable" for f in faces):
-        sequence.append("Seat gable triangles on the top edges (width = box x).")
+        sequence.append("Lock gable bottom fingers into the front and back top F edges.")
     if any(f.get("kind") == "panel" and "roof" in f["name"] for f in faces):
-        sequence.append("Lay roof panels onto the gables.")
+        sequence.append("Lock roof f fingers into the gable hypotenuse F — the roof must click, not rest.")
     if any(f.get("kind") == "propeller" for f in faces):
         sequence.append("Pass the shaft through front and back holes, spacers, then the propeller. Do not force; kerf is 0.15 mm.")
     if not sequence:
@@ -400,9 +479,10 @@ def check_assembly(
     ok = not errors
     return {
         "ok": ok,
-        "errors": errors,
         "warnings": warnings,
+        "look_again": errors,
         "joints": joints,
+        "roof_lock": roof_lock,
         "finger_pairs": len(joints),
         "shaft_pairs": shaft_pairs,
         "assembled_mm": assembled,
@@ -410,9 +490,9 @@ def check_assembly(
         "parts": [f["name"] for f in faces],
         "thickness": t,
         "burn": kerf,
+        "look_again": errors,
         "note": (
-            "Fingers match because both sides come from Boxes.py FingerJoint at the same length. "
-            "Gables must match box x; shaft holes must clear windows and leave propeller radius above the floor. "
-            "If ok is false, edit primitives and call create_design again — do not tell the user to cut."
+            "Roof is locked only when gable bottom f mates wall top F and roof f mates gable hypotenuse F "
+            "(Boxes.py FingerJoint). A sitting rectangle is not a lock."
         ),
     }

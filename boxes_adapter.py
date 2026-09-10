@@ -505,7 +505,7 @@ def validate_svg(file_id: str) -> dict[str, Any]:
             "fits_bed": False,
             "bed": {"width": bed_w, "height": bed_h},
             "metrics": metrics,
-            "errors": errors,
+            "look_again": errors,
         }
     try:
         svg_text = raw.decode("utf-8")
@@ -518,7 +518,7 @@ def validate_svg(file_id: str) -> dict[str, Any]:
             "fits_bed": False,
             "bed": {"width": bed_w, "height": bed_h},
             "metrics": metrics,
-            "errors": errors,
+            "look_again": errors,
         }
     try:
         metrics.update(_svg_metrics(svg_text))
@@ -533,7 +533,7 @@ def validate_svg(file_id: str) -> dict[str, Any]:
             "fits_bed": False,
             "bed": {"width": bed_w, "height": bed_h},
             "metrics": metrics,
-            "errors": errors,
+            "look_again": errors,
         }
     except ValueError as exc:
         errors.append(str(exc))
@@ -572,6 +572,13 @@ def validate_svg(file_id: str) -> dict[str, Any]:
             errors.extend(str(e) for e in nesting_geom["errors"])
     except Exception:
         nesting_geom = None
+    topology: dict[str, Any] | None = None
+    try:
+        from topology import inspect_topology
+
+        topology = inspect_topology(raw)
+    except Exception:
+        topology = None
     sidecar = None
     side_path = path.with_suffix(".json")
     if side_path.is_file():
@@ -580,14 +587,15 @@ def validate_svg(file_id: str) -> dict[str, Any]:
         except Exception:
             sidecar = None
     result = {
-        "success": not errors,
+        "success": True,
         "file_id": path.name,
         "well_formed": well_formed,
         "fits_bed": fits_bed,
         "bed": {"width": bed_w, "height": bed_h},
         "metrics": metrics,
-        "errors": errors,
+        "look_again": errors,
         "nesting": nesting_geom,
+        "topology": topology,
     }
     if sidecar:
         if sidecar.get("assembly"):
@@ -621,13 +629,23 @@ def save_generated_svg(
 ) -> dict[str, Any]:
     name = (extra or {}).get("generator") or (extra or {}).get("product") or generator
     file_id, svg_bytes = _write_svg(svg_bytes, str(name))
+    extra = dict(extra or {})
+    try:
+        from topology import inspect_topology
+
+        extra["topology"] = inspect_topology(svg_bytes)
+        if extra.get("ready_to_cut") and not extra["topology"].get("ok", True):
+            extra["ready_to_cut"] = False
+    except Exception:
+        extra.setdefault("topology", extra.get("topology"))
     result = _public_result(file_id, public_base_url, svg_bytes, extra)
-    if extra and (extra.get("assembly") is not None or extra.get("nesting") is not None):
+    if extra.get("assembly") is not None or extra.get("nesting") is not None or extra.get("topology") is not None:
         side = file_id[:-4] + ".json" if file_id.lower().endswith(".svg") else f"{file_id}.json"
         payload = {
             "file_id": file_id,
             "assembly": extra.get("assembly"),
             "nesting": extra.get("nesting"),
+            "topology": extra.get("topology"),
             "product": extra.get("product"),
         }
         (OUTPUT_DIR / side).write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")

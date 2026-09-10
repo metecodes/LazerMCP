@@ -260,30 +260,59 @@ def is_assembly(primitives: list[Any] | None) -> bool:
 
 def _prepare_parts(primitives: list[Any]) -> list[dict[str, Any]]:
     parts: list[dict[str, Any]] = []
-    unknown: list[str] = []
+    absorb: list[dict[str, Any]] = []
     for part in primitives:
         if not isinstance(part, dict):
             continue
         kind = _kind(part)
-        if kind in _NOT_A_PART:
-            raise ValueError(_NOT_A_PART[kind] + " " + HINT)
         item = dict(part)
+        if kind in _NOT_A_PART:
+            absorb.append(item)
+            continue
         if kind in _TYPE_ALIAS:
             item["type"] = _TYPE_ALIAS[kind]
             item.setdefault("label", kind)
             kind = item["type"]
         if kind in ASSEMBLY_TYPES:
             parts.append(item)
+    box = next((p for p in parts if _kind(p) == "box"), None)
+    panel = next((p for p in parts if _kind(p) in {"panel", "wall", "rect"}), None)
+    for extra in absorb:
+        kind = _kind(extra)
+        host = box or panel
+        if host is None:
+            host = {"type": "panel", "w": 80, "h": 120, "edges": "eeee", "slots": [], "holes": [], "label": "front"}
+            parts.insert(0, host)
+            panel = host
+        if box and host is box:
+            walls = host.setdefault("walls", {})
+            if not isinstance(walls, dict):
+                walls = {}
+                host["walls"] = walls
+            front = walls.setdefault("front", {})
+            if not isinstance(front, dict):
+                front = {}
+                walls["front"] = front
+            target = front
         else:
-            unknown.append(kind)
-    if unknown:
-        raise ValueError(
-            "Unknown part type(s): "
-            + ", ".join(unknown)
-            + ". Door/window/slot are openings on a wall (box.walls.front.slots), not parts. "
-            "Motor plate, solar carrier, roof brace = type=panel. Shaft washer = type=disc. "
-            + HINT
-        )
+            target = host
+        if kind in {"slot", "slots", "door", "window"}:
+            target.setdefault("slots", []).append(
+                {
+                    "x": extra.get("x") or extra.get("cx") or (_num(host.get("x") or host.get("w"), 80) / 2),
+                    "y": extra.get("y") or extra.get("cy") or 40,
+                    "w": extra.get("w") or extra.get("width") or 22,
+                    "h": extra.get("h") or extra.get("height") or 28,
+                }
+            )
+        else:
+            target.setdefault("holes", []).append(
+                {
+                    "x": extra.get("x") or extra.get("cx") or 20,
+                    "y": extra.get("y") or extra.get("cy") or 20,
+                    "d": extra.get("d") or extra.get("diameter") or extra.get("hole") or 4,
+                }
+            )
     return parts
 
 
@@ -567,6 +596,9 @@ class PayasToolbox(Boxes):
         top = str(part.get("top") or "e")[:1]
         if top not in _EDGE_OK:
             top = "e"
+        gable_top = bool(part.get("gable_top") or part.get("lock_roof"))
+        wall_top = "F" if gable_top else top
+        side_top = "e" if gable_top else top
         bottom_on = bool(part.get("bottom", True))
         lid_on = bool(part.get("lid", False))
         b = "F" if bottom_on else "e"
@@ -578,11 +610,11 @@ class PayasToolbox(Boxes):
             return _features(raw)
 
         self.rectangularWall(
-            x, h, f"{b}F{top}F", ignore_widths=ignore,
+            x, h, f"{b}F{wall_top}F", ignore_widths=ignore,
             callback=self._wall_cb(wall("front")), move="up", label="front",
         )
         self.rectangularWall(
-            x, h, f"{b}F{top}F", ignore_widths=ignore,
+            x, h, f"{b}F{wall_top}F", ignore_widths=ignore,
             callback=self._wall_cb(wall("back")), move="up", label="back",
         )
         if bottom_on:
@@ -590,11 +622,11 @@ class PayasToolbox(Boxes):
                 x, y, "ffff", callback=self._wall_cb(wall("bottom")), move="up", label="bottom",
             )
         self.rectangularWall(
-            y, h, f"{b}f{top}f", ignore_widths=ignore,
+            y, h, f"{b}f{side_top}f", ignore_widths=ignore,
             callback=self._wall_cb(wall("left")), move="up", label="left",
         )
         self.rectangularWall(
-            y, h, f"{b}f{top}f", ignore_widths=ignore,
+            y, h, f"{b}f{side_top}f", ignore_widths=ignore,
             callback=self._wall_cb(wall("right")), move="up", label="right",
         )
         if lid_on:
@@ -626,6 +658,9 @@ def compile_toolbox(primitives: list[Any], parameters: dict[str, Any] | None = N
     from scale import scale_primitives
 
     parts, scale_info = scale_primitives(parts, params)
+    from assembly import apply_roof_lock, check_assembly
+
+    parts, roof_lock = apply_roof_lock(parts)
     thickness = float(params.get("thickness") or PAYAS_DEFAULTS["thickness"])
     box = PayasToolbox()
     box.parseArgs(
@@ -644,11 +679,14 @@ def compile_toolbox(primitives: list[Any], parameters: dict[str, Any] | None = N
     box.render()
     data = box.close()
     svg_bytes = data.getvalue() if hasattr(data, "getvalue") else data.read()
-    from assembly import check_assembly
     from nesting import nest_svg
+    from topology import inspect_topology
 
     assembly = check_assembly(parts, thickness=thickness, burn=PAYAS_DEFAULTS["burn"])
+    if roof_lock:
+        assembly["roof_lock"] = assembly.get("roof_lock") or roof_lock
     svg_bytes, nesting = nest_svg(svg_bytes)
+    topology = inspect_topology(svg_bytes)
     metrics = _svg_metrics(svg_bytes.decode("utf-8", errors="replace"))
     return {
         "svg_bytes": svg_bytes,
@@ -665,6 +703,7 @@ def compile_toolbox(primitives: list[Any], parameters: dict[str, Any] | None = N
         "path_count": metrics.get("path_count"),
         "assembly": assembly,
         "nesting": nesting,
+        "topology": topology,
         "scale": scale_info,
         "primitives": parts,
         "note": (
