@@ -72,7 +72,8 @@
       height: calc(100vh - 220px); border: 1px solid var(--line); background: #0c0b09;
       display: flex; align-items: center; justify-content: center; overflow: auto;
     }
-    .preview-frame img { max-width: 100%; max-height: 100%; background: #fff; }
+    .preview-frame img, .preview-frame svg { max-width: 100%; max-height: 100%; background: #fff; }
+    .preview-frame svg { width: 100%; height: auto; display: block; }
     .meta { display: flex; justify-content: space-between; gap: 12px; color: var(--muted); font-size: 13px; margin-top: 10px; }
     @media (max-width: 980px) {
       main { grid-template-columns: 1fr; }
@@ -136,7 +137,7 @@
         {name:"image", type:"file"},
         {name:"width_mm", type:"number", default:200},
         {name:"style", type:"string", choices:["cut_and_etch","cut","etch"], default:"cut_and_etch"},
-        {name:"threshold", type:"number", default:140}
+        {name:"threshold", type:"number", default:0}
       ],
       traffic_light: [
         {name:"thickness", type:"number", default:3},
@@ -221,10 +222,16 @@
         const img = new Image();
         const url = URL.createObjectURL(file);
         img.onload = () => {
-          const max = 1400;
+          const max = 1800;
           let width = img.width;
           let height = img.height;
-          if (Math.max(width, height) > max) {
+          const needsScale = Math.max(width, height) > max;
+          if (!needsScale && file.size < 2500000 && file.type !== "image/jpeg") {
+            URL.revokeObjectURL(url);
+            resolve(file);
+            return;
+          }
+          if (needsScale) {
             const scale = max / Math.max(width, height);
             width = Math.round(width * scale);
             height = Math.round(height * scale);
@@ -233,11 +240,12 @@
           canvas.width = width;
           canvas.height = height;
           canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+          const photo = file.type === "image/jpeg" || file.size > 2500000;
           canvas.toBlob((blob) => {
             URL.revokeObjectURL(url);
             if (!blob) reject(new Error("Görsel sıkıştırılamadı"));
             else resolve(blob);
-          }, "image/jpeg", 0.82);
+          }, photo ? "image/jpeg" : "image/png", photo ? 0.92 : undefined);
         };
         img.onerror = () => {
           URL.revokeObjectURL(url);
@@ -413,14 +421,34 @@
       el.className = "status " + (ok === true ? "ok" : ok === false ? "bad" : "");
     }
 
-    function showPreview(url, metrics, report) {
+    async function showPreview(url, metrics, report) {
       const frame = $("preview");
       frame.innerHTML = "";
-      const img = document.createElement("img");
-      img.alt = "Kesim SVG";
       const stamped = withToken(url);
-      img.src = stamped + (stamped.includes("?") ? "&" : "?") + "t=" + Date.now();
-      frame.appendChild(img);
+      const src = stamped + (stamped.includes("?") ? "&" : "?") + "t=" + Date.now();
+      try {
+        const res = await fetch(src);
+        const text = await res.text();
+        if (text.includes("<svg")) {
+          frame.innerHTML = text;
+          const svg = frame.querySelector("svg");
+          if (svg) {
+            svg.removeAttribute("width");
+            svg.removeAttribute("height");
+            svg.querySelectorAll("path,line,polyline,polygon,circle,rect").forEach((el) => {
+              const w = parseFloat(el.getAttribute("stroke-width") || "0.2");
+              if (w < 0.7) el.setAttribute("stroke-width", "0.7");
+            });
+          }
+        } else {
+          throw new Error("not svg");
+        }
+      } catch (_) {
+        const img = document.createElement("img");
+        img.alt = "Kesim SVG";
+        img.src = src;
+        frame.appendChild(img);
+      }
       if (metrics) {
         $("metrics").textContent = (metrics.width_mm || "—") + " × " + (metrics.height_mm || "—") + " mm · " + (metrics.path_count || 0) + " kesim";
       }
@@ -448,7 +476,7 @@
           form.append("image", blob, "reference.jpg");
           form.append("width_mm", String(params.width_mm ?? 200));
           form.append("style", params.style || "cut_and_etch");
-          form.append("threshold", String(params.threshold ?? 140));
+          form.append("threshold", String(params.threshold ?? 0));
           endpoint = "/api/cad/from_reference";
           const res = await api(endpoint, { method: "POST", body: form });
           const data = await readJson(res);

@@ -56,10 +56,18 @@ def _arc(cx: float, cy: float, rx: float, ry: float, a0: float, a1: float, n: in
 
 
 def _digit(n: str, ox: float, oy: float, w: float, h: float, thick: float):
+    """Draw a digit. Unit space is x→ right, y↑ up, origin at glyph bottom-left; mapped to SVG y-down."""
     t = thick
 
-    def S(pts):
-        return [(ox + x * w, oy + y * h) for x, y in pts]
+    def P(x: float, y: float) -> tuple[float, float]:
+        return (ox + x * w, oy + (1.0 - y) * h)
+
+    def S(pts: list[tuple[float, float]]):
+        return [P(x, y) for x, y in pts]
+
+    def A(cx: float, cy: float, rx: float, ry: float, a0: float, a1: float):
+        return [P(cx + rx * math.cos(t), cy + ry * math.sin(t)) for t in
+                [a0 + (a1 - a0) * i / 28 for i in range(29)]]
 
     parts = []
     if n == "1":
@@ -67,33 +75,33 @@ def _digit(n: str, ox: float, oy: float, w: float, h: float, thick: float):
         parts.append(_stroke(S([(0.28, 0.78), (0.52, 0.92)]), t))
         parts.append(_stroke(S([(0.30, 0.08), (0.74, 0.08)]), t))
     elif n == "2":
-        parts.append(_stroke(_arc(ox + 0.5 * w, oy + 0.70 * h, 0.32 * w, 0.22 * h, math.pi * 0.95, math.pi * -0.05), t))
+        parts.append(_stroke(A(0.50, 0.70, 0.32, 0.22, math.pi * 0.95, math.pi * -0.05), t))
         parts.append(_stroke(S([(0.82, 0.68), (0.22, 0.10)]), t))
         parts.append(_stroke(S([(0.22, 0.10), (0.82, 0.10)]), t))
     elif n == "3":
-        parts.append(_stroke(_arc(ox + 0.48 * w, oy + 0.72 * h, 0.30 * w, 0.20 * h, math.pi * 0.85, math.pi * -0.15), t))
+        parts.append(_stroke(A(0.48, 0.72, 0.30, 0.20, math.pi * 0.85, math.pi * -0.15), t))
         parts.append(_stroke(S([(0.42, 0.52), (0.62, 0.52)]), t * 0.9))
-        parts.append(_stroke(_arc(ox + 0.48 * w, oy + 0.28 * h, 0.32 * w, 0.22 * h, math.pi * 0.15, math.pi * 1.05), t))
+        parts.append(_stroke(A(0.48, 0.28, 0.32, 0.22, math.pi * 0.15, math.pi * 1.05), t))
     elif n == "4":
         parts.append(_stroke(S([(0.68, 0.08), (0.68, 0.92)]), t))
         parts.append(_stroke(S([(0.68, 0.92), (0.22, 0.38)]), t))
         parts.append(_stroke(S([(0.20, 0.38), (0.84, 0.38)]), t))
     elif n == "5":
         parts.append(_stroke(S([(0.78, 0.90), (0.28, 0.90), (0.26, 0.56), (0.55, 0.56)]), t))
-        parts.append(_stroke(_arc(ox + 0.50 * w, oy + 0.32 * h, 0.32 * w, 0.24 * h, math.pi * 0.15, math.pi * 1.05), t))
+        parts.append(_stroke(A(0.50, 0.32, 0.32, 0.24, math.pi * 0.15, math.pi * 1.05), t))
     elif n == "6":
-        parts.append(_stroke(_arc(ox + 0.52 * w, oy + 0.32 * h, 0.30 * w, 0.24 * h, 0, 2 * math.pi), t))
+        parts.append(_stroke(A(0.52, 0.32, 0.30, 0.24, 0, 2 * math.pi), t))
         parts.append(_stroke(S([(0.24, 0.40), (0.38, 0.90), (0.74, 0.90)]), t))
     elif n == "7":
         parts.append(_stroke(S([(0.20, 0.90), (0.82, 0.90), (0.38, 0.08)]), t))
     elif n == "8":
-        parts.append(_stroke(_arc(ox + 0.50 * w, oy + 0.72 * h, 0.28 * w, 0.20 * h, 0, 2 * math.pi), t))
-        parts.append(_stroke(_arc(ox + 0.50 * w, oy + 0.28 * h, 0.30 * w, 0.22 * h, 0, 2 * math.pi), t))
+        parts.append(_stroke(A(0.50, 0.72, 0.28, 0.20, 0, 2 * math.pi), t))
+        parts.append(_stroke(A(0.50, 0.28, 0.30, 0.22, 0, 2 * math.pi), t))
     elif n == "9":
-        parts.append(_stroke(_arc(ox + 0.50 * w, oy + 0.70 * h, 0.30 * w, 0.22 * h, 0, 2 * math.pi), t))
+        parts.append(_stroke(A(0.50, 0.70, 0.30, 0.22, 0, 2 * math.pi), t))
         parts.append(_stroke(S([(0.78, 0.68), (0.62, 0.10), (0.28, 0.12)]), t))
     elif n == "0":
-        parts.append(_stroke(_arc(ox + 0.50 * w, oy + 0.50 * h, 0.32 * w, 0.42 * h, 0, 2 * math.pi), t))
+        parts.append(_stroke(A(0.50, 0.50, 0.32, 0.42, 0, 2 * math.pi), t))
     else:
         return None
     return unary_union(parts)
@@ -209,7 +217,7 @@ def build_jigsaw_sheet(
         left_val = item.get("left", i + 1)
         col, row = i % columns, i // columns
         origin_x = margin + col * (pair_w + gap)
-        origin_y = margin + (rows - 1 - row) * (card_h + gap)
+        origin_y = margin + row * (card_h + gap)
         left, right = _pair_pieces(card_w, card_h, r=min(9.0, card_h * 0.14), burn=burn)
         lx, ly = left.bounds[0], left.bounds[1]
         rx, ry = right.bounds[0], right.bounds[1]

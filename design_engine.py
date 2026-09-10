@@ -151,7 +151,7 @@ def _compile_token_grid(first: dict[str, Any], params: dict[str, Any]) -> dict[s
         n = i + 1
         col, row = i % columns, i // columns
         x = margin + col * (w + gap)
-        y = margin + (rows - 1 - row) * (h + gap)
+        y = margin + row * (h + gap)
         token = translate(_rounded_rect(w, h, r).buffer(-burn), x, y)
         cut_bits.append(token)
         cx, cy = x + w / 2, y + h / 2

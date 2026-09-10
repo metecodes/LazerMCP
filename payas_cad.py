@@ -17,7 +17,7 @@ CAD_PRODUCTS = [
         "id": "from_reference",
         "tool": "create_from_reference",
         "title": "Referans görsel",
-        "description": "Foto/logo izleme. Eğitim kartı/yapboz için create_design kullanın.",
+        "description": "Foto, logo veya çizimi lazer SVG’ye çevirir. Eşik 0 = otomatik. Sayı eşleme yapboz için create_design kullanın.",
     },
     {
         "id": "traffic_light",
@@ -250,7 +250,7 @@ def create_from_reference(
     width_mm: float = 200.0,
     style: str = "cut_and_etch",
     invert: bool | None = None,
-    threshold: int = 140,
+    threshold: int = 0,
     image_bytes: bytes | None = None,
     public_base_url: str = "http://127.0.0.1:8000",
 ) -> dict[str, Any]:

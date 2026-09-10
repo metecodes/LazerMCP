@@ -182,7 +182,7 @@ def create_from_reference(
     width_mm: float = 200.0,
     style: str = "cut_and_etch",
     invert: bool | None = None,
-    threshold: int = 140,
+    threshold: int = 0,
 ) -> dict[str, Any]:
     return payas_cad.create_from_reference(
         image_base64=image_base64,
@@ -401,7 +401,7 @@ async def api_from_reference(request: Request) -> Response:
             style = str(form.get("style") or "cut_and_etch")
             invert_raw = form.get("invert")
             invert = None if invert_raw in (None, "", "auto") else str(invert_raw).lower() in {"1", "true", "yes"}
-            threshold = int(form.get("threshold") or 140)
+            threshold = int(form.get("threshold") or 0)
             result = payas_cad.create_from_reference(
                 image_bytes=image_bytes,
                 width_mm=width_mm,
@@ -417,7 +417,7 @@ async def api_from_reference(request: Request) -> Response:
             width_mm=float(body.get("width_mm") or (body.get("parameters") or {}).get("width_mm") or 200),
             style=str(body.get("style") or (body.get("parameters") or {}).get("style") or "cut_and_etch"),
             invert=(body.get("parameters") or body).get("invert"),
-            threshold=int(body.get("threshold") or (body.get("parameters") or {}).get("threshold") or 140),
+            threshold=int(body.get("threshold") or (body.get("parameters") or {}).get("threshold") or 0),
             public_base_url=_public_base(request),
         )
         return JSONResponse(result)
