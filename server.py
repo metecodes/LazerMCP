@@ -52,7 +52,8 @@ mcp = MCPServer(
         "For ANY image of a thing to build: (1) look at the photo and describe parts, "
         "(2) call plan_laser_job with user_request, what_you_see, has_photo=true, "
         "(3) execute next_tool. If next_tool is create_design, fill millimetres from the photo "
-        "into primitives (box/panel/disc/triangle) — finger joints come from Boxes.py, not from you. "
+        "into primitives (box/panel/disc/triangle/propeller/contour) — finger joints and outlines come from Boxes.py. "
+        "A 4-blade rotor is type=propeller, not a disc. Odd silhouettes are type=contour with points in mm. "
         "create_from_reference only 2D-traces artwork or etches a photo onto a jigsaw. "
         "Do not skip the plan. Do not use number_match_puzzle unless the plan says so. "
         "Named create_* kits only for existing Payas products the plan names. "
@@ -180,14 +181,14 @@ def plan_laser_job(
     description=(
         "Toolbox compiler. Prefer this after plan_laser_job. "
         "primitives: box (finger-joint walls+floor via Boxes.py), panel (rectangularWall + holes/slots), "
-        "disc (washer/propeller), triangle (gable), plus jigsaw_grid/token_grid/text. "
+        "disc (washer), triangle (gable), propeller (n-blade rotor), contour (closed points [[x,y],...] mm). "
         "preset=jigsaw_puzzle or number_match_puzzle only when the plan says so. "
         "Never request a new tool. Never hand-write SVG."
     )
 )
 def create_design(
     preset: str | None = None,
-    primitives: list[dict[str, Any]] | None = None,
+    primitives: list[Any] | None = None,
     parameters: dict[str, Any] | None = None,
     svg: str | None = None,
 ) -> dict[str, Any]:
@@ -204,7 +205,7 @@ def create_design(
     description=(
         "2D artwork only: vectorize a photo or etch it onto a jigsaw. "
         "Pass compressed JPEG image_base64 plus next_arguments from the plan. "
-        "To build walls/roofs/propellers, use create_design primitives instead. "
+        "To build walls/roofs/propellers, use create_design (type=propeller or type=contour), not this tool. "
         "layout=jigsaw or trace. format=svg or both. Then validate_svg."
     )
 )

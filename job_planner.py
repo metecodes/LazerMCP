@@ -170,7 +170,7 @@ def _rules() -> list[str]:
         "Never flip, rotate, or mirror geometry.",
         "Cut #FF0000, etch #000000, LaserCAD Y-up, 3 mm poplar, kerf 0.15 mm.",
         "Notches and closed cuts get ~1 mm holding nicks. Do not omit them.",
-        "Look at the photo, read millimetres from it, then compose primitives (box/panel/disc/triangle).",
+        "Look at the photo, read millimetres from it, then compose primitives (box/panel/disc/triangle/propeller/contour).",
         "create_from_reference only traces 2D artwork (logo, photo, jigsaw etch). Assembly = create_design primitives.",
         "number_match_puzzle is only for number-to-dot matching cards.",
         "Named create_* kits only when the plan names an existing Payas product.",
@@ -208,7 +208,7 @@ def _assembly_recipe(text: str, width: float | None, height: float | None) -> li
             [
                 {"type": "triangle", "w": round(x, 1), "h": round(max(18.0, y * 0.35), 1), "count": 2, "label": "gable"},
                 {"type": "panel", "w": round(x + 10, 1), "h": round(y + 6, 1), "edges": "eeee", "count": 2, "label": "roof"},
-                {"type": "disc", "d": prop, "hole": shaft, "label": "propeller"},
+                {"type": "propeller", "blades": 4, "d": prop, "blade_w": round(max(10.0, prop * 0.22), 1), "hole": shaft, "label": "propeller"},
                 {"type": "disc", "d": 14, "hole": shaft, "count": 2, "label": "spacer"},
             ]
         )
@@ -350,11 +350,10 @@ def plan_laser_job(
         height = height or width
         look = (
             "LOOK at the photo again. Read millimetres from what you see "
-            "(footprint, wall height, door/window, shaft, propeller diameter). "
+            "(footprint, wall height, door/window, shaft, propeller diameter and blade count). "
             "Edit next_arguments.primitives accordingly, then call create_design. "
-            "Add holes/slots on the wall that has the door or windows. "
-            "Do not ask for a mill kit. Do not 2D-trace this as the assembly. "
-            "create_from_reference is only if they also want the drawing etched on a panel."
+            "A 4-blade rotor is type=propeller (not disc). An odd silhouette is type=contour with points:[[x,y],...] mm. "
+            "Do not ask for a mill kit. Do not 2D-trace this as the assembly."
         )
         if not photo:
             look = (

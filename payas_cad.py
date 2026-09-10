@@ -77,7 +77,7 @@ def list_cad_tools() -> dict[str, Any]:
         "products": CAD_PRODUCTS,
         "policy": (
             "Toolbox, not a catalog. Look at the photo, call plan_laser_job, then create_design "
-            "with box/panel/disc/triangle primitives (Boxes.py). Do not ask for a new kit tool. "
+            "with box/panel/disc/triangle/propeller/contour primitives (Boxes.py). Do not ask for a new kit tool. "
             "create_from_reference is 2D artwork only. Named create_* only for existing Payas products. "
             "Never write SVG yourself. Cuts keep ~1 mm holding nicks."
         ),
@@ -354,11 +354,20 @@ def create_design(
     public_base_url: str = "http://127.0.0.1:8000",
 ) -> dict[str, Any]:
     from design_engine import compile_design, import_svg_document
+    from toolbox import GRAMMAR, HINT
 
-    if svg:
-        built = import_svg_document(svg)
-    else:
-        built = compile_design(preset=preset, primitives=primitives, parameters=parameters)
+    try:
+        if svg:
+            built = import_svg_document(svg)
+        else:
+            built = compile_design(preset=preset, primitives=primitives, parameters=parameters)
+    except Exception as exc:
+        return {
+            "success": False,
+            "error": str(exc),
+            "hint": HINT,
+            "grammar": GRAMMAR,
+        }
     name = str(built.get("preset") or preset or "design")
     title = "İçe aktarılan SVG" if built.get("imported") else "Takım çantası"
     if name in {"number_match_puzzle", "number_match"}:

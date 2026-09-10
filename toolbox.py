@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import math
+import re
 from typing import Any
 
 import boxes_adapter  # noqa: F401  # sys.path for vendor Boxes.py
@@ -26,6 +28,15 @@ ASSEMBLY_TYPES = frozenset(
         "roof",
         "roof_panel",
         "polygon",
+        "contour",
+        "outline",
+        "polyline",
+        "propeller",
+        "pervane",
+        "blades",
+        "fan",
+        "cross",
+        "plus",
     }
 )
 
@@ -61,9 +72,44 @@ GRAMMAR = {
     },
     "disc": {"type": "disc", "d": 50, "hole": 4, "count": 1},
     "triangle": {"type": "triangle", "w": 80, "h": 28, "edges": "eee", "count": 2},
-    "coords": "x,y are mm from the bottom-left of that part (inner face).",
+    "propeller": {
+        "type": "propeller",
+        "blades": 4,
+        "d": 80,
+        "blade_w": 18,
+        "hole": 4,
+        "note": "4-blade mill rotor. Do NOT use disc for this. Do not ask for a new tool.",
+    },
+    "contour": {
+        "type": "contour",
+        "points": [[40, 0], [8, 8], [0, 40], [-8, 8], [-40, 0], [-8, -8], [0, -40], [8, -8]],
+        "hole": 4,
+        "note": (
+            "Closed outline in mm. points may be [[x,y],...], [{x,y},...], "
+            "flat [x,y,x,y,...], or a string 'x,y x,y ...'. Origin can be center or any corner; packed by bbox."
+        ),
+    },
+    "polygon": {
+        "type": "polygon",
+        "points": [[0, 0], [80, 0], [40, 50]],
+        "or_borders": [80, 120, 50, 120, 50],
+        "note": "Prefer points [[x,y],...]. borders is Boxes.py [length, turn_angle, ...] only if you already have that.",
+    },
+    "odd_shapes": (
+        "If the photo is not a rectangle/circle, do not give up and do not request a kit. "
+        "Count blades/sides from the photo, then call create_design with type=propeller or type=contour. "
+        "Read millimetres off the picture. Never hand-write SVG."
+    ),
+    "coords": "Wall holes: x,y mm from the bottom-left of that part. Contour points: mm in the part's own plane.",
     "never": "Never request a new MCP tool. Never hand-write SVG. Call create_design with primitives.",
 }
+
+HINT = (
+    "Odd outlines are allowed. 4-blade mill: "
+    '{type:"propeller", blades:4, d:80, blade_w:18, hole:4}. '
+    "Any silhouette: {type:\"contour\", points:[[x,y],...], hole:4} in mm. "
+    "Do not use disc for a propeller. Do not ask for a new kit tool."
+)
 
 _EDGE_OK = set("eEfFhH")
 _MAX_PARTS = 48
@@ -121,6 +167,54 @@ def _features(part: dict[str, Any]) -> dict[str, Any]:
         "slots": list(part.get("slots") or part.get("rect_holes") or []),
         "finger_holes": list(part.get("finger_holes") or part.get("fingerHoles") or []),
     }
+
+
+def _as_points(raw: Any) -> list[tuple[float, float]]:
+    if raw is None or raw == "":
+        return []
+    if isinstance(raw, str):
+        nums = [float(x) for x in re.findall(r"-?\d+(?:\.\d+)?", raw)]
+        if len(nums) < 6:
+            raise ValueError("contour points need at least 3 x,y pairs in mm")
+        raw = [(nums[i], nums[i + 1]) for i in range(0, len(nums) - 1, 2)]
+    if isinstance(raw, list) and raw and isinstance(raw[0], (int, float)):
+        nums = [float(x) for x in raw]
+        if len(nums) < 6:
+            raise ValueError("contour points need at least 3 x,y pairs in mm")
+        raw = [(nums[i], nums[i + 1]) for i in range(0, len(nums) - 1, 2)]
+    pts: list[tuple[float, float]] = []
+    for item in raw:
+        if isinstance(item, dict):
+            pts.append((_num(item.get("x"), 0.0), _num(item.get("y"), 0.0)))
+        elif isinstance(item, (list, tuple)) and len(item) >= 2:
+            pts.append((float(item[0]), float(item[1])))
+        else:
+            raise ValueError(f"bad point {item!r}; use [x,y] millimetres")
+    if len(pts) > 240:
+        raise ValueError("too many contour points (max 240)")
+    if len(pts) < 3:
+        raise ValueError("contour needs at least 3 points [[x,y], ...] in mm")
+    if math.hypot(pts[0][0] - pts[-1][0], pts[0][1] - pts[-1][1]) < 0.05:
+        pts = pts[:-1]
+    return pts
+
+
+def propeller_points(blades: int, diameter: float, blade_w: float) -> list[tuple[float, float]]:
+    n = max(2, min(12, int(blades)))
+    radius = max(12.0, float(diameter) / 2.0)
+    width = min(max(6.0, float(blade_w)), radius * 0.9)
+    half = width / 2.0
+    inner = min(radius * 0.55, half / math.sin(math.pi / n))
+    pts: list[tuple[float, float]] = []
+    for i in range(n):
+        ang = i * 2 * math.pi / n
+        ux, uy = math.cos(ang), math.sin(ang)
+        vx, vy = -uy, ux
+        pts.append((radius * ux - half * vx, radius * uy - half * vy))
+        pts.append((radius * ux + half * vx, radius * uy + half * vy))
+        bisect = ang + math.pi / n
+        pts.append((inner * math.cos(bisect), inner * math.sin(bisect)))
+    return pts
 
 
 class PayasToolbox(Boxes):
@@ -190,6 +284,57 @@ class PayasToolbox(Boxes):
             return None
         return [cb]
 
+    def _closed_contour(self, points: list[tuple[float, float]], hole_d: float, label: str, move: str = "up") -> None:
+        xs = [p[0] for p in points]
+        ys = [p[1] for p in points]
+        minx, maxx = min(xs), max(xs)
+        miny, maxy = min(ys), max(ys)
+        pad = 2.0
+        tw = (maxx - minx) + pad * 2
+        th = (maxy - miny) + pad * 2
+        if tw < 4 or th < 4:
+            raise ValueError("contour bounding box is too small")
+        if self.move(tw, th, move, True, label=label):
+            return
+        ox = pad - minx
+        oy = pad - miny
+        shifted = [(x + ox, y + oy) for x, y in points]
+        if hole_d and hole_d > 0:
+            self.hole((minx + maxx) / 2 + ox, (miny + maxy) / 2 + oy, d=float(hole_d))
+        x0, y0 = shifted[0]
+        self.moveTo(x0, y0)
+        heading = 0.0
+        ring = shifted + [shifted[0]]
+        for i in range(len(ring) - 1):
+            x1, y1 = ring[i]
+            x2, y2 = ring[i + 1]
+            dx, dy = x2 - x1, y2 - y1
+            dist = math.hypot(dx, dy)
+            if dist < 0.05:
+                continue
+            want = math.degrees(math.atan2(dy, dx))
+            turn = want - heading
+            while turn > 180.0:
+                turn -= 360.0
+            while turn < -180.0:
+                turn += 360.0
+            if abs(turn) > 1e-4:
+                self.corner(turn)
+            self.edge(dist)
+            heading = want
+        first_dx = ring[1][0] - ring[0][0]
+        first_dy = ring[1][1] - ring[0][1]
+        if math.hypot(first_dx, first_dy) > 0.05:
+            first_h = math.degrees(math.atan2(first_dy, first_dx))
+            turn = first_h - heading
+            while turn > 180.0:
+                turn -= 360.0
+            while turn < -180.0:
+                turn += 360.0
+            if abs(turn) > 1e-4:
+                self.corner(turn)
+        self.move(tw, th, move, label=label)
+
     def _render_part(self, part: dict[str, Any]) -> int:
         kind = _kind(part)
         count = _int(part.get("count") or part.get("n"), 1)
@@ -224,10 +369,31 @@ class PayasToolbox(Boxes):
                 name = label if count == 1 else f"{label}-{i + 1}"
                 self.rectangularTriangle(w, h, edge, callback=cb, move="up", label=name)
             return count
-        if kind == "polygon":
+        if kind in {"propeller", "pervane", "blades", "fan", "cross", "plus"}:
+            d = _num(part.get("d") or part.get("diameter") or part.get("w"), 80)
+            blades = _int(part.get("blades") or part.get("n_blades") or 4, 4, lo=2, hi=12)
+            blade_w = _num(part.get("blade_w") or part.get("width") or part.get("blade_width"), max(8.0, d * 0.22))
+            hole = _num(part.get("hole") or part.get("shaft") or part.get("d_hole"), 4)
+            pts = propeller_points(blades, d, blade_w)
+            for i in range(count):
+                name = label if count == 1 else f"{label}-{i + 1}"
+                self._closed_contour(pts, hole, name)
+            return count
+        if kind in {"polygon", "contour", "outline", "polyline"}:
+            raw_pts = part.get("points") or part.get("vertices") or part.get("coords") or part.get("contour")
+            if raw_pts:
+                pts = _as_points(raw_pts)
+                hole = _num(part.get("hole") or part.get("shaft") or part.get("d_hole"), 0)
+                for i in range(count):
+                    name = label if count == 1 else f"{label}-{i + 1}"
+                    self._closed_contour(pts, hole, name)
+                return count
             borders = part.get("borders") or part.get("sides")
             if not isinstance(borders, list) or len(borders) < 4:
-                raise ValueError("polygon needs borders: [length, angle, length, angle, ...]")
+                raise ValueError(
+                    "polygon/contour needs points:[[x,y],...] in mm (preferred) "
+                    "or Boxes.py borders:[length, angle, length, angle, ...]. " + HINT
+                )
             edge = str(part.get("edge") or part.get("edges") or "e")
             if any(c not in _EDGE_OK for c in edge):
                 raise ValueError("polygon edge must be e/f/F")
@@ -239,6 +405,8 @@ class PayasToolbox(Boxes):
         raise ValueError(
             f"Unknown primitive type {kind!r}. Assembly types: "
             + ", ".join(sorted(ASSEMBLY_TYPES))
+            + ". "
+            + HINT
         )
 
     def _box(self, part: dict[str, Any]) -> None:
@@ -294,7 +462,7 @@ def compile_toolbox(primitives: list[Any], parameters: dict[str, Any] | None = N
         raise ValueError("primitives is empty")
     parts = [p for p in primitives if isinstance(p, dict) and _kind(p) in ASSEMBLY_TYPES]
     if not parts:
-        raise ValueError("no assembly primitives (box, panel, disc, triangle, polygon)")
+        raise ValueError("no assembly primitives (box, panel, disc, triangle, propeller, contour). " + HINT)
     params = parameters or {}
     thickness = float(params.get("thickness") or PAYAS_DEFAULTS["thickness"])
     box = PayasToolbox()
