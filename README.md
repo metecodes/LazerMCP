@@ -10,11 +10,20 @@ Canlı: `https://mcp.metehanavci.com/mcp`
 
 ## İş akışı
 
+Designer → Reviewer → Repair → Reviewer → Final Gate → SVG
+
+Bu döngü `create_design` içinde çalışır. Gelen AI adımları atlayamaz. Yeni ürün için kit aracı eklenmez.
+
 1. Fotoğrafa bak (`what_you_see`).
 2. `plan_laser_job` — dilbilgisi, ölçek, sonraki araç.
-3. `create_design` — Boxes.py `rectangularWall` / FingerJoint / kontur. Ölçek: `parameters.reference = {feature, mm, drawn_mm}`.
-4. `assembly.ok` ve `ready_to_cut` true değilse tarifi düzelt; kesme.
-5. İsteğe bağlı `validate_assembly` / `validate_svg`.
+3. `create_design` — Boxes.py ile primitive’leri derler, mekanik review/repair uygular, kapıdan geçmeden kesime hazır demez.
+4. `final_status`:
+   - `BLOCKED` — kesme, primitive’i düzelt, tekrar `create_design`
+   - `PROTOTYPE READY` — dijital kontroller geçti; ilk levha prototiptir. **LAZER KESİME HAZIR** değil.
+   - `LASER READY` — yalnızca o zaman LAZER KESİME HAZIR
+5. İsteğe bağlı `validate_assembly` / `validate_svg` kapıyı tekrar okur.
+
+SVG oluşmuş olması ürünün doğru olduğu anlamına gelmez. Çalışan kod ≠ monte edilebilir ürün.
 
 2D sanat (logo, siluet, yapboz kazıması) için `create_from_reference`. Duvar/çatı/pervane için **değil**.
 

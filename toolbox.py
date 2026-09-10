@@ -132,9 +132,11 @@ GRAMMAR = {
     ),
     "coords": "Wall holes: x,y mm from the bottom-left of that part. Contour points: mm in the part's own plane.",
     "assembly": (
-        "create_design nests parts (no rotate) and checks f/F lengths, coaxial shafts, tab-slots ≈ 3 mm, "
-        "gable width = box x, roof cover, and propeller floor clearance. "
-        "Call validate_assembly if unsure. ready_to_cut false means edit primitives, not a new kit."
+        "create_design runs Designer → Reviewer → Repair → Reviewer → Final Gate → SVG. "
+        "It nests parts (no rotate) and checks f/F, coaxial shafts, tab-slots ≈ 3 mm, roof FingerJoint lock, "
+        "and propeller floor clearance. final_status BLOCKED means edit primitives and call create_design again. "
+        "Never tell the user LAZER KESİME HAZIR unless final_status is LASER READY. "
+        "PROTOTYPE READY is a first-sheet prototype, not a production cut."
     ),
     "never": "Never request a new MCP tool. Never hand-write SVG. Call create_design with primitives.",
     "not_a_generator": (
@@ -649,6 +651,14 @@ class PayasToolbox(Boxes):
 
 
 def compile_toolbox(primitives: list[Any], parameters: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Designer → Reviewer → Repair → Final Gate, then SVG."""
+    from pipeline import run_pipeline
+
+    return run_pipeline(primitives, parameters)
+
+
+def render_toolbox(primitives: list[Any], parameters: dict[str, Any] | None = None) -> dict[str, Any]:
+    """One Boxes.py compile. The pipeline calls this; incoming AIs call create_design."""
     if not primitives:
         raise ValueError("primitives is empty")
     parts = _prepare_parts(primitives)
@@ -686,6 +696,23 @@ def compile_toolbox(primitives: list[Any], parameters: dict[str, Any] | None = N
     if roof_lock:
         assembly["roof_lock"] = assembly.get("roof_lock") or roof_lock
     svg_bytes, nesting = nest_svg(svg_bytes)
+    try:
+        from text_path import prepare_lasercad_svg
+
+        prepared = prepare_lasercad_svg(svg_bytes)
+        if prepared:
+            svg_bytes = prepared
+    except Exception:
+        pass
+    try:
+        from holding_nicks import NICK_MM, nick_cut_svg
+        from boxes_adapter import PAYAS_DEFAULTS as _D
+
+        nicked = nick_cut_svg(svg_bytes, float(_D.get("holding_nick_mm") or NICK_MM))
+        if nicked:
+            svg_bytes = nicked
+    except Exception:
+        pass
     topology = inspect_topology(svg_bytes)
     metrics = _svg_metrics(svg_bytes.decode("utf-8", errors="replace"))
     return {

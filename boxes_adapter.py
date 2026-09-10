@@ -150,7 +150,7 @@ def _public_result(
     }
     if extra:
         for key, value in extra.items():
-            if key in {"output_path", "path", "local_path"}:
+            if key in {"output_path", "path", "local_path", "svg_bytes"}:
                 continue
             result[key] = value
     return result
@@ -602,6 +602,11 @@ def validate_svg(file_id: str) -> dict[str, Any]:
             result["assembly"] = sidecar["assembly"]
         if sidecar.get("nesting") and not result.get("nesting"):
             result["nesting"] = sidecar["nesting"]
+        if sidecar.get("topology") and not result.get("topology"):
+            result["topology"] = sidecar["topology"]
+        for key in ("review", "pipeline", "design_map", "connections", "final_status", "speak", "production_summary"):
+            if sidecar.get(key) is not None:
+                result[key] = sidecar[key]
     return result
 
 
@@ -634,22 +639,56 @@ def save_generated_svg(
         from topology import inspect_topology
 
         extra["topology"] = inspect_topology(svg_bytes)
-        if extra.get("ready_to_cut") and not extra["topology"].get("ok", True):
-            extra["ready_to_cut"] = False
     except Exception:
         extra.setdefault("topology", extra.get("topology"))
+    if extra.get("nesting") is None:
+        try:
+            from nesting import inspect_nesting
+
+            extra["nesting"] = inspect_nesting(svg_bytes)
+        except Exception:
+            extra["nesting"] = extra.get("nesting")
+    try:
+        from pipeline import review_only
+
+        gated = review_only({**extra, "svg_bytes": svg_bytes})
+        extra["review"] = gated.get("review")
+        extra["pipeline"] = extra.get("pipeline") or gated.get("pipeline")
+        extra["design_map"] = gated.get("design_map")
+        extra["connections"] = gated.get("connections")
+        extra["final_status"] = gated.get("final_status")
+        extra["speak"] = gated.get("speak")
+        extra["production_summary"] = gated.get("production_summary")
+        extra["ready_to_cut"] = bool(gated.get("ready_to_cut"))
+        if gated.get("look_again"):
+            extra["look_again"] = gated["look_again"]
+    except Exception:
+        extra.setdefault("final_status", "BLOCKED" if not extra.get("ready_to_cut") else extra.get("final_status"))
     result = _public_result(file_id, public_base_url, svg_bytes, extra)
-    if extra.get("assembly") is not None or extra.get("nesting") is not None or extra.get("topology") is not None:
-        side = file_id[:-4] + ".json" if file_id.lower().endswith(".svg") else f"{file_id}.json"
-        payload = {
-            "file_id": file_id,
-            "assembly": extra.get("assembly"),
-            "nesting": extra.get("nesting"),
-            "topology": extra.get("topology"),
-            "product": extra.get("product"),
-        }
-        (OUTPUT_DIR / side).write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-        result["report_id"] = side
+    side = file_id[:-4] + ".json" if file_id.lower().endswith(".svg") else f"{file_id}.json"
+    payload = {
+        "file_id": file_id,
+        "product": extra.get("product"),
+        "final_status": extra.get("final_status"),
+        "ready_to_cut": extra.get("ready_to_cut"),
+        "speak": extra.get("speak"),
+        "assembly": extra.get("assembly"),
+        "nesting": extra.get("nesting"),
+        "topology": extra.get("topology"),
+        "review": extra.get("review"),
+        "pipeline": extra.get("pipeline"),
+        "design_map": extra.get("design_map"),
+        "connections": extra.get("connections"),
+        "production_summary": extra.get("production_summary"),
+        "primitives": extra.get("primitives"),
+    }
+    (OUTPUT_DIR / side).write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    result["report_id"] = side
+    summary = extra.get("production_summary")
+    if summary:
+        md_id = file_id[:-4] + "-production.md" if file_id.lower().endswith(".svg") else f"{file_id}-production.md"
+        (OUTPUT_DIR / md_id).write_text(str(summary), encoding="utf-8")
+        result["production_report_id"] = md_id
     if dxf_bytes:
         dxf_id = file_id[:-4] + ".dxf" if file_id.lower().endswith(".svg") else f"{file_id}.dxf"
         (OUTPUT_DIR / dxf_id).write_bytes(dxf_bytes)

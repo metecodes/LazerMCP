@@ -50,14 +50,20 @@ mcp = MCPServer(
         "This server is a toolbox, not a catalog. Never ask for a new kit or MCP tool. "
         "Never write SVG or DXF yourself and never flip, rotate, or mirror geometry. "
         "Never offer to prepare a file outside this server. "
+        "Pipeline (runs inside create_design — do not skip, do not add extra tools): "
+        "Designer → Reviewer → Repair → Reviewer → Final Gate → SVG. "
+        "final_status is BLOCKED | PROTOTYPE READY | LASER READY. "
+        "Never tell the user to cut on BLOCKED. Never say LAZER KESİME HAZIR unless LASER READY. "
+        "PROTOTYPE READY means digital checks passed; the first sheet is a prototype. "
         "Preferred tools: plan_laser_job, create_design, create_from_reference, "
         "validate_assembly, validate_svg, payas_defaults. "
         "generate_svg only if the plan names a Boxes.py class. Named create_* only if the plan names that Payas product. "
         "For ANY image of a thing to build: (1) look at the photo and describe parts, "
         "(2) call plan_laser_job with user_request, what_you_see, has_photo=true, "
         "(3) execute next_tool. If that is create_design, the call IS the drawing: "
-        "Boxes.py compiles your primitives. method=compose_primitives and generator=create_design "
-        "means success — not a missed mill kit and not a Boxes.py catalog class. "
+        "Boxes.py compiles your primitives, then the reviewer/repair/gate run automatically. "
+        "method=compose_primitives and generator=create_design "
+        "means the designer step ran — not a missed mill kit and not a Boxes.py catalog class. "
         "Door/window are slots cut into the front wall, not separate sliding parts. "
         "If the user stated a size, use it. Else pick ONE photo length and pass "
         "parameters.reference={feature, mm, drawn_mm} so the whole recipe scales. "
@@ -65,8 +71,8 @@ mcp = MCPServer(
         "First uncalibrated laser: add {type:coupon} once (FingerJoint dry-fit + 100 mm bar). Do not add it to every mill. "
         "create_from_reference only 2D-traces artwork or etches a photo onto a jigsaw. "
         "Do not skip the plan. Do not use number_match_puzzle unless the plan says so. "
-        "create_design returns assembly (f/F, shaft, slots, gable seating) and nesting (translation-only pack on 1500×3000). "
-        "If assembly.ok or ready_to_cut is false, fix primitives and call create_design again; do not tell the user to cut. "
+        "If final_status is BLOCKED, read look_again, fix primitives, call create_design again. "
+        "Do not invent a PASS. Working SVG is not a cuttable product until the gate says so. "
         "Defaults: 3 mm poplar, kerf 0.15 mm, 1500×3000 mm bed, SVG, optional DXF, "
         "cut #FF0000, etch #000000, LaserCAD Y-up. "
         "Notches and closed cuts keep ~1 mm holding nicks so pieces do not fall; do not omit them."
@@ -173,7 +179,8 @@ class BearerGate:
         "STEP 2 after you looked at the photo: Laser MCP teaches the toolbox grammar and how to scale. "
         "Pass user_request, what_you_see (parts you see: walls, roof, holes, discs), has_photo, want_dxf. "
         "Then execute next_tool. If next_tool is create_design, overwrite millimetres from the photo "
-        "or set parameters.reference. Never ask for a new kit. Do not draw SVG yourself."
+        "or set parameters.reference. create_design already runs Reviewer → Repair → Final Gate. "
+        "Never ask for a new kit. Do not draw SVG yourself."
     )
 )
 def plan_laser_job(
@@ -189,14 +196,16 @@ def plan_laser_job(
 
 @mcp.tool(
     description=(
-        "Toolbox compiler. This IS the drawing tool — not a catalog preset. "
-        "Passing primitives does not select a 'toolbox generator'; Boxes.py cuts those parts. "
+        "Designer + Reviewer + Repair + Final Gate. This IS the drawing tool — not a catalog preset. "
+        "Passing primitives does not select a 'toolbox generator'; Boxes.py cuts those parts, "
+        "then mechanical review/repair runs until the gate. "
         "primitives: box (finger-joint walls+floor), panel (motor plate, solar, roof), "
         "disc (washer/shaft adapter), triangle (roof support), propeller (n-blade rotor), "
         "contour (closed points [[x,y],...] mm), coupon (kerf test). "
         "Door/window = slots on box.walls.front, not type=slot. "
         "Scale with parameters.scale or parameters.reference={feature, mm, drawn_mm}. "
         "preset=jigsaw_puzzle or number_match_puzzle only when the plan says so. "
+        "final_status BLOCKED = not ready to cut. LASER READY is the only 'LAZER KESİME HAZIR'. "
         "Never request a new tool. Never hand-write SVG."
     )
 )
@@ -292,9 +301,9 @@ def validate_svg(file_id: str) -> dict[str, Any]:
 
 @mcp.tool(
     description=(
-        "Mechanical fit + assembly check. Pass primitives to check a recipe before cut, "
-        "or file_id after create_design. Fingers must be complementary f/F of the same length (Boxes.py). "
-        "Shaft holes on opposite walls must share diameter and height. ready_to_cut must be true before cutting."
+        "Re-run the mechanical reviewer / final gate. Pass primitives to compile+review a recipe, "
+        "or file_id after create_design. Returns design_map, connections, category PASS/WARNING/FAIL, "
+        "and final_status. Never tell the user to cut unless final_status is PROTOTYPE READY or LASER READY."
     )
 )
 def validate_assembly(

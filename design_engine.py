@@ -129,8 +129,10 @@ def list_design_api() -> dict[str, Any]:
             "This server is a toolbox, not a catalog. Do not ask for a new kit tool. "
             "Look at the photo, call plan_laser_job, then create_design with Boxes.py primitives "
             "(box/panel/disc/triangle/propeller/contour) using millimetres you read from the photo. "
+            "create_design runs Designer → Reviewer → Repair → Final Gate. "
             "Scale with parameters.reference={feature, mm, drawn_mm}. Calibrate once with type=coupon. "
-            "create_from_reference only 2D-traces artwork. Never hand-write SVG."
+            "create_from_reference only 2D-traces artwork. Never hand-write SVG. "
+            "Never say LAZER KESİME HAZIR unless final_status is LASER READY."
         ),
     }
 

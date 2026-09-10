@@ -115,8 +115,9 @@ def list_cad_tools() -> dict[str, Any]:
             "Scale with parameters.reference={feature, mm, drawn_mm}. Coupon {type:coupon} only to calibrate. "
             "create_from_reference is 2D artwork only. Named create_* only for existing Payas products. "
             "generate_svg only if the plan names a Boxes.py class. Never write SVG yourself. Cuts keep ~1 mm holding nicks. "
-            "create_design returns assembly (finger/shaft/slot/gable seating) and nesting (translation-only pack). "
-            "If assembly.ok is false, fix primitives and call create_design again — do not tell the user to cut."
+            "create_design runs Designer → Reviewer → Repair → Reviewer → Final Gate inside the tool. "
+            "final_status is BLOCKED | PROTOTYPE READY | LASER READY. "
+            "Do not tell the user to cut on BLOCKED. Do not say LAZER KESİME HAZIR unless LASER READY."
         ),
         "preferred": [
             "plan_laser_job",
@@ -453,6 +454,13 @@ def create_design(
         "scale": built.get("scale"),
         "primitives": built.get("primitives"),
         "parts": built.get("parts"),
+        "pipeline": built.get("pipeline"),
+        "review": built.get("review"),
+        "design_map": built.get("design_map"),
+        "connections": built.get("connections"),
+        "final_status": built.get("final_status"),
+        "speak": built.get("speak"),
+        "production_summary": built.get("production_summary"),
         "dimensions": {
             "width_mm": built.get("width_mm"),
             "height_mm": built.get("height_mm"),
@@ -463,12 +471,26 @@ def create_design(
         },
     }
     fmt = str((parameters or {}).get("format") or "svg")
-    asm = extra.get("assembly")
-    nest = extra.get("nesting")
-    topo = extra.get("topology")
-    extra["ready_to_cut"] = (not isinstance(asm, dict) or bool(asm.get("ok", True))) and (
-        not isinstance(nest, dict) or bool(nest.get("ok", True))
-    ) and (not isinstance(topo, dict) or bool(topo.get("ok", True)))
+    if extra.get("review") is None:
+        from nesting import inspect_nesting
+        from pipeline import review_only
+        from topology import inspect_topology
+
+        extra["topology"] = extra.get("topology") or inspect_topology(built.get("svg_bytes"))
+        extra["nesting"] = extra.get("nesting") or inspect_nesting(built.get("svg_bytes"))
+        gated = review_only({**built, **extra, "svg_bytes": built.get("svg_bytes")})
+        extra["review"] = gated.get("review")
+        extra["pipeline"] = gated.get("pipeline")
+        extra["design_map"] = gated.get("design_map")
+        extra["connections"] = gated.get("connections")
+        extra["final_status"] = gated.get("final_status")
+        extra["speak"] = gated.get("speak")
+        extra["production_summary"] = gated.get("production_summary")
+        extra["look_again"] = gated.get("look_again") or extra.get("look_again")
+    extra["ready_to_cut"] = bool((extra.get("review") or {}).get("ready_to_cut")) and extra.get("final_status") in {
+        "PROTOTYPE READY",
+        "LASER READY",
+    }
     return _mcp(_save_build(built["svg_bytes"], name, title, public_base_url, extra, dxf_bytes=_dxf_from_built(built, fmt)))
 
 
@@ -480,12 +502,22 @@ def validate_assembly(
     from assembly import apply_roof_lock, check_assembly
 
     if primitives:
-        report = check_assembly(apply_roof_lock(primitives)[0])
+        from pipeline import run_pipeline
+
+        built = run_pipeline(primitives, {})
+        report = built.get("assembly") or check_assembly(apply_roof_lock(primitives)[0])
         return _mcp(
             {
                 "source": "primitives",
                 "assembly": report,
-                "ready_to_cut": bool(report.get("ok")),
+                "pipeline": built.get("pipeline"),
+                "review": built.get("review"),
+                "design_map": built.get("design_map"),
+                "connections": built.get("connections"),
+                "final_status": built.get("final_status"),
+                "speak": built.get("speak"),
+                "ready_to_cut": bool(built.get("ready_to_cut")),
+                "look_again": built.get("look_again") or report.get("look_again") or [],
             }
         )
     if not file_id:
@@ -496,6 +528,14 @@ def validate_assembly(
             }
         )
     svg_report = boxespy.validate_svg(file_id)
+    sidecar = svg_report.get("review") or {}
+    status = svg_report.get("final_status") or sidecar.get("final_status")
+    ready = status in {"PROTOTYPE READY", "LASER READY"} if status else (
+        bool(svg_report.get("success"))
+        and bool((svg_report.get("assembly") or {}).get("ok", True))
+        and bool((svg_report.get("nesting") or {}).get("ok", True))
+        and bool((svg_report.get("topology") or {}).get("ok", True))
+    )
     return _mcp(
         {
             "source": "file",
@@ -503,11 +543,14 @@ def validate_assembly(
             "assembly": svg_report.get("assembly"),
             "nesting": svg_report.get("nesting"),
             "topology": svg_report.get("topology"),
+            "review": svg_report.get("review") or sidecar,
+            "pipeline": svg_report.get("pipeline"),
+            "design_map": svg_report.get("design_map"),
+            "connections": svg_report.get("connections"),
+            "final_status": status,
+            "speak": svg_report.get("speak"),
             "look_again": svg_report.get("look_again") or svg_report.get("errors") or [],
-            "ready_to_cut": bool(svg_report.get("success"))
-            and bool((svg_report.get("assembly") or {}).get("ok", True))
-            and bool((svg_report.get("nesting") or {}).get("ok", True))
-            and bool((svg_report.get("topology") or {}).get("ok", True)),
+            "ready_to_cut": bool(ready),
         }
     )
 
