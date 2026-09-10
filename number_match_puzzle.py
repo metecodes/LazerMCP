@@ -6,13 +6,13 @@ import math
 from typing import Any
 
 from shapely.affinity import translate
-from shapely.geometry import LineString, Point, box
-from shapely.ops import unary_union
+from shapely.geometry import Point, box
 
 from boxes_adapter import PAYAS_DEFAULTS
+from text_path import svg_document, to_lasercad_y
 
-CUT = "#cc0000"
-ETCH = "#222222"
+CUT = "#FF0000"
+ETCH = "#000000"
 
 
 def _rounded_rect(w: float, h: float, r: float):
@@ -41,85 +41,10 @@ def _pair_pieces(w: float, h: float, r: float, burn: float):
     return left, right
 
 
-def _stroke(points: list[tuple[float, float]], radius: float):
-    if len(points) == 1:
-        return Point(points[0]).buffer(radius, resolution=32)
-    return LineString(points).buffer(radius, cap_style=1, join_style=1, resolution=32)
+def _number(value: int | str, cx: float, cy: float, height: float, thick: float = 0.0):
+    from text_path import layout_text
 
-
-def _arc(cx: float, cy: float, rx: float, ry: float, a0: float, a1: float, n: int = 28):
-    pts = []
-    for i in range(n + 1):
-        t = a0 + (a1 - a0) * i / n
-        pts.append((cx + rx * math.cos(t), cy + ry * math.sin(t)))
-    return pts
-
-
-def _digit(n: str, ox: float, oy: float, w: float, h: float, thick: float):
-    """Draw a digit. Unit space is x→ right, y↑ up, origin at glyph bottom-left; mapped to SVG y-down."""
-    t = thick
-
-    def P(x: float, y: float) -> tuple[float, float]:
-        return (ox + x * w, oy + (1.0 - y) * h)
-
-    def S(pts: list[tuple[float, float]]):
-        return [P(x, y) for x, y in pts]
-
-    def A(cx: float, cy: float, rx: float, ry: float, a0: float, a1: float):
-        return [P(cx + rx * math.cos(t), cy + ry * math.sin(t)) for t in
-                [a0 + (a1 - a0) * i / 28 for i in range(29)]]
-
-    parts = []
-    if n == "1":
-        parts.append(_stroke(S([(0.52, 0.08), (0.52, 0.92)]), t))
-        parts.append(_stroke(S([(0.28, 0.78), (0.52, 0.92)]), t))
-        parts.append(_stroke(S([(0.30, 0.08), (0.74, 0.08)]), t))
-    elif n == "2":
-        parts.append(_stroke(A(0.50, 0.70, 0.32, 0.22, math.pi * 0.95, math.pi * -0.05), t))
-        parts.append(_stroke(S([(0.82, 0.68), (0.22, 0.10)]), t))
-        parts.append(_stroke(S([(0.22, 0.10), (0.82, 0.10)]), t))
-    elif n == "3":
-        parts.append(_stroke(A(0.48, 0.72, 0.30, 0.20, math.pi * 0.85, math.pi * -0.15), t))
-        parts.append(_stroke(S([(0.42, 0.52), (0.62, 0.52)]), t * 0.9))
-        parts.append(_stroke(A(0.48, 0.28, 0.32, 0.22, math.pi * 0.15, math.pi * 1.05), t))
-    elif n == "4":
-        parts.append(_stroke(S([(0.68, 0.08), (0.68, 0.92)]), t))
-        parts.append(_stroke(S([(0.68, 0.92), (0.22, 0.38)]), t))
-        parts.append(_stroke(S([(0.20, 0.38), (0.84, 0.38)]), t))
-    elif n == "5":
-        parts.append(_stroke(S([(0.78, 0.90), (0.28, 0.90), (0.26, 0.56), (0.55, 0.56)]), t))
-        parts.append(_stroke(A(0.50, 0.32, 0.32, 0.24, math.pi * 0.15, math.pi * 1.05), t))
-    elif n == "6":
-        parts.append(_stroke(A(0.52, 0.32, 0.30, 0.24, 0, 2 * math.pi), t))
-        parts.append(_stroke(S([(0.24, 0.40), (0.38, 0.90), (0.74, 0.90)]), t))
-    elif n == "7":
-        parts.append(_stroke(S([(0.20, 0.90), (0.82, 0.90), (0.38, 0.08)]), t))
-    elif n == "8":
-        parts.append(_stroke(A(0.50, 0.72, 0.28, 0.20, 0, 2 * math.pi), t))
-        parts.append(_stroke(A(0.50, 0.28, 0.30, 0.22, 0, 2 * math.pi), t))
-    elif n == "9":
-        parts.append(_stroke(A(0.50, 0.70, 0.30, 0.22, 0, 2 * math.pi), t))
-        parts.append(_stroke(S([(0.78, 0.68), (0.62, 0.10), (0.28, 0.12)]), t))
-    elif n == "0":
-        parts.append(_stroke(A(0.50, 0.50, 0.32, 0.42, 0, 2 * math.pi), t))
-    else:
-        return None
-    return unary_union(parts)
-
-
-def _number(value: int, cx: float, cy: float, height: float, thick: float):
-    text = str(value)
-    gw = height * 0.62
-    gap = height * 0.08
-    total = len(text) * gw + (len(text) - 1) * gap
-    x0 = cx - total / 2
-    y0 = cy - height / 2
-    glyphs = []
-    for i, ch in enumerate(text):
-        g = _digit(ch, x0 + i * (gw + gap), y0, gw, height, thick)
-        if g is not None:
-            glyphs.append(g)
-    return unary_union(glyphs) if glyphs else None
+    return layout_text(str(value), cx, cy, height)
 
 
 def _dot_pattern(n: int) -> list[tuple[float, float]]:
@@ -164,21 +89,19 @@ def _emit(geom, stroke: str, width: float) -> str:
         return ""
     if geom.geom_type == "Polygon":
         d = _path_d(geom.exterior.coords)
-        holes = "".join(
-            f'<path d="{_path_d(r.coords)}" fill="none" stroke="{stroke}" stroke-width="{width}" '
-            f'stroke-linejoin="round" stroke-linecap="round"/>'
-            for r in geom.interiors
-        )
+        for r in geom.interiors:
+            hole = _path_d(r.coords)
+            if hole:
+                d = f"{d} {hole}"
         return (
-            f'<path d="{d}" fill="none" stroke="{stroke}" stroke-width="{width}" '
-            f'stroke-linejoin="round" stroke-linecap="round"/>' + holes
+            f'\n<path d="{d}" fill="none" stroke="{stroke}" stroke-width="{width}"/>'
         )
     if geom.geom_type in {"MultiPolygon", "GeometryCollection", "MultiLineString"}:
         return "".join(_emit(g, stroke, width) for g in geom.geoms)
     if geom.geom_type == "LineString":
         return (
-            f'<path d="{_path_d(geom.coords)}" fill="none" stroke="{stroke}" '
-            f'stroke-width="{width}" stroke-linejoin="round" stroke-linecap="round"/>'
+            f'\n<path d="{_path_d(geom.coords)}" fill="none" stroke="{stroke}" '
+            f'stroke-width="{width}"/>'
         )
     return ""
 
@@ -227,23 +150,20 @@ def build_jigsaw_sheet(
         lb, rb = left_t.bounds, right_t.bounds
         lcx, lcy = (lb[0] + lb[2]) / 2, (lb[1] + lb[3]) / 2
         rcx, rcy = (rb[0] + rb[2]) / 2, (rb[1] + rb[3]) / 2
-        try:
-            num = int(str(left_val))
-        except ValueError:
-            num = n_right
-        glyph = _number(num, lcx, lcy, card_h * 0.46, thick=card_h * 0.028)
+        glyph = _number(left_val, lcx, lcy, card_h * 0.46)
         if glyph is not None:
-            etch_bits.append(glyph.boundary)
+            etch_bits.append(glyph)
         pips = max(1, min(10, n_right))
         for dot in _dots(pips, rcx, rcy, span=min(rb[2] - rb[0], rb[3] - rb[1]) * 0.72, radius=card_h * 0.042):
             etch_bits.append(dot.boundary)
 
-    svg = (
-        f'<svg xmlns="http://www.w3.org/2000/svg" width="{sheet_w:.2f}mm" height="{sheet_h:.2f}mm" '
-        f'viewBox="0 0 {sheet_w:.3f} {sheet_h:.3f}">'
-        f'<g id="cut" fill="none">{"".join(_emit(g, CUT, 0.18) for g in cut_bits)}</g>'
-        f'<g id="etch" fill="none">{"".join(_emit(g, ETCH, 0.22) for g in etch_bits)}</g>'
-        f"</svg>"
+    cut_bits = [to_lasercad_y(g, sheet_h) for g in cut_bits]
+    etch_bits = [to_lasercad_y(g, sheet_h) for g in etch_bits]
+    svg = svg_document(
+        sheet_w,
+        sheet_h,
+        "".join(_emit(g, CUT, 0.18) for g in cut_bits),
+        "".join(_emit(g, ETCH, 0.25) for g in etch_bits),
     )
     return {
         "svg_bytes": svg.encode("utf-8"),

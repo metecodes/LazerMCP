@@ -54,6 +54,8 @@ PAYAS_DEFAULTS = {
     "bed_width": 1500,
     "bed_height": 3000,
     "output": "svg",
+    "cut_color": "#FF0000",
+    "etch_color": "#000000",
 }
 
 GENERATOR_ALIASES = {
@@ -98,12 +100,15 @@ def _normalize_filename(file_id: str) -> str:
     return name
 
 
-def _write_svg(svg_bytes: bytes, generator: str) -> str:
+def _write_svg(svg_bytes: bytes, generator: str) -> tuple[str, bytes]:
+    from text_path import prepare_lasercad_svg
+
+    svg_bytes = prepare_lasercad_svg(svg_bytes)
     file_id = _new_file_id(generator)
     path = OUTPUT_DIR / file_id
     path.write_bytes(svg_bytes)
     (OUTPUT_DIR / LATEST_SVG).write_bytes(svg_bytes)
-    return file_id
+    return file_id, svg_bytes
 
 
 def _public_result(
@@ -308,7 +313,15 @@ def _safe_output_file(file_id: str) -> Path:
 
 
 def payas_defaults() -> dict[str, Any]:
-    return dict(PAYAS_DEFAULTS)
+    defaults = dict(PAYAS_DEFAULTS)
+    try:
+        from text_path import font_info
+
+        defaults["font"] = font_info()
+    except Exception as exc:
+        defaults["font"] = {"error": str(exc)}
+    defaults["font_note"] = "Numbers and labels are Arial outline paths (no SVG <text>)."
+    return defaults
 
 
 def health_status() -> dict[str, Any]:
@@ -324,11 +337,20 @@ def health_status() -> dict[str, Any]:
     except Exception as exc:
         errors.append(f"Boxes.py import/catalog failed: {exc}")
     ok = boxes_ok and path_ok
+    font = None
+    try:
+        from text_path import font_info
+
+        font = font_info()
+    except Exception as exc:
+        errors.append(f"Arial font missing: {exc}")
+        ok = False
     return {
         "status": "ok" if ok else "degraded",
         "boxes": boxes_ok,
         "boxes_path_configured": bool(BOXES_PATH),
         "generator_count": generator_count,
+        "font": font,
         "defaults": dict(PAYAS_DEFAULTS),
         "errors": errors,
     }
@@ -399,7 +421,7 @@ def generate_svg(
     box.render()
     data = box.close()
     svg_bytes = data.getvalue() if hasattr(data, "getvalue") else data.read()
-    file_id = _write_svg(svg_bytes, name)
+    file_id, svg_bytes = _write_svg(svg_bytes, name)
     dimensions = {
         key: merged[key]
         for key in ("x", "y", "h", "thickness", "burn")
@@ -498,6 +520,11 @@ def validate_svg(file_id: str) -> dict[str, Any]:
             fits_bed = False
     if metrics["path_count"] < 1:
         errors.append("SVG contains no drawable cut geometry")
+    if re.search(r"<text[\s>]", svg_text, re.I):
+        errors.append("SVG still contains <text>; laser CAD needs Arial outline paths")
+        metrics["has_live_text"] = True
+    else:
+        metrics["has_live_text"] = False
     return {
         "success": not errors,
         "file_id": path.name,
@@ -531,7 +558,7 @@ def save_generated_svg(
     generator: str = "cad",
 ) -> dict[str, Any]:
     name = (extra or {}).get("generator") or (extra or {}).get("product") or generator
-    file_id = _write_svg(svg_bytes, str(name))
+    file_id, svg_bytes = _write_svg(svg_bytes, str(name))
     return _public_result(file_id, public_base_url, svg_bytes, extra)
 
 

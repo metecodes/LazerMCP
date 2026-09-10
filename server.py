@@ -44,11 +44,14 @@ MCP_TOOLS = [
 mcp = MCPServer(
     "Laser mcp",
     instructions=(
-        "You are a Payas STEM laser CAD server. Never write SVG yourself. "
-        "Never ask for a new MCP tool. New cards, puzzles, worksheets: call create_design "
-        "with preset='number_match_puzzle' or primitives (jigsaw_grid / token_grid). "
-        "Photos/logos: create_from_reference. Named create_* kit tools are only for those exact products. "
-        "Defaults: 3 mm poplar, kerf 0.15 mm, 1500×3000 mm bed, SVG."
+        "You are a Payas STEM laser CAD server at https://mcp.metehanavci.com/mcp. "
+        "Never write SVG yourself and never flip, rotate, or mirror geometry. "
+        "Never ask for a new MCP tool. Educational cards/puzzles: create_design "
+        "(preset='number_match_puzzle' or primitives jigsaw_grid / token_grid / text). "
+        "Numbers and labels are upright Arial outline paths (LaserCAD Y-up; no <text>). "
+        "Photos/logos: create_from_reference — that is a trace, not a 1:1 copy. "
+        "Named create_* kit tools are only for those exact products. "
+        "Defaults: 3 mm poplar, kerf 0.15 mm, 1500×3000 mm bed, SVG, cut #FF0000, etch #000000."
     ),
 )
 
@@ -152,8 +155,9 @@ class BearerGate:
         "Compile a laser SVG from a preset or primitives. Use this for any new educational card, "
         "jigsaw, or worksheet instead of requesting a new tool. "
         "preset=number_match_puzzle (parameters: count, card_w, card_h, columns) OR "
-        "primitives=[{type:'jigsaw_grid',count:10}] or [{type:'token_grid',count:10,columns:5}]. "
-        "Optional svg= existing SVG to import. Never hand-write geometry."
+        "primitives=[{type:'jigsaw_grid',count:10}] or [{type:'text',value:'PAYAS',height:24}]. "
+        "Numbers and text use upright Arial outline paths (no SVG text, no flips). "
+        "Optional svg= existing SVG to import. Never hand-write or rotate geometry."
     )
 )
 def create_design(

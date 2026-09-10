@@ -19,8 +19,12 @@ class PayasRobot(HayalKumbaram):
         super().__init__()
         self.argparser.set_defaults(x=120,y=100,h=180,labels=False)
     def caption(self,s,x,y,size=5):
+        from text_path import layout_text, stroke_geom
         with self.saved_context():
-            self.text(s,x,y,fontsize=size,align='center',color=Color.ETCHING)
+            self.set_source_color(Color.ETCHING)
+            geom = layout_text(s, x, y, size, y_up=True)
+            if geom is not None:
+                stroke_geom(self.ctx, geom)
     def art(self,fn):
         with self.saved_context():
             self.set_source_color(Color.ETCHING);fn()

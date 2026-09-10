@@ -12,9 +12,10 @@ from shapely.geometry import LineString, Polygon
 from shapely.ops import unary_union
 
 from boxes_adapter import PAYAS_DEFAULTS
+from text_path import svg_document, to_lasercad_y
 
-CUT = "#cc0000"
-ETCH = "#222222"
+CUT = "#FF0000"
+ETCH = "#000000"
 CUT_W = 0.35
 ETCH_W = 0.28
 
@@ -408,15 +409,9 @@ def trace_reference_svg(
         else:
             offset_cut.append(g)
 
-    cut_paths = "".join(_svg_path(g, CUT, CUT_W) for g in offset_cut)
-    etch_paths = "".join(_svg_path(g, ETCH, ETCH_W) for g in etch_geoms)
-    svg = (
-        f'<svg xmlns="http://www.w3.org/2000/svg" width="{width_mm:.2f}mm" height="{height_mm:.2f}mm" '
-        f'viewBox="0 0 {width_mm:.3f} {height_mm:.3f}">'
-        f'<g id="cut">{cut_paths}</g>'
-        f'<g id="etch">{etch_paths}</g>'
-        f"</svg>"
-    )
+    cut_paths = "".join(_svg_path(to_lasercad_y(g, height_mm), CUT, CUT_W) for g in offset_cut)
+    etch_paths = "".join(_svg_path(to_lasercad_y(g, height_mm), ETCH, ETCH_W) for g in etch_geoms)
+    svg = svg_document(width_mm, height_mm, cut_paths, etch_paths)
     return {
         "svg_bytes": svg.encode("utf-8"),
         "width_mm": width_mm,

@@ -19,6 +19,7 @@ from number_match_puzzle import (
     build_jigsaw_sheet,
     build_number_match_svg,
 )
+from text_path import svg_document, to_lasercad_y
 
 PRESETS = {
     "number_match_puzzle": {
@@ -35,6 +36,7 @@ PRIMITIVE_TYPES = (
     "circle",
     "number",
     "pips",
+    "text",
 )
 
 _PRESET_ALIASES = {
@@ -67,21 +69,27 @@ def list_design_api() -> dict[str, Any]:
             "token_grid": {
                 "primitives": [{"type": "token_grid", "count": 10, "columns": 5, "w": 48, "h": 48}],
             },
+            "text_card": {
+                "primitives": [{"type": "text", "value": "PAYAS", "height": 24}],
+            },
         },
+        "font": "Arial outlines (paths). No SVG <text>.",
         "note": (
             "Do not request a new MCP tool. Call create_design with a preset name "
-            "or a primitives list. Photo tracing is create_from_reference."
+            "or a primitives list. Photo tracing is create_from_reference. "
+            "Numbers and labels are Arial converted to laser paths."
         ),
     }
 
 
 def _svg_sheet(cut_bits: list, etch_bits: list, sheet_w: float, sheet_h: float) -> dict[str, Any]:
-    svg = (
-        f'<svg xmlns="http://www.w3.org/2000/svg" width="{sheet_w:.2f}mm" height="{sheet_h:.2f}mm" '
-        f'viewBox="0 0 {sheet_w:.3f} {sheet_h:.3f}">'
-        f'<g id="cut" fill="none">{"".join(_emit(g, CUT, 0.18) for g in cut_bits)}</g>'
-        f'<g id="etch" fill="none">{"".join(_emit(g, ETCH, 0.22) for g in etch_bits)}</g>'
-        f"</svg>"
+    cut_bits = [to_lasercad_y(g, sheet_h) for g in cut_bits]
+    etch_bits = [to_lasercad_y(g, sheet_h) for g in etch_bits]
+    svg = svg_document(
+        sheet_w,
+        sheet_h,
+        "".join(_emit(g, CUT, 0.18) for g in cut_bits),
+        "".join(_emit(g, ETCH, 0.25) for g in etch_bits),
     )
     return {
         "svg_bytes": svg.encode("utf-8"),
@@ -155,9 +163,9 @@ def _compile_token_grid(first: dict[str, Any], params: dict[str, Any]) -> dict[s
         token = translate(_rounded_rect(w, h, r).buffer(-burn), x, y)
         cut_bits.append(token)
         cx, cy = x + w / 2, y + h / 2
-        glyph = _number(n, cx, cy, h * 0.46, thick=h * 0.028)
+        glyph = _number(n, cx, cy, h * 0.46)
         if glyph is not None:
-            etch_bits.append(glyph.boundary)
+            etch_bits.append(glyph)
         if first.get("pips"):
             for dot in _dots(min(n, 10), cx, cy - h * 0.02, span=min(w, h) * 0.55, radius=h * 0.04):
                 etch_bits.append(dot.boundary)
@@ -185,10 +193,28 @@ def _compile_primitives(primitives: list[Any], parameters: dict[str, Any] | None
         )
     if kind in {"token_grid", "rounded_rect"}:
         return _compile_token_grid(first, params)
+    if kind in {"text", "label", "number"}:
+        return _compile_text(first, params)
     raise ValueError(
-        "For custom cards use type=jigsaw_grid or token_grid, or a named preset. "
+        "For custom cards use type=jigsaw_grid, token_grid, or text, or a named preset. "
         f"Got type={kind!r}. Primitive types: {', '.join(PRIMITIVE_TYPES)}"
     )
+
+
+def _compile_text(first: dict[str, Any], params: dict[str, Any]) -> dict[str, Any]:
+    from text_path import layout_text
+
+    value = str(first.get("value") or first.get("text") or params.get("text") or "")
+    height = float(first.get("height") or first.get("h") or params.get("height") or 24)
+    glyph = layout_text(value, 0.0, 0.0, height)
+    if glyph is None:
+        raise ValueError("text is empty or has no drawable glyphs")
+    minx, miny, maxx, maxy = glyph.bounds
+    margin = float(first.get("margin") or 10)
+    sheet_w = (maxx - minx) + margin * 2
+    sheet_h = (maxy - miny) + margin * 2
+    placed = translate(glyph, margin - minx, margin - miny)
+    return _svg_sheet([], [placed], sheet_w, sheet_h)
 
 
 def compile_design(
