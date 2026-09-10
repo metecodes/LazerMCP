@@ -6,6 +6,7 @@ import os
 import re
 from functools import lru_cache
 from pathlib import Path
+from typing import Any
 
 from fontTools.pens.basePen import BasePen
 from fontTools.ttLib import TTFont
@@ -117,30 +118,41 @@ def _rings_to_geom(rings: list[list[tuple[float, float]]]):
 def arial_candidates() -> list[Path]:
     env = (os.environ.get("ARIAL_TTF") or os.environ.get("PAYAS_FONT") or "").strip()
     windir = os.environ.get("WINDIR", r"C:\Windows")
-    paths = []
+    paths: list[Path] = []
     if env:
         paths.append(Path(env))
+    # Bundled first so Linux/Vercel never depends on Windows Arial.
     paths.extend(
         [
+            ROOT / "fonts" / "Arimo-Regular.ttf",
+            ROOT / "fonts" / "LiberationSans-Regular.ttf",
             Path(windir) / "Fonts" / "arial.ttf",
             Path(windir) / "Fonts" / "Arial.ttf",
             Path("/usr/share/fonts/truetype/msttcorefonts/Arial.ttf"),
             Path("/usr/share/fonts/truetype/msttcorefonts/arial.ttf"),
             Path("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf"),
             Path("/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf"),
-            ROOT / "fonts" / "LiberationSans-Regular.ttf",
-            ROOT / "fonts" / "Arimo-Regular.ttf",
         ]
     )
     return paths
 
 
-def find_arial_font() -> Path:
+def locate_outline_font() -> Path | None:
     for path in arial_candidates():
         if path.is_file():
             return path
-    known = ", ".join(str(p) for p in arial_candidates()[:4])
-    raise FileNotFoundError(f"Arial TTF not found. Install Arial or set ARIAL_TTF. Tried: {known}")
+    return None
+
+
+def find_arial_font() -> Path:
+    path = locate_outline_font()
+    if path is not None:
+        return path
+    known = ", ".join(str(p) for p in arial_candidates()[:6])
+    raise FileNotFoundError(
+        "Outline TTF not found (bundled Arimo or Arial). "
+        f"Set ARIAL_TTF or add fonts/Arimo-Regular.ttf. Tried: {known}"
+    )
 
 
 @lru_cache(maxsize=2)
@@ -212,9 +224,20 @@ def layout_text(
     return blob.simplify(0.04, preserve_topology=True)
 
 
-def font_info() -> dict[str, str]:
-    path = find_arial_font()
-    return {"font_path": str(path), "font_name": path.stem}
+def font_info() -> dict[str, Any]:
+    path = locate_outline_font()
+    if path is None:
+        return {
+            "font_path": "",
+            "font_name": "",
+            "outlines_available": False,
+            "error": "No outline TTF bundled or installed",
+        }
+    return {
+        "font_path": str(path),
+        "font_name": path.stem,
+        "outlines_available": True,
+    }
 
 
 def stroke_geom(ctx, geom) -> None:
@@ -320,13 +343,22 @@ def _font_size_mm(el) -> float:
         return 10.0
 
 
+_LIVE_TEXT = re.compile(rb"<text[\s>]", re.I)
+
+
 def laserize_svg(svg_bytes: bytes) -> bytes:
-    """Replace live <text> with Arial outline paths. Laser CAD ignores SVG text."""
-    if not svg_bytes:
+    """Replace live <text> with outline paths. Missing fonts leave the original SVG."""
+    if not svg_bytes or not _LIVE_TEXT.search(svg_bytes):
         return svg_bytes
-    lowered = svg_bytes.lower()
-    if b"<text" not in lowered:
+    if locate_outline_font() is None:
         return svg_bytes
+    try:
+        return _replace_text_with_paths(svg_bytes)
+    except Exception:
+        return svg_bytes
+
+
+def _replace_text_with_paths(svg_bytes: bytes) -> bytes:
     from xml.etree import ElementTree as ET
     from shapely.affinity import affine_transform
 
@@ -338,8 +370,8 @@ def laserize_svg(svg_bytes: bytes) -> bytes:
     parents = {c: p for p in root.iter() for c in list(p)}
     for el in texts:
         content = "".join(el.itertext()).strip()
+        parent = parents.get(el)
         if not content:
-            parent = parents.get(el)
             if parent is not None:
                 parent.remove(el)
             continue
@@ -350,20 +382,22 @@ def laserize_svg(svg_bytes: bytes) -> bytes:
             baseline = "hanging"
         if baseline == "middle":
             baseline = "center"
-        geom = layout_text(
-            content,
-            0.0,
-            0.0,
-            height,
-            anchor="center" if anchor in {"middle", "center"} else ("end" if anchor == "end" else "start"),
-            baseline=baseline,
-        )
+        try:
+            geom = layout_text(
+                content,
+                0.0,
+                0.0,
+                height,
+                anchor="center" if anchor in {"middle", "center"} else ("end" if anchor == "end" else "start"),
+                baseline=baseline,
+            )
+        except Exception:
+            continue
         if geom is None:
             continue
         matrix = _parse_matrix(el.get("transform"))
         if matrix:
             geom = affine_transform(geom, matrix)
-        parent = parents.get(el)
         if parent is None:
             continue
         idx = list(parent).index(el)
@@ -442,13 +476,20 @@ def prepare_lasercad_svg(svg_bytes: bytes) -> bytes:
     """Text → paths, LaserCAD palette colors, paths on separate lines."""
     if not svg_bytes:
         return svg_bytes
-    svg_bytes = laserize_svg(svg_bytes)
-    text = svg_bytes.decode("utf-8")
-    text = re.sub(r"#cc0000", LASER_CUT, text, flags=re.I)
-    text = re.sub(r"#222222", LASER_ETCH, text, flags=re.I)
-    text = re.sub(r"rgb\(\s*34\s*,\s*34\s*,\s*34\s*\)", LASER_ETCH, text, flags=re.I)
-    if "<path" in text and "\n<path" not in text:
-        text = text.replace("<path", "\n<path")
-        text = text.replace("</g>", "\n</g>")
-        text = text.replace("</svg>", "\n</svg>")
-    return text.encode("utf-8")
+    original = svg_bytes
+    try:
+        svg_bytes = laserize_svg(svg_bytes) or original
+    except Exception:
+        svg_bytes = original
+    try:
+        text = svg_bytes.decode("utf-8")
+        text = re.sub(r"#cc0000", LASER_CUT, text, flags=re.I)
+        text = re.sub(r"#222222", LASER_ETCH, text, flags=re.I)
+        text = re.sub(r"rgb\(\s*34\s*,\s*34\s*,\s*34\s*\)", LASER_ETCH, text, flags=re.I)
+        if "<path" in text and "\n<path" not in text:
+            text = text.replace("<path", "\n<path")
+            text = text.replace("</g>", "\n</g>")
+            text = text.replace("</svg>", "\n</svg>")
+        return text.encode("utf-8")
+    except Exception:
+        return svg_bytes or original

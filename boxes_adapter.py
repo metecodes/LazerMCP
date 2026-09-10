@@ -101,9 +101,15 @@ def _normalize_filename(file_id: str) -> str:
 
 
 def _write_svg(svg_bytes: bytes, generator: str) -> tuple[str, bytes]:
-    from text_path import prepare_lasercad_svg
+    original = svg_bytes
+    try:
+        from text_path import prepare_lasercad_svg
 
-    svg_bytes = prepare_lasercad_svg(svg_bytes)
+        prepared = prepare_lasercad_svg(svg_bytes)
+        if prepared:
+            svg_bytes = prepared
+    except Exception:
+        svg_bytes = original
     file_id = _new_file_id(generator)
     path = OUTPUT_DIR / file_id
     path.write_bytes(svg_bytes)
@@ -319,13 +325,22 @@ def payas_defaults() -> dict[str, Any]:
 
         defaults["font"] = font_info()
     except Exception as exc:
-        defaults["font"] = {"error": str(exc)}
-    defaults["font_note"] = "Numbers and labels are Arial outline paths (no SVG <text>)."
+        defaults["font"] = {"error": str(exc), "outlines_available": False}
+    font = defaults["font"]
+    if font.get("outlines_available"):
+        defaults["font_note"] = (
+            "Numbers and labels are outline paths (bundled Arimo / Arial-metric). No SVG <text>."
+        )
+    else:
+        defaults["font_note"] = (
+            "Outline font unavailable; kits still generate. Labels may remain as SVG <text>."
+        )
     return defaults
 
 
 def health_status() -> dict[str, Any]:
     errors: list[str] = []
+    warnings: list[str] = []
     generator_count = 0
     boxes_ok = False
     path_ok = Path(BOXES_PATH).is_dir()
@@ -342,9 +357,13 @@ def health_status() -> dict[str, Any]:
         from text_path import font_info
 
         font = font_info()
+        if not font.get("outlines_available"):
+            warnings.append(
+                "Outline font missing; kits still generate. Labels may remain as SVG <text>."
+            )
     except Exception as exc:
-        errors.append(f"Arial font missing: {exc}")
-        ok = False
+        warnings.append(f"Outline font unavailable: {exc}")
+        font = {"error": str(exc), "outlines_available": False}
     return {
         "status": "ok" if ok else "degraded",
         "boxes": boxes_ok,
@@ -353,6 +372,7 @@ def health_status() -> dict[str, Any]:
         "font": font,
         "defaults": dict(PAYAS_DEFAULTS),
         "errors": errors,
+        "warnings": warnings,
     }
 
 
