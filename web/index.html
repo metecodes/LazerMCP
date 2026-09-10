@@ -215,17 +215,29 @@
   <script>
     const PRIMARY = new Set(["x", "y", "h", "thickness", "burn", "outside", "bottom_edge"]);
     const CAD_FIELDS = {
+      from_reference: [
+        {name:"image", type:"file"},
+        {name:"width_mm", type:"number", default:300},
+        {name:"height_mm", type:"number", default:300},
+        {name:"layout", type:"string", choices:["trace","jigsaw"], default:"trace"},
+        {name:"rows", type:"number", default:10},
+        {name:"cols", type:"number", default:10},
+        {name:"style", type:"string", choices:["cut_and_etch","cut","etch"], default:"cut_and_etch"},
+        {name:"format", type:"string", choices:["svg","both"], default:"svg"},
+        {name:"threshold", type:"number", default:0}
+      ],
+      jigsaw_puzzle: [
+        {name:"width_mm", type:"number", default:300},
+        {name:"height_mm", type:"number", default:300},
+        {name:"rows", type:"number", default:10},
+        {name:"cols", type:"number", default:10},
+        {name:"format", type:"string", choices:["svg","both"], default:"svg"}
+      ],
       number_match_puzzle: [
         {name:"count", type:"number", default:10},
         {name:"card_w", type:"number", default:108},
         {name:"card_h", type:"number", default:64},
         {name:"columns", type:"number", default:2}
-      ],
-      from_reference: [
-        {name:"image", type:"file"},
-        {name:"width_mm", type:"number", default:200},
-        {name:"style", type:"string", choices:["cut_and_etch","cut","etch"], default:"cut_and_etch"},
-        {name:"threshold", type:"number", default:0}
       ],
       traffic_light: [
         {name:"thickness", type:"number", default:3},
@@ -566,9 +578,14 @@
           const blob = await compressImage(fileInput.files[0]);
           const form = new FormData();
           form.append("image", blob, "reference.jpg");
-          form.append("width_mm", String(params.width_mm ?? 200));
+          form.append("width_mm", String(params.width_mm ?? 300));
+          form.append("height_mm", String(params.height_mm ?? 300));
           form.append("style", params.style || "cut_and_etch");
           form.append("threshold", String(params.threshold ?? 0));
+          form.append("layout", params.layout || "trace");
+          form.append("rows", String(params.rows ?? 10));
+          form.append("cols", String(params.cols ?? 10));
+          form.append("format", params.format || "svg");
           endpoint = "/api/cad/from_reference";
           const res = await api(endpoint, { method: "POST", body: form });
           const data = await readJson(res);
@@ -583,7 +600,11 @@
           $("download").href = withToken(data.svg_url);
           $("download").setAttribute("download", data.file_id || "latest.svg");
           $("preview-title").textContent = "Önizleme · " + (data.file_id || "latest.svg");
-          setStatus((data.title || data.generator || data.product) + " · " + data.bytes + " byte · " + data.file_id, true);
+          setStatus(
+            (data.title || data.generator || data.product) + " · " + data.bytes + " byte · " + data.file_id
+            + (data.dxf_id ? " · DXF " + data.dxf_id : ""),
+            true
+          );
           return;
         } else if (state.product) {
           endpoint = "/api/cad/" + encodeURIComponent(state.product);
@@ -609,7 +630,11 @@
         $("download").href = withToken(data.svg_url);
         $("download").setAttribute("download", data.file_id || "latest.svg");
         $("preview-title").textContent = "Önizleme · " + (data.file_id || "latest.svg");
-        setStatus((data.title || data.generator || data.product) + " · " + data.bytes + " byte · " + data.file_id, true);
+        setStatus(
+          (data.title || data.generator || data.product) + " · " + data.bytes + " byte · " + data.file_id
+          + (data.dxf_id ? " · DXF " + data.dxf_id : ""),
+          true
+        );
       } catch (err) {
         setStatus(err.message, false);
       } finally {

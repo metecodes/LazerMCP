@@ -8,7 +8,7 @@ from typing import Any
 
 import numpy as np
 from PIL import Image, ImageFilter, ImageOps
-from shapely.geometry import LineString, Polygon
+from shapely.geometry import LineString, Polygon, box
 from shapely.ops import unary_union
 
 from boxes_adapter import PAYAS_DEFAULTS
@@ -324,6 +324,152 @@ def _fuse_geoms(geoms: list, gap_mm: float = 0.55, _pass: int = 0) -> list:
     return fused or geoms
 
 
+def trace_reference_geoms(
+    *,
+    image_base64: str | None = None,
+    image_bytes: bytes | None = None,
+    width_mm: float = 200.0,
+    invert: bool | None = None,
+    threshold: int = 0,
+) -> dict[str, Any]:
+    img = _decode_image(image_base64, image_bytes)
+    longest = max(img.size)
+    if longest > 1800:
+        scale = 1800 / longest
+        img = img.resize((max(1, int(img.width * scale)), max(1, int(img.height * scale))), Image.Resampling.LANCZOS)
+    mask = _binary_mask(img, invert, int(threshold or 0))
+    px_w, px_h = mask.shape[1], mask.shape[0]
+    width_mm = max(10.0, float(width_mm))
+    px_to_mm = width_mm / px_w
+    height_mm = px_h * px_to_mm
+    bed_w = PAYAS_DEFAULTS["bed_width"]
+    bed_h = PAYAS_DEFAULTS["bed_height"]
+    if width_mm > bed_w or height_mm > bed_h:
+        fit = min(bed_w / width_mm, bed_h / height_mm)
+        width_mm *= fit
+        height_mm *= fit
+        px_to_mm *= fit
+
+    geoms = []
+    for line in _stitch(_marching_segments(mask)):
+        geom = _to_geometry(line, px_to_mm, simplify_mm=max(0.08, px_to_mm * 0.7))
+        if geom is not None and not geom.is_empty:
+            geoms.append(geom)
+    geoms = _fuse_geoms(geoms)
+    if not geoms:
+        raise ValueError("Could not trace vector paths from this image.")
+    return {"geoms": geoms, "width_mm": width_mm, "height_mm": height_mm}
+
+
+def _fit_geoms(geoms: list, src_w: float, src_h: float, dst_w: float, dst_h: float) -> list:
+    from shapely.affinity import scale as shp_scale
+    from shapely.affinity import translate as shp_translate
+
+    if src_w <= 0 or src_h <= 0:
+        return geoms
+    factor = min(dst_w / src_w, dst_h / src_h)
+    ox = (dst_w - src_w * factor) / 2.0
+    oy = (dst_h - src_h * factor) / 2.0
+    out = []
+    sheet = box(0.0, 0.0, dst_w, dst_h)
+    for g in geoms:
+        placed = shp_translate(shp_scale(g, factor, factor, origin=(0.0, 0.0)), xoff=ox, yoff=oy)
+        clipped = placed.intersection(sheet)
+        if clipped is not None and not clipped.is_empty:
+            out.append(clipped)
+    return out
+
+
+def produce_photo_job(
+    *,
+    image_base64: str | None = None,
+    image_bytes: bytes | None = None,
+    width_mm: float = 200.0,
+    height_mm: float | None = None,
+    style: str = "cut_and_etch",
+    invert: bool | None = None,
+    threshold: int = 0,
+    layout: str = "trace",
+    rows: int = 10,
+    cols: int = 10,
+    seed: int = 1,
+) -> dict[str, Any]:
+    traced = trace_reference_geoms(
+        image_base64=image_base64,
+        image_bytes=image_bytes,
+        width_mm=width_mm,
+        invert=invert,
+        threshold=threshold,
+    )
+    layout = (layout or "trace").strip().lower()
+    style = (style or "cut_and_etch").strip().lower()
+    if style not in {"cut", "etch", "cut_and_etch"}:
+        style = "cut_and_etch"
+
+    if layout in {"jigsaw", "puzzle", "yapboz"}:
+        sheet_w = max(20.0, float(width_mm))
+        sheet_h = max(20.0, float(height_mm or width_mm))
+        artwork = _fit_geoms(traced["geoms"], traced["width_mm"], traced["height_mm"], sheet_w, sheet_h)
+        from jigsaw_puzzle import build_jigsaw_puzzle
+
+        built = build_jigsaw_puzzle(
+            width_mm=sheet_w,
+            height_mm=sheet_h,
+            rows=int(rows or 10),
+            cols=int(cols or 10),
+            seed=int(seed or 1),
+            etch_geoms=artwork,
+        )
+        built["style"] = "jigsaw_etch"
+        built["cut_paths"] = len(built["cut_geoms"])
+        built["etch_paths"] = len(built["etch_geoms"])
+        built["path_count"] = built["cut_paths"] + built["etch_paths"]
+        built["layout"] = "jigsaw"
+        return built
+
+    sheet_w = traced["width_mm"]
+    sheet_h = traced["height_mm"]
+    if height_mm:
+        target_h = max(10.0, float(height_mm))
+        artwork = _fit_geoms(traced["geoms"], sheet_w, sheet_h, sheet_w, target_h)
+        sheet_h = target_h
+        geoms = artwork
+    else:
+        geoms = traced["geoms"]
+    cut_geoms, etch_geoms = _cut_and_etch(geoms, style, sheet_w, sheet_h)
+    burn = PAYAS_DEFAULTS["burn"]
+    offset_cut = []
+    for g in cut_geoms:
+        if g.geom_type in {"Polygon", "MultiPolygon"}:
+            inset = g.buffer(-burn / 2.0)
+            offset_cut.append(inset if not inset.is_empty else g)
+        else:
+            offset_cut.append(g)
+    y_cut = [to_lasercad_y(g, sheet_h) for g in offset_cut]
+    y_etch = [to_lasercad_y(g, sheet_h) for g in etch_geoms]
+    svg = svg_document(
+        sheet_w,
+        sheet_h,
+        "".join(_svg_path(g, CUT, CUT_W) for g in y_cut),
+        "".join(_svg_path(g, ETCH, ETCH_W) for g in y_etch),
+    )
+    return {
+        "svg_bytes": svg.encode("utf-8"),
+        "cut_geoms": y_cut,
+        "etch_geoms": y_etch,
+        "width_mm": sheet_w,
+        "height_mm": sheet_h,
+        "path_count": len(y_cut) + len(y_etch),
+        "cut_paths": len(y_cut),
+        "etch_paths": len(y_etch),
+        "style": style,
+        "layout": "trace",
+        "count": None,
+        "card_w": None,
+        "card_h": None,
+    }
+
+
 def _cut_and_etch(geoms: list, style: str, sheet_w: float, sheet_h: float):
     if style == "cut":
         return geoms, []
@@ -368,56 +514,12 @@ def trace_reference_svg(
     invert: bool | None = None,
     threshold: int = 0,
 ) -> dict[str, Any]:
-    img = _decode_image(image_base64, image_bytes)
-    longest = max(img.size)
-    if longest > 1800:
-        scale = 1800 / longest
-        img = img.resize((max(1, int(img.width * scale)), max(1, int(img.height * scale))), Image.Resampling.LANCZOS)
-    mask = _binary_mask(img, invert, int(threshold or 0))
-    px_w, px_h = mask.shape[1], mask.shape[0]
-    width_mm = max(10.0, float(width_mm))
-    px_to_mm = width_mm / px_w
-    height_mm = px_h * px_to_mm
-    bed_w = PAYAS_DEFAULTS["bed_width"]
-    bed_h = PAYAS_DEFAULTS["bed_height"]
-    if width_mm > bed_w or height_mm > bed_h:
-        fit = min(bed_w / width_mm, bed_h / height_mm)
-        width_mm *= fit
-        height_mm *= fit
-        px_to_mm *= fit
-
-    geoms = []
-    for line in _stitch(_marching_segments(mask)):
-        geom = _to_geometry(line, px_to_mm, simplify_mm=max(0.08, px_to_mm * 0.7))
-        if geom is not None and not geom.is_empty:
-            geoms.append(geom)
-    geoms = _fuse_geoms(geoms)
-    if not geoms:
-        raise ValueError("Could not trace vector paths from this image.")
-
-    style = (style or "cut_and_etch").strip().lower()
-    if style not in {"cut", "etch", "cut_and_etch"}:
-        style = "cut_and_etch"
-    cut_geoms, etch_geoms = _cut_and_etch(geoms, style, width_mm, height_mm)
-
-    burn = PAYAS_DEFAULTS["burn"]
-    offset_cut = []
-    for g in cut_geoms:
-        if g.geom_type in {"Polygon", "MultiPolygon"}:
-            inset = g.buffer(-burn / 2.0)
-            offset_cut.append(inset if not inset.is_empty else g)
-        else:
-            offset_cut.append(g)
-
-    cut_paths = "".join(_svg_path(to_lasercad_y(g, height_mm), CUT, CUT_W) for g in offset_cut)
-    etch_paths = "".join(_svg_path(to_lasercad_y(g, height_mm), ETCH, ETCH_W) for g in etch_geoms)
-    svg = svg_document(width_mm, height_mm, cut_paths, etch_paths)
-    return {
-        "svg_bytes": svg.encode("utf-8"),
-        "width_mm": width_mm,
-        "height_mm": height_mm,
-        "path_count": len(offset_cut) + len(etch_geoms),
-        "cut_paths": len(offset_cut),
-        "etch_paths": len(etch_geoms),
-        "style": style,
-    }
+    return produce_photo_job(
+        image_base64=image_base64,
+        image_bytes=image_bytes,
+        width_mm=width_mm,
+        style=style,
+        invert=invert,
+        threshold=threshold,
+        layout="trace",
+    )

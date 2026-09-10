@@ -25,8 +25,9 @@ IS_VERCEL = os.environ.get("VERCEL") == "1"
 WEB_DIR = Path(__file__).resolve().parent / "web"
 PUBLIC_PATHS = {"/", "/health"}
 MCP_TOOLS = [
-    "create_design",
+    "plan_laser_job",
     "create_from_reference",
+    "create_design",
     "payas_defaults",
     "list_cad_tools",
     "get_generator_schema",
@@ -44,14 +45,16 @@ MCP_TOOLS = [
 mcp = MCPServer(
     "Laser mcp",
     instructions=(
-        "You are a Payas STEM laser CAD server at https://mcp.metehanavci.com/mcp. "
-        "Never write SVG yourself and never flip, rotate, or mirror geometry. "
-        "Never ask for a new MCP tool. Educational cards/puzzles: create_design "
-        "(preset='number_match_puzzle' or primitives jigsaw_grid / token_grid / text). "
-        "Numbers and labels are upright Arial outline paths (LaserCAD Y-up; no <text>). "
-        "Photos/logos: create_from_reference — that is a trace, not a 1:1 copy. "
-        "Named create_* kit tools are only for those exact products. "
-        "Defaults: 3 mm poplar, kerf 0.15 mm, 1500×3000 mm bed, SVG, cut #FF0000, etch #000000."
+        "You are Payas STEM laser CAD at https://mcp.metehanavci.com/mcp. "
+        "Never write SVG or DXF yourself and never flip, rotate, or mirror geometry. "
+        "Never offer to prepare a file outside this server. "
+        "For ANY image or custom drawing: (1) look at the photo and describe it, "
+        "(2) call plan_laser_job with user_request, what_you_see, has_photo=true, "
+        "(3) look at the photo again and call next_tool with that image plus next_arguments. "
+        "Do not skip the plan. Do not use number_match_puzzle unless the plan says so. "
+        "Named create_* kit tools only when the plan names them. "
+        "Defaults: 3 mm poplar, kerf 0.15 mm, 1500×3000 mm bed, SVG, optional DXF, "
+        "cut #FF0000, etch #000000, LaserCAD Y-up."
     ),
 )
 
@@ -152,11 +155,27 @@ class BearerGate:
 
 @mcp.tool(
     description=(
-        "Compile a laser SVG from a preset or primitives. Use this for any new educational card, "
-        "jigsaw, or worksheet instead of requesting a new tool. "
-        "preset=number_match_puzzle (parameters: count, card_w, card_h, columns) OR "
-        "primitives=[{type:'jigsaw_grid',count:10}] or [{type:'text',value:'PAYAS',height:24}]. "
-        "Numbers and text use upright Arial outline paths (no SVG text, no flips). "
+        "STEP 2 after you looked at the photo: Laser MCP teaches how to cut it. "
+        "Pass user_request, what_you_see (your description of the photo), has_photo, want_dxf. "
+        "Then execute next_tool with next_arguments. Do not draw SVG yourself."
+    )
+)
+def plan_laser_job(
+    user_request: str,
+    what_you_see: str = "",
+    has_photo: bool = False,
+    want_dxf: bool = False,
+) -> dict[str, Any]:
+    from job_planner import plan_laser_job as _plan
+
+    return _plan(user_request, what_you_see, has_photo, want_dxf)
+
+
+@mcp.tool(
+    description=(
+        "Compile a laser SVG from a preset. Use only when plan_laser_job says so. "
+        "preset=jigsaw_puzzle: blank interlocking grid (width_mm, height_mm, rows, cols). "
+        "preset=number_match_puzzle: number-to-dot cards ONLY, never a picture puzzle. "
         "Optional svg= existing SVG to import. Never hand-write or rotate geometry."
     )
 )
@@ -177,23 +196,37 @@ def create_design(
 
 @mcp.tool(
     description=(
-        "Trace a photo/logo into SVG. Do NOT use for number-matching jigsaw or printable cards — "
-        "that is create_design. Pass image_base64. style: cut_and_etch, cut, or etch."
+        "STEP 3: draw the photo using the plan. Pass image_base64 plus plan next_arguments "
+        "(width_mm, height_mm, layout, rows, cols, style, format). "
+        "layout=jigsaw = interlocking pieces with the photo as etch. layout=trace = vectorize the photo. "
+        "format=svg or both (SVG+DXF). Never use this for number-matching cards."
     )
 )
 def create_from_reference(
     image_base64: str,
     width_mm: float = 200.0,
+    height_mm: float | None = None,
     style: str = "cut_and_etch",
     invert: bool | None = None,
     threshold: int = 0,
+    layout: str = "trace",
+    rows: int = 10,
+    cols: int = 10,
+    seed: int = 1,
+    format: str = "svg",
 ) -> dict[str, Any]:
     return payas_cad.create_from_reference(
         image_base64=image_base64,
         width_mm=width_mm,
+        height_mm=height_mm,
         style=style,
         invert=invert,
         threshold=threshold,
+        layout=layout,
+        rows=rows,
+        cols=cols,
+        seed=seed,
+        format=format,
         public_base_url=_tool_public_base(),
     )
 
@@ -203,7 +236,7 @@ def payas_defaults() -> dict[str, Any]:
     return boxespy.payas_defaults()
 
 
-@mcp.tool(description="List CAD tools. New puzzles/cards = create_design. Photos = create_from_reference. Do not request new tools.")
+@mcp.tool(description="List CAD tools. Any photo: plan_laser_job then create_from_reference. Do not request new tools.")
 def list_cad_tools() -> dict[str, Any]:
     return payas_cad.list_cad_tools()
 
@@ -213,7 +246,7 @@ def get_generator_schema(generator: str) -> dict[str, Any]:
     return boxespy.get_generator_schema(generator)
 
 
-@mcp.tool(description="Boxes.py class SVG only (ABox, TypeTray, …). Puzzles/cards = create_design. Photos = create_from_reference.")
+@mcp.tool(description="Boxes.py class SVG only (ABox, TypeTray, …). Photos = plan_laser_job then create_from_reference.")
 def generate_svg(generator: str, parameters: dict[str, Any] | None = None) -> dict[str, Any]:
     return boxespy.generate_svg(generator, parameters, public_base_url=_tool_public_base())
 
@@ -377,7 +410,7 @@ async def api_cad_design(request: Request) -> Response:
     try:
         payload = body if isinstance(body, dict) else {}
         params = dict(payload.get("parameters") or {}) if isinstance(payload.get("parameters"), dict) else {}
-        for key in ("count", "card_w", "card_h", "columns"):
+        for key in ("count", "card_w", "card_h", "columns", "width_mm", "height_mm", "rows", "cols", "seed", "format"):
             if key in payload and key not in params:
                 params[key] = payload[key]
         return JSONResponse(
@@ -402,26 +435,47 @@ async def api_from_reference(request: Request) -> Response:
             upload = form.get("image")
             image_bytes = await upload.read() if upload is not None and hasattr(upload, "read") else None
             width_mm = float(form.get("width_mm") or 200)
+            height_raw = form.get("height_mm")
+            height_mm = float(height_raw) if height_raw not in (None, "", "0") else None
             style = str(form.get("style") or "cut_and_etch")
             invert_raw = form.get("invert")
             invert = None if invert_raw in (None, "", "auto") else str(invert_raw).lower() in {"1", "true", "yes"}
             threshold = int(form.get("threshold") or 0)
+            layout = str(form.get("layout") or "trace")
+            rows = int(form.get("rows") or 10)
+            cols = int(form.get("cols") or 10)
+            fmt = str(form.get("format") or "svg")
             result = payas_cad.create_from_reference(
                 image_bytes=image_bytes,
                 width_mm=width_mm,
+                height_mm=height_mm,
                 style=style,
                 invert=invert,
                 threshold=threshold,
+                layout=layout,
+                rows=rows,
+                cols=cols,
+                format=fmt,
                 public_base_url=_public_base(request),
             )
             return JSONResponse(result)
         body = await request.json()
+        params = body.get("parameters") if isinstance(body.get("parameters"), dict) else {}
+        merged = {**params, **{k: body[k] for k in body if k != "parameters"}}
+        height_raw = merged.get("height_mm")
+        height_mm = float(height_raw) if height_raw not in (None, "", 0, "0") else None
         result = payas_cad.create_from_reference(
-            image_base64=body.get("image_base64") or (body.get("parameters") or {}).get("image_base64"),
-            width_mm=float(body.get("width_mm") or (body.get("parameters") or {}).get("width_mm") or 200),
-            style=str(body.get("style") or (body.get("parameters") or {}).get("style") or "cut_and_etch"),
-            invert=(body.get("parameters") or body).get("invert"),
-            threshold=int(body.get("threshold") or (body.get("parameters") or {}).get("threshold") or 0),
+            image_base64=merged.get("image_base64"),
+            width_mm=float(merged.get("width_mm") or 200),
+            height_mm=height_mm,
+            style=str(merged.get("style") or "cut_and_etch"),
+            invert=merged.get("invert"),
+            threshold=int(merged.get("threshold") or 0),
+            layout=str(merged.get("layout") or "trace"),
+            rows=int(merged.get("rows") or 10),
+            cols=int(merged.get("cols") or 10),
+            seed=int(merged.get("seed") or 1),
+            format=str(merged.get("format") or "svg"),
             public_base_url=_public_base(request),
         )
         return JSONResponse(result)
@@ -457,7 +511,9 @@ async def serve_file(request: Request) -> Response:
         return JSONResponse({"error": "not found"}, status_code=404)
     except ValueError:
         return JSONResponse({"error": "invalid filename"}, status_code=400)
-    return FileResponse(path, media_type="image/svg+xml", filename=path.name)
+    suffix = path.suffix.lower()
+    media = "image/svg+xml" if suffix == ".svg" else "image/vnd.dxf" if suffix == ".dxf" else "application/octet-stream"
+    return FileResponse(path, media_type=media, filename=path.name)
 
 
 def create_asgi_app():

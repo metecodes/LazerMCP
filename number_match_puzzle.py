@@ -98,6 +98,11 @@ def _emit(geom, stroke: str, width: float) -> str:
         )
     if geom.geom_type in {"MultiPolygon", "GeometryCollection", "MultiLineString"}:
         return "".join(_emit(g, stroke, width) for g in geom.geoms)
+    if geom.geom_type == "LinearRing":
+        return (
+            f'\n<path d="{_path_d(geom.coords)}" fill="none" stroke="{stroke}" '
+            f'stroke-width="{width}"/>'
+        )
     if geom.geom_type == "LineString":
         return (
             f'\n<path d="{_path_d(geom.coords)}" fill="none" stroke="{stroke}" '

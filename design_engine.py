@@ -22,9 +22,13 @@ from number_match_puzzle import (
 from text_path import svg_document, to_lasercad_y
 
 PRESETS = {
+    "jigsaw_puzzle": {
+        "title": "Klasik yapboz",
+        "hint": "Interlocking picture-puzzle grid. parameters: width_mm, height_mm, rows, cols, seed. Not number-dot cards.",
+    },
     "number_match_puzzle": {
         "title": "Sayı eşleme yapboz",
-        "hint": "1–N number-to-dot jigsaw cards. parameters: count, card_w, card_h, columns",
+        "hint": "1–N number-to-dot matching cards only. parameters: count, card_w, card_h, columns",
     },
 }
 
@@ -40,6 +44,9 @@ PRIMITIVE_TYPES = (
 )
 
 _PRESET_ALIASES = {
+    "classic_jigsaw": "jigsaw_puzzle",
+    "picture_puzzle": "jigsaw_puzzle",
+    "yapboz": "jigsaw_puzzle",
     "number_match": "number_match_puzzle",
     "sayi_esleme": "number_match_puzzle",
     "jigsaw_numbers": "number_match_puzzle",
@@ -52,6 +59,11 @@ def list_design_api() -> dict[str, Any]:
         "presets": PRESETS,
         "primitives": list(PRIMITIVE_TYPES),
         "examples": {
+            "photo_then_plan": "Call plan_laser_job first, then create_from_reference with the photo.",
+            "jigsaw_puzzle": {
+                "preset": "jigsaw_puzzle",
+                "parameters": {"width_mm": 300, "height_mm": 300, "rows": 10, "cols": 10},
+            },
             "preset": {"preset": "number_match_puzzle", "parameters": {"count": 10}},
             "jigsaw_grid": {
                 "primitives": [{"type": "jigsaw_grid", "count": 8, "columns": 2}],
@@ -75,9 +87,11 @@ def list_design_api() -> dict[str, Any]:
         },
         "font": "Arial outlines (paths). No SVG <text>.",
         "note": (
-            "Do not request a new MCP tool. Call create_design with a preset name "
-            "or a primitives list. Photo tracing is create_from_reference. "
-            "Numbers and labels are Arial converted to laser paths."
+            "Look at the photo, call plan_laser_job, then execute next_tool. "
+            "Any image = create_from_reference after the plan. "
+            "preset=jigsaw_puzzle is a blank interlocking grid. "
+            "preset=number_match_puzzle is only number-to-dot cards. "
+            "Never hand-write SVG."
         ),
     }
 
@@ -111,6 +125,18 @@ def _fit_sheet(sheet_w: float, sheet_h: float) -> float:
 def _preset(name: str, params: dict[str, Any]) -> dict[str, Any]:
     key = (name or "").strip().lower().replace(" ", "_")
     key = _PRESET_ALIASES.get(key, key)
+    if key == "jigsaw_puzzle":
+        from jigsaw_puzzle import build_jigsaw_puzzle
+
+        width = float(params.get("width_mm") or params.get("size_mm") or 300)
+        height = float(params.get("height_mm") or params.get("size_mm") or width)
+        return build_jigsaw_puzzle(
+            width_mm=width,
+            height_mm=height,
+            rows=int(params.get("rows") or params.get("count") or 10),
+            cols=int(params.get("cols") or params.get("columns") or 10),
+            seed=int(params.get("seed") or 1),
+        )
     if key != "number_match_puzzle":
         known = ", ".join(PRESETS)
         raise ValueError(f"Unknown preset '{name}'. Known: {known}. Or pass primitives.")
@@ -233,8 +259,8 @@ def compile_design(
         built["preset"] = kind
         return built
     raise ValueError(
-        "Pass preset (e.g. number_match_puzzle) or primitives "
-        "(e.g. [{type:jigsaw_grid,count:10}])."
+        "Pass preset (jigsaw_puzzle or number_match_puzzle) or primitives "
+        "(e.g. [{type:jigsaw_grid,count:10}]). For a photo, use plan_laser_job then create_from_reference."
     )
 
 

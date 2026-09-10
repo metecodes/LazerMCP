@@ -66,6 +66,7 @@ OUTPUT_DIR = _resolve_output_dir()
 
 MCP_NAME = "Laser mcp"
 LATEST_SVG = "latest.svg"
+LATEST_DXF = "latest.dxf"
 _SAFE_NAME = re.compile(r"^[\w][\w .+-]*$", re.UNICODE)
 _SKIP_ARGS = {"help", "output", "format"}
 _LATEST_ALIASES = {
@@ -95,6 +96,8 @@ def _new_file_id(generator: str) -> str:
 
 def _normalize_filename(file_id: str) -> str:
     name = unquote(file_id or "").replace("\\", "/").split("/")[-1].strip()
+    if name.lower() in {"latest.dxf", "latest dxf"}:
+        return LATEST_DXF
     if name.lower() in _LATEST_ALIASES:
         return LATEST_SVG
     return name
@@ -308,7 +311,7 @@ def _safe_output_file(file_id: str) -> Path:
     path = (OUTPUT_DIR / name).resolve()
     if path.parent != OUTPUT_DIR.resolve():
         raise ValueError("invalid file_id")
-    if not path.is_file() and not name.lower().endswith(".svg"):
+    if not path.is_file() and not name.lower().endswith((".svg", ".dxf")):
         path = (OUTPUT_DIR / f"{name}.svg").resolve()
         if path.parent != OUTPUT_DIR.resolve():
             raise ValueError("invalid file_id")
@@ -576,10 +579,21 @@ def save_generated_svg(
     public_base_url: str = "http://127.0.0.1:8000",
     extra: dict[str, Any] | None = None,
     generator: str = "cad",
+    dxf_bytes: bytes | None = None,
 ) -> dict[str, Any]:
     name = (extra or {}).get("generator") or (extra or {}).get("product") or generator
     file_id, svg_bytes = _write_svg(svg_bytes, str(name))
-    return _public_result(file_id, public_base_url, svg_bytes, extra)
+    result = _public_result(file_id, public_base_url, svg_bytes, extra)
+    if dxf_bytes:
+        dxf_id = file_id[:-4] + ".dxf" if file_id.lower().endswith(".svg") else f"{file_id}.dxf"
+        (OUTPUT_DIR / dxf_id).write_bytes(dxf_bytes)
+        (OUTPUT_DIR / LATEST_DXF).write_bytes(dxf_bytes)
+        result["dxf_id"] = dxf_id
+        result["dxf_url"] = _file_url(public_base_url, dxf_id)
+        defaults = dict(result.get("applied_defaults") or {})
+        defaults["output"] = "svg+dxf"
+        result["applied_defaults"] = defaults
+    return result
 
 
 def dump_json(payload: dict[str, Any]) -> str:
