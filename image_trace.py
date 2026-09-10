@@ -64,8 +64,17 @@ def _decode_image(image_base64: str | None = None, image_bytes: bytes | None = N
     if img.mode in {"RGBA", "LA"}:
         bg = Image.new("RGB", img.size, (255, 255, 255))
         bg.paste(img.convert("RGBA"), mask=img.convert("RGBA").split()[-1])
-        return bg
-    return img.convert("RGB")
+        img = bg
+    else:
+        img = img.convert("RGB")
+    longest = max(img.size)
+    if longest > 1400:
+        scale = 1400 / longest
+        img = img.resize(
+            (max(1, int(img.width * scale)), max(1, int(img.height * scale))),
+            Image.Resampling.LANCZOS,
+        )
+    return img
 
 
 def _otsu(arr: np.ndarray) -> int:
@@ -334,8 +343,8 @@ def trace_reference_geoms(
 ) -> dict[str, Any]:
     img = _decode_image(image_base64, image_bytes)
     longest = max(img.size)
-    if longest > 1800:
-        scale = 1800 / longest
+    if longest > 1400:
+        scale = 1400 / longest
         img = img.resize((max(1, int(img.width * scale)), max(1, int(img.height * scale))), Image.Resampling.LANCZOS)
     mask = _binary_mask(img, invert, int(threshold or 0))
     px_w, px_h = mask.shape[1], mask.shape[0]

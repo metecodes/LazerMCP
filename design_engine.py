@@ -33,6 +33,11 @@ PRESETS = {
 }
 
 PRIMITIVE_TYPES = (
+    "box",
+    "panel",
+    "disc",
+    "triangle",
+    "polygon",
     "jigsaw_grid",
     "jigsaw_card",
     "token_grid",
@@ -55,11 +60,36 @@ _PRESET_ALIASES = {
 
 
 def list_design_api() -> dict[str, Any]:
+    from toolbox import GRAMMAR
+
     return {
         "presets": PRESETS,
         "primitives": list(PRIMITIVE_TYPES),
+        "grammar": GRAMMAR,
         "examples": {
-            "photo_then_plan": "Call plan_laser_job first, then create_from_reference with the photo.",
+            "photo_then_plan": "Look at the photo, call plan_laser_job, then execute next_tool.",
+            "assembly_from_photo": {
+                "primitives": [
+                    {
+                        "type": "box",
+                        "x": 80,
+                        "y": 80,
+                        "h": 140,
+                        "bottom": True,
+                        "walls": {
+                            "front": {
+                                "holes": [{"x": 40, "y": 120, "d": 4}],
+                                "slots": [{"x": 40, "y": 45, "w": 22, "h": 32}],
+                            },
+                            "back": {"holes": [{"x": 40, "y": 120, "d": 4}]},
+                        },
+                    },
+                    {"type": "triangle", "w": 80, "h": 28, "count": 2, "label": "gable"},
+                    {"type": "panel", "w": 90, "h": 86, "edges": "eeee", "count": 2, "label": "roof"},
+                    {"type": "disc", "d": 50, "hole": 4, "label": "propeller"},
+                    {"type": "disc", "d": 12, "hole": 4, "count": 2, "label": "spacer"},
+                ]
+            },
             "jigsaw_puzzle": {
                 "preset": "jigsaw_puzzle",
                 "parameters": {"width_mm": 300, "height_mm": 300, "rows": 10, "cols": 10},
@@ -68,16 +98,6 @@ def list_design_api() -> dict[str, Any]:
             "jigsaw_grid": {
                 "primitives": [{"type": "jigsaw_grid", "count": 8, "columns": 2}],
             },
-            "custom_pairs": {
-                "primitives": [{
-                    "type": "jigsaw_grid",
-                    "columns": 2,
-                    "items": [
-                        {"left": 1, "right_pips": 1},
-                        {"left": 2, "right_pips": 2},
-                    ],
-                }],
-            },
             "token_grid": {
                 "primitives": [{"type": "token_grid", "count": 10, "columns": 5, "w": 48, "h": 48}],
             },
@@ -85,13 +105,12 @@ def list_design_api() -> dict[str, Any]:
                 "primitives": [{"type": "text", "value": "PAYAS", "height": 24}],
             },
         },
-        "font": "Arial outlines (paths). No SVG <text>.",
+        "font": "Outline paths (bundled Arimo). No SVG <text>.",
         "note": (
-            "Look at the photo, call plan_laser_job, then execute next_tool. "
-            "Any image = create_from_reference after the plan. "
-            "preset=jigsaw_puzzle is a blank interlocking grid. "
-            "preset=number_match_puzzle is only number-to-dot cards. "
-            "Never hand-write SVG."
+            "This server is a toolbox, not a catalog. Do not ask for a new kit tool. "
+            "Look at the photo, call plan_laser_job, then create_design with Boxes.py primitives "
+            "(box/panel/disc/triangle) using millimetres you read from the photo. "
+            "create_from_reference only 2D-traces artwork. Never hand-write SVG."
         ),
     }
 
@@ -206,6 +225,10 @@ def _compile_primitives(primitives: list[Any], parameters: dict[str, Any] | None
     if not primitives:
         raise ValueError("primitives is empty")
     params = parameters or {}
+    from toolbox import is_assembly, compile_toolbox
+
+    if is_assembly(primitives):
+        return compile_toolbox(primitives, params)
     first = primitives[0] if isinstance(primitives[0], dict) else {}
     kind = (first.get("type") or first.get("kind") or "").lower()
     if kind in {"jigsaw_grid", "jigsaw_sheet", "number_match_puzzle"}:
@@ -222,7 +245,7 @@ def _compile_primitives(primitives: list[Any], parameters: dict[str, Any] | None
     if kind in {"text", "label", "number"}:
         return _compile_text(first, params)
     raise ValueError(
-        "For custom cards use type=jigsaw_grid, token_grid, or text, or a named preset. "
+        "Pass assembly primitives (box, panel, disc, triangle) or type=jigsaw_grid / token_grid / text. "
         f"Got type={kind!r}. Primitive types: {', '.join(PRIMITIVE_TYPES)}"
     )
 
@@ -255,12 +278,16 @@ def compile_design(
         return built
     if primitives:
         built = _compile_primitives(primitives, params)
-        kind = primitives[0].get("type") if isinstance(primitives[0], dict) else "primitives"
-        built["preset"] = kind
+        from toolbox import is_assembly
+
+        built["preset"] = "toolbox" if is_assembly(primitives) else (
+            primitives[0].get("type") if isinstance(primitives[0], dict) else "primitives"
+        )
         return built
     raise ValueError(
-        "Pass preset (jigsaw_puzzle or number_match_puzzle) or primitives "
-        "(e.g. [{type:jigsaw_grid,count:10}]). For a photo, use plan_laser_job then create_from_reference."
+        "Pass primitives (box/panel/disc/triangle from the photo) or a preset "
+        "(jigsaw_puzzle, number_match_puzzle). For a photo: plan_laser_job then next_tool. "
+        "Do not ask for a new kit tool."
     )
 
 

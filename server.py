@@ -46,15 +46,19 @@ mcp = MCPServer(
     "Laser mcp",
     instructions=(
         "You are Payas STEM laser CAD at https://mcp.metehanavci.com/mcp. "
+        "This server is a toolbox, not a catalog. Never ask for a new kit or MCP tool. "
         "Never write SVG or DXF yourself and never flip, rotate, or mirror geometry. "
         "Never offer to prepare a file outside this server. "
-        "For ANY image or custom drawing: (1) look at the photo and describe it, "
+        "For ANY image of a thing to build: (1) look at the photo and describe parts, "
         "(2) call plan_laser_job with user_request, what_you_see, has_photo=true, "
-        "(3) look at the photo again and call next_tool with that image plus next_arguments. "
+        "(3) execute next_tool. If next_tool is create_design, fill millimetres from the photo "
+        "into primitives (box/panel/disc/triangle) — finger joints come from Boxes.py, not from you. "
+        "create_from_reference only 2D-traces artwork or etches a photo onto a jigsaw. "
         "Do not skip the plan. Do not use number_match_puzzle unless the plan says so. "
-        "Named create_* kit tools only when the plan names them. "
+        "Named create_* kits only for existing Payas products the plan names. "
         "Defaults: 3 mm poplar, kerf 0.15 mm, 1500×3000 mm bed, SVG, optional DXF, "
-        "cut #FF0000, etch #000000, LaserCAD Y-up."
+        "cut #FF0000, etch #000000, LaserCAD Y-up. "
+        "Notches and closed cuts keep ~1 mm holding nicks so pieces do not fall; do not omit them."
     ),
 )
 
@@ -155,9 +159,10 @@ class BearerGate:
 
 @mcp.tool(
     description=(
-        "STEP 2 after you looked at the photo: Laser MCP teaches how to cut it. "
-        "Pass user_request, what_you_see (your description of the photo), has_photo, want_dxf. "
-        "Then execute next_tool with next_arguments. Do not draw SVG yourself."
+        "STEP 2 after you looked at the photo: Laser MCP teaches the toolbox grammar. "
+        "Pass user_request, what_you_see (parts you see: walls, roof, holes, discs), has_photo, want_dxf. "
+        "Then execute next_tool. If next_tool is create_design, overwrite millimetres from the photo. "
+        "Never ask for a new kit. Do not draw SVG yourself."
     )
 )
 def plan_laser_job(
@@ -173,10 +178,11 @@ def plan_laser_job(
 
 @mcp.tool(
     description=(
-        "Compile a laser SVG from a preset. Use only when plan_laser_job says so. "
-        "preset=jigsaw_puzzle: blank interlocking grid (width_mm, height_mm, rows, cols). "
-        "preset=number_match_puzzle: number-to-dot cards ONLY, never a picture puzzle. "
-        "Optional svg= existing SVG to import. Never hand-write or rotate geometry."
+        "Toolbox compiler. Prefer this after plan_laser_job. "
+        "primitives: box (finger-joint walls+floor via Boxes.py), panel (rectangularWall + holes/slots), "
+        "disc (washer/propeller), triangle (gable), plus jigsaw_grid/token_grid/text. "
+        "preset=jigsaw_puzzle or number_match_puzzle only when the plan says so. "
+        "Never request a new tool. Never hand-write SVG."
     )
 )
 def create_design(
@@ -196,10 +202,10 @@ def create_design(
 
 @mcp.tool(
     description=(
-        "STEP 3: draw the photo using the plan. Pass image_base64 plus plan next_arguments "
-        "(width_mm, height_mm, layout, rows, cols, style, format). "
-        "layout=jigsaw = interlocking pieces with the photo as etch. layout=trace = vectorize the photo. "
-        "format=svg or both (SVG+DXF). Never use this for number-matching cards."
+        "2D artwork only: vectorize a photo or etch it onto a jigsaw. "
+        "Pass compressed JPEG image_base64 plus next_arguments from the plan. "
+        "To build walls/roofs/propellers, use create_design primitives instead. "
+        "layout=jigsaw or trace. format=svg or both. Then validate_svg."
     )
 )
 def create_from_reference(
@@ -215,20 +221,31 @@ def create_from_reference(
     seed: int = 1,
     format: str = "svg",
 ) -> dict[str, Any]:
-    return payas_cad.create_from_reference(
-        image_base64=image_base64,
-        width_mm=width_mm,
-        height_mm=height_mm,
-        style=style,
-        invert=invert,
-        threshold=threshold,
-        layout=layout,
-        rows=rows,
-        cols=cols,
-        seed=seed,
-        format=format,
-        public_base_url=_tool_public_base(),
-    )
+    try:
+        return payas_cad.create_from_reference(
+            image_base64=image_base64,
+            width_mm=width_mm,
+            height_mm=height_mm,
+            style=style,
+            invert=invert,
+            threshold=threshold,
+            layout=layout,
+            rows=rows,
+            cols=cols,
+            seed=seed,
+            format=format,
+            public_base_url=_tool_public_base(),
+        )
+    except Exception as exc:
+        return {
+            "success": False,
+            "error": str(exc),
+            "hint": (
+                "Compress the photo to ~1200px JPEG and retry. "
+                "This tool only traces 2D artwork. For a mill/house/model, call plan_laser_job "
+                "then create_design with box/panel/disc primitives."
+            ),
+        }
 
 
 @mcp.tool(description="Payas STEM defaults: 3mm kavak, kerf 0.15, 1500x3000, SVG.")
@@ -236,7 +253,7 @@ def payas_defaults() -> dict[str, Any]:
     return boxespy.payas_defaults()
 
 
-@mcp.tool(description="List CAD tools. Any photo: plan_laser_job then create_from_reference. Do not request new tools.")
+@mcp.tool(description="List the toolbox. Look, plan_laser_job, then create_design primitives. Do not request new tools.")
 def list_cad_tools() -> dict[str, Any]:
     return payas_cad.list_cad_tools()
 
@@ -246,7 +263,7 @@ def get_generator_schema(generator: str) -> dict[str, Any]:
     return boxespy.get_generator_schema(generator)
 
 
-@mcp.tool(description="Boxes.py class SVG only (ABox, TypeTray, …). Photos = plan_laser_job then create_from_reference.")
+@mcp.tool(description="Boxes.py class SVG only (ABox, TypeTray, …). Photos of things to build: plan_laser_job then create_design primitives.")
 def generate_svg(generator: str, parameters: dict[str, Any] | None = None) -> dict[str, Any]:
     return boxespy.generate_svg(generator, parameters, public_base_url=_tool_public_base())
 

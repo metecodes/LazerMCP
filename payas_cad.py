@@ -11,7 +11,7 @@ CAD_PRODUCTS = [
         "id": "from_reference",
         "tool": "create_from_reference",
         "title": "Fotoğraftan çizim",
-        "description": "Her görsel: önce plan_laser_job, sonra bu tool ile fotoğrafı SVG/DXF yapar. Klasik yapboz dahil.",
+        "description": "2D iz: fotoğrafı vektörleştirir veya yapboza kazır. Duvar/çatı/pervane için create_design primitive.",
     },
     {
         "id": "jigsaw_puzzle",
@@ -76,9 +76,10 @@ def list_cad_tools() -> dict[str, Any]:
         "count": len(CAD_PRODUCTS),
         "products": CAD_PRODUCTS,
         "policy": (
-            "Any image: look at it, call plan_laser_job, then call next_tool with the photo. "
-            "Do not default to number_match_puzzle. Do not write SVG yourself. "
-            "Named create_* kits are only when the plan names them."
+            "Toolbox, not a catalog. Look at the photo, call plan_laser_job, then create_design "
+            "with box/panel/disc/triangle primitives (Boxes.py). Do not ask for a new kit tool. "
+            "create_from_reference is 2D artwork only. Named create_* only for existing Payas products. "
+            "Never write SVG yourself. Cuts keep ~1 mm holding nicks."
         ),
         "design": _design_api(),
         "generic": [
@@ -206,9 +207,16 @@ def _save_build(
 def _dxf_from_built(built: dict[str, Any], fmt: str | None) -> bytes | None:
     if (fmt or "svg").strip().lower() not in {"dxf", "both"}:
         return None
-    from dxf_export import geoms_to_dxf
+    from dxf_export import geoms_to_dxf, svg_bytes_to_dxf
 
-    return geoms_to_dxf(built.get("cut_geoms") or [], built.get("etch_geoms") or [])
+    cuts = built.get("cut_geoms") or []
+    etches = built.get("etch_geoms") or []
+    if cuts or etches:
+        return geoms_to_dxf(cuts, etches)
+    svg_bytes = built.get("svg_bytes")
+    if svg_bytes:
+        return svg_bytes_to_dxf(svg_bytes)
+    return None
 
 
 def create_robot_bank(public_base_url: str = "http://127.0.0.1:8000") -> dict[str, Any]:
@@ -289,19 +297,29 @@ def create_from_reference(
 ) -> dict[str, Any]:
     from image_trace import produce_photo_job
 
-    built = produce_photo_job(
-        image_base64=image_base64,
-        image_bytes=image_bytes,
-        width_mm=width_mm,
-        height_mm=height_mm,
-        style=style,
-        invert=invert,
-        threshold=threshold,
-        layout=layout,
-        rows=rows,
-        cols=cols,
-        seed=seed,
-    )
+    try:
+        built = produce_photo_job(
+            image_base64=image_base64,
+            image_bytes=image_bytes,
+            width_mm=width_mm,
+            height_mm=height_mm,
+            style=style,
+            invert=invert,
+            threshold=threshold,
+            layout=layout,
+            rows=rows,
+            cols=cols,
+            seed=seed,
+        )
+    except Exception as exc:
+        return {
+            "success": False,
+            "error": str(exc),
+            "hint": (
+                "Call plan_laser_job first. Pass a compressed JPEG around 1200px as image_base64. "
+                "This traces 2D artwork. For walls/roofs/propellers use create_design primitives."
+            ),
+        }
     extra = {
         "product": built.get("layout") or "from_reference",
         "title": "Klasik yapboz" if built.get("layout") == "jigsaw" else "Fotoğraftan çizim",
@@ -342,11 +360,13 @@ def create_design(
     else:
         built = compile_design(preset=preset, primitives=primitives, parameters=parameters)
     name = str(built.get("preset") or preset or "design")
-    title = "İçe aktarılan SVG" if built.get("imported") else "Parametrik tasarım"
+    title = "İçe aktarılan SVG" if built.get("imported") else "Takım çantası"
     if name in {"number_match_puzzle", "number_match"}:
         title = "Sayı eşleme kartları"
     if name in {"jigsaw_puzzle", "classic_jigsaw"}:
         title = "Klasik yapboz"
+    if name in {"toolbox", "box", "panel", "disc"}:
+        title = "Takım çantası"
     extra = {
         "product": name,
         "title": title,

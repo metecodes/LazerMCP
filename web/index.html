@@ -208,7 +208,7 @@
       <div class="preview-frame" id="preview"><span class="status">Henüz SVG yok</span></div>
       <div class="meta">
         <span id="metrics">—</span>
-        <span id="bed">1500 × 3000 mm tabla · LaserCAD: kırmızı kesim, siyah kazıma</span>
+        <span id="bed">1500 × 3000 mm tabla · LaserCAD: kırmızı kesim, siyah kazıma · 1 mm tutucu çentik</span>
       </div>
     </section>
   </main>
@@ -557,7 +557,7 @@
       }
       if (report) {
         $("bed").textContent = (report.fits_bed ? "Tabla: sığar" : (report.errors || []).join(" · ") || "Tabla kontrolü")
-          + " · kırmızı kesim, siyah kazıma";
+          + " · kırmızı kesim, siyah kazıma · 1 mm tutucu çentik";
         $("bed").style.color = report.fits_bed ? "var(--ok)" : "var(--bad)";
       }
     }

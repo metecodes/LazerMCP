@@ -56,6 +56,7 @@ PAYAS_DEFAULTS = {
     "output": "svg",
     "cut_color": "#FF0000",
     "etch_color": "#000000",
+    "holding_nick_mm": 1.0,
 }
 
 GENERATOR_ALIASES = {
@@ -113,6 +114,14 @@ def _write_svg(svg_bytes: bytes, generator: str) -> tuple[str, bytes]:
             svg_bytes = prepared
     except Exception:
         svg_bytes = original
+    try:
+        from holding_nicks import NICK_MM, nick_cut_svg
+
+        nicked = nick_cut_svg(svg_bytes, float(PAYAS_DEFAULTS.get("holding_nick_mm") or NICK_MM))
+        if nicked:
+            svg_bytes = nicked
+    except Exception:
+        pass
     file_id = _new_file_id(generator)
     path = OUTPUT_DIR / file_id
     path.write_bytes(svg_bytes)
@@ -135,6 +144,7 @@ def _public_result(
             "material": PAYAS_DEFAULTS["material"],
             "thickness": PAYAS_DEFAULTS["thickness"],
             "burn": PAYAS_DEFAULTS["burn"],
+            "holding_nick_mm": PAYAS_DEFAULTS.get("holding_nick_mm", 1.0),
             "output": "svg",
         },
     }
@@ -338,6 +348,10 @@ def payas_defaults() -> dict[str, Any]:
         defaults["font_note"] = (
             "Outline font unavailable; kits still generate. Labels may remain as SVG <text>."
         )
+    defaults["holding_nicks"] = (
+        "Closed cuts and notches keep ~1 mm uncut nicks so pieces do not fall through the bed. "
+        "Snap them out after cutting. Tiny bolt holes stay fully cut."
+    )
     return defaults
 
 
@@ -461,6 +475,7 @@ def generate_svg(
                 "material": PAYAS_DEFAULTS["material"],
                 "thickness": merged["thickness"],
                 "burn": merged["burn"],
+                "holding_nick_mm": PAYAS_DEFAULTS.get("holding_nick_mm", 1.0),
                 "output": "svg",
             },
         },

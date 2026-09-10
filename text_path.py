@@ -486,6 +486,12 @@ def prepare_lasercad_svg(svg_bytes: bytes) -> bytes:
         text = re.sub(r"#cc0000", LASER_CUT, text, flags=re.I)
         text = re.sub(r"#222222", LASER_ETCH, text, flags=re.I)
         text = re.sub(r"rgb\(\s*34\s*,\s*34\s*,\s*34\s*\)", LASER_ETCH, text, flags=re.I)
+        # Boxes.py: outer cut black, inner cut blue, etch green → LaserCAD red/black
+        text = re.sub(r"rgb\(\s*0\s*,\s*0\s*,\s*0\s*\)", LASER_CUT, text)
+        text = re.sub(r"rgb\(\s*0\s*,\s*0\s*,\s*255\s*\)", LASER_CUT, text)
+        text = re.sub(r"#000000", LASER_CUT, text, flags=re.I)
+        text = re.sub(r"rgb\(\s*0\s*,\s*255\s*,\s*0\s*\)", LASER_ETCH, text)
+        text = re.sub(r"#00ff00", LASER_ETCH, text, flags=re.I)
         if "<path" in text and "\n<path" not in text:
             text = text.replace("<path", "\n<path")
             text = text.replace("</g>", "\n</g>")

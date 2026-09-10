@@ -6,35 +6,90 @@ import re
 from typing import Any
 
 from boxes_adapter import PAYAS_DEFAULTS
+from toolbox import GRAMMAR
 
 _KITS = (
     (("astronaut", "astronot"), "create_astronaut", "Astronot kiti"),
     (("trafik", "traffic_light", "traffic light"), "create_traffic_light", "Trafik lambası"),
     (("robot bank", "kumbara", "hayal kumbara", "payasrobot"), "create_robot_bank", "Robot kumbara"),
-    (("ressam", "drawing robot", "çizim robot"), "create_drawing_robot", "Ressam robot"),
+    (("ressam", "drawing robot", "cizim robot"), "create_drawing_robot", "Ressam robot"),
     (("yacht", "yat "), "create_yacht", "Yat"),
-    (("ürün kutusu", "product box", "abox"), "create_product_box", "Ürün kutusu"),
+    (("urun kutusu", "product box", "abox"), "create_product_box", "Ürün kutusu"),
 )
 
 _MATCH_CARD = (
-    "sayı eşleme",
     "sayi esleme",
     "number match",
     "number-dot",
-    "nokta eşleme",
+    "nokta esleme",
     "matching card",
-    "eşleme kart",
+    "esleme kart",
+)
+
+_ASSEMBLY = (
+    "finger",
+    "tab-slot",
+    "tab slot",
+    "degirmen",
+    "yel degirmen",
+    "windmill",
+    "mill ",
+    " mill",
+    "pervane",
+    "propeller",
+    "egimli cati",
+    "cati",
+    "gable",
+    "4 duvar",
+    "dort duvar",
+    "four wall",
+    "duvar",
+    "kanatli",
+    "maket",
+    "montaj",
+    "birlestir",
+    "3d",
+    "3-d",
+    "assemble",
+    "assembly",
+    "kule",
+    "house",
+    "barn",
+    "cabin",
+    "shed",
+    "taban",
+    "kaide",
+)
+
+_TRACE_ONLY = (
+    "sadece cizim",
+    "sadece 2d",
+    "2d iz",
+    "siluet",
+    "silhouette",
+    "trace only",
+    "vektorize",
+    "vectorize",
+    "logo",
 )
 
 _JIGSAW = (
     "yapboz",
     "puzzle",
     "jigsaw",
-    "birbirine geç",
+    "birbirine gec",
     "interlock",
-    "parça",
+    "parca",
     "pieces",
 )
+
+
+def _wants_assembly(text: str) -> bool:
+    return any(k in text for k in _ASSEMBLY)
+
+
+def _wants_trace_only(text: str) -> bool:
+    return any(k in text for k in _TRACE_ONLY)
 
 
 def _blob(*parts: str) -> str:
@@ -108,6 +163,81 @@ def _wants_match_cards(text: str) -> bool:
     return any(k in text for k in _MATCH_CARD)
 
 
+def _rules() -> list[str]:
+    return [
+        "Laser MCP is a toolbox, not a product catalog. Never ask for a new kit/tool.",
+        "Never write SVG or DXF yourself. Never prepare files outside Laser MCP.",
+        "Never flip, rotate, or mirror geometry.",
+        "Cut #FF0000, etch #000000, LaserCAD Y-up, 3 mm poplar, kerf 0.15 mm.",
+        "Notches and closed cuts get ~1 mm holding nicks. Do not omit them.",
+        "Look at the photo, read millimetres from it, then compose primitives (box/panel/disc/triangle).",
+        "create_from_reference only traces 2D artwork (logo, photo, jigsaw etch). Assembly = create_design primitives.",
+        "number_match_puzzle is only for number-to-dot matching cards.",
+        "Named create_* kits only when the plan names an existing Payas product.",
+    ]
+
+
+def _assembly_recipe(text: str, width: float | None, height: float | None) -> list[dict[str, Any]]:
+    x = float(width or 80)
+    y = float(height or width or 80)
+    x = max(50.0, min(400.0, x))
+    y = max(50.0, min(400.0, y))
+    h = round(max(80.0, min(280.0, max(x, y) * 1.5)), 1)
+    recipe: list[dict[str, Any]] = [
+        {
+            "type": "box",
+            "x": round(x, 1),
+            "y": round(y, 1),
+            "h": h,
+            "bottom": True,
+            "walls": {"front": {"holes": [], "slots": []}},
+        }
+    ]
+    millish = any(k in text for k in ("degirmen", "windmill", "pervane", "propeller", "cati", "gable"))
+    if millish:
+        shaft = 4.0
+        prop = round(min(x, y) * 0.65, 1)
+        recipe[0]["walls"] = {
+            "front": {
+                "holes": [{"x": round(x / 2, 1), "y": round(h * 0.82, 1), "d": shaft}],
+                "slots": [{"x": round(x / 2, 1), "y": round(h * 0.32, 1), "w": round(x * 0.28, 1), "h": round(h * 0.28, 1)}],
+            },
+            "back": {"holes": [{"x": round(x / 2, 1), "y": round(h * 0.82, 1), "d": shaft}]},
+        }
+        recipe.extend(
+            [
+                {"type": "triangle", "w": round(x, 1), "h": round(max(18.0, y * 0.35), 1), "count": 2, "label": "gable"},
+                {"type": "panel", "w": round(x + 10, 1), "h": round(y + 6, 1), "edges": "eeee", "count": 2, "label": "roof"},
+                {"type": "disc", "d": prop, "hole": shaft, "label": "propeller"},
+                {"type": "disc", "d": 14, "hole": shaft, "count": 2, "label": "spacer"},
+            ]
+        )
+    return recipe
+
+
+def _compose_plan(
+    summary: str,
+    width: float | None,
+    height: float | None,
+    fmt: str,
+    look: str,
+    text: str,
+) -> dict[str, Any]:
+    recipe = _assembly_recipe(text, width, height)
+    return {
+        "success": True,
+        "method": "compose_primitives",
+        "summary": summary,
+        "next_tool": "create_design",
+        "next_arguments": {"primitives": recipe, "parameters": {"format": fmt}},
+        "look_again": look,
+        "grammar": GRAMMAR,
+        "cannot_do": [],
+        "rules": _rules(),
+        "defaults": dict(PAYAS_DEFAULTS),
+    }
+
+
 def plan_laser_job(
     user_request: str,
     what_you_see: str = "",
@@ -123,63 +253,10 @@ def plan_laser_job(
     width, height = _size_mm(request + " " + seen)
     rows, cols = _grid(request + " " + seen)
     photo = bool(has_photo) or bool(seen.strip())
-
-    rules = [
-        "Never write SVG or DXF yourself. Never prepare files outside Laser MCP.",
-        "Never flip, rotate, or mirror geometry.",
-        "Cut #FF0000, etch #000000, LaserCAD Y-up, 3 mm poplar, kerf 0.15 mm.",
-        "Call the next_tool with next_arguments. If next_tool is create_from_reference, pass the user photo as image_base64.",
-        "number_match_puzzle is only for number-to-dot matching cards, never for a picture puzzle.",
-    ]
+    rules = _rules()
 
     if photo and _wants_match_cards(text):
         photo = False
-
-    if photo:
-        layout = "jigsaw" if _wants_jigsaw(text) else "trace"
-        if layout == "jigsaw":
-            width = width or 300.0
-            height = height or width
-            rows = rows or 10
-            cols = cols or 10
-            style = "etch"
-            method = "photo_jigsaw"
-            summary = (
-                f"Photo as etch on a {int(rows)}×{int(cols)} interlocking jigsaw, "
-                f"{width:.0f}×{height:.0f} mm. Pieces share single-cut seams."
-            )
-        else:
-            width = width or 200.0
-            style = "cut_and_etch"
-            method = "photo_trace"
-            summary = (
-                f"Trace the photo into laser paths at width {width:.0f} mm "
-                "(height follows the image). Outline = cut, interior = etch."
-            )
-        args: dict[str, Any] = {
-            "width_mm": width,
-            "style": style,
-            "layout": layout,
-            "format": fmt,
-        }
-        if height:
-            args["height_mm"] = height
-        if layout == "jigsaw":
-            args["rows"] = int(rows)
-            args["cols"] = int(cols)
-        return {
-            "success": True,
-            "method": method,
-            "summary": summary,
-            "next_tool": "create_from_reference",
-            "next_arguments": args,
-            "look_again": (
-                "Go back to the photo and call create_from_reference with that image "
-                "plus next_arguments. Do not substitute number_match_puzzle. Do not draw SVG yourself."
-            ),
-            "rules": rules,
-            "defaults": dict(PAYAS_DEFAULTS),
-        }
 
     if _wants_match_cards(text):
         return {
@@ -192,15 +269,58 @@ def plan_laser_job(
                 "parameters": {"count": 10},
             },
             "look_again": "No photo trace. Call create_design with those arguments.",
+            "grammar": GRAMMAR,
             "rules": rules,
             "defaults": dict(PAYAS_DEFAULTS),
         }
 
-    if _wants_jigsaw(text):
+    kit = _kit(text)
+    if kit:
+        tool, title = kit
+        return {
+            "success": True,
+            "method": "named_kit",
+            "summary": f"Named Payas kit: {title}.",
+            "next_tool": tool,
+            "next_arguments": {},
+            "look_again": f"Call {tool}. Do not request a new tool. Do not draw SVG yourself.",
+            "grammar": GRAMMAR,
+            "rules": rules,
+            "defaults": dict(PAYAS_DEFAULTS),
+        }
+
+    if _wants_jigsaw(text) and not _wants_assembly(text):
         width = width or 300.0
         height = height or width
         rows = rows or 10
         cols = cols or 10
+        if photo:
+            args: dict[str, Any] = {
+                "width_mm": width,
+                "height_mm": height,
+                "style": "etch",
+                "layout": "jigsaw",
+                "rows": int(rows),
+                "cols": int(cols),
+                "format": fmt,
+            }
+            return {
+                "success": True,
+                "method": "photo_jigsaw",
+                "summary": (
+                    f"Photo as etch on a {int(rows)}×{int(cols)} interlocking jigsaw, "
+                    f"{width:.0f}×{height:.0f} mm."
+                ),
+                "next_tool": "create_from_reference",
+                "next_arguments": args,
+                "look_again": (
+                    "Compress the photo to ~1200px JPEG and call create_from_reference "
+                    "with next_arguments, then validate_svg."
+                ),
+                "grammar": GRAMMAR,
+                "rules": rules,
+                "defaults": dict(PAYAS_DEFAULTS),
+            }
         return {
             "success": True,
             "method": "blank_jigsaw",
@@ -219,32 +339,80 @@ def plan_laser_job(
                     "format": fmt,
                 },
             },
-            "look_again": "Call create_design with those arguments. If the user also sent a photo, you should have set has_photo=true.",
+            "look_again": "Call create_design with those arguments.",
+            "grammar": GRAMMAR,
             "rules": rules,
             "defaults": dict(PAYAS_DEFAULTS),
         }
 
-    kit = _kit(text)
-    if kit:
-        tool, title = kit
+    if _wants_assembly(text) and not _wants_trace_only(text):
+        width = width or 80.0
+        height = height or width
+        look = (
+            "LOOK at the photo again. Read millimetres from what you see "
+            "(footprint, wall height, door/window, shaft, propeller diameter). "
+            "Edit next_arguments.primitives accordingly, then call create_design. "
+            "Add holes/slots on the wall that has the door or windows. "
+            "Do not ask for a mill kit. Do not 2D-trace this as the assembly. "
+            "create_from_reference is only if they also want the drawing etched on a panel."
+        )
+        if not photo:
+            look = (
+                "No photo: still compose with create_design primitives. "
+                "If a photo exists, call plan_laser_job again with has_photo=true and what_you_see filled, "
+                "then adjust millimetres from the picture."
+            )
+        return _compose_plan(
+            "Compose cut parts with the toolbox: finger-joint box + extra panels/discs. "
+            "The draft recipe is a starting grammar — overwrite sizes from the photo.",
+            width,
+            height,
+            fmt,
+            look,
+            text,
+        )
+
+    if photo:
+        width = width or 200.0
         return {
             "success": True,
-            "method": "named_kit",
-            "summary": f"Named Payas kit: {title}.",
-            "next_tool": tool,
-            "next_arguments": {},
-            "look_again": f"Call {tool}. Do not trace a photo unless the user wants that image as artwork.",
+            "method": "photo_trace",
+            "summary": (
+                f"Trace the photo into laser paths at width {width:.0f} mm "
+                "(height follows the image). Outline = cut, interior = etch."
+            ),
+            "next_tool": "create_from_reference",
+            "next_arguments": {
+                "width_mm": width,
+                "style": "cut_and_etch",
+                "layout": "trace",
+                "format": fmt,
+            },
+            "look_again": (
+                "If this is a thing to build (walls, roof, propeller, box), call plan_laser_job again "
+                "and describe those parts in what_you_see — then compose with create_design. "
+                "If it is 2D artwork, compress JPEG ~1200px and call create_from_reference."
+            ),
+            "grammar": GRAMMAR,
             "rules": rules,
             "defaults": dict(PAYAS_DEFAULTS),
         }
 
     return {
         "success": True,
-        "method": "ask_or_trace",
-        "summary": "No photo and no named kit. If the user has an image, call this planner again with has_photo=true and what_you_see filled.",
-        "next_tool": "create_from_reference",
-        "next_arguments": {"width_mm": 200.0, "layout": "trace", "style": "cut_and_etch", "format": fmt},
-        "look_again": "If a photo exists, look at it, describe it in what_you_see, and call plan_laser_job again with has_photo=true. Then execute next_tool.",
+        "method": "ask_or_compose",
+        "summary": (
+            "No named kit. If the user sent a photo of a thing to cut and assemble, "
+            "look at it and call this planner again with has_photo=true and what_you_see. "
+            "If it is flat artwork, use create_from_reference."
+        ),
+        "next_tool": "plan_laser_job",
+        "next_arguments": {"has_photo": True},
+        "look_again": (
+            "Look at the photo. Describe walls, roofs, holes, discs in what_you_see. "
+            "Then call plan_laser_job with has_photo=true. Do not ask us to add a new kit."
+        ),
+        "grammar": GRAMMAR,
         "rules": rules,
         "defaults": dict(PAYAS_DEFAULTS),
     }

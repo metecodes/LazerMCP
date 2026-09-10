@@ -133,3 +133,59 @@ ENDSEC
 EOF
 """
     return dxf.encode("utf-8")
+
+
+def _stroke_is_etch(stroke: str) -> bool:
+    raw = (stroke or "").lower().replace(" ", "")
+    if "00ff00" in raw or "rgb(0,255,0)" in raw:
+        return True
+    if "ff0000" in raw or "rgb(255,0,0)" in raw:
+        return False
+    if "rgb(0,0,0)" in raw or "#000000" in raw:
+        return True
+    return False
+
+
+def svg_bytes_to_dxf(svg_bytes: bytes, step_mm: float = 0.6) -> bytes:
+    """Best-effort path dump for toolbox SVG. Cut = red, etch = black/green."""
+    from xml.etree import ElementTree as ET
+
+    from shapely.geometry import LineString
+    from svgpathtools import parse_path
+
+    if not svg_bytes:
+        return geoms_to_dxf([], [])
+    try:
+        root = ET.fromstring(svg_bytes)
+    except ET.ParseError:
+        return geoms_to_dxf([], [])
+    cuts: list = []
+    etches: list = []
+    for el in root.iter():
+        if el.tag.split("}")[-1].lower() != "path":
+            continue
+        d = el.get("d") or ""
+        if not d.strip():
+            continue
+        try:
+            path = parse_path(d)
+            length = float(path.length())
+        except Exception:
+            continue
+        if length < 0.4:
+            continue
+        n = max(8, min(240, int(length / max(step_mm, 0.2)) + 1))
+        pts = []
+        for i in range(n + 1):
+            pt = path.point(i / n)
+            pts.append((float(pt.real), float(pt.imag)))
+        if len(pts) < 2:
+            continue
+        geom = LineString(pts)
+        stroke = f"{el.get('stroke') or ''} {el.get('style') or ''}"
+        ident = (el.get("id") or "").upper()
+        if _stroke_is_etch(stroke) or ident in {"ENGRAVE", "ETCH"}:
+            etches.append(geom)
+        else:
+            cuts.append(geom)
+    return geoms_to_dxf(cuts, etches)
