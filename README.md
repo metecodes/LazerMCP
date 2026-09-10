@@ -1,51 +1,136 @@
 # LazerMCP
 
-Payas STEM lazer kesim için MCP sunucusu. Boxes.py’yi Python’dan çağırır; kaynak kodunu modele dökmez.
+Payas STEM lazer kesim MCP sunucusu. Python **Boxes.py’yi çağırır**; kaynağını modele dökmez, SVG’yi elle yazdırmaz.
 
-Bu sunucu bir **takım çantası**dır, ürün kataloğu değil. Gelen AI fotoğrafa bakar, `plan_laser_job` çağırır, sonra `create_design` ile primitive’lerden (kutu, panel, disk, üçgen, pervane, kontur) kesimi **besteler**. Her maket için yeni `create_*` aracı eklenmez.
+Bu sunucu bir **takım çantası**dır, ürün kataloğu değil. Gelen AI (ChatGPT / Claude) fotoğrafa bakar, `plan_laser_job` çağırır, `create_design` ile primitive’lerden kesimi **besteler**. Her maket için yeni `create_*` aracı eklenmez.
 
-Yerel arayüz: `http://127.0.0.1:8000`  
-MCP: `http://127.0.0.1:8000/mcp`  
-Canlı: `https://mcp.metehanavci.com/mcp`
+| | |
+| --- | --- |
+| Canlı MCP | `https://mcp.metehanavci.com/mcp` |
+| Yerel MCP | `http://127.0.0.1:8000/mcp` |
+| Yerel arayüz | `http://127.0.0.1:8000` |
+| Repo | [metecodes/LazerMCP](https://github.com/metecodes/LazerMCP) |
 
-## İş akışı
+Claude / ChatGPT connector adresi **kök `/` değil**, `/mcp` yoludur.
 
-Designer → Reviewer → Repair → Reviewer → Final Gate → SVG
+---
 
-Bu döngü `create_design` içinde çalışır. Gelen AI adımları atlayamaz. Yeni ürün için kit aracı eklenmez.
+## Temel kural
 
-1. Fotoğrafa bak (`what_you_see`).
-2. `plan_laser_job` — dilbilgisi, ölçek, sonraki araç.
-3. `create_design` — Boxes.py ile primitive’leri derler, mekanik review/repair uygular, kapıdan geçmeden kesime hazır demez.
-4. `final_status`:
-   - `BLOCKED` — kesme, primitive’i düzelt, tekrar `create_design`
-   - `PROTOTYPE READY` — dijital kontroller geçti; ilk levha prototiptir. **LAZER KESİME HAZIR** değil.
-   - `LASER READY` — yalnızca o zaman LAZER KESİME HAZIR
-5. İsteğe bağlı `validate_assembly` / `validate_svg` kapıyı tekrar okur.
+Çalışan kod ≠ doğru ürün.  
+Oluşmuş SVG ≠ üretilebilir ürün.  
+Güzel önizleme ≠ monte edilebilir ürün.
 
-SVG oluşmuş olması ürünün doğru olduğu anlamına gelmez. Çalışan kod ≠ monte edilebilir ürün.
+Bir tasarım ancak mekanik, geometrik ve üretim kontrollerini geçtiğinde kesime açılır. Kapı `final_status` ile konuşur:
 
-2D sanat (logo, siluet, yapboz kazıması) için `create_from_reference`. Duvar/çatı/pervane için **değil**.
+| `final_status` | Anlamı |
+| --- | --- |
+| `BLOCKED` | Kesme. `look_again` oku, primitive’i düzelt, `create_design` tekrar çağır. |
+| `PROTOTYPE READY` | Dijital kontroller geçti. İlk levha **prototiptir**. LAZER KESİME HAZIR değil. |
+| `LASER READY` | Yalnızca o zaman **LAZER KESİME HAZIR**. İsimli Payas kitleri ve kerf kuponu. |
 
-İsimli kitler yalnız mevcut Payas ürünleridir: trafik lambası, robot kumbara, ressam, ürün kutusu, yat, astronot.
+`error` / `errors` dönülmez. Öğretme `look_again`, `ready_to_cut` ve `speak` ile yapılır.
 
-Kalibrasyon: `{type: coupon}` bir kez (f/F deneme + 100 mm çubuk). Her değirmene eklenmez.
+---
 
-## Gereksinimler
+## İş hattı
 
-- Python 3.12+
-- [Boxes.py](https://github.com/florianfesti/boxes) ağacı (`BOXES_PATH` veya `vendor/boxes-master`)
-- `pip install -r requirements.txt`
+```
+Fotoğraf / istek
+    → plan_laser_job
+    → create_design
+         Designer → Reviewer → Repair → Reviewer → Final Gate → SVG
+```
 
-## Çalıştırma
+Bu döngü `create_design` **içinde** çalışır. Gelen AI adımı atlayamaz; review için ayrı araç istemez.
+
+1. Fotoğrafa bak. Parçaları `what_you_see` ile anlat.
+2. `plan_laser_job` — dilbilgisi, ölçek, `next_tool`.
+3. `create_design` — Boxes.py `rectangularWall` / FingerJoint / kontur. Ölçek: `parameters.reference = {feature, mm, drawn_mm}`.
+4. Reviewer parça haritası (P01…), bağlantı grafiği (C01…), PASS / WARNING / FAIL / NOT_VERIFIED üretir.
+5. Repair minimum parametrik düzeltir (çatı kilidi, eksik gable, koaksiyel mil, tab-slot kalınlığı). Ürünü sıfırdan yazmaz.
+6. Final Gate `BLOCKED` ise SVG kesime açık sayılmaz.
+
+2D sanat (logo, siluet, yapboz kazıması) için `create_from_reference`. Duvar / çatı / pervane için **değil**.
+
+---
+
+## Primitive’ler
+
+`create_design` `primitives` listesi alır. Kapı / pencere **ayrı parça değildir**; ön duvara slot kesilir.
+
+| `type` | Ne üretir |
+| --- | --- |
+| `box` | FingerJoint duvarlar + taban. `x,y,h` iç ölçü mm. `walls.front.holes` / `slots`. |
+| `panel` | Motor plakası, güneş paneli, çatı, destek. `w,h`, `edges` (`e` / `f` / `F`). |
+| `triangle` / `gable` | Çatı alınlığı. Çatı varsa duvar üstüne FingerJoint kilitlenir. |
+| `disc` | Pul / mil adaptörü. Pervane için kullanma. |
+| `propeller` | n kanatlı rotor. Fotoğraftaki kanat sayısını oku. |
+| `contour` | Kapalı siluet. `points: [[x,y], …]` mm. |
+| `coupon` | Kerf kalibrasyonu: `f`/`F` deneme + 100 mm çubuk. **Bir kez.** Her makete eklenmez. |
+
+Kenarlar: `rectangularWall` sırası alt, sağ, üst, sol. `e` düz, `f` erkek parmak, `F` dişi parmak deliği. Parmak geometrisini uydurma; Boxes.py FingerJoint üretir.
+
+Ölçek: kullanıcı cm/mm verdiyse o ayaktır. Vermediyse fotoğraftan **tek** uzunluk seç, `parameters.reference = {feature, mm, drawn_mm}` geç. İkinci ölçü uydurma.
+
+---
+
+## MCP araçları
+
+Tercih edilen:
+
+| Araç | Görev |
+| --- | --- |
+| `plan_laser_job` | Fotoğrafa baktıktan sonra dilbilgisi + `next_tool`. |
+| `create_design` | Besteci + reviewer + repair + kapı. |
+| `create_from_reference` | Yalnız 2D iz / yapboz kazıması. |
+| `validate_assembly` | Kapıyı tekrar oku (`file_id` veya `primitives`). |
+| `validate_svg` | XML, tabla, nesting, topoloji. |
+| `payas_defaults` | 3 mm kavak, kerf 0.15, 1500×3000. |
+
+Plan söylemedikçe: `generate_svg`, `get_generator_schema`.
+
+İsimli kitler **yalnız mevcut Payas ürünleridir:**
+
+- `create_traffic_light`
+- `create_robot_bank`
+- `create_drawing_robot`
+- `create_product_box`
+- `create_yacht`
+- `create_astronaut`
+
+Yeni değirmen / ev / puzzle için kit isteme.
+
+---
+
+## Payas varsayılanları
+
+- Malzeme: 3 mm kavak kontrplak
+- Kerf / burn kilitli: **0.15 mm**
+- Tabla: **1500 × 3000 mm**
+- Çıktı: SVG (`file_id` + `svg_url`), isteğe bağlı DXF
+- Kesim `#FF0000`, kazıma `#000000`, LaserCAD **Y-up**
+- Kapalı kesimlerde ~1 mm tutucu nick (parça düşmesin)
+- Nesting yalnız öteleme (döndürme / ayna yok)
+- Yazılar outline path (paketlenmiş Arimo). SVG `<text>` yok.
+
+---
+
+## Kurulum
+
+Python 3.12+ (geliştirme 3.14 ile de çalışır). Boxes.py `BOXES_PATH` veya `vendor/boxes-master`.
 
 ```powershell
 cd C:\Project\boxes-mcp
+python -m venv .venv
+.\.venv\Scripts\pip.exe install -r requirements.txt
 .\.venv\Scripts\python.exe server.py
 ```
 
-Tarayıcıda `http://127.0.0.1:8000`. Cursor MCP: `http://127.0.0.1:8000/mcp`.  
-Claude connector: `https://mcp.metehanavci.com/mcp` (kök `/` değil).
+Tarayıcı: `http://127.0.0.1:8000`  
+Cursor MCP: `http://127.0.0.1:8000/mcp`
+
+---
 
 ## Ortam değişkenleri
 
@@ -53,38 +138,31 @@ Hepsi isteğe bağlıdır.
 
 | Değişken | Varsayılan | Açıklama |
 | --- | --- | --- |
-| `BOXES_PATH` | `C:\Project\boxes-master` veya `vendor/boxes-master` | Boxes.py kök dizini |
-| `MCP_HOST` | `127.0.0.1` | Bind adresi. Dışarı açmak için `0.0.0.0` |
+| `BOXES_PATH` | `C:\Project\boxes-master` veya `vendor/boxes-master` | Boxes.py kökü |
+| `MCP_HOST` | `127.0.0.1` | Bind. Dışarı açmak için `0.0.0.0` |
 | `MCP_PORT` | `8000` | Port |
 | `MCP_PUBLIC_BASE_URL` | (boş) | Dosya URL kökü |
-| `MCP_AUTH_TOKEN` | (boş) | Boşsa herkese açık. Dolarsanız `/mcp`, `/api/*`, `/files/*` Bearer ister |
-
-## MCP araçları
-
-Tercih edilen: `plan_laser_job`, `create_design`, `create_from_reference`, `validate_assembly`, `validate_svg`, `payas_defaults`
-
-Plan söylemedikçe: `generate_svg`, `get_generator_schema`
-
-İsimli kit: `create_traffic_light`, `create_robot_bank`, `create_drawing_robot`, `create_product_box`, `create_yacht`, `create_astronaut`
-
-## Payas varsayılanları
-
-- 3 mm kavak kontrplak
-- Kerf/burn kilitli: **0.15 mm**
-- Tabla: **1500 × 3000 mm**
-- Çıktı: SVG (`file_id` + `svg_url`), isteğe bağlı DXF
-- Kesim `#FF0000`, kazıma `#000000`, LaserCAD Y-up
-- Kapalı kesimlerde ~1 mm tutucu nick
-- Nesting yalnızca öteleme (döndürme/ayna yok)
+| `MCP_AUTH_TOKEN` | (boş) | Dolarsa `/mcp`, `/api/*`, `/files/*` Bearer ister. UI ve `/health` açık kalır |
 
 ## Vercel
 
 `server.py` top-level ASGI `app` export eder. Boxes.py `vendor/boxes-master` ile gelir.
 
-Hobby yeter. Push sonrası isteğe bağlı: `MCP_PUBLIC_BASE_URL`. **Deployment Protection** kapalı olsun.
+Hobby yeter. Push sonrası isteğe bağlı `MCP_PUBLIC_BASE_URL`. **Deployment Protection** kapalı olsun; aksi halde Claude connector 401 alır.
 
-SVG Vercel’de `/tmp` altındadır (geçici).
+SVG Vercel’de `/tmp` altındadır (geçici). Canlı connector’ın yeni kodu görmesi için deploy gerekir; ChatGPT/Claude oturumunu yeniden bağla.
 
 ## Sağlık
 
 `GET /health` Boxes.py importunu ve generator kataloğunu doğrular.
+
+## Ne yapılmaz
+
+- SVG / DXF elle yazmak
+- Geometriyi çevirmek, döndürmek, aynamak
+- Parmak eklemini uydurmak (Boxes.py FingerJoint kullan)
+- Kapı / pencereyi kayan ayrı parça yapmak
+- Pervane yerine `disc` kullanmak
+- Her işe kupon eklemek
+- `BLOCKED` veya `PROTOTYPE READY` iken LAZER KESİME HAZIR demek
+- Her yeni maket için yeni MCP aracı istemek
