@@ -58,22 +58,13 @@ def run_pipeline(primitives: list[Any], parameters: dict[str, Any] | None = None
         parts = repaired
 
     assert built is not None and report is not None
-    built["review"] = report
     built["pipeline"] = {
         "stages": list(STAGES),
         "iterations": iterations,
         "repairs": repairs,
         "max_review": MAX_REVIEW,
     }
-    built["final_status"] = report["final_status"]
-    built["ready_to_cut"] = bool(report.get("ready_to_cut"))
-    built["speak"] = report.get("speak")
-    built["design_map"] = report.get("design_map")
-    built["connections"] = report.get("connections")
-    if report.get("look_again"):
-        built["look_again"] = report["look_again"]
-    built["production_summary"] = report.get("production_summary")
-    return built
+    return _attach_gate(built, report)
 
 
 def review_only(built: dict[str, Any]) -> dict[str, Any]:
@@ -81,17 +72,24 @@ def review_only(built: dict[str, Any]) -> dict[str, Any]:
 
     report = review_built(built)
     built = dict(built)
-    built["review"] = report
-    built["final_status"] = report["final_status"]
-    built["ready_to_cut"] = bool(report.get("ready_to_cut"))
-    built["speak"] = report.get("speak")
-    built["design_map"] = report.get("design_map")
-    built["connections"] = report.get("connections")
-    built["production_summary"] = report.get("production_summary")
-    if report.get("look_again"):
-        built["look_again"] = report["look_again"]
     built.setdefault(
         "pipeline",
         {"stages": list(STAGES), "iterations": [{"iteration": 1, "stage": "reviewer", "final_status": report["final_status"]}]},
     )
+    return _attach_gate(built, report)
+
+
+def _attach_gate(built: dict[str, Any], report: dict[str, Any]) -> dict[str, Any]:
+    built["review"] = report
+    built["final_status"] = report["final_status"]
+    built["ready_to_cut"] = False
+    built["speak"] = report.get("speak")
+    built["design_map"] = report.get("design_map")
+    built["connections"] = report.get("connections")
+    built["scorecard"] = report.get("scorecard")
+    built["authorized_output"] = report.get("authorized_output")
+    built["production_export"] = report.get("production_export") or "BLOCKED"
+    built["production_summary"] = report.get("production_summary")
+    if report.get("look_again"):
+        built["look_again"] = report["look_again"]
     return built

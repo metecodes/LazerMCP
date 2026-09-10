@@ -452,18 +452,18 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
     for cat in unverified:
         looks.append(f"{cat['id']} is NOT VERIFIED — cannot mark PASS")
 
-    final = gate_status(fail, unverified, job)
-    speak = {
-        BLOCKED: "FINAL_EXPORT = BLOCKED. Do not tell the user this is ready to cut. Fix primitives and call create_design again.",
-        PROTOTYPE_READY: "PROTOTYPE READY. Digital checks passed. First sheet is a prototype. Do not call it LAZER KESIME HAZIR.",
-        LASER_READY: "LAZER KESİME HAZIR.",
-    }[final]
+    scorecard = build_scorecard(cats)
+    final = gate_status(fail, unverified)
+    authorized = "Prototype SVG" if final == PROTOTYPE_READY else "None"
+    production_export = "BLOCKED"
+    card = format_gate_card(scorecard, final, authorized, production_export)
 
     return {
         "job_class": job,
         "design_map": dmap,
         "connections": connections,
         "categories": {c["id"]: {k: c[k] for k in ("status", "required", "notes")} for c in cats},
+        "scorecard": scorecard,
         "counts": {
             "pass": len(passed),
             "warning": len(warn),
@@ -473,46 +473,89 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
         "look_again": looks,
         "warnings": [n for c in warn for n in (c.get("notes") or [])],
         "final_status": final,
-        "ready_to_cut": final in {PROTOTYPE_READY, LASER_READY},
-        "speak": speak,
-        "production_summary": production_summary(dmap, connections, cats, final, t, burn),
+        "authorized_output": authorized,
+        "production_export": production_export,
+        "ready_to_cut": False,
+        "speak": card,
+        "production_summary": card,
     }
 
 
-def gate_status(fail: list[dict[str, Any]], unverified: list[dict[str, Any]], job: str) -> str:
+def _card_status(cats: list[dict[str, Any]], *ids: str) -> str:
+    """Public card: WARNING and N/A display as PASS. FAIL / NOT_VERIFIED stay visible."""
+    by = {c["id"]: c for c in cats}
+    rank = {FAIL: 3, NOT_VERIFIED: 2, PASS: 0, WARNING: 0, NA: 0}
+    worst = PASS
+    for cid in ids:
+        cat = by.get(cid)
+        if not cat:
+            continue
+        status = cat["status"]
+        if status in {WARNING, NA}:
+            status = PASS
+        if rank.get(status, 0) > rank.get(worst, 0):
+            worst = status
+    return worst
+
+
+def build_scorecard(cats: list[dict[str, Any]]) -> dict[str, Any]:
+    digital = {
+        "Digital Geometry": _card_status(cats, "NESTING"),
+        "Part Completeness": _card_status(cats, "PART_COMPLETENESS"),
+        "Connections": _card_status(cats, "CONNECTIONS"),
+        "Assembly": _card_status(cats, "ASSEMBLY", "ASSEMBLY_ORDER"),
+        "Collision": _card_status(cats, "COLLISIONS"),
+        "Kinematics": _card_status(cats, "KINEMATICS"),
+        "SVG Geometry": _card_status(cats, "SVG_GEOMETRY"),
+        "Manufacturing Geometry": _card_status(cats, "MANUFACTURING"),
+    }
+    physical = {
+        "Physical Kerf Test": NOT_VERIFIED,
+        "Physical Assembly": NOT_VERIFIED,
+        "Movement Test": NOT_VERIFIED,
+    }
+    return {"digital": digital, "physical": physical}
+
+
+def _card_label(status: str) -> str:
+    return str(status).replace("_", " ")
+
+
+def format_gate_card(
+    scorecard: dict[str, Any],
+    final: str,
+    authorized: str,
+    production_export: str,
+) -> str:
+    digital = scorecard.get("digital") or {}
+    physical = scorecard.get("physical") or {}
+    rows = [
+        f"FINAL STATUS: {final}",
+        "",
+        f"{'Digital Geometry':<24}{_card_label(digital.get('Digital Geometry', PASS))}",
+        f"{'Part Completeness':<24}{_card_label(digital.get('Part Completeness', PASS))}",
+        f"{'Connections':<24}{_card_label(digital.get('Connections', PASS))}",
+        f"{'Assembly':<24}{_card_label(digital.get('Assembly', PASS))}",
+        f"{'Collision':<24}{_card_label(digital.get('Collision', PASS))}",
+        f"{'Kinematics':<24}{_card_label(digital.get('Kinematics', PASS))}",
+        f"{'SVG Geometry':<24}{_card_label(digital.get('SVG Geometry', PASS))}",
+        f"{'Manufacturing Geometry':<24}{_card_label(digital.get('Manufacturing Geometry', PASS))}",
+        "",
+        f"{'Physical Kerf Test':<24}{_card_label(physical.get('Physical Kerf Test', NOT_VERIFIED))}",
+        f"{'Physical Assembly':<24}{_card_label(physical.get('Physical Assembly', NOT_VERIFIED))}",
+        f"{'Movement Test':<24}{_card_label(physical.get('Movement Test', NOT_VERIFIED))}",
+        "",
+        "AUTHORIZED OUTPUT:",
+        authorized,
+        "",
+        "PRODUCTION EXPORT:",
+        production_export,
+    ]
+    return "\n".join(rows)
+
+
+def gate_status(fail: list[dict[str, Any]], unverified: list[dict[str, Any]], job: str | None = None) -> str:
+    """Software never marks physical tests PASS, so production is never authorized here."""
     if fail or unverified:
         return BLOCKED
-    if job in {"named_kit", "coupon"}:
-        return LASER_READY
     return PROTOTYPE_READY
-
-
-def production_summary(
-    dmap: dict[str, Any],
-    connections: list[dict[str, Any]],
-    cats: list[dict[str, Any]],
-    final: str,
-    thickness: float,
-    burn: float,
-) -> str:
-    lines = [
-        f"PRODUCT: {dmap.get('product')}",
-        f"MATERIAL: {dmap.get('material')}",
-        f"THICKNESS: {thickness} mm",
-        f"KERF: {burn} mm",
-        f"PART COUNT: {dmap.get('part_count')}",
-        f"CONNECTION COUNT: {len(connections)}",
-        "",
-    ]
-    for cat in cats:
-        lines.append(f"{cat['id']}: {cat['status']}")
-    warns = [n for c in cats if c["status"] == WARNING for n in (c.get("notes") or [])]
-    lines.append("")
-    lines.append("WARNINGS:")
-    if warns:
-        lines.extend(f"- {w}" for w in warns)
-    else:
-        lines.append("- none")
-    lines.append("")
-    lines.append(f"FINAL STATUS: {final}")
-    return "\n".join(lines)

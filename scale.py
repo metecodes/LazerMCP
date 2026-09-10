@@ -23,6 +23,18 @@ _SKIP_KEYS = {
     "cols",
     "seed",
     "columns",
+    "operation",
+    "align",
+    "target_part",
+    "target",
+    "icon",
+    "name",
+    "value",
+    "content",
+    "d",
+    "closed",
+    "rotation",
+    "angle",
 }
 
 _SKIP_SCALE = {"count", "n", "blades", "n_blades", "rows", "cols", "seed", "columns"}

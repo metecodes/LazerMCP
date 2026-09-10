@@ -254,7 +254,16 @@ def stroke_geom(ctx, geom) -> None:
                 ctx.line_to(x, y)
             ctx.stroke()
         return
-    if geom.geom_type in {"MultiPolygon", "GeometryCollection"}:
+    if geom.geom_type == "LineString":
+        pts = list(geom.coords)
+        if len(pts) < 2:
+            return
+        ctx.move_to(pts[0][0], pts[0][1])
+        for x, y in pts[1:]:
+            ctx.line_to(x, y)
+        ctx.stroke()
+        return
+    if geom.geom_type in {"MultiPolygon", "MultiLineString", "GeometryCollection"}:
         for part in geom.geoms:
             stroke_geom(ctx, part)
 

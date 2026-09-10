@@ -604,7 +604,18 @@ def validate_svg(file_id: str) -> dict[str, Any]:
             result["nesting"] = sidecar["nesting"]
         if sidecar.get("topology") and not result.get("topology"):
             result["topology"] = sidecar["topology"]
-        for key in ("review", "pipeline", "design_map", "connections", "final_status", "speak", "production_summary"):
+        for key in (
+            "review",
+            "pipeline",
+            "design_map",
+            "connections",
+            "final_status",
+            "speak",
+            "scorecard",
+            "authorized_output",
+            "production_export",
+            "production_summary",
+        ):
             if sidecar.get(key) is not None:
                 result[key] = sidecar[key]
     return result
@@ -658,20 +669,34 @@ def save_generated_svg(
         extra["connections"] = gated.get("connections")
         extra["final_status"] = gated.get("final_status")
         extra["speak"] = gated.get("speak")
+        extra["scorecard"] = gated.get("scorecard")
+        extra["authorized_output"] = gated.get("authorized_output")
+        extra["production_export"] = gated.get("production_export") or "BLOCKED"
         extra["production_summary"] = gated.get("production_summary")
-        extra["ready_to_cut"] = bool(gated.get("ready_to_cut"))
+        extra["ready_to_cut"] = False
         if gated.get("look_again"):
             extra["look_again"] = gated["look_again"]
     except Exception:
-        extra.setdefault("final_status", "BLOCKED" if not extra.get("ready_to_cut") else extra.get("final_status"))
+        extra.setdefault("final_status", extra.get("final_status") or "BLOCKED")
+        extra["ready_to_cut"] = False
+        extra.setdefault("production_export", "BLOCKED")
+    extra["ready_to_cut"] = False
+    extra["production_export"] = extra.get("production_export") or "BLOCKED"
+    extra.setdefault(
+        "authorized_output",
+        "Prototype SVG" if extra.get("final_status") == "PROTOTYPE READY" else "None",
+    )
     result = _public_result(file_id, public_base_url, svg_bytes, extra)
     side = file_id[:-4] + ".json" if file_id.lower().endswith(".svg") else f"{file_id}.json"
     payload = {
         "file_id": file_id,
         "product": extra.get("product"),
         "final_status": extra.get("final_status"),
-        "ready_to_cut": extra.get("ready_to_cut"),
+        "ready_to_cut": False,
         "speak": extra.get("speak"),
+        "scorecard": extra.get("scorecard"),
+        "authorized_output": extra.get("authorized_output"),
+        "production_export": extra.get("production_export") or "BLOCKED",
         "assembly": extra.get("assembly"),
         "nesting": extra.get("nesting"),
         "topology": extra.get("topology"),

@@ -99,6 +99,9 @@ def list_design_api() -> dict[str, Any]:
                         "h": 36,
                         "edges": "eeee",
                         "holes": [{"x": 18, "y": 18, "d": 4}, {"x": 8, "y": 8, "d": 3}, {"x": 28, "y": 8, "d": 3}],
+                        "markings": [
+                            {"kind": "text", "value": "M", "x": 18, "y": 6, "height": 4, "align": "center", "operation": "engrave"}
+                        ],
                         "label": "motor-mount",
                     },
                     {"type": "propeller", "blades": 4, "d": 48, "blade_w": 12, "hole": 4, "label": "propeller"},
@@ -131,8 +134,11 @@ def list_design_api() -> dict[str, Any]:
             "(box/panel/disc/triangle/propeller/contour) using millimetres you read from the photo. "
             "create_design runs Designer → Reviewer → Repair → Final Gate. "
             "Scale with parameters.reference={feature, mm, drawn_mm}. Calibrate once with type=coupon. "
+            "Optional marks: part.markings or {type:marking, target_part} "
+            "(text / path / icon / line, x,y, width or height, rotation, align, engrave|cut). "
             "create_from_reference only 2D-traces artwork. Never hand-write SVG. "
-            "Never say LAZER KESİME HAZIR unless final_status is LASER READY."
+            "Paste speak as the status card. Never say LAZER KESİME HAZIR. "
+            "PROTOTYPE READY is Prototype SVG only; PRODUCTION EXPORT stays BLOCKED."
         ),
     }
 

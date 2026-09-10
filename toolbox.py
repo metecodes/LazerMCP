@@ -86,6 +86,7 @@ GRAMMAR = {
         "holes": [{"x": 40, "y": 60, "d": 4}],
         "slots": [{"x": 40, "y": 40, "w": 10, "h": 3}],
         "finger_holes": [{"x": 1.5, "y": 1.5, "length": 80, "angle": 0}],
+        "markings": [{"kind": "text", "value": "PAYAS", "x": 40, "y": 12, "height": 6, "align": "center", "operation": "engrave"}],
     },
     "disc": {"type": "disc", "d": 50, "hole": 4, "count": 1},
     "triangle": {"type": "triangle", "w": 80, "h": 28, "edges": "eee", "count": 2},
@@ -130,13 +131,47 @@ GRAMMAR = {
         "parameters.reference = {feature, mm, drawn_mm} scales the whole recipe so that feature becomes mm. "
         "Do not invent a second size. Coupon parts are not scaled."
     ),
-    "coords": "Wall holes: x,y mm from the bottom-left of that part. Contour points: mm in the part's own plane.",
+    "coords": "Wall holes and markings: x,y mm from the bottom-left of that part. Contour points: mm in the part's own plane.",
+    "markings": {
+        "note": (
+            "Optional engrave or cut on an existing part. Not a new part type. "
+            "Put markings on the part or pass {type:marking, target_part}."
+        ),
+        "item": {
+            "kind": "text | path | logo | icon | line",
+            "target_part": "part label or box wall (front/back/left/right/bottom/lid)",
+            "x": 20,
+            "y": 16,
+            "width_or_height": "mm; one is enough, both fits the box",
+            "rotation": 0,
+            "align": "center | left | right | top | bottom | left|bottom",
+            "operation": "engrave | cut",
+        },
+        "text": {"kind": "text", "value": "PAYAS", "x": 35, "y": 20, "height": 6, "align": "center", "operation": "engrave"},
+        "icon": {"kind": "icon", "icon": "plus", "x": 18, "y": 18, "width": 10, "operation": "engrave"},
+        "path": {"kind": "path", "d": "M 0 0 L 12 0 L 6 10 Z", "x": 20, "y": 30, "width": 14, "operation": "engrave"},
+        "line": {"kind": "line", "points": [[8, 8], [28, 8], [28, 20]], "x": 0, "y": 0, "operation": "engrave"},
+        "icons": "plus, arrow, star, heart, circle, x, square, triangle",
+        "standalone": {
+            "type": "marking",
+            "target_part": "motor-mount",
+            "kind": "text",
+            "value": "M",
+            "x": 18,
+            "y": 6,
+            "height": 5,
+            "rotation": 0,
+            "align": "center",
+            "operation": "engrave",
+        },
+    },
     "assembly": (
         "create_design runs Designer → Reviewer → Repair → Reviewer → Final Gate → SVG. "
         "It nests parts (no rotate) and checks f/F, coaxial shafts, tab-slots ≈ 3 mm, roof FingerJoint lock, "
-        "and propeller floor clearance. final_status BLOCKED means edit primitives and call create_design again. "
-        "Never tell the user LAZER KESİME HAZIR unless final_status is LASER READY. "
-        "PROTOTYPE READY is a first-sheet prototype, not a production cut."
+        "and propeller floor clearance. Paste speak as the status card. "
+        "final_status BLOCKED means edit primitives and call create_design again. "
+        "PROTOTYPE READY authorizes Prototype SVG only. Physical tests stay NOT VERIFIED. "
+        "PRODUCTION EXPORT is BLOCKED. Never say LAZER KESİME HAZIR."
     ),
     "never": "Never request a new MCP tool. Never hand-write SVG. Call create_design with primitives.",
     "not_a_generator": (
@@ -158,6 +193,17 @@ GRAMMAR = {
                         "slots": [
                             {"x": 35, "y": 36, "w": 24, "h": 40},
                             {"x": 35, "y": 88, "w": 26, "h": 32},
+                        ],
+                        "markings": [
+                            {
+                                "kind": "text",
+                                "value": "PAYAS",
+                                "x": 35,
+                                "y": 168,
+                                "height": 5,
+                                "align": "center",
+                                "operation": "engrave",
+                            }
                         ],
                     },
                     "back": {"holes": [{"x": 35, "y": 158, "d": 4}]},
@@ -185,6 +231,8 @@ HINT = (
     "Door/window = slots on the front wall. Motor plate/solar/roof brace = type=panel. "
     "4-blade rotor = type=propeller. Odd outline = type=contour with points:[[x,y],...] mm. "
     "Scale: parameters.reference={feature, mm, drawn_mm}. Calibrate once: {type:\"coupon\"}. "
+    "Optional marks: part.markings or {type:marking, target_part} with kind=text|path|icon|line, "
+    "x,y,width or height, rotation, align, operation=engrave|cut. "
     "Do not use disc for a propeller. Do not ask for a new kit tool."
 )
 
@@ -212,6 +260,19 @@ _NOT_A_PART = {
     ),
     "hole": "holes go on panel.holes or box.walls.*.holes as [{x,y,d}].",
     "holes": "holes go on panel.holes or box.walls.*.holes as [{x,y,d}].",
+    "marking": (
+        "A marking is not a part. Engrave or cut on a wall: "
+        "panel.markings=[{kind,x,y,height,operation}] or {type:marking, target_part, ...}."
+    ),
+    "markings": "markings belong on a panel or box wall, not as their own part.",
+    "mark": "Use markings on the target part. type=mark is not a part.",
+    "engrave": "Use markings with operation=engrave on the target part.",
+    "etch": "Use markings with operation=engrave on the target part.",
+    "engraving": "Use markings with operation=engrave on the target part.",
+    "logo": "A logo is a marking (kind=path or kind=icon) on target_part, not a new part.",
+    "icon": "An icon is a marking (kind=icon) on target_part, not a new part.",
+    "lineart": "Line art is a marking (kind=line, points:[[x,y],...]) on target_part.",
+    "line_art": "Line art is a marking (kind=line, points:[[x,y],...]) on target_part.",
 }
 
 _TYPE_ALIAS = {
@@ -257,6 +318,8 @@ def is_assembly(primitives: list[Any] | None) -> bool:
         kind = _kind(item)
         if kind in _NOT_A_PART or kind in _TYPE_ALIAS or kind in ASSEMBLY_TYPES:
             return True
+        if kind == "text" and isinstance(item, dict) and (item.get("target_part") or item.get("target")):
+            return True
     return False
 
 
@@ -268,7 +331,7 @@ def _prepare_parts(primitives: list[Any]) -> list[dict[str, Any]]:
             continue
         kind = _kind(part)
         item = dict(part)
-        if kind in _NOT_A_PART:
+        if kind in _NOT_A_PART or (kind == "text" and (item.get("target_part") or item.get("target"))):
             absorb.append(item)
             continue
         if kind in _TYPE_ALIAS:
@@ -307,6 +370,22 @@ def _prepare_parts(primitives: list[Any]) -> list[dict[str, Any]]:
                     "h": extra.get("h") or extra.get("height") or 28,
                 }
             )
+        elif kind in {
+            "marking",
+            "markings",
+            "mark",
+            "engrave",
+            "etch",
+            "engraving",
+            "logo",
+            "icon",
+            "lineart",
+            "line_art",
+            "text",
+        }:
+            from markings import attach_marking
+
+            attach_marking(parts, extra)
         else:
             target.setdefault("holes", []).append(
                 {
@@ -339,10 +418,13 @@ def _edges3(raw: Any, default: str = "eee") -> str:
 
 
 def _features(part: dict[str, Any]) -> dict[str, Any]:
+    from markings import collect_markings
+
     return {
         "holes": list(part.get("holes") or []),
         "slots": list(part.get("slots") or part.get("rect_holes") or []),
         "finger_holes": list(part.get("finger_holes") or part.get("fingerHoles") or []),
+        "markings": collect_markings(part),
     }
 
 
@@ -417,13 +499,15 @@ class PayasToolbox(Boxes):
         if drawn < 1:
             raise ValueError("primitives produced no parts")
 
-    def _callback(self, feats: dict[str, Any]):
+    def _callback(self, feats: dict[str, Any], origin: tuple[float, float] = (0.0, 0.0)):
+        ox, oy = origin
+
         def _cb() -> None:
             for hole in feats.get("holes") or []:
                 if not isinstance(hole, dict):
                     continue
-                x = _num(hole.get("x") or hole.get("cx"), 0)
-                y = _num(hole.get("y") or hole.get("cy"), 0)
+                x = _num(hole.get("x") or hole.get("cx"), 0) + ox
+                y = _num(hole.get("y") or hole.get("cy"), 0) + oy
                 d = hole.get("d") or hole.get("diameter")
                 r = hole.get("r") or hole.get("radius")
                 if d:
@@ -433,8 +517,8 @@ class PayasToolbox(Boxes):
             for slot in feats.get("slots") or []:
                 if not isinstance(slot, dict):
                     continue
-                x = _num(slot.get("x") or slot.get("cx"), 0)
-                y = _num(slot.get("y") or slot.get("cy"), 0)
+                x = _num(slot.get("x") or slot.get("cx"), 0) + ox
+                y = _num(slot.get("y") or slot.get("cy"), 0) + oy
                 w = _num(slot.get("w") or slot.get("dx") or slot.get("width"), 0)
                 h = _num(slot.get("h") or slot.get("dy") or slot.get("height"), 0)
                 if w <= 0 or h <= 0:
@@ -444,24 +528,37 @@ class PayasToolbox(Boxes):
             for row in feats.get("finger_holes") or []:
                 if not isinstance(row, dict):
                     continue
-                x = _num(row.get("x"), 0)
-                y = _num(row.get("y"), 0)
+                x = _num(row.get("x"), 0) + ox
+                y = _num(row.get("y"), 0) + oy
                 length = _num(row.get("length") or row.get("l"), 0)
                 angle = _num(row.get("angle") or row.get("a"), 0)
                 if length <= 0:
                     continue
                 self.fingerHolesAt(x, y, length, angle)
+            from markings import draw_markings
+
+            draw_markings(self, feats.get("markings") or [], origin)
 
         return _cb
 
-    def _wall_cb(self, feats: dict[str, Any]):
-        cb = self._callback(feats)
-        holes = feats.get("holes") or feats.get("slots") or feats.get("finger_holes")
-        if not holes:
-            return None
-        return [cb]
+    def _has_draw_feats(self, feats: dict[str, Any]) -> bool:
+        return bool(
+            feats.get("holes") or feats.get("slots") or feats.get("finger_holes") or feats.get("markings")
+        )
 
-    def _closed_contour(self, points: list[tuple[float, float]], hole_d: float, label: str, move: str = "up") -> None:
+    def _wall_cb(self, feats: dict[str, Any], origin: tuple[float, float] = (0.0, 0.0)):
+        if not self._has_draw_feats(feats):
+            return None
+        return [self._callback(feats, origin)]
+
+    def _closed_contour(
+        self,
+        points: list[tuple[float, float]],
+        hole_d: float,
+        label: str,
+        move: str = "up",
+        feats: dict[str, Any] | None = None,
+    ) -> None:
         xs = [p[0] for p in points]
         ys = [p[1] for p in points]
         minx, maxx = min(xs), max(xs)
@@ -478,6 +575,8 @@ class PayasToolbox(Boxes):
         shifted = [(x + ox, y + oy) for x, y in points]
         if hole_d and hole_d > 0:
             self.hole((minx + maxx) / 2 + ox, (miny + maxy) / 2 + oy, d=float(hole_d))
+        if feats and self._has_draw_feats(feats):
+            self._callback(feats, origin=(pad, pad))()
         x0, y0 = shifted[0]
         self.moveTo(x0, y0)
         heading = 0.0
@@ -536,9 +635,11 @@ class PayasToolbox(Boxes):
             hole = _num(part.get("hole") or part.get("shaft") or part.get("d_hole"), 0 if kind in {"disc", "disk", "circle"} else 4)
             if kind in {"washer", "spacer"} and hole <= 0:
                 hole = max(3.0, float(self.thickness) + 0.2)
+            feats = _features(part)
+            cb = self._callback(feats, origin=(-d / 2.0, -d / 2.0)) if self._has_draw_feats(feats) else None
             for i in range(count):
                 name = label if count == 1 else f"{label}-{i + 1}"
-                self.parts.disc(d, hole=hole, move="up", label=name)
+                self.parts.disc(d, hole=hole, callback=cb, move="up", label=name)
             return count
         if kind in {"triangle", "gable"}:
             w = _num(part.get("w") or part.get("x") or part.get("width"), 80)
@@ -555,18 +656,20 @@ class PayasToolbox(Boxes):
             blade_w = _num(part.get("blade_w") or part.get("width") or part.get("blade_width"), max(8.0, d * 0.22))
             hole = _num(part.get("hole") or part.get("shaft") or part.get("d_hole"), 4)
             pts = propeller_points(blades, d, blade_w)
+            feats = _features(part)
             for i in range(count):
                 name = label if count == 1 else f"{label}-{i + 1}"
-                self._closed_contour(pts, hole, name)
+                self._closed_contour(pts, hole, name, feats=feats)
             return count
         if kind in {"polygon", "contour", "outline", "polyline"}:
             raw_pts = part.get("points") or part.get("vertices") or part.get("coords") or part.get("contour")
             if raw_pts:
                 pts = _as_points(raw_pts)
                 hole = _num(part.get("hole") or part.get("shaft") or part.get("d_hole"), 0)
+                feats = _features(part)
                 for i in range(count):
                     name = label if count == 1 else f"{label}-{i + 1}"
-                    self._closed_contour(pts, hole, name)
+                    self._closed_contour(pts, hole, name, feats=feats)
                 return count
             borders = part.get("borders") or part.get("sides")
             if not isinstance(borders, list) or len(borders) < 4:

@@ -52,9 +52,11 @@ mcp = MCPServer(
         "Never offer to prepare a file outside this server. "
         "Pipeline (runs inside create_design — do not skip, do not add extra tools): "
         "Designer → Reviewer → Repair → Reviewer → Final Gate → SVG. "
-        "final_status is BLOCKED | PROTOTYPE READY | LASER READY. "
-        "Never tell the user to cut on BLOCKED. Never say LAZER KESİME HAZIR unless LASER READY. "
-        "PROTOTYPE READY means digital checks passed; the first sheet is a prototype. "
+        "Paste speak verbatim as the status card. "
+        "final_status is BLOCKED | PROTOTYPE READY. Software never authorizes production. "
+        "Physical Kerf Test, Physical Assembly, and Movement Test stay NOT VERIFIED. "
+        "AUTHORIZED OUTPUT is Prototype SVG. PRODUCTION EXPORT is BLOCKED. "
+        "Never say LAZER KESİME HAZIR or production-ready. "
         "Preferred tools: plan_laser_job, create_design, create_from_reference, "
         "validate_assembly, validate_svg, payas_defaults. "
         "generate_svg only if the plan names a Boxes.py class. Named create_* only if the plan names that Payas product. "
@@ -203,10 +205,13 @@ def plan_laser_job(
         "disc (washer/shaft adapter), triangle (roof support), propeller (n-blade rotor), "
         "contour (closed points [[x,y],...] mm), coupon (kerf test). "
         "Door/window = slots on box.walls.front, not type=slot. "
+        "Optional marks: part.markings or {type:marking, target_part} "
+        "(kind=text|path|icon|line, x,y,width or height, rotation, align, operation=engrave|cut). "
         "Scale with parameters.scale or parameters.reference={feature, mm, drawn_mm}. "
         "preset=jigsaw_puzzle or number_match_puzzle only when the plan says so. "
-        "final_status BLOCKED = not ready to cut. LASER READY is the only 'LAZER KESİME HAZIR'. "
-        "Never request a new tool. Never hand-write SVG."
+        "Paste speak as the gate card. BLOCKED = no authorized SVG. "
+        "PROTOTYPE READY = Prototype SVG only; PRODUCTION EXPORT BLOCKED. "
+        "Never say LAZER KESİME HAZIR. Never request a new tool. Never hand-write SVG."
     )
 )
 def create_design(
@@ -303,7 +308,7 @@ def validate_svg(file_id: str) -> dict[str, Any]:
     description=(
         "Re-run the mechanical reviewer / final gate. Pass primitives to compile+review a recipe, "
         "or file_id after create_design. Returns design_map, connections, category PASS/WARNING/FAIL, "
-        "and final_status. Never tell the user to cut unless final_status is PROTOTYPE READY or LASER READY."
+        "and the speak gate card. Never say LAZER KESİME HAZIR. PRODUCTION EXPORT stays BLOCKED."
     )
 )
 def validate_assembly(

@@ -21,15 +21,41 @@ Claude / ChatGPT connector adresi **kök `/` değil**, `/mcp` yoludur.
 Oluşmuş SVG ≠ üretilebilir ürün.  
 Güzel önizleme ≠ monte edilebilir ürün.
 
-Bir tasarım ancak mekanik, geometrik ve üretim kontrollerini geçtiğinde kesime açılır. Kapı `final_status` ile konuşur:
+Yazılım fiziksel testi yapamaz. Dijital PASS + fiziksel NOT VERIFIED → prototip SVG. Üretim export’u yazılım asla açmaz.
+
+Gelen AI `speak` kartını aynen yapıştırır:
+
+```
+FINAL STATUS: PROTOTYPE READY
+
+Digital Geometry        PASS
+Part Completeness       PASS
+Connections             PASS
+Assembly                PASS
+Collision               PASS
+Kinematics              PASS
+SVG Geometry            PASS
+Manufacturing Geometry  PASS
+
+Physical Kerf Test      NOT VERIFIED
+Physical Assembly       NOT VERIFIED
+Movement Test           NOT VERIFIED
+
+AUTHORIZED OUTPUT:
+Prototype SVG
+
+PRODUCTION EXPORT:
+BLOCKED
+```
 
 | `final_status` | Anlamı |
 | --- | --- |
-| `BLOCKED` | Kesme. `look_again` oku, primitive’i düzelt, `create_design` tekrar çağır. |
-| `PROTOTYPE READY` | Dijital kontroller geçti. İlk levha **prototiptir**. LAZER KESİME HAZIR değil. |
-| `LASER READY` | Yalnızca o zaman **LAZER KESİME HAZIR**. İsimli Payas kitleri ve kerf kuponu. |
+| `BLOCKED` | Dijital satır FAIL / NOT VERIFIED. `AUTHORIZED OUTPUT: None`. `look_again` oku, primitive’i düzelt, `create_design` tekrar çağır. |
+| `PROTOTYPE READY` | Dijital satırlar PASS. Yetkili çıktı **Prototype SVG**. Fiziksel satırlar her zaman NOT VERIFIED. |
 
-`error` / `errors` dönülmez. Öğretme `look_again`, `ready_to_cut` ve `speak` ile yapılır.
+`PRODUCTION EXPORT` yazılımda her zaman `BLOCKED`. `ready_to_cut` her zaman `false`. LAZER KESİME HAZIR denmez.
+
+`error` / `errors` dönülmez. Öğretme `look_again` ve `speak` ile yapılır.
 
 ---
 
@@ -49,7 +75,7 @@ Bu döngü `create_design` **içinde** çalışır. Gelen AI adımı atlayamaz; 
 3. `create_design` — Boxes.py `rectangularWall` / FingerJoint / kontur. Ölçek: `parameters.reference = {feature, mm, drawn_mm}`.
 4. Reviewer parça haritası (P01…), bağlantı grafiği (C01…), PASS / WARNING / FAIL / NOT_VERIFIED üretir.
 5. Repair minimum parametrik düzeltir (çatı kilidi, eksik gable, koaksiyel mil, tab-slot kalınlığı). Ürünü sıfırdan yazmaz.
-6. Final Gate `BLOCKED` ise SVG kesime açık sayılmaz.
+6. Final Gate `speak` kartını üretir. Dijital PASS olsa bile yetkili çıktı yalnızca Prototype SVG’dir; `PRODUCTION EXPORT` BLOCKED kalır.
 
 2D sanat (logo, siluet, yapboz kazıması) için `create_from_reference`. Duvar / çatı / pervane için **değil**.
 
@@ -68,6 +94,20 @@ Bu döngü `create_design` **içinde** çalışır. Gelen AI adımı atlayamaz; 
 | `propeller` | n kanatlı rotor. Fotoğraftaki kanat sayısını oku. |
 | `contour` | Kapalı siluet. `points: [[x,y], …]` mm. |
 | `coupon` | Kerf kalibrasyonu: `f`/`F` deneme + 100 mm çubuk. **Bir kez.** Her makete eklenmez. |
+
+Opsiyonel işaret (parça üzerine gravür / kesim). Ayrı parça değildir. `part.markings` veya `{type:marking, target_part}`:
+
+| Alan | |
+| --- | --- |
+| `kind` | `text` · `path` / `logo` · `icon` · `line` |
+| `target_part` | Parça `label` veya kutu duvarı (`front`, `back`, …) |
+| `x`, `y` | o parçanın sol-altından mm |
+| `width` veya `height` | mm; ikisi de varsa kutuya sığdır |
+| `rotation` | derece |
+| `align` | `center` · `left` · `right` · `top` · `bottom` |
+| `operation` | `engrave` (siyah) veya `cut` (kırmızı) |
+
+İkonlar: `plus`, `arrow`, `star`, `heart`, `circle`, `x`, `square`, `triangle`. Metin outline path (Arimo). Logo için `d` (SVG path) veya `points`.
 
 Kenarlar: `rectangularWall` sırası alt, sağ, üst, sol. `e` düz, `f` erkek parmak, `F` dişi parmak deliği. Parmak geometrisini uydurma; Boxes.py FingerJoint üretir.
 
@@ -164,5 +204,5 @@ SVG Vercel’de `/tmp` altındadır (geçici). Canlı connector’ın yeni kodu 
 - Kapı / pencereyi kayan ayrı parça yapmak
 - Pervane yerine `disc` kullanmak
 - Her işe kupon eklemek
-- `BLOCKED` veya `PROTOTYPE READY` iken LAZER KESİME HAZIR demek
+- LAZER KESİME HAZIR veya üretim export’u yetkili demek (yazılım fiziksel testi doğrulayamaz)
 - Her yeni maket için yeni MCP aracı istemek

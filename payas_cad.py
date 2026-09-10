@@ -113,11 +113,15 @@ def list_cad_tools() -> dict[str, Any]:
             "Toolbox, not a catalog. Look at the photo, call plan_laser_job, then create_design "
             "with box/panel/disc/triangle/propeller/contour primitives (Boxes.py). Do not ask for a new kit tool. "
             "Scale with parameters.reference={feature, mm, drawn_mm}. Coupon {type:coupon} only to calibrate. "
+            "Optional marks: part.markings or {type:marking, target_part} "
+            "(text/path/icon/line, x,y, width or height, rotation, align, engrave|cut). "
             "create_from_reference is 2D artwork only. Named create_* only for existing Payas products. "
             "generate_svg only if the plan names a Boxes.py class. Never write SVG yourself. Cuts keep ~1 mm holding nicks. "
             "create_design runs Designer → Reviewer → Repair → Reviewer → Final Gate inside the tool. "
-            "final_status is BLOCKED | PROTOTYPE READY | LASER READY. "
-            "Do not tell the user to cut on BLOCKED. Do not say LAZER KESİME HAZIR unless LASER READY."
+            "Paste speak as the status card. final_status is BLOCKED | PROTOTYPE READY. "
+            "Software never grants production: Physical Kerf/Assembly/Movement stay NOT VERIFIED, "
+            "AUTHORIZED OUTPUT is Prototype SVG, PRODUCTION EXPORT is BLOCKED. "
+            "Never say LAZER KESİME HAZIR or production-ready."
         ),
         "preferred": [
             "plan_laser_job",
@@ -460,6 +464,9 @@ def create_design(
         "connections": built.get("connections"),
         "final_status": built.get("final_status"),
         "speak": built.get("speak"),
+        "scorecard": built.get("scorecard"),
+        "authorized_output": built.get("authorized_output"),
+        "production_export": built.get("production_export") or "BLOCKED",
         "production_summary": built.get("production_summary"),
         "dimensions": {
             "width_mm": built.get("width_mm"),
@@ -485,12 +492,17 @@ def create_design(
         extra["connections"] = gated.get("connections")
         extra["final_status"] = gated.get("final_status")
         extra["speak"] = gated.get("speak")
+        extra["scorecard"] = gated.get("scorecard")
+        extra["authorized_output"] = gated.get("authorized_output")
+        extra["production_export"] = gated.get("production_export") or "BLOCKED"
         extra["production_summary"] = gated.get("production_summary")
         extra["look_again"] = gated.get("look_again") or extra.get("look_again")
-    extra["ready_to_cut"] = bool((extra.get("review") or {}).get("ready_to_cut")) and extra.get("final_status") in {
-        "PROTOTYPE READY",
-        "LASER READY",
-    }
+    extra["ready_to_cut"] = False
+    extra["production_export"] = extra.get("production_export") or "BLOCKED"
+    extra.setdefault(
+        "authorized_output",
+        "Prototype SVG" if extra.get("final_status") == "PROTOTYPE READY" else "None",
+    )
     return _mcp(_save_build(built["svg_bytes"], name, title, public_base_url, extra, dxf_bytes=_dxf_from_built(built, fmt)))
 
 
@@ -516,7 +528,10 @@ def validate_assembly(
                 "connections": built.get("connections"),
                 "final_status": built.get("final_status"),
                 "speak": built.get("speak"),
-                "ready_to_cut": bool(built.get("ready_to_cut")),
+                "scorecard": built.get("scorecard"),
+                "authorized_output": built.get("authorized_output"),
+                "production_export": built.get("production_export") or "BLOCKED",
+                "ready_to_cut": False,
                 "look_again": built.get("look_again") or report.get("look_again") or [],
             }
         )
@@ -530,12 +545,6 @@ def validate_assembly(
     svg_report = boxespy.validate_svg(file_id)
     sidecar = svg_report.get("review") or {}
     status = svg_report.get("final_status") or sidecar.get("final_status")
-    ready = status in {"PROTOTYPE READY", "LASER READY"} if status else (
-        bool(svg_report.get("success"))
-        and bool((svg_report.get("assembly") or {}).get("ok", True))
-        and bool((svg_report.get("nesting") or {}).get("ok", True))
-        and bool((svg_report.get("topology") or {}).get("ok", True))
-    )
     return _mcp(
         {
             "source": "file",
@@ -549,8 +558,11 @@ def validate_assembly(
             "connections": svg_report.get("connections"),
             "final_status": status,
             "speak": svg_report.get("speak"),
+            "scorecard": svg_report.get("scorecard") or sidecar.get("scorecard"),
+            "authorized_output": svg_report.get("authorized_output") or sidecar.get("authorized_output"),
+            "production_export": svg_report.get("production_export") or sidecar.get("production_export") or "BLOCKED",
             "look_again": svg_report.get("look_again") or svg_report.get("errors") or [],
-            "ready_to_cut": bool(ready),
+            "ready_to_cut": False,
         }
     )
 
