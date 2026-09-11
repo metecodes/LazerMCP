@@ -36,7 +36,7 @@ KIT_BOM: dict[str, list[dict[str, Any]]] = {
         {"item": "Ø4 pim / mil", "qty": 1, "unit": "pcs", "note": "krank"},
     ],
     "product_box": [
-        {"item": "3 mm kavak kontrplak", "qty": 1, "unit": "sheet", "note": "ABox duvar + taban + kapak"},
+        {"item": "3 mm kavak kontrplak", "qty": 1, "unit": "sheet", "note": "ABox duvar + taban, kapaksız"},
         {"item": "Ahşap tutkalı", "qty": 1, "unit": "job"},
     ],
 }

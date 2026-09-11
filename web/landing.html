@@ -116,28 +116,28 @@
     <nav>
       <a class="brand" href="/"><span class="mark" aria-hidden="true"></span>LaserMCP</a>
       <div class="links">
-        <a href="#wow" data-i="nav_wow">Çevir</a>
+        <a href="#wow" data-i="nav_wow">Dene</a>
         <a href="#mcp" data-i="nav_mcp">MCP</a>
         <a href="#how" data-i="nav_how">Nasıl</a>
-        <a href="#gate" data-i="nav_gate">Kapı</a>
+        <a href="#gate" data-i="nav_gate">Kontrol</a>
         <a href="#beta" data-i="nav_beta">Beta</a>
         <a href="/app" data-i="nav_workshop">Atölye</a>
         <div class="lang" role="group" aria-label="Language">
           <button type="button" id="lang-tr" class="on">TR</button>
           <button type="button" id="lang-en">EN</button>
         </div>
-        <a class="btn" href="#connect" data-i="nav_connect">MCP bağla</a>
+        <a class="btn" href="#connect" data-i="nav_connect">Bağla</a>
       </div>
     </nav>
 
     <header class="hero">
       <div>
-        <p class="kicker" data-i="hero_kicker">MCP sunucusu · lazer CAD</p>
-        <h1 data-i="hero_h1">Asistanını lazer kesime bağla.</h1>
-        <p class="lede" style="margin-top:16px" data-i="hero_lede">LaserMCP bir MCP sunucusudur. ChatGPT, Claude veya Cursor bağlanır; sen tarif edersin; sunucu Boxes.py ile parametrik parçaları üretir, montajı denetler ve prototip SVG verir.</p>
+        <p class="kicker" data-i="hero_kicker">ChatGPT · Claude · Cursor</p>
+        <h1 data-i="hero_h1">Tarif et. Kes. Kur.</h1>
+        <p class="lede" style="margin-top:16px" data-i="hero_lede">Asistanına ne istediğini söyle. LaserMCP parçaları üretir, montajı denetler, prototip SVG verir. Resim çizmez.</p>
         <div class="ctas">
-          <a class="btn cut" href="#connect" id="copy-mcp" data-i="cta_connect">MCP adresini kopyala</a>
-          <a class="btn ghost" href="#wow" data-i="cta_wow">Görseli SVG’ye çevir</a>
+          <a class="btn cut" href="#connect" id="copy-mcp" data-i="cta_connect">MCP’yi bağla</a>
+          <a class="btn ghost" href="#wow" data-i="cta_wow">Birini kesime çevir</a>
         </div>
         <div class="legend">
           <div><b data-i="cut_lab">KESİM</b><span data-i="cut_note">#FF0000</span><div class="swatch cut"></div></div>
@@ -145,7 +145,7 @@
         </div>
       </div>
       <aside class="flow">
-        <p class="kicker" data-i="flow_kicker">Gerçek bağlanma</p>
+        <p class="kicker" data-i="flow_kicker">Bağlantı</p>
         <pre class="mono">{
   "mcpServers": {
     "lasermcp": {
@@ -160,87 +160,87 @@ create_from_reference
 validate_assembly
 payas_defaults
 studio</pre>
-        <div class="status-box" data-i="flow_note">Köke değil, /mcp yoluna bağlan.</div>
+        <div class="status-box" data-i="flow_note">Kök siteye değil, /mcp yoluna bağlan.</div>
       </aside>
     </header>
 
     <section class="block" id="wow">
-      <p class="kicker" data-i="wow_kicker">Anında</p>
-      <h2 data-i="wow_h2">Hazır görseli kesim SVG’sine çevir.</h2>
-      <p class="lede" data-i="wow_lede">Yükleme yok. İçeride tuttuğumuz üç Payas işinden birini seç. Boxes.py çıktısı anında gelir.</p>
+      <p class="kicker" data-i="wow_kicker">3 saniye</p>
+      <h2 data-i="wow_h2">Seç. Kesim SVG’si gelsin.</h2>
+      <p class="lede" data-i="wow_lede">Yükleme yok. Üç gerçek Payas işinden birini seç. Parçalar hemen gelir.</p>
       <div class="picks" id="wow-picks"></div>
       <div class="stage">
         <div class="pane light">
-          <div class="lab" data-i="wow_src">HAZIR GÖRSEL</div>
+          <div class="lab" data-i="wow_src">ÖNCE</div>
           <img id="wow-src" alt="">
         </div>
         <div class="pane" id="wow-pane">
-          <div class="lab" data-i="wow_cut">KESİM SVG</div>
+          <div class="lab" data-i="wow_cut">SONRA</div>
           <div class="scan" id="wow-scan"></div>
           <object id="wow-svg" type="image/svg+xml" data=""></object>
         </div>
       </div>
-      <button class="btn cut wow-go" type="button" id="wow-go" data-i="wow_go">SVG’ye çevir</button>
+      <button class="btn cut wow-go" type="button" id="wow-go" data-i="wow_go">Kesime çevir</button>
       <p class="wow-status" id="wow-status"></p>
     </section>
 
     <section class="block" id="how">
-      <p class="kicker" data-i="how_kicker">İş hattı</p>
-      <h2 data-i="how_h2">Nasıl çalışır</h2>
+      <p class="kicker" data-i="how_kicker">Üç adım</p>
+      <h2 data-i="how_h2">Böyle çalışır</h2>
       <div class="steps">
         <article class="step">
           <div class="num">01</div>
-          <h3 style="margin:12px 0" data-i="how_1_h">Asistanına anlat</h3>
-          <p data-i="how_1_p">Fotoğrafa bak, parçaları söyle, plan_laser_job çağır. Ölçüyü sen veya fotoğraf verir; kerfi uydurma.</p>
+          <h3 style="margin:12px 0" data-i="how_1_h">Anlat</h3>
+          <p data-i="how_1_p">“3 mm kavaktan 180 mm değirmen.” Fotoğraf varsa parçaları söyle. Kerfi uydurma.</p>
         </article>
         <article class="step">
           <div class="num">02</div>
-          <h3 style="margin:12px 0" data-i="how_2_h">create_design besteler</h3>
-          <p data-i="how_2_p">Kutu, panel, disk, üçgen, pervane, kontur, kupon. Boxes.py FingerJoint keser. SVG elle yazılmaz.</p>
+          <h3 style="margin:12px 0" data-i="how_2_h">Parçalar gelir</h3>
+          <p data-i="how_2_p">Duvar, eklem, delik, pervane. Parmak eklemi Boxes.py keser. Elle SVG yok.</p>
         </article>
         <article class="step">
           <div class="num">03</div>
-          <h3 style="margin:12px 0" data-i="how_3_h">Kapı kartını oku</h3>
-          <p data-i="how_3_p">Reviewer ve final gate create_design içinde çalışır. Yetkili çıktı prototip SVG’dir. Yazılım PRODUCTION READY uydurmaz.</p>
+          <h3 style="margin:12px 0" data-i="how_3_h">Kartı oku</h3>
+          <p data-i="how_3_p">Yetkili çıktı prototip SVG. Yazılım “üretime hazır” demez.</p>
         </article>
       </div>
     </section>
 
     <section class="block">
       <p class="kicker" data-i="diff_kicker">Fark</p>
-      <h2 data-i="diff_h2">Başka bir SVG üreticisi değil.</h2>
+      <h2 data-i="diff_h2">AI resim çizmez. Parça keser.</h2>
       <table class="compare">
         <thead><tr><th data-i="diff_ai">Normal AI SVG</th><th>LaserMCP</th></tr></thead>
         <tbody>
-          <tr><td data-i="d1a">Görsel çizer</td><td data-i="d1b">Parça üretir</td></tr>
-          <tr><td data-i="d2a">Ölçü yok</td><td data-i="d2b">Parametrik mm</td></tr>
-          <tr><td data-i="d3a">Montaj yok</td><td data-i="d3b">Montaj grafiği + doğrulama</td></tr>
-          <tr><td data-i="d4a">Kerf yok</td><td data-i="d4b">Malzeme / kerf profili</td></tr>
-          <tr><td data-i="d5a">Tek dosya</td><td data-i="d5b">SVG + DXF + MCP BOM</td></tr>
+          <tr><td data-i="d1a">Resim çizer</td><td data-i="d1b">Parça keser</td></tr>
+          <tr><td data-i="d2a">Ölçü yok</td><td data-i="d2b">Milimetre net</td></tr>
+          <tr><td data-i="d3a">Montaj yok</td><td data-i="d3b">Eklemler kontrol edilir</td></tr>
+          <tr><td data-i="d4a">Kerf yok</td><td data-i="d4b">Malzeme profili var</td></tr>
+          <tr><td data-i="d5a">Tek dosya</td><td data-i="d5b">SVG, DXF, malzeme listesi</td></tr>
         </tbody>
       </table>
-      <p class="lede" style="margin-top:22px" data-i="diff_note">Ekranda kalan çizim için değil; kesilip birleştirilecek iş için.</p>
+      <p class="lede" style="margin-top:22px" data-i="diff_note">Ekranda kalmaz. Kesilir, birleşir.</p>
     </section>
 
     <section class="block">
-      <p class="kicker" data-i="photo_kicker">Referans</p>
-      <h2 data-i="photo_h2">Fotoğraf iki işe yarar.</h2>
+      <p class="kicker" data-i="photo_kicker">Fotoğraf</p>
+      <h2 data-i="photo_h2">Fotoğraf yeter. 3D hayal değil.</h2>
       <div class="two">
         <article class="card">
-          <h3 data-i="photo_a_h">Maket / kutu / pervane</h3>
-          <p data-i="photo_a_p">Sunucu fotoğrafı 3D’ye çevirmez. Asistan fotoğrafa bakar, what_you_see yazar, plan_laser_job + create_design ile üretilebilir parçaları besteler.</p>
+          <h3 data-i="photo_a_h">Maket, kutu, pervane</h3>
+          <p data-i="photo_a_p">Fotoğraf 3D’ye çevrilmez. Asistan bakar, parçaları yazar, LaserMCP kesilecek panelleri üretir.</p>
         </article>
         <article class="card">
-          <h3 data-i="photo_b_h">2D sanat</h3>
-          <p data-i="photo_b_p">create_from_reference yalnızca iz çıkarır veya yapboza kazar. Duvar, çatı, mil için kullanılmaz.</p>
+          <h3 data-i="photo_b_h">Logo veya yapboz</h3>
+          <p data-i="photo_b_p">Yalnız 2D iz veya yapboz kazıması. Duvar, çatı, mil için kullanılmaz.</p>
         </article>
       </div>
     </section>
 
     <section class="block" id="material">
-      <p class="kicker" data-i="mat_kicker">Profiller</p>
-      <h2 data-i="mat_h2">Kayıtlı malzeme ve makine.</h2>
-      <p class="lede" data-i="mat_lede">Kerf uydurulmaz. Profil seçilir; kupon çubuğu insandan ölçülür.</p>
+      <p class="kicker" data-i="mat_kicker">Malzeme</p>
+      <h2 data-i="mat_h2">Levha değişince ölçü değişir.</h2>
+      <p class="lede" data-i="mat_lede">Kerf uydurulmaz. Profil seçilir. 100 mm çubuğu sen ölçersin.</p>
       <div class="two" style="margin-top:24px">
         <div>
           <div class="toggle" id="mat-toggle"></div>
@@ -256,8 +256,8 @@ studio</pre>
     </section>
 
     <section class="block" id="gate">
-      <p class="kicker" data-i="gate_kicker">Speak kartı</p>
-      <h2 data-i="gate_h2">Yazılım fiziksel PASS uydurmaz.</h2>
+      <p class="kicker" data-i="gate_kicker">Kontrol</p>
+      <h2 data-i="gate_h2">Fiziksel testi yazılım uydurmaz.</h2>
       <div class="review">
         <div class="row"><span data-i="g1">Dijital geometri</span><span class="pass">PASS</span></div>
         <div class="row"><span data-i="g2">Bağlantılar</span><span class="pass">PASS</span></div>
@@ -266,23 +266,23 @@ studio</pre>
         <div class="row"><span data-i="g5">Hareket testi</span><span class="nv" data-i="nv">DOĞRULANMADI</span></div>
         <div class="status-box" data-i="gate_status">SON DURUM: PROTOTİP HAZIR</div>
       </div>
-      <p class="lede" style="margin-top:16px" data-i="gate_p">İnsan 100 mm çubuğu ölçer (measured_bar_mm). Montaj ve hareket bayrakları yalnız gerçek denemeden sonra. PRODUCTION EXPORT yazılımla açılmaz.</p>
+      <p class="lede" style="margin-top:16px" data-i="gate_p">100 mm çubuğu insan ölçer. Montaj ve hareket ancak gerçek denemeden sonra. Yazılım üretime izin vermez.</p>
     </section>
 
     <section class="block">
-      <p class="kicker" data-i="cap_kicker">Ne üretir</p>
-      <h2 data-i="cap_h2">Takım çantası. Katalog değil.</h2>
-      <p class="lede" data-i="cap_lede">Yeni maket için yeni MCP aracı istenmez. Asistan primitive besteler. İsimli araçlar yalnız mevcut Payas ürünleridir.</p>
+      <p class="kicker" data-i="cap_kicker">Ne kesilir</p>
+      <h2 data-i="cap_h2">Katalog değil. Takım çantası.</h2>
+      <p class="lede" data-i="cap_lede">Yeni maket için yeni araç istenmez. Asistan parçaları birleştirir. İsimli kitler yalnız mevcut Payas işleridir.</p>
       <div class="cap-row">
-        <article class="card"><h3 data-i="c1h">Bestelenmiş kesim</h3><p data-i="c1p">create_design: kutu, panel, pervane, kontur, işaret.</p></article>
-        <article class="card"><h3 data-i="c2h">Payas kitleri</h3><p data-i="c2p">Trafik lambası, robot kumbara, ressam robot, ürün kutusu, yat, astronot.</p></article>
-        <article class="card"><h3 data-i="c3h">MCP çıktısı</h3><p data-i="c3p">SVG, DXF, BOM’u sunucu yazar, önizleme, proje sürümü, studio.</p></article>
+        <article class="card"><h3 data-i="c1h">Bestelenmiş kesim</h3><p data-i="c1p">Kutu, panel, pervane, kontur, yazı.</p></article>
+        <article class="card"><h3 data-i="c2h">Payas kitleri</h3><p data-i="c2p">Trafik lambası, robot kumbara, ressam robot, açık kutu, yat, astronot.</p></article>
+        <article class="card"><h3 data-i="c3h">Çıktı</h3><p data-i="c3p">SVG, DXF, malzeme listesi, önizleme, proje kaydı.</p></article>
       </div>
     </section>
 
     <section class="block" id="mcp">
       <p class="kicker">MCP</p>
-      <h2 data-i="mcp_h2">Asistanının çalıştığı yerde çalışır.</h2>
+      <h2 data-i="mcp_h2">Asistanın neredeyse orada çalışır.</h2>
       <div class="mcp-row">
         <div class="card">ChatGPT</div>
         <div class="card">Claude</div>
@@ -291,26 +291,26 @@ studio</pre>
     </section>
 
     <section class="block" id="connect">
-      <p class="kicker" data-i="dev_kicker">Bağlantı</p>
-      <h2 data-i="dev_h2">Tek MCP. Lazer iş hattı.</h2>
-      <p class="lede" data-i="dev_lede">Asistan → LaserMCP → Boxes.py → reviewer / kapı → malzeme profili → SVG / DXF → lazer yazılımı.</p>
+      <p class="kicker" data-i="dev_kicker">MCP</p>
+      <h2 data-i="dev_h2">Tek adres. Tam iş hattı.</h2>
+      <p class="lede" data-i="dev_lede">Asistan → LaserMCP → parçalar → kontrol → malzeme profili → SVG / DXF → lazer.</p>
       <pre class="card" style="margin-top:20px;font:13px/1.5 var(--mono);overflow:auto">https://mcp.metehanavci.com/mcp</pre>
     </section>
 
     <section class="block">
       <p class="kicker" data-i="who_kicker">Kim için</p>
-      <h2 data-i="who_h2">Üç kullanım</h2>
+      <h2 data-i="who_h2">Üç kişi. Aynı MCP.</h2>
       <div class="use-row">
-        <article class="card"><h3 data-i="u1h">Atölye</h3><p data-i="u1p">Her parçayı elle çizmeden prototip SVG.</p></article>
-        <article class="card"><h3 data-i="u2h">STEM</h3><p data-i="u2p">Payas kitleri ve sınıfta bestelenmiş kesimler.</p></article>
-        <article class="card"><h3 data-i="u3h">Geliştirici</h3><p data-i="u3p">MCP ile asistanına lazer CAD bağla.</p></article>
+        <article class="card"><h3 data-i="u1h">Atölye</h3><p data-i="u1p">Her paneli elle çizmeden prototip.</p></article>
+        <article class="card"><h3 data-i="u2h">STEM</h3><p data-i="u2p">Sınıfta kit ve maket. Aynı gün kes.</p></article>
+        <article class="card"><h3 data-i="u3h">Geliştirici</h3><p data-i="u3p">Asistanına lazer CAD bağla.</p></article>
       </div>
     </section>
 
     <section class="block" id="beta">
       <p class="kicker">Beta</p>
-      <h2 data-i="beta_h2">LaserMCP beta</h2>
-      <p class="lede" data-i="beta_lede">Beta süresince açık. Fiyat landing’de yok. Kota LASERMCP_BETA kapanınca Free / Maker / Pro olarak uygulanır.</p>
+      <h2 data-i="beta_h2">Beta açık. Ücret yok.</h2>
+      <p class="lede" data-i="beta_lede">Şimdi herkes keser. Kota sonra gelir. Fiyat bu sayfada yok.</p>
       <div class="beta">
         <div>
           <div class="row"><span>MCP</span><span class="pass" data-i="inc">var</span></div>
@@ -320,7 +320,7 @@ studio</pre>
         <form id="beta-form">
           <label><span data-i="email">E-posta</span><br><input name="email" type="email" required placeholder="atolye@ornek.com"></label>
           <label style="display:block;margin:12px 0"><span data-i="use">Ne keseceksin?</span><br><input name="use" placeholder="STEM, kutu, tabela…"></label>
-          <button class="btn cut" type="submit" data-i="beta_cta">Beta listesine yazıl</button>
+          <button class="btn cut" type="submit" data-i="beta_cta">Listeye yazıl</button>
           <p id="beta-note" style="margin-top:10px;font:12px var(--mono);color:var(--mute)"></p>
         </form>
       </div>
@@ -328,7 +328,7 @@ studio</pre>
 
     <section class="final">
       <h2 data-i="final_h2">Bir şey kes.</h2>
-      <p class="lede" data-i="final_p">Asistanını LaserMCP’ye bağla. Çıktı prototip SVG’dir.</p>
+      <p class="lede" data-i="final_p">Asistanını bağla. Çıktı prototip SVG.</p>
       <a class="btn cut" href="#connect" data-i="final_cta">MCP’yi bağla</a>
       <p style="margin-top:16px;font:12px var(--mono);color:var(--mute)">MCP · Boxes.py · SVG / DXF</p>
     </section>
@@ -341,123 +341,122 @@ studio</pre>
   <script>
     const I = {
       tr: {
-        nav_wow: "Çevir", nav_mcp: "MCP", nav_how: "Nasıl", nav_gate: "Kapı", nav_beta: "Beta", nav_workshop: "Atölye", nav_connect: "MCP bağla",
-        cta_wow: "Görseli SVG’ye çevir",
-        wow_kicker: "Anında", wow_h2: "Hazır görseli kesim SVG’sine çevir.",
-        wow_lede: "Yükleme yok. İçeride tuttuğumuz üç Payas işinden birini seç. Boxes.py çıktısı anında gelir.",
-        wow_src: "HAZIR GÖRSEL", wow_cut: "KESİM SVG", wow_go: "SVG’ye çevir",
-        wow_wait: "Çevriliyor…", wow_done: "PROTOTİP SVG",
+        nav_wow: "Dene", nav_mcp: "MCP", nav_how: "Nasıl", nav_gate: "Kontrol", nav_beta: "Beta", nav_workshop: "Atölye", nav_connect: "Bağla",
+        cta_wow: "Birini kesime çevir",
+        wow_kicker: "3 saniye", wow_h2: "Seç. Kesim SVG’si gelsin.",
+        wow_lede: "Yükleme yok. Üç gerçek Payas işinden birini seç. Parçalar hemen gelir.",
+        wow_src: "ÖNCE", wow_cut: "SONRA", wow_go: "Kesime çevir",
+        wow_wait: "Kesiliyor…", wow_done: "PROTOTİP SVG",
         cut_lab: "KESİM", etch_lab: "KAZIMA",
         foot_colors: "KESİM #FF0000 · KAZIMA #000000",
-        wow_t1: "Trafik lambası", wow_b1: "Payas STEM kule + kaide. LED delikleri, 3 mm kavak.",
-        wow_t2: "Parmak eklemli kutu", wow_b2: "ABox duvar, taban, kapak. FingerJoint.",
-        wow_t3: "Robot kumbara", wow_b3: "PayasRobot: yüz, kollar, para kapağı.",
-        hero_kicker: "MCP sunucusu · lazer CAD",
-        hero_h1: "Asistanını lazer kesime bağla.",
-        hero_lede: "LaserMCP bir MCP sunucusudur. ChatGPT, Claude veya Cursor bağlanır; sen tarif edersin; sunucu Boxes.py ile parametrik parçaları üretir, montajı denetler ve prototip SVG verir.",
-        cta_connect: "MCP adresini kopyala", cta_workshop: "Yerel atölye",
-        cta_wow: "Görseli SVG’ye çevir",
+        wow_t1: "Trafik lambası", wow_b1: "Kule + kaide. LED delikleri, 3 mm kavak.",
+        wow_t2: "Ağzı açık kutu", wow_b2: "Dört duvar + taban. Kapak yok. Parmak eklem.",
+        wow_t3: "Robot kumbara", wow_b3: "Yüz, kollar, para kapağı. Tek gövde.",
+        hero_kicker: "ChatGPT · Claude · Cursor",
+        hero_h1: "Tarif et. Kes. Kur.",
+        hero_lede: "Asistanına ne istediğini söyle. LaserMCP parçaları üretir, montajı denetler, prototip SVG verir. Resim çizmez.",
+        cta_connect: "MCP’yi bağla", cta_workshop: "Yerel atölye",
         cut_note: "#FF0000", etch_note: "#000000",
-        flow_kicker: "Gerçek bağlanma", tools_kicker: "MCP araçları",
-        flow_note: "Köke değil, /mcp yoluna bağlan.",
-        how_kicker: "İş hattı", how_h2: "Nasıl çalışır",
-        how_1_h: "Asistanına anlat", how_1_p: "Fotoğrafa bak, parçaları söyle, plan_laser_job çağır. Ölçüyü sen veya fotoğraf verir; kerfi uydurma.",
-        how_2_h: "create_design besteler", how_2_p: "Kutu, panel, disk, üçgen, pervane, kontur, kupon. Boxes.py FingerJoint keser. SVG elle yazılmaz.",
-        how_3_h: "Kapı kartını oku", how_3_p: "Reviewer ve final gate create_design içinde çalışır. Yetkili çıktı prototip SVG’dir. Yazılım PRODUCTION READY uydurmaz.",
-        diff_kicker: "Fark", diff_h2: "Başka bir SVG üreticisi değil.", diff_ai: "Normal AI SVG",
-        d1a: "Görsel çizer", d1b: "Parça üretir", d2a: "Ölçü yok", d2b: "Parametrik mm",
-        d3a: "Montaj yok", d3b: "Montaj grafiği + doğrulama", d4a: "Kerf yok", d4b: "Malzeme / kerf profili",
-        d5a: "Tek dosya", d5b: "SVG + DXF + MCP BOM",
-        diff_note: "Ekranda kalan çizim için değil; kesilip birleştirilecek iş için.",
-        photo_kicker: "Referans", photo_h2: "Fotoğraf iki işe yarar.",
-        photo_a_h: "Maket / kutu / pervane",
-        photo_a_p: "Sunucu fotoğrafı 3D’ye çevirmez. Asistan fotoğrafa bakar, what_you_see yazar, plan_laser_job + create_design ile üretilebilir parçaları besteler.",
-        photo_b_h: "2D sanat",
-        photo_b_p: "create_from_reference yalnızca iz çıkarır veya yapboza kazar. Duvar, çatı, mil için kullanılmaz.",
-        mat_kicker: "Profiller", mat_h2: "Kayıtlı malzeme ve makine.",
-        mat_lede: "Kerf uydurulmaz. Profil seçilir; kupon çubuğu insandan ölçülür.",
-        mach_1: "Payas atölye", mach_2: "LaserCAD 900", mach_3: "Masaüstü", mach_4: "Nesting", mach_4b: "yalnız öteleme",
-        gate_kicker: "Speak kartı", gate_h2: "Yazılım fiziksel PASS uydurmaz.",
+        flow_kicker: "Bağlantı", tools_kicker: "MCP araçları",
+        flow_note: "Kök siteye değil, /mcp yoluna bağlan.",
+        how_kicker: "Üç adım", how_h2: "Böyle çalışır",
+        how_1_h: "Anlat", how_1_p: "“3 mm kavaktan 180 mm değirmen.” Fotoğraf varsa parçaları söyle. Kerfi uydurma.",
+        how_2_h: "Parçalar gelir", how_2_p: "Duvar, eklem, delik, pervane. Parmak eklemi Boxes.py keser. Elle SVG yok.",
+        how_3_h: "Kartı oku", how_3_p: "Yetkili çıktı prototip SVG. Yazılım “üretime hazır” demez.",
+        diff_kicker: "Fark", diff_h2: "AI resim çizmez. Parça keser.", diff_ai: "Normal AI SVG",
+        d1a: "Resim çizer", d1b: "Parça keser", d2a: "Ölçü yok", d2b: "Milimetre net",
+        d3a: "Montaj yok", d3b: "Eklemler kontrol edilir", d4a: "Kerf yok", d4b: "Malzeme profili var",
+        d5a: "Tek dosya", d5b: "SVG, DXF, malzeme listesi",
+        diff_note: "Ekranda kalmaz. Kesilir, birleşir.",
+        photo_kicker: "Fotoğraf", photo_h2: "Fotoğraf yeter. 3D hayal değil.",
+        photo_a_h: "Maket, kutu, pervane",
+        photo_a_p: "Fotoğraf 3D’ye çevrilmez. Asistan bakar, parçaları yazar, LaserMCP kesilecek panelleri üretir.",
+        photo_b_h: "Logo veya yapboz",
+        photo_b_p: "Yalnız 2D iz veya yapboz kazıması. Duvar, çatı, mil için kullanılmaz.",
+        mat_kicker: "Malzeme", mat_h2: "Levha değişince ölçü değişir.",
+        mat_lede: "Kerf uydurulmaz. Profil seçilir. 100 mm çubuğu sen ölçersin.",
+        mach_1: "Payas atölye", mach_2: "LaserCAD 900", mach_3: "Masaüstü", mach_4: "Yerleşim", mach_4b: "yalnız kaydırma",
+        gate_kicker: "Kontrol", gate_h2: "Fiziksel testi yazılım uydurmaz.",
         g1: "Dijital geometri", g2: "Bağlantılar",
         g3: "Fiziksel kerf testi", g4: "Fiziksel montaj", g5: "Hareket testi",
         nv: "DOĞRULANMADI", gate_status: "SON DURUM: PROTOTİP HAZIR",
         email_ph: "atolye@ornek.com", use_ph: "STEM, kutu, tabela…",
-        gate_p: "İnsan 100 mm çubuğu ölçer (measured_bar_mm). Montaj ve hareket bayrakları yalnız gerçek denemeden sonra. PRODUCTION EXPORT yazılımla açılmaz.",
-        cap_kicker: "Ne üretir", cap_h2: "Takım çantası. Katalog değil.",
-        cap_lede: "Yeni maket için yeni MCP aracı istenmez. Asistan primitive besteler. İsimli araçlar yalnız mevcut Payas ürünleridir.",
-        c1h: "Bestelenmiş kesim", c1p: "create_design: kutu, panel, pervane, kontur, işaret.",
-        c2h: "Payas kitleri", c2p: "Trafik lambası, robot kumbara, ressam robot, ürün kutusu, yat, astronot.",
-        c3h: "MCP çıktısı", c3p: "SVG, DXF, BOM’u sunucu yazar, önizleme, proje sürümü, studio.",
-        mcp_h2: "Asistanının çalıştığı yerde çalışır.",
-        dev_kicker: "Bağlantı", dev_h2: "Tek MCP. Lazer iş hattı.",
-        dev_lede: "Asistan → LaserMCP → Boxes.py → reviewer / kapı → malzeme profili → SVG / DXF → lazer yazılımı.",
-        who_kicker: "Kim için", who_h2: "Üç kullanım",
-        u1h: "Atölye", u1p: "Her parçayı elle çizmeden prototip SVG.",
-        u2h: "STEM", u2p: "Payas kitleri ve sınıfta bestelenmiş kesimler.",
-        u3h: "Geliştirici", u3p: "MCP ile asistanına lazer CAD bağla.",
-        beta_h2: "LaserMCP beta",
-        beta_lede: "Beta süresince açık. Fiyat landing’de yok. Kota LASERMCP_BETA kapanınca Free / Maker / Pro olarak uygulanır.",
-        inc: "var", beta_val: "Doğrulama", email: "E-posta", use: "Ne keseceksin?", beta_cta: "Beta listesine yazıl",
-        final_h2: "Bir şey kes.", final_p: "Asistanını LaserMCP’ye bağla. Çıktı prototip SVG’dir.", final_cta: "MCP’yi bağla"
+        gate_p: "100 mm çubuğu insan ölçer. Montaj ve hareket ancak gerçek denemeden sonra. Yazılım üretime izin vermez.",
+        cap_kicker: "Ne kesilir", cap_h2: "Katalog değil. Takım çantası.",
+        cap_lede: "Yeni maket için yeni araç istenmez. Asistan parçaları birleştirir. İsimli kitler yalnız mevcut Payas işleridir.",
+        c1h: "Bestelenmiş kesim", c1p: "Kutu, panel, pervane, kontur, yazı.",
+        c2h: "Payas kitleri", c2p: "Trafik lambası, robot kumbara, ressam robot, açık kutu, yat, astronot.",
+        c3h: "Çıktı", c3p: "SVG, DXF, malzeme listesi, önizleme, proje kaydı.",
+        mcp_h2: "Asistanın neredeyse orada çalışır.",
+        dev_kicker: "MCP", dev_h2: "Tek adres. Tam iş hattı.",
+        dev_lede: "Asistan → LaserMCP → parçalar → kontrol → malzeme profili → SVG / DXF → lazer.",
+        who_kicker: "Kim için", who_h2: "Üç kişi. Aynı MCP.",
+        u1h: "Atölye", u1p: "Her paneli elle çizmeden prototip.",
+        u2h: "STEM", u2p: "Sınıfta kit ve maket. Aynı gün kes.",
+        u3h: "Geliştirici", u3p: "Asistanına lazer CAD bağla.",
+        beta_h2: "Beta açık. Ücret yok.",
+        beta_lede: "Şimdi herkes keser. Kota sonra gelir. Fiyat bu sayfada yok.",
+        inc: "var", beta_val: "Doğrulama", email: "E-posta", use: "Ne keseceksin?", beta_cta: "Listeye yazıl",
+        final_h2: "Bir şey kes.", final_p: "Asistanını bağla. Çıktı prototip SVG.", final_cta: "MCP’yi bağla"
       },
       en: {
-        nav_wow: "Convert", nav_mcp: "MCP", nav_how: "How", nav_gate: "Gate", nav_beta: "Beta", nav_workshop: "Workshop", nav_connect: "Connect MCP",
-        cta_wow: "Convert a kit to SVG",
-        wow_kicker: "Instant", wow_h2: "Turn a stored image into cut SVG.",
-        wow_lede: "No upload. Pick one of three Payas kits we keep on the server. Boxes.py output appears immediately.",
-        wow_src: "STORED IMAGE", wow_cut: "CUT SVG", wow_go: "Convert to SVG",
-        wow_wait: "Converting…", wow_done: "PROTOTYPE SVG",
+        nav_wow: "Try it", nav_mcp: "MCP", nav_how: "How", nav_gate: "Check", nav_beta: "Beta", nav_workshop: "Workshop", nav_connect: "Connect",
+        cta_wow: "Turn one into a cut",
+        wow_kicker: "3 seconds", wow_h2: "Pick one. Get the cut SVG.",
+        wow_lede: "No upload. Three real Payas jobs. Parts appear at once.",
+        wow_src: "BEFORE", wow_cut: "AFTER", wow_go: "Convert to cut",
+        wow_wait: "Cutting…", wow_done: "PROTOTYPE SVG",
         cut_lab: "CUT", etch_lab: "ENGRAVE",
         foot_colors: "CUT #FF0000 · ENGRAVE #000000",
-        wow_t1: "Traffic light", wow_b1: "Payas STEM tower + base. LED holes, 3 mm poplar.",
-        wow_t2: "Finger-joint box", wow_b2: "ABox walls, floor, lid. FingerJoint.",
-        wow_t3: "Robot bank", wow_b3: "PayasRobot: face, arms, coin lid.",
-        hero_kicker: "MCP server · laser CAD",
-        hero_h1: "Connect your assistant to laser cutting.",
-        hero_lede: "LaserMCP is an MCP server. ChatGPT, Claude or Cursor connects; you describe the job; the server builds parametric parts with Boxes.py, reviews the assembly, and returns a prototype SVG.",
-        cta_connect: "Copy the MCP URL", cta_workshop: "Local workshop",
+        wow_t1: "Traffic light", wow_b1: "Tower + base. LED holes, 3 mm poplar.",
+        wow_t2: "Open finger-joint box", wow_b2: "Four walls + floor. No lid. Finger joints.",
+        wow_t3: "Robot bank", wow_b3: "Face, arms, coin lid. One body.",
+        hero_kicker: "ChatGPT · Claude · Cursor",
+        hero_h1: "Describe it. Cut it. Build it.",
+        hero_lede: "Tell your assistant what you want. LaserMCP makes the parts, checks the fit, and returns a prototype SVG. It does not draw a picture.",
+        cta_connect: "Connect MCP", cta_workshop: "Local workshop",
         cut_note: "#FF0000", etch_note: "#000000",
-        flow_kicker: "Actual endpoint", tools_kicker: "MCP tools",
+        flow_kicker: "Connect", tools_kicker: "MCP tools",
         flow_note: "Connect to /mcp, not the site root.",
-        how_kicker: "Pipeline", how_h2: "How it works",
-        how_1_h: "Tell the assistant", how_1_p: "Look at the photo, name the parts, call plan_laser_job. You supply the length. Do not invent kerf.",
-        how_2_h: "create_design composes", how_2_p: "Box, panel, disc, triangle, propeller, contour, coupon. Boxes.py cuts FingerJoints. Nobody hand-writes SVG.",
-        how_3_h: "Read the gate card", how_3_p: "Reviewer and final gate run inside create_design. Authorized output is Prototype SVG. Software does not invent PRODUCTION READY.",
-        diff_kicker: "Difference", diff_h2: "Not another SVG generator.", diff_ai: "Typical AI SVG",
-        d1a: "Draws a picture", d1b: "Produces parts", d2a: "No dimensions", d2b: "Parametric mm",
-        d3a: "No assembly", d3b: "Assembly graph + review", d4a: "No kerf", d4b: "Material / kerf profiles",
-        d5a: "One file", d5b: "SVG + DXF + MCP-authored BOM",
-        diff_note: "Built for work that leaves the screen and gets cut.",
-        photo_kicker: "Reference", photo_h2: "A photo does two jobs.",
-        photo_a_h: "Models / boxes / rotors",
-        photo_a_p: "The server does not reconstruct 3D from a photo. The assistant looks, writes what_you_see, then plan_laser_job + create_design compose manufacturable parts.",
-        photo_b_h: "2D artwork",
-        photo_b_p: "create_from_reference only traces or etches a jigsaw. Not for walls, roofs, or shafts.",
-        mat_kicker: "Profiles", mat_h2: "Named materials and machines.",
-        mat_lede: "Kerf is not invented. Pick a profile. A human measures the coupon bar.",
-        mach_1: "Payas workshop", mach_2: "LaserCAD 900", mach_3: "Desktop", mach_4: "Nesting", mach_4b: "translate only",
-        gate_kicker: "Speak card", gate_h2: "Software does not invent a physical PASS.",
-        g1: "Digital Geometry", g2: "Connections",
-        g3: "Physical Kerf Test", g4: "Physical Assembly", g5: "Movement Test",
+        how_kicker: "Three steps", how_h2: "How it works",
+        how_1_h: "Describe", how_1_p: "“180 mm windmill in 3 mm poplar.” If there is a photo, name the parts. Do not invent kerf.",
+        how_2_h: "Parts arrive", how_2_p: "Walls, joints, holes, rotors. Boxes.py cuts the fingers. Nobody writes SVG by hand.",
+        how_3_h: "Read the card", how_3_p: "Authorized output is a prototype SVG. Software does not say production-ready.",
+        diff_kicker: "Difference", diff_h2: "AI does not draw. It cuts parts.", diff_ai: "Typical AI SVG",
+        d1a: "Draws a picture", d1b: "Cuts parts", d2a: "No dimensions", d2b: "Real millimetres",
+        d3a: "No assembly", d3b: "Joints are checked", d4a: "No kerf", d4b: "Material profile",
+        d5a: "One file", d5b: "SVG, DXF, material list",
+        diff_note: "It leaves the screen. You cut it. You build it.",
+        photo_kicker: "Photo", photo_h2: "A photo is enough. Not a 3D guess.",
+        photo_a_h: "Models, boxes, rotors",
+        photo_a_p: "The photo is not turned into 3D. The assistant looks, names the parts, LaserMCP cuts the panels.",
+        photo_b_h: "Logo or jigsaw",
+        photo_b_p: "2D trace or jigsaw etch only. Not for walls, roofs, or shafts.",
+        mat_kicker: "Material", mat_h2: "Change the sheet. The sizes change.",
+        mat_lede: "Kerf is not invented. Pick a profile. You measure the 100 mm bar.",
+        mach_1: "Payas workshop", mach_2: "LaserCAD 900", mach_3: "Desktop", mach_4: "Nesting", mach_4b: "slide only",
+        gate_kicker: "Check", gate_h2: "Software does not fake a physical PASS.",
+        g1: "Digital geometry", g2: "Connections",
+        g3: "Physical kerf test", g4: "Physical assembly", g5: "Movement test",
         nv: "NOT VERIFIED", gate_status: "FINAL STATUS: PROTOTYPE READY",
         email_ph: "you@workshop.com", use_ph: "STEM, box, sign…",
-        gate_p: "A human measures the 100 mm bar (measured_bar_mm). Assembly and movement flags only after a real dry-fit. PRODUCTION EXPORT is not granted by software.",
-        cap_kicker: "What it makes", cap_h2: "A toolbox. Not a catalog.",
-        cap_lede: "Do not ask for a new MCP tool per model. The assistant composes primitives. Named create_* tools exist only for current Payas products.",
-        c1h: "Composed jobs", c1p: "create_design: box, panel, propeller, contour, markings.",
-        c2h: "Payas kits", c2p: "Traffic light, robot bank, drawing robot, product box, yacht, astronaut.",
-        c3h: "MCP output", c3p: "SVG, DXF, MCP-authored BOM, preview, project versions, studio.",
-        mcp_h2: "Works where your assistant works.",
-        dev_kicker: "Connect", dev_h2: "One MCP. A laser workflow.",
-        dev_lede: "Assistant → LaserMCP → Boxes.py → reviewer / gate → material profile → SVG / DXF → laser software.",
-        who_kicker: "Who", who_h2: "Three uses",
-        u1h: "Workshop", u1p: "Prototype SVG without drawing every part by hand.",
-        u2h: "STEM", u2p: "Payas kits and classroom compositions.",
-        u3h: "Developers", u3p: "Attach laser CAD to an assistant over MCP.",
-        beta_h2: "LaserMCP beta",
-        beta_lede: "Open during beta. No prices on this page. Quotas apply as Free / Maker / Pro when LASERMCP_BETA is off.",
-        inc: "yes", beta_val: "Validation", email: "Email", use: "What will you cut?", beta_cta: "Join the beta list",
-        final_h2: "Cut something.", final_p: "Connect your assistant to LaserMCP. The output is a prototype SVG.", final_cta: "Connect MCP"
+        gate_p: "A human measures the 100 mm bar. Assembly and movement only after a real dry-fit. Software does not authorize production.",
+        cap_kicker: "What gets cut", cap_h2: "A toolbox. Not a catalog.",
+        cap_lede: "Do not ask for a new tool per model. The assistant composes parts. Named kits are current Payas jobs only.",
+        c1h: "Composed cuts", c1p: "Box, panel, rotor, contour, text.",
+        c2h: "Payas kits", c2p: "Traffic light, robot bank, drawing robot, open box, yacht, astronaut.",
+        c3h: "Output", c3p: "SVG, DXF, material list, preview, project record.",
+        mcp_h2: "It works where your assistant already is.",
+        dev_kicker: "MCP", dev_h2: "One URL. The whole job.",
+        dev_lede: "Assistant → LaserMCP → parts → check → material profile → SVG / DXF → laser.",
+        who_kicker: "Who", who_h2: "Three people. One MCP.",
+        u1h: "Workshop", u1p: "A prototype without drawing every panel.",
+        u2h: "STEM", u2p: "Kits and models in class. Cut the same day.",
+        u3h: "Developers", u3p: "Attach laser CAD to an assistant.",
+        beta_h2: "Beta is open. No fee.",
+        beta_lede: "Everyone can cut now. Quotas come later. No prices on this page.",
+        inc: "yes", beta_val: "Checks", email: "Email", use: "What will you cut?", beta_cta: "Join the list",
+        final_h2: "Cut something.", final_p: "Connect your assistant. The output is a prototype SVG.", final_cta: "Connect MCP"
       }
     };
 
@@ -473,7 +472,7 @@ studio</pre>
 
     function applyLang() {
       document.documentElement.lang = lang;
-      document.title = lang === "tr" ? "LaserMCP — Asistanını lazer kesime bağla" : "LaserMCP — Connect your assistant to laser cutting";
+      document.title = lang === "tr" ? "LaserMCP — Tarif et. Kes. Kur." : "LaserMCP — Describe it. Cut it. Build it.";
       document.querySelectorAll("[data-i]").forEach((el) => {
         const key = el.getAttribute("data-i");
         if (I[lang][key]) el.textContent = I[lang][key];
@@ -533,9 +532,9 @@ studio</pre>
     });
 
     const WOW = [
-      { src: "/demo/traffic_light.src.svg", cut: "/demo/traffic_light.cut.svg", t: "wow_t1", b: "wow_b1" },
-      { src: "/demo/product_box.src.svg", cut: "/demo/product_box.cut.svg", t: "wow_t2", b: "wow_b2" },
-      { src: "/demo/robot_bank.src.svg", cut: "/demo/robot_bank.cut.svg", t: "wow_t3", b: "wow_b3" }
+      { src: "/demo/traffic_light.src.svg?v=5", cut: "/demo/traffic_light.cut.svg", t: "wow_t1", b: "wow_b1" },
+      { src: "/demo/product_box.src.svg?v=7", cut: "/demo/product_box.cut.svg", t: "wow_t2", b: "wow_b2" },
+      { src: "/demo/robot_bank.src.svg?v=5", cut: "/demo/robot_bank.cut.svg", t: "wow_t3", b: "wow_b3" }
     ];
     let wowI = 0;
 

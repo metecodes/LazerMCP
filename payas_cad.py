@@ -85,7 +85,7 @@ CAD_PRODUCTS = [
         "tool": "create_product_box",
         "title": "Ürün kutusu",
         "generator": "ABox",
-        "description": "Basit ürün/ambalaj kutusu (ABox).",
+        "description": "Ağzı açık parmak eklemli kutu (ABox: dört duvar + taban, kapaksız).",
     },
     {
         "id": "yacht",
@@ -236,7 +236,7 @@ def create_product_box(
         public_base_url=public_base_url,
         extra={
             "product": "product_box",
-            "title": "Ürün kutusu",
+            "title": "Ağzı açık kutu",
             "parameters": {"x": x, "y": y, "h": h, "thickness": thickness, "burn": burn, "outside": outside},
         },
     )
