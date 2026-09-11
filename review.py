@@ -15,6 +15,7 @@ NA = "N/A"
 
 BLOCKED = "BLOCKED"
 PROTOTYPE_READY = "PROTOTYPE READY"
+PRODUCTION_READY = "PRODUCTION READY"
 LASER_READY = "LASER READY"
 
 _COMPOSED_CRITICAL = (
@@ -253,6 +254,9 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
     safety_c: list[dict[str, Any]] = []
 
     if job == "composed":
+        from seen import check_what_you_see
+
+        completeness.extend(check_what_you_see(primitives, (built.get("parameters") or {}).get("what_you_see")))
         names = {f.get("name") for f in faces}
         roofs = [f for f in faces if "roof" in str(f.get("name") or "").lower()]
         gables = [f for f in faces if f.get("kind") == "gable"]
@@ -452,11 +456,34 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
     for cat in unverified:
         looks.append(f"{cat['id']} is NOT VERIFIED — cannot mark PASS")
 
-    scorecard = build_scorecard(cats)
-    final = gate_status(fail, unverified)
-    authorized = "Prototype SVG" if final == PROTOTYPE_READY else "None"
-    production_export = "BLOCKED"
+    from physical import read_physical
+
+    physical = built.get("physical") if isinstance(built.get("physical"), dict) else None
+    physical = physical or read_physical(built.get("parameters") or {}, moving=moving)
+    if physical.get("kerf") == FAIL:
+        looks.append(str((physical.get("notes") or {}).get("kerf") or "measured_bar_mm is out of range"))
+    scorecard = build_scorecard(cats, physical)
+    digital_ok = not fail and not unverified
+    production_ok = bool(digital_ok and physical.get("production_ok"))
+    if not digital_ok:
+        final = BLOCKED
+        authorized = "None"
+        production_export = "BLOCKED"
+        ready = False
+    elif production_ok:
+        final = PRODUCTION_READY
+        authorized = "Production SVG"
+        production_export = "AUTHORIZED"
+        ready = True
+    else:
+        final = PROTOTYPE_READY
+        authorized = "Prototype SVG"
+        production_export = "BLOCKED"
+        ready = False
     card = format_gate_card(scorecard, final, authorized, production_export)
+    from assembly_sheet import assembly_sheet as _sheet
+
+    sheet = _sheet(dmap, connections)
 
     return {
         "job_class": job,
@@ -464,6 +491,8 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
         "connections": connections,
         "categories": {c["id"]: {k: c[k] for k in ("status", "required", "notes")} for c in cats},
         "scorecard": scorecard,
+        "physical": physical,
+        "assembly_sheet": sheet,
         "counts": {
             "pass": len(passed),
             "warning": len(warn),
@@ -475,7 +504,7 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
         "final_status": final,
         "authorized_output": authorized,
         "production_export": production_export,
-        "ready_to_cut": False,
+        "ready_to_cut": ready,
         "speak": card,
         "production_summary": card,
     }
@@ -498,7 +527,7 @@ def _card_status(cats: list[dict[str, Any]], *ids: str) -> str:
     return worst
 
 
-def build_scorecard(cats: list[dict[str, Any]]) -> dict[str, Any]:
+def build_scorecard(cats: list[dict[str, Any]], physical: dict[str, Any] | None = None) -> dict[str, Any]:
     digital = {
         "Digital Geometry": _card_status(cats, "NESTING"),
         "Part Completeness": _card_status(cats, "PART_COMPLETENESS"),
@@ -509,12 +538,15 @@ def build_scorecard(cats: list[dict[str, Any]]) -> dict[str, Any]:
         "SVG Geometry": _card_status(cats, "SVG_GEOMETRY"),
         "Manufacturing Geometry": _card_status(cats, "MANUFACTURING"),
     }
-    physical = {
-        "Physical Kerf Test": NOT_VERIFIED,
-        "Physical Assembly": NOT_VERIFIED,
-        "Movement Test": NOT_VERIFIED,
+    phys = physical or {}
+    return {
+        "digital": digital,
+        "physical": {
+            "Physical Kerf Test": phys.get("kerf") or NOT_VERIFIED,
+            "Physical Assembly": phys.get("assembly") or NOT_VERIFIED,
+            "Movement Test": phys.get("movement") or NOT_VERIFIED,
+        },
     }
-    return {"digital": digital, "physical": physical}
 
 
 def _card_label(status: str) -> str:
@@ -554,8 +586,15 @@ def format_gate_card(
     return "\n".join(rows)
 
 
-def gate_status(fail: list[dict[str, Any]], unverified: list[dict[str, Any]], job: str | None = None) -> str:
-    """Software never marks physical tests PASS, so production is never authorized here."""
+def gate_status(
+    fail: list[dict[str, Any]],
+    unverified: list[dict[str, Any]],
+    job: str | None = None,
+    production_ok: bool = False,
+) -> str:
+    """Digital fail → BLOCKED. Digital pass → prototype. Production only after human physical tests."""
     if fail or unverified:
         return BLOCKED
+    if production_ok:
+        return PRODUCTION_READY
     return PROTOTYPE_READY

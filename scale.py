@@ -35,6 +35,12 @@ _SKIP_KEYS = {
     "closed",
     "rotation",
     "angle",
+    "what_you_see",
+    "measured_bar_mm",
+    "measured_100mm",
+    "physical_assembly",
+    "movement_test",
+    "nominal_bar_mm",
 }
 
 _SKIP_SCALE = {"count", "n", "blades", "n_blades", "rows", "cols", "seed", "columns"}
@@ -45,9 +51,11 @@ MEASURE = {
     "steps": [
         "If the user stated a size (cm/mm), that is the footprint. Do not invent a different one.",
         "Otherwise pick ONE clear length in the photo (base width, overall height, or door).",
-        "If the 3 mm plywood edge is visible, count how many thicknesses fit in that length.",
+        "If the 3 mm plywood edge is visible, count how many thicknesses fit in that ONE length. Do not invent a second size.",
         "Set parameters.reference = {feature, mm, drawn_mm}. drawn_mm is the current recipe value for that feature. create_design scales the whole recipe.",
-        "First job on an uncalibrated laser: add {type:coupon} so they dry-fit f/F and measure the 100 mm bar.",
+        "Pass parameters.what_you_see so the reviewer can check rotor/door/lettering against the recipe.",
+        "First uncalibrated laser: {type:coupon}. After cutting, pass measured_bar_mm (the 100 mm bar as measured). Do not invent that number.",
+        "physical_assembly=verified and movement_test=verified only after a human dry-fit / spin. Never invent those flags.",
     ],
 }
 

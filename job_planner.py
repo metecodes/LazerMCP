@@ -14,9 +14,19 @@ _KITS = (
     (("trafik", "traffic_light", "traffic light"), "create_traffic_light", "Trafik lambası"),
     (("robot bank", "kumbara", "hayal kumbara", "payasrobot"), "create_robot_bank", "Robot kumbara"),
     (("ressam", "drawing robot", "cizim robot"), "create_drawing_robot", "Ressam robot"),
-    (("yacht", "yat "), "create_yacht", "Yat"),
+    (("yacht", "yat ", "statik yat", "yat kiti"), "create_yacht", "Yat"),
     (("urun kutusu", "product box", "abox"), "create_product_box", "Ürün kutusu"),
 )
+
+_TR_FOLD = str.maketrans({
+    "ı": "i", "İ": "i", "I": "i",
+    "ş": "s", "Ş": "s",
+    "ğ": "g", "Ğ": "g",
+    "ü": "u", "Ü": "u",
+    "ö": "o", "Ö": "o",
+    "ç": "c", "Ç": "c",
+    "â": "a", "î": "i", "û": "u",
+})
 
 _MATCH_CARD = (
     "sayi esleme",
@@ -96,7 +106,7 @@ def _wants_trace_only(text: str) -> bool:
 
 
 def _blob(*parts: str) -> str:
-    return " ".join(p or "" for p in parts).lower().replace("ı", "i").replace("ş", "s").replace("ğ", "g")
+    return " ".join(p or "" for p in parts).translate(_TR_FOLD).lower()
 
 
 def _size_mm(text: str) -> tuple[float | None, float | None]:
@@ -173,13 +183,17 @@ def _rules() -> list[str]:
         "Never flip, rotate, or mirror geometry.",
         "Cut #FF0000, etch #000000, LaserCAD Y-up, 3 mm poplar, kerf 0.15 mm.",
         "Notches and closed cuts get ~1 mm holding nicks. Do not omit them.",
-        "Look at the photo, read millimetres from it, then compose primitives (box/panel/disc/triangle/propeller/contour).",
+        "Look at the photo, pick ONE length (or count 3 mm plywood edges), then compose primitives (box/panel/disc/triangle/propeller/contour).",
         "create_design is Designer → Reviewer → Repair → Reviewer → Final Gate → SVG. Do not skip review. Do not invent a PASS.",
         "Paste speak as the status card. BLOCKED = no authorized SVG. PROTOTYPE READY = Prototype SVG only. Physical tests stay NOT VERIFIED. PRODUCTION EXPORT is always BLOCKED. Never say LAZER KESİME HAZIR.",
         "If the user stated a size, use it. Else pick ONE photo length and set parameters.reference = {feature, mm, drawn_mm}.",
         "create_design compiles your primitives (method=compose_primitives). That is the designer step, not a wrong generator.",
         "Door/window = slots on the front wall, not type=slot and not separate sliding parts.",
         "Optional part marks: part.markings or {type:marking, target_part, kind:text|path|icon|line, x,y, width or height, rotation, align, operation:engrave|cut}.",
+        "Copy what_you_see into parameters.what_you_see. After a coupon cut, pass measured_bar_mm from the human — never invent it.",
+        "Pass parameters.material and parameters.machine. MCP writes MATERIALS (MCP) / bom. Do not invent kerf or hardware.",
+        "Optional parameters.project stores a named version in studio history.",
+        "physical_assembly=verified and movement_test=verified only after a real dry-fit / spin. Production export stays BLOCKED until those human tests exist.",
         "create_from_reference only traces 2D artwork (logo, photo, jigsaw etch). Assembly = create_design primitives.",
         "generate_svg only if the plan names a Boxes.py class. Named create_* kits only when the plan names an existing Payas product.",
         "First uncalibrated laser: add {type:coupon} once. Do not bolt a coupon onto every mill.",
@@ -283,11 +297,14 @@ def _compose_plan(
     fmt: str,
     look: str,
     text: str,
+    what_you_see: str = "",
 ) -> dict[str, Any]:
     recipe = _assembly_recipe(text, width, height)
     if _wants_coupon(text):
         recipe = [{"type": "coupon", "x": 40, "label": "kerf-coupon"}] + recipe
-    params: dict[str, Any] = {"format": fmt}
+    params: dict[str, Any] = {"format": fmt, "material": "poplar_3mm", "machine": "payas_workshop"}
+    if str(what_you_see or "").strip():
+        params["what_you_see"] = str(what_you_see).strip()
     box = next((p for p in recipe if isinstance(p, dict) and p.get("type") == "box"), None)
     if width and box:
         params["reference"] = {
@@ -468,6 +485,7 @@ def plan_laser_job(
             fmt,
             look,
             text,
+            seen,
         )
 
     if photo:

@@ -82,11 +82,13 @@ def review_only(built: dict[str, Any]) -> dict[str, Any]:
 def _attach_gate(built: dict[str, Any], report: dict[str, Any]) -> dict[str, Any]:
     built["review"] = report
     built["final_status"] = report["final_status"]
-    built["ready_to_cut"] = False
+    built["ready_to_cut"] = bool(report.get("ready_to_cut"))
     built["speak"] = report.get("speak")
     built["design_map"] = report.get("design_map")
     built["connections"] = report.get("connections")
     built["scorecard"] = report.get("scorecard")
+    built["physical"] = report.get("physical")
+    built["assembly_sheet"] = report.get("assembly_sheet")
     built["authorized_output"] = report.get("authorized_output")
     built["production_export"] = report.get("production_export") or "BLOCKED"
     built["production_summary"] = report.get("production_summary")

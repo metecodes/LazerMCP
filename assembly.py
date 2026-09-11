@@ -300,6 +300,7 @@ def check_assembly(
             "shaft_pairs": [],
             "assembled_mm": None,
             "sequence": [],
+            "graph": {"nodes": [], "edges": [], "node_count": 0, "edge_count": 0},
             "thickness": t,
             "burn": kerf,
         }
@@ -477,6 +478,7 @@ def check_assembly(
         sequence.append("Dry-fit every f/F pair and every hole/shaft before glue.")
 
     ok = not errors
+    graph = assembly_graph(faces, joints, shaft_pairs, roof_lock)
     return {
         "ok": ok,
         "warnings": warnings,
@@ -488,11 +490,86 @@ def check_assembly(
         "assembled_mm": assembled,
         "sequence": sequence,
         "parts": [f["name"] for f in faces],
+        "graph": graph,
         "thickness": t,
         "burn": kerf,
-        "look_again": errors,
         "note": (
             "Roof is locked only when gable bottom f mates wall top F and roof f mates gable hypotenuse F "
             "(Boxes.py FingerJoint). A sitting rectangle is not a lock."
         ),
     }
+
+
+def assembly_graph(
+    faces: list[dict[str, Any]],
+    joints: list[dict[str, Any]],
+    shaft_pairs: list[dict[str, Any]],
+    roof_lock: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    nodes = [
+        {
+            "id": str(f.get("name")),
+            "kind": f.get("kind"),
+            "w": f.get("w"),
+            "h": f.get("h"),
+            "d": f.get("d"),
+        }
+        for f in faces
+    ]
+    edges: list[dict[str, Any]] = []
+    for joint in joints:
+        if joint.get("male") and joint.get("female"):
+            edges.append(
+                {
+                    "from": joint.get("male"),
+                    "to": joint.get("female"),
+                    "type": joint.get("kind") or "finger",
+                    "via": joint.get("via"),
+                    "length_mm": joint.get("length_mm"),
+                    "result": joint.get("result"),
+                }
+            )
+        elif joint.get("female"):
+            edges.append(
+                {
+                    "from": joint.get("female"),
+                    "to": joint.get("female"),
+                    "type": joint.get("kind") or "tab-slot",
+                    "via": joint.get("via"),
+                    "result": joint.get("result"),
+                }
+            )
+    for shaft in shaft_pairs:
+        if shaft.get("part"):
+            edges.append(
+                {
+                    "from": shaft.get("part"),
+                    "to": "front",
+                    "type": "shaft",
+                    "d": shaft.get("d"),
+                    "result": shaft.get("result"),
+                }
+            )
+        elif shaft.get("axis"):
+            edges.append(
+                {
+                    "from": "front",
+                    "to": "back",
+                    "type": "shaft",
+                    "d": shaft.get("d"),
+                    "y": shaft.get("y"),
+                    "result": shaft.get("result"),
+                }
+            )
+    for lock in roof_lock or []:
+        edges.append(
+            {
+                "from": lock.get("part") or "roof",
+                "to": "gable",
+                "type": lock.get("joint") or "roof_lock",
+                "via": lock.get("via"),
+                "length_mm": lock.get("length_mm"),
+                "result": lock.get("result"),
+            }
+        )
+    return {"nodes": nodes, "edges": edges, "node_count": len(nodes), "edge_count": len(edges)}

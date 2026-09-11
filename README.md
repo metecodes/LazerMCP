@@ -8,7 +8,8 @@ Bu sunucu bir **takım çantası**dır, ürün kataloğu değil. Gelen AI (ChatG
 | --- | --- |
 | Canlı MCP | `https://mcp.metehanavci.com/mcp` |
 | Yerel MCP | `http://127.0.0.1:8000/mcp` |
-| Yerel arayüz | `http://127.0.0.1:8000` |
+| Landing | `https://mcp.metehanavci.com` · yerel `http://127.0.0.1:8000` |
+| Atölye | `http://127.0.0.1:8000/app` |
 | Repo | [metecodes/LazerMCP](https://github.com/metecodes/LazerMCP) |
 
 Claude / ChatGPT connector adresi **kök `/` değil**, `/mcp` yoludur.
@@ -51,9 +52,10 @@ BLOCKED
 | `final_status` | Anlamı |
 | --- | --- |
 | `BLOCKED` | Dijital satır FAIL / NOT VERIFIED. `AUTHORIZED OUTPUT: None`. `look_again` oku, primitive’i düzelt, `create_design` tekrar çağır. |
-| `PROTOTYPE READY` | Dijital satırlar PASS. Yetkili çıktı **Prototype SVG**. Fiziksel satırlar her zaman NOT VERIFIED. |
+| `PROTOTYPE READY` | Dijital satırlar PASS. Yetkili çıktı **Prototype SVG**. Fiziksel satırlar ölçülmediyse NOT VERIFIED. |
+| `PRODUCTION READY` | Dijital PASS + insan kerf/montaj/(hareket). Yetkili çıktı **Production SVG**. |
 
-`PRODUCTION EXPORT` yazılımda her zaman `BLOCKED`. `ready_to_cut` her zaman `false`. LAZER KESİME HAZIR denmez.
+Yazılım fiziksel satırı uydurmaz. İnsan 100 mm çubuğu ölçüp `measured_bar_mm` verir; kerf PASS olabilir. `physical_assembly=verified` ve `movement_test=verified` yalnız gerçek denemeden sonra. Üçü de (hareket yoksa kerf+montaj) PASS ise `PRODUCTION READY` ve `PRODUCTION EXPORT: AUTHORIZED`. Uydurma flag = FAIL.
 
 `error` / `errors` dönülmez. Öğretme `look_again` ve `speak` ile yapılır.
 
@@ -126,7 +128,8 @@ Tercih edilen:
 | `create_from_reference` | Yalnız 2D iz / yapboz kazıması. |
 | `validate_assembly` | Kapıyı tekrar oku (`file_id` veya `primitives`). |
 | `validate_svg` | XML, tabla, nesting, topoloji. |
-| `payas_defaults` | 3 mm kavak, kerf 0.15, 1500×3000. |
+| `payas_defaults` | 3 mm kavak, kerf 0.15, 1500×3000, malzeme/makine profilleri. |
+| `studio` | Profiller, kerf kaydı, projeler, kullanım, anahtar. Kit değildir. |
 
 Plan söylemedikçe: `generate_svg`, `get_generator_schema`.
 
@@ -148,11 +151,17 @@ Yeni değirmen / ev / puzzle için kit isteme.
 - Malzeme: 3 mm kavak kontrplak
 - Kerf / burn kilitli: **0.15 mm**
 - Tabla: **1500 × 3000 mm**
-- Çıktı: SVG (`file_id` + `svg_url`), isteğe bağlı DXF
+- Çıktı: SVG + DXF (`file_id`, `svg_url`, `dxf_url`) + otomatik nest önizlemesi
+- Malzeme / makine: `parameters.material` (`poplar_3mm`, `poplar_4mm`, `mdf_3mm`, `acrylic_3mm`), `parameters.machine` (`payas_workshop`, `desktop_400`, `lasercad_900`)
+- Kerf: insan `measured_bar_mm` verir; kalibrasyon makine+malzeme için saklanır. Kerf uydurma.
+- BOM: kit veya bestelenmiş işte malzeme listesini **MCP yazar** (`bom`, `MATERIALS (MCP)`). Donanımı uydurma.
+- Proje: `parameters.project` ile sürüm geçmişi. Studio: `/dashboard`
 - Kesim `#FF0000`, kazıma `#000000`, LaserCAD **Y-up**
 - Kapalı kesimlerde ~1 mm tutucu nick (parça düşmesin)
 - Nesting yalnız öteleme (döndürme / ayna yok)
 - Yazılar outline path (paketlenmiş Arimo). SVG `<text>` yok.
+
+Paketler (fiyat landing’de yok; beta açık): **Free** 10 tasarım/ay · SVG · standart profil. **Maker** SVG+DXF · özel malzeme/makine · fotoğraf → tasarım · gelişmiş doğrulama. **Pro** BOM · gelişmiş nesting · proje geçmişi · API · ticari kullanım. `LASERMCP_BETA=1` (varsayılan) kotayı kaldırır, özellikleri açık tutar.
 
 ---
 
@@ -167,7 +176,7 @@ python -m venv .venv
 .\.venv\Scripts\python.exe server.py
 ```
 
-Tarayıcı: `http://127.0.0.1:8000`  
+Tarayıcı landing: `http://127.0.0.1:8000` · atölye: `/app`  
 Cursor MCP: `http://127.0.0.1:8000/mcp`
 
 ---
@@ -182,7 +191,11 @@ Hepsi isteğe bağlıdır.
 | `MCP_HOST` | `127.0.0.1` | Bind. Dışarı açmak için `0.0.0.0` |
 | `MCP_PORT` | `8000` | Port |
 | `MCP_PUBLIC_BASE_URL` | (boş) | Dosya URL kökü |
-| `MCP_AUTH_TOKEN` | (boş) | Dolarsa `/mcp`, `/api/*`, `/files/*` Bearer ister. UI ve `/health` açık kalır |
+| `MCP_AUTH_TOKEN` | (boş) | Dolarsa `/mcp`, `/api/*`, `/files/*` Bearer ister. UI ve `/health` açık kalır. `studio` ile ek hashed anahtar üretilebilir |
+| `MCP_OUTPUT_DIR` | `output` veya Vercel `/tmp` | Kalıcı SVG klasörü |
+| `MCP_DATA_DIR` | `output/studio` | Profiller, kerf, projeler, kullanım, telemetry |
+| `LASERMCP_BETA` | `1` | `0` olursa Free/Maker/Pro kotaları uygulanır |
+| `BLOB_READ_WRITE_TOKEN` | (boş) | Varsa SVG Vercel Blob’a yazılır; `svg_url` kalır |
 
 ## Vercel
 
@@ -204,5 +217,7 @@ SVG Vercel’de `/tmp` altındadır (geçici). Canlı connector’ın yeni kodu 
 - Kapı / pencereyi kayan ayrı parça yapmak
 - Pervane yerine `disc` kullanmak
 - Her işe kupon eklemek
-- LAZER KESİME HAZIR veya üretim export’u yetkili demek (yazılım fiziksel testi doğrulayamaz)
+- LAZER KESİME HAZIR veya üretim export’u yetkili demek (insan ölçüsü / montajı olmadan)
+- `measured_bar_mm` veya `physical_assembly` uydurmak
+- Kerf veya vida/LED/motor listesini uydurmak (MCP `bom` yazar)
 - Her yeni maket için yeni MCP aracı istemek

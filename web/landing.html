@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LaserMCP</title>
+  <meta name="description" content="LaserMCP — ChatGPT, Claude ve Cursor için lazer kesim MCP sunucusu.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #fafafa;
+      --paper: #ffffff;
+      --ink: #111111;
+      --mute: #5a5a5a;
+      --line: #e4e4e4;
+      --cut: #e10600;
+      --pass: #0b7a4b;
+      --mono: "IBM Plex Mono", ui-monospace, monospace;
+      --sans: "IBM Plex Sans", "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { margin: 0; color: var(--ink); font: 16px/1.55 var(--sans); background: var(--bg); }
+    a { color: inherit; }
+    .wrap { width: min(1080px, calc(100% - 40px)); margin: 0 auto; }
+    nav {
+      position: sticky; top: 0; z-index: 20;
+      display: flex; justify-content: space-between; align-items: center; gap: 16px;
+      padding: 16px 0; border-bottom: 1px solid var(--line); background: var(--bg);
+    }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: -0.03em; text-decoration: none; }
+    .mark { width: 18px; height: 18px; border: 1.5px solid var(--ink); position: relative; }
+    .mark::after { content: ""; position: absolute; left: 3px; right: 3px; top: 8px; height: 1.5px; background: var(--cut); }
+    nav .links { display: flex; align-items: center; gap: 20px; font-size: 13px; color: var(--mute); }
+    nav .links a { text-decoration: none; }
+    .lang { display: flex; border: 1px solid var(--ink); }
+    .lang button { border: 0; background: transparent; font: 11px var(--mono); padding: 6px 9px; cursor: pointer; }
+    .lang button.on { background: var(--ink); color: #fff; }
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      padding: 11px 16px; text-decoration: none; font-size: 13px; font-weight: 600;
+      border: 1px solid var(--ink); background: var(--ink); color: #fff;
+    }
+    .btn.ghost { background: transparent; color: var(--ink); }
+    .btn.cut { background: var(--cut); border-color: var(--cut); }
+    .kicker { font: 11px/1 var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--cut); margin: 0 0 12px; }
+    h1, h2, h3 { letter-spacing: -0.03em; margin: 0; }
+    h1 { font-size: clamp(36px, 5.4vw, 60px); line-height: 1.02; }
+    h2 { font-size: clamp(26px, 3.6vw, 38px); line-height: 1.12; }
+    .lede { font-size: 18px; color: var(--mute); max-width: 54ch; }
+    section.block { padding: 80px 0; border-top: 1px solid var(--line); }
+    .hero { padding: 64px 0 80px; display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: start; }
+    .ctas { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 28px; }
+    .legend { display: flex; gap: 28px; margin-top: 28px; font: 11px/1.4 var(--mono); }
+    .legend b { display: block; letter-spacing: 0.12em; }
+    .swatch { height: 2px; width: 64px; margin-top: 6px; background: var(--ink); }
+    .swatch.cut { background: var(--cut); }
+    .flow { background: var(--paper); border: 1px solid var(--line); padding: 18px; }
+    .flow .mono { font: 12.5px/1.55 var(--mono); white-space: pre-wrap; margin: 0; }
+    .status-box { margin-top: 14px; border: 1px solid var(--ink); padding: 10px 12px; font: 12px var(--mono); letter-spacing: 0.06em; }
+    .steps, .cap-row, .mcp-row, .use-row { display: grid; gap: 14px; margin-top: 28px; }
+    .steps { grid-template-columns: 1fr 1fr 1fr; }
+    .cap-row, .use-row { grid-template-columns: 1fr 1fr 1fr; }
+    .mcp-row { grid-template-columns: 1fr 1fr 1fr; }
+    .card, .step { background: var(--paper); border: 1px solid var(--line); padding: 18px; }
+    .num { font: 12px var(--mono); color: var(--cut); }
+    table.compare { width: 100%; border-collapse: collapse; margin-top: 24px; }
+    table.compare th, table.compare td { border-bottom: 1px solid var(--line); text-align: left; padding: 12px 8px; }
+    table.compare td:first-child { color: var(--mute); }
+    .two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 24px; }
+    .kv { font: 13px var(--mono); }
+    .kv div { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+    .toggle { display: flex; border: 1px solid var(--ink); margin-bottom: 14px; }
+    .toggle button { flex: 1; border: 0; background: transparent; padding: 9px; font: 12px var(--mono); cursor: pointer; }
+    .toggle button.on { background: var(--ink); color: #fff; }
+    .review { max-width: 520px; background: var(--paper); border: 1px solid var(--line); padding: 18px; margin-top: 24px; }
+    .row { display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--line); padding: 7px 0; font: 12.5px var(--mono); }
+    .pass { color: var(--pass); }
+    .nv { color: var(--mute); }
+    .beta { background: var(--paper); border: 1px solid var(--ink); padding: 24px; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 24px; }
+    input { width: 100%; border: 1px solid var(--line); padding: 10px 12px; font: 14px var(--sans); }
+    .picks { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin: 28px 0 18px; }
+    .pick { text-align: left; cursor: pointer; background: var(--paper); border: 1px solid var(--line); padding: 0; }
+    .pick.on { border-color: var(--cut); box-shadow: 0 0 0 2px var(--cut); }
+    .pick img, .pick object { display: block; width: 100%; height: 140px; object-fit: contain; background: #f4efe6; }
+    .pick .meta { padding: 12px 14px; }
+    .pick strong { display: block; }
+    .pick small { color: var(--mute); font-size: 13px; }
+    .stage { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; min-height: 340px; }
+    .pane { background: #111; color: #fff; border: 1px solid #111; position: relative; overflow: hidden; }
+    .pane.light { background: #f4efe6; color: var(--ink); border-color: var(--line); }
+    .pane .lab { position: absolute; top: 10px; left: 12px; font: 11px var(--mono); letter-spacing: 0.12em; z-index: 2; }
+    .pane img, .pane object { width: 100%; height: 340px; object-fit: contain; display: block; }
+    .pane object { background: #111; }
+    .scan {
+      position: absolute; left: 0; right: 0; height: 3px; background: var(--cut);
+      box-shadow: 0 0 18px 4px rgba(225,6,0,0.7); top: -8px; opacity: 0;
+    }
+    .pane.running .scan { opacity: 1; animation: scan 0.7s linear; }
+    @keyframes scan { from { top: 0; } to { top: 100%; } }
+    .wow-go { margin-top: 16px; }
+    .wow-status { margin-top: 12px; font: 12px var(--mono); letter-spacing: 0.08em; }
+    .final .lede { margin: 16px auto 28px; }
+    footer { border-top: 1px solid var(--line); padding: 22px 0 40px; display: flex; justify-content: space-between; gap: 12px; color: var(--mute); font: 12px var(--mono); }
+    @media (max-width: 860px) {
+      .hero, .steps, .cap-row, .mcp-row, .use-row, .two, .beta, nav { flex-wrap: wrap; }
+      .hero, .steps, .cap-row, .mcp-row, .use-row, .two, .beta, .picks, .stage { grid-template-columns: 1fr; }
+      nav .links a:not(.btn) { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <nav>
+      <a class="brand" href="/"><span class="mark" aria-hidden="true"></span>LaserMCP</a>
+      <div class="links">
+        <a href="#wow" data-i="nav_wow">Çevir</a>
+        <a href="#mcp" data-i="nav_mcp">MCP</a>
+        <a href="#how" data-i="nav_how">Nasıl</a>
+        <a href="#gate" data-i="nav_gate">Kapı</a>
+        <a href="#beta" data-i="nav_beta">Beta</a>
+        <a href="/app" data-i="nav_workshop">Atölye</a>
+        <div class="lang" role="group" aria-label="Language">
+          <button type="button" id="lang-tr" class="on">TR</button>
+          <button type="button" id="lang-en">EN</button>
+        </div>
+        <a class="btn" href="#connect" data-i="nav_connect">MCP bağla</a>
+      </div>
+    </nav>
+
+    <header class="hero">
+      <div>
+        <p class="kicker" data-i="hero_kicker">MCP sunucusu · lazer CAD</p>
+        <h1 data-i="hero_h1">Asistanını lazer kesime bağla.</h1>
+        <p class="lede" style="margin-top:16px" data-i="hero_lede">LaserMCP bir MCP sunucusudur. ChatGPT, Claude veya Cursor bağlanır; sen tarif edersin; sunucu Boxes.py ile parametrik parçaları üretir, montajı denetler ve prototip SVG verir.</p>
+        <div class="ctas">
+          <a class="btn cut" href="#connect" id="copy-mcp" data-i="cta_connect">MCP adresini kopyala</a>
+          <a class="btn ghost" href="#wow" data-i="cta_wow">Görseli SVG’ye çevir</a>
+        </div>
+        <div class="legend">
+          <div><b data-i="cut_lab">KESİM</b><span data-i="cut_note">#FF0000</span><div class="swatch cut"></div></div>
+          <div><b data-i="etch_lab">KAZIMA</b><span data-i="etch_note">#000000</span><div class="swatch"></div></div>
+        </div>
+      </div>
+      <aside class="flow">
+        <p class="kicker" data-i="flow_kicker">Gerçek bağlanma</p>
+        <pre class="mono">{
+  "mcpServers": {
+    "lasermcp": {
+      "url": "https://mcp.metehanavci.com/mcp"
+    }
+  }
+}</pre>
+        <p class="kicker" style="margin-top:18px" data-i="tools_kicker">MCP araçları</p>
+        <pre class="mono">plan_laser_job
+create_design
+create_from_reference
+validate_assembly
+payas_defaults
+studio</pre>
+        <div class="status-box" data-i="flow_note">Köke değil, /mcp yoluna bağlan.</div>
+      </aside>
+    </header>
+
+    <section class="block" id="wow">
+      <p class="kicker" data-i="wow_kicker">Anında</p>
+      <h2 data-i="wow_h2">Hazır görseli kesim SVG’sine çevir.</h2>
+      <p class="lede" data-i="wow_lede">Yükleme yok. İçeride tuttuğumuz üç Payas işinden birini seç. Boxes.py çıktısı anında gelir.</p>
+      <div class="picks" id="wow-picks"></div>
+      <div class="stage">
+        <div class="pane light">
+          <div class="lab" data-i="wow_src">HAZIR GÖRSEL</div>
+          <img id="wow-src" alt="">
+        </div>
+        <div class="pane" id="wow-pane">
+          <div class="lab" data-i="wow_cut">KESİM SVG</div>
+          <div class="scan" id="wow-scan"></div>
+          <object id="wow-svg" type="image/svg+xml" data=""></object>
+        </div>
+      </div>
+      <button class="btn cut wow-go" type="button" id="wow-go" data-i="wow_go">SVG’ye çevir</button>
+      <p class="wow-status" id="wow-status"></p>
+    </section>
+
+    <section class="block" id="how">
+      <p class="kicker" data-i="how_kicker">İş hattı</p>
+      <h2 data-i="how_h2">Nasıl çalışır</h2>
+      <div class="steps">
+        <article class="step">
+          <div class="num">01</div>
+          <h3 style="margin:12px 0" data-i="how_1_h">Asistanına anlat</h3>
+          <p data-i="how_1_p">Fotoğrafa bak, parçaları söyle, plan_laser_job çağır. Ölçüyü sen veya fotoğraf verir; kerfi uydurma.</p>
+        </article>
+        <article class="step">
+          <div class="num">02</div>
+          <h3 style="margin:12px 0" data-i="how_2_h">create_design besteler</h3>
+          <p data-i="how_2_p">Kutu, panel, disk, üçgen, pervane, kontur, kupon. Boxes.py FingerJoint keser. SVG elle yazılmaz.</p>
+        </article>
+        <article class="step">
+          <div class="num">03</div>
+          <h3 style="margin:12px 0" data-i="how_3_h">Kapı kartını oku</h3>
+          <p data-i="how_3_p">Reviewer ve final gate create_design içinde çalışır. Yetkili çıktı prototip SVG’dir. Yazılım PRODUCTION READY uydurmaz.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="block">
+      <p class="kicker" data-i="diff_kicker">Fark</p>
+      <h2 data-i="diff_h2">Başka bir SVG üreticisi değil.</h2>
+      <table class="compare">
+        <thead><tr><th data-i="diff_ai">Normal AI SVG</th><th>LaserMCP</th></tr></thead>
+        <tbody>
+          <tr><td data-i="d1a">Görsel çizer</td><td data-i="d1b">Parça üretir</td></tr>
+          <tr><td data-i="d2a">Ölçü yok</td><td data-i="d2b">Parametrik mm</td></tr>
+          <tr><td data-i="d3a">Montaj yok</td><td data-i="d3b">Montaj grafiği + doğrulama</td></tr>
+          <tr><td data-i="d4a">Kerf yok</td><td data-i="d4b">Malzeme / kerf profili</td></tr>
+          <tr><td data-i="d5a">Tek dosya</td><td data-i="d5b">SVG + DXF + MCP BOM</td></tr>
+        </tbody>
+      </table>
+      <p class="lede" style="margin-top:22px" data-i="diff_note">Ekranda kalan çizim için değil; kesilip birleştirilecek iş için.</p>
+    </section>
+
+    <section class="block">
+      <p class="kicker" data-i="photo_kicker">Referans</p>
+      <h2 data-i="photo_h2">Fotoğraf iki işe yarar.</h2>
+      <div class="two">
+        <article class="card">
+          <h3 data-i="photo_a_h">Maket / kutu / pervane</h3>
+          <p data-i="photo_a_p">Sunucu fotoğrafı 3D’ye çevirmez. Asistan fotoğrafa bakar, what_you_see yazar, plan_laser_job + create_design ile üretilebilir parçaları besteler.</p>
+        </article>
+        <article class="card">
+          <h3 data-i="photo_b_h">2D sanat</h3>
+          <p data-i="photo_b_p">create_from_reference yalnızca iz çıkarır veya yapboza kazar. Duvar, çatı, mil için kullanılmaz.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="block" id="material">
+      <p class="kicker" data-i="mat_kicker">Profiller</p>
+      <h2 data-i="mat_h2">Kayıtlı malzeme ve makine.</h2>
+      <p class="lede" data-i="mat_lede">Kerf uydurulmaz. Profil seçilir; kupon çubuğu insandan ölçülür.</p>
+      <div class="two" style="margin-top:24px">
+        <div>
+          <div class="toggle" id="mat-toggle"></div>
+          <div class="card kv" id="mat-card"></div>
+        </div>
+        <div class="card kv">
+          <div><span data-i="mach_1">Payas atölye</span><b>1500 × 3000</b></div>
+          <div><span data-i="mach_2">LaserCAD 900</span><b>900 × 600</b></div>
+          <div><span data-i="mach_3">Masaüstü</span><b>400 × 400</b></div>
+          <div><span data-i="mach_4">Nesting</span><b data-i="mach_4b">yalnız öteleme</b></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="block" id="gate">
+      <p class="kicker" data-i="gate_kicker">Speak kartı</p>
+      <h2 data-i="gate_h2">Yazılım fiziksel PASS uydurmaz.</h2>
+      <div class="review">
+        <div class="row"><span data-i="g1">Dijital geometri</span><span class="pass">PASS</span></div>
+        <div class="row"><span data-i="g2">Bağlantılar</span><span class="pass">PASS</span></div>
+        <div class="row"><span data-i="g3">Fiziksel kerf testi</span><span class="nv" data-i="nv">DOĞRULANMADI</span></div>
+        <div class="row"><span data-i="g4">Fiziksel montaj</span><span class="nv" data-i="nv">DOĞRULANMADI</span></div>
+        <div class="row"><span data-i="g5">Hareket testi</span><span class="nv" data-i="nv">DOĞRULANMADI</span></div>
+        <div class="status-box" data-i="gate_status">SON DURUM: PROTOTİP HAZIR</div>
+      </div>
+      <p class="lede" style="margin-top:16px" data-i="gate_p">İnsan 100 mm çubuğu ölçer (measured_bar_mm). Montaj ve hareket bayrakları yalnız gerçek denemeden sonra. PRODUCTION EXPORT yazılımla açılmaz.</p>
+    </section>
+
+    <section class="block">
+      <p class="kicker" data-i="cap_kicker">Ne üretir</p>
+      <h2 data-i="cap_h2">Takım çantası. Katalog değil.</h2>
+      <p class="lede" data-i="cap_lede">Yeni maket için yeni MCP aracı istenmez. Asistan primitive besteler. İsimli araçlar yalnız mevcut Payas ürünleridir.</p>
+      <div class="cap-row">
+        <article class="card"><h3 data-i="c1h">Bestelenmiş kesim</h3><p data-i="c1p">create_design: kutu, panel, pervane, kontur, işaret.</p></article>
+        <article class="card"><h3 data-i="c2h">Payas kitleri</h3><p data-i="c2p">Trafik lambası, robot kumbara, ressam robot, ürün kutusu, yat, astronot.</p></article>
+        <article class="card"><h3 data-i="c3h">MCP çıktısı</h3><p data-i="c3p">SVG, DXF, BOM’u sunucu yazar, önizleme, proje sürümü, studio.</p></article>
+      </div>
+    </section>
+
+    <section class="block" id="mcp">
+      <p class="kicker">MCP</p>
+      <h2 data-i="mcp_h2">Asistanının çalıştığı yerde çalışır.</h2>
+      <div class="mcp-row">
+        <div class="card">ChatGPT</div>
+        <div class="card">Claude</div>
+        <div class="card">Cursor</div>
+      </div>
+    </section>
+
+    <section class="block" id="connect">
+      <p class="kicker" data-i="dev_kicker">Bağlantı</p>
+      <h2 data-i="dev_h2">Tek MCP. Lazer iş hattı.</h2>
+      <p class="lede" data-i="dev_lede">Asistan → LaserMCP → Boxes.py → reviewer / kapı → malzeme profili → SVG / DXF → lazer yazılımı.</p>
+      <pre class="card" style="margin-top:20px;font:13px/1.5 var(--mono);overflow:auto">https://mcp.metehanavci.com/mcp</pre>
+    </section>
+
+    <section class="block">
+      <p class="kicker" data-i="who_kicker">Kim için</p>
+      <h2 data-i="who_h2">Üç kullanım</h2>
+      <div class="use-row">
+        <article class="card"><h3 data-i="u1h">Atölye</h3><p data-i="u1p">Her parçayı elle çizmeden prototip SVG.</p></article>
+        <article class="card"><h3 data-i="u2h">STEM</h3><p data-i="u2p">Payas kitleri ve sınıfta bestelenmiş kesimler.</p></article>
+        <article class="card"><h3 data-i="u3h">Geliştirici</h3><p data-i="u3p">MCP ile asistanına lazer CAD bağla.</p></article>
+      </div>
+    </section>
+
+    <section class="block" id="beta">
+      <p class="kicker">Beta</p>
+      <h2 data-i="beta_h2">LaserMCP beta</h2>
+      <p class="lede" data-i="beta_lede">Beta süresince açık. Fiyat landing’de yok. Kota LASERMCP_BETA kapanınca Free / Maker / Pro olarak uygulanır.</p>
+      <div class="beta">
+        <div>
+          <div class="row"><span>MCP</span><span class="pass" data-i="inc">var</span></div>
+          <div class="row"><span>SVG</span><span class="pass" data-i="inc">var</span></div>
+          <div class="row"><span data-i="beta_val">Doğrulama</span><span class="pass" data-i="inc">var</span></div>
+        </div>
+        <form id="beta-form">
+          <label><span data-i="email">E-posta</span><br><input name="email" type="email" required placeholder="atolye@ornek.com"></label>
+          <label style="display:block;margin:12px 0"><span data-i="use">Ne keseceksin?</span><br><input name="use" placeholder="STEM, kutu, tabela…"></label>
+          <button class="btn cut" type="submit" data-i="beta_cta">Beta listesine yazıl</button>
+          <p id="beta-note" style="margin-top:10px;font:12px var(--mono);color:var(--mute)"></p>
+        </form>
+      </div>
+    </section>
+
+    <section class="final">
+      <h2 data-i="final_h2">Bir şey kes.</h2>
+      <p class="lede" data-i="final_p">Asistanını LaserMCP’ye bağla. Çıktı prototip SVG’dir.</p>
+      <a class="btn cut" href="#connect" data-i="final_cta">MCP’yi bağla</a>
+      <p style="margin-top:16px;font:12px var(--mono);color:var(--mute)">MCP · Boxes.py · SVG / DXF</p>
+    </section>
+
+    <footer>
+      <div>LaserMCP · Payas STEM</div>
+      <div data-i="foot_colors">KESİM #FF0000 · KAZIMA #000000</div>
+    </footer>
+  </div>
+  <script>
+    const I = {
+      tr: {
+        nav_wow: "Çevir", nav_mcp: "MCP", nav_how: "Nasıl", nav_gate: "Kapı", nav_beta: "Beta", nav_workshop: "Atölye", nav_connect: "MCP bağla",
+        cta_wow: "Görseli SVG’ye çevir",
+        wow_kicker: "Anında", wow_h2: "Hazır görseli kesim SVG’sine çevir.",
+        wow_lede: "Yükleme yok. İçeride tuttuğumuz üç Payas işinden birini seç. Boxes.py çıktısı anında gelir.",
+        wow_src: "HAZIR GÖRSEL", wow_cut: "KESİM SVG", wow_go: "SVG’ye çevir",
+        wow_wait: "Çevriliyor…", wow_done: "PROTOTİP SVG",
+        cut_lab: "KESİM", etch_lab: "KAZIMA",
+        foot_colors: "KESİM #FF0000 · KAZIMA #000000",
+        wow_t1: "Trafik lambası", wow_b1: "Payas STEM kule + kaide. LED delikleri, 3 mm kavak.",
+        wow_t2: "Parmak eklemli kutu", wow_b2: "ABox duvar, taban, kapak. FingerJoint.",
+        wow_t3: "Robot kumbara", wow_b3: "PayasRobot: yüz, kollar, para kapağı.",
+        hero_kicker: "MCP sunucusu · lazer CAD",
+        hero_h1: "Asistanını lazer kesime bağla.",
+        hero_lede: "LaserMCP bir MCP sunucusudur. ChatGPT, Claude veya Cursor bağlanır; sen tarif edersin; sunucu Boxes.py ile parametrik parçaları üretir, montajı denetler ve prototip SVG verir.",
+        cta_connect: "MCP adresini kopyala", cta_workshop: "Yerel atölye",
+        cta_wow: "Görseli SVG’ye çevir",
+        cut_note: "#FF0000", etch_note: "#000000",
+        flow_kicker: "Gerçek bağlanma", tools_kicker: "MCP araçları",
+        flow_note: "Köke değil, /mcp yoluna bağlan.",
+        how_kicker: "İş hattı", how_h2: "Nasıl çalışır",
+        how_1_h: "Asistanına anlat", how_1_p: "Fotoğrafa bak, parçaları söyle, plan_laser_job çağır. Ölçüyü sen veya fotoğraf verir; kerfi uydurma.",
+        how_2_h: "create_design besteler", how_2_p: "Kutu, panel, disk, üçgen, pervane, kontur, kupon. Boxes.py FingerJoint keser. SVG elle yazılmaz.",
+        how_3_h: "Kapı kartını oku", how_3_p: "Reviewer ve final gate create_design içinde çalışır. Yetkili çıktı prototip SVG’dir. Yazılım PRODUCTION READY uydurmaz.",
+        diff_kicker: "Fark", diff_h2: "Başka bir SVG üreticisi değil.", diff_ai: "Normal AI SVG",
+        d1a: "Görsel çizer", d1b: "Parça üretir", d2a: "Ölçü yok", d2b: "Parametrik mm",
+        d3a: "Montaj yok", d3b: "Montaj grafiği + doğrulama", d4a: "Kerf yok", d4b: "Malzeme / kerf profili",
+        d5a: "Tek dosya", d5b: "SVG + DXF + MCP BOM",
+        diff_note: "Ekranda kalan çizim için değil; kesilip birleştirilecek iş için.",
+        photo_kicker: "Referans", photo_h2: "Fotoğraf iki işe yarar.",
+        photo_a_h: "Maket / kutu / pervane",
+        photo_a_p: "Sunucu fotoğrafı 3D’ye çevirmez. Asistan fotoğrafa bakar, what_you_see yazar, plan_laser_job + create_design ile üretilebilir parçaları besteler.",
+        photo_b_h: "2D sanat",
+        photo_b_p: "create_from_reference yalnızca iz çıkarır veya yapboza kazar. Duvar, çatı, mil için kullanılmaz.",
+        mat_kicker: "Profiller", mat_h2: "Kayıtlı malzeme ve makine.",
+        mat_lede: "Kerf uydurulmaz. Profil seçilir; kupon çubuğu insandan ölçülür.",
+        mach_1: "Payas atölye", mach_2: "LaserCAD 900", mach_3: "Masaüstü", mach_4: "Nesting", mach_4b: "yalnız öteleme",
+        gate_kicker: "Speak kartı", gate_h2: "Yazılım fiziksel PASS uydurmaz.",
+        g1: "Dijital geometri", g2: "Bağlantılar",
+        g3: "Fiziksel kerf testi", g4: "Fiziksel montaj", g5: "Hareket testi",
+        nv: "DOĞRULANMADI", gate_status: "SON DURUM: PROTOTİP HAZIR",
+        email_ph: "atolye@ornek.com", use_ph: "STEM, kutu, tabela…",
+        gate_p: "İnsan 100 mm çubuğu ölçer (measured_bar_mm). Montaj ve hareket bayrakları yalnız gerçek denemeden sonra. PRODUCTION EXPORT yazılımla açılmaz.",
+        cap_kicker: "Ne üretir", cap_h2: "Takım çantası. Katalog değil.",
+        cap_lede: "Yeni maket için yeni MCP aracı istenmez. Asistan primitive besteler. İsimli araçlar yalnız mevcut Payas ürünleridir.",
+        c1h: "Bestelenmiş kesim", c1p: "create_design: kutu, panel, pervane, kontur, işaret.",
+        c2h: "Payas kitleri", c2p: "Trafik lambası, robot kumbara, ressam robot, ürün kutusu, yat, astronot.",
+        c3h: "MCP çıktısı", c3p: "SVG, DXF, BOM’u sunucu yazar, önizleme, proje sürümü, studio.",
+        mcp_h2: "Asistanının çalıştığı yerde çalışır.",
+        dev_kicker: "Bağlantı", dev_h2: "Tek MCP. Lazer iş hattı.",
+        dev_lede: "Asistan → LaserMCP → Boxes.py → reviewer / kapı → malzeme profili → SVG / DXF → lazer yazılımı.",
+        who_kicker: "Kim için", who_h2: "Üç kullanım",
+        u1h: "Atölye", u1p: "Her parçayı elle çizmeden prototip SVG.",
+        u2h: "STEM", u2p: "Payas kitleri ve sınıfta bestelenmiş kesimler.",
+        u3h: "Geliştirici", u3p: "MCP ile asistanına lazer CAD bağla.",
+        beta_h2: "LaserMCP beta",
+        beta_lede: "Beta süresince açık. Fiyat landing’de yok. Kota LASERMCP_BETA kapanınca Free / Maker / Pro olarak uygulanır.",
+        inc: "var", beta_val: "Doğrulama", email: "E-posta", use: "Ne keseceksin?", beta_cta: "Beta listesine yazıl",
+        final_h2: "Bir şey kes.", final_p: "Asistanını LaserMCP’ye bağla. Çıktı prototip SVG’dir.", final_cta: "MCP’yi bağla"
+      },
+      en: {
+        nav_wow: "Convert", nav_mcp: "MCP", nav_how: "How", nav_gate: "Gate", nav_beta: "Beta", nav_workshop: "Workshop", nav_connect: "Connect MCP",
+        cta_wow: "Convert a kit to SVG",
+        wow_kicker: "Instant", wow_h2: "Turn a stored image into cut SVG.",
+        wow_lede: "No upload. Pick one of three Payas kits we keep on the server. Boxes.py output appears immediately.",
+        wow_src: "STORED IMAGE", wow_cut: "CUT SVG", wow_go: "Convert to SVG",
+        wow_wait: "Converting…", wow_done: "PROTOTYPE SVG",
+        cut_lab: "CUT", etch_lab: "ENGRAVE",
+        foot_colors: "CUT #FF0000 · ENGRAVE #000000",
+        wow_t1: "Traffic light", wow_b1: "Payas STEM tower + base. LED holes, 3 mm poplar.",
+        wow_t2: "Finger-joint box", wow_b2: "ABox walls, floor, lid. FingerJoint.",
+        wow_t3: "Robot bank", wow_b3: "PayasRobot: face, arms, coin lid.",
+        hero_kicker: "MCP server · laser CAD",
+        hero_h1: "Connect your assistant to laser cutting.",
+        hero_lede: "LaserMCP is an MCP server. ChatGPT, Claude or Cursor connects; you describe the job; the server builds parametric parts with Boxes.py, reviews the assembly, and returns a prototype SVG.",
+        cta_connect: "Copy the MCP URL", cta_workshop: "Local workshop",
+        cut_note: "#FF0000", etch_note: "#000000",
+        flow_kicker: "Actual endpoint", tools_kicker: "MCP tools",
+        flow_note: "Connect to /mcp, not the site root.",
+        how_kicker: "Pipeline", how_h2: "How it works",
+        how_1_h: "Tell the assistant", how_1_p: "Look at the photo, name the parts, call plan_laser_job. You supply the length. Do not invent kerf.",
+        how_2_h: "create_design composes", how_2_p: "Box, panel, disc, triangle, propeller, contour, coupon. Boxes.py cuts FingerJoints. Nobody hand-writes SVG.",
+        how_3_h: "Read the gate card", how_3_p: "Reviewer and final gate run inside create_design. Authorized output is Prototype SVG. Software does not invent PRODUCTION READY.",
+        diff_kicker: "Difference", diff_h2: "Not another SVG generator.", diff_ai: "Typical AI SVG",
+        d1a: "Draws a picture", d1b: "Produces parts", d2a: "No dimensions", d2b: "Parametric mm",
+        d3a: "No assembly", d3b: "Assembly graph + review", d4a: "No kerf", d4b: "Material / kerf profiles",
+        d5a: "One file", d5b: "SVG + DXF + MCP-authored BOM",
+        diff_note: "Built for work that leaves the screen and gets cut.",
+        photo_kicker: "Reference", photo_h2: "A photo does two jobs.",
+        photo_a_h: "Models / boxes / rotors",
+        photo_a_p: "The server does not reconstruct 3D from a photo. The assistant looks, writes what_you_see, then plan_laser_job + create_design compose manufacturable parts.",
+        photo_b_h: "2D artwork",
+        photo_b_p: "create_from_reference only traces or etches a jigsaw. Not for walls, roofs, or shafts.",
+        mat_kicker: "Profiles", mat_h2: "Named materials and machines.",
+        mat_lede: "Kerf is not invented. Pick a profile. A human measures the coupon bar.",
+        mach_1: "Payas workshop", mach_2: "LaserCAD 900", mach_3: "Desktop", mach_4: "Nesting", mach_4b: "translate only",
+        gate_kicker: "Speak card", gate_h2: "Software does not invent a physical PASS.",
+        g1: "Digital Geometry", g2: "Connections",
+        g3: "Physical Kerf Test", g4: "Physical Assembly", g5: "Movement Test",
+        nv: "NOT VERIFIED", gate_status: "FINAL STATUS: PROTOTYPE READY",
+        email_ph: "you@workshop.com", use_ph: "STEM, box, sign…",
+        gate_p: "A human measures the 100 mm bar (measured_bar_mm). Assembly and movement flags only after a real dry-fit. PRODUCTION EXPORT is not granted by software.",
+        cap_kicker: "What it makes", cap_h2: "A toolbox. Not a catalog.",
+        cap_lede: "Do not ask for a new MCP tool per model. The assistant composes primitives. Named create_* tools exist only for current Payas products.",
+        c1h: "Composed jobs", c1p: "create_design: box, panel, propeller, contour, markings.",
+        c2h: "Payas kits", c2p: "Traffic light, robot bank, drawing robot, product box, yacht, astronaut.",
+        c3h: "MCP output", c3p: "SVG, DXF, MCP-authored BOM, preview, project versions, studio.",
+        mcp_h2: "Works where your assistant works.",
+        dev_kicker: "Connect", dev_h2: "One MCP. A laser workflow.",
+        dev_lede: "Assistant → LaserMCP → Boxes.py → reviewer / gate → material profile → SVG / DXF → laser software.",
+        who_kicker: "Who", who_h2: "Three uses",
+        u1h: "Workshop", u1p: "Prototype SVG without drawing every part by hand.",
+        u2h: "STEM", u2p: "Payas kits and classroom compositions.",
+        u3h: "Developers", u3p: "Attach laser CAD to an assistant over MCP.",
+        beta_h2: "LaserMCP beta",
+        beta_lede: "Open during beta. No prices on this page. Quotas apply as Free / Maker / Pro when LASERMCP_BETA is off.",
+        inc: "yes", beta_val: "Validation", email: "Email", use: "What will you cut?", beta_cta: "Join the beta list",
+        final_h2: "Cut something.", final_p: "Connect your assistant to LaserMCP. The output is a prototype SVG.", final_cta: "Connect MCP"
+      }
+    };
+
+    const mats = {
+      poplar_3mm: { id: "poplar_3mm", tr: "3 mm kavak", en: "3 mm poplar", t: "3.00 mm", k: "0.15 mm" },
+      poplar_4mm: { id: "poplar_4mm", tr: "4 mm kavak", en: "4 mm poplar", t: "4.00 mm", k: "0.18 mm" },
+      mdf_3mm: { id: "mdf_3mm", tr: "3 mm MDF", en: "3 mm MDF", t: "3.00 mm", k: "0.20 mm" },
+      acrylic_3mm: { id: "acrylic_3mm", tr: "3 mm akrilik", en: "3 mm acrylic", t: "3.00 mm", k: "0.12 mm" }
+    };
+
+    let lang = localStorage.getItem("lmcp_lang") || "tr";
+    let matId = "poplar_3mm";
+
+    function applyLang() {
+      document.documentElement.lang = lang;
+      document.title = lang === "tr" ? "LaserMCP — Asistanını lazer kesime bağla" : "LaserMCP — Connect your assistant to laser cutting";
+      document.querySelectorAll("[data-i]").forEach((el) => {
+        const key = el.getAttribute("data-i");
+        if (I[lang][key]) el.textContent = I[lang][key];
+      });
+      document.getElementById("lang-tr").classList.toggle("on", lang === "tr");
+      document.getElementById("lang-en").classList.toggle("on", lang === "en");
+      const email = document.querySelector("#beta-form input[name=email]");
+      const use = document.querySelector("#beta-form input[name=use]");
+      if (email) email.placeholder = I[lang].email_ph;
+      if (use) use.placeholder = I[lang].use_ph;
+      renderMats();
+      renderWow();
+    }
+
+    function renderMats() {
+      const box = document.getElementById("mat-toggle");
+      box.innerHTML = "";
+      Object.values(mats).forEach((m) => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.textContent = m[lang];
+        if (m.id === matId) b.className = "on";
+        b.onclick = () => { matId = m.id; renderMats(); };
+        box.appendChild(b);
+      });
+      const m = mats[matId];
+      const labels = lang === "tr"
+        ? ["Malzeme", "Kalınlık", "Kerf (varsayılan)"]
+        : ["Material", "Thickness", "Kerf (default)"];
+      document.getElementById("mat-card").innerHTML =
+        "<div><span>" + labels[0] + "</span><b>" + m[lang] + "</b></div>" +
+        "<div><span>" + labels[1] + "</span><b>" + m.t + "</b></div>" +
+        "<div><span>" + labels[2] + "</span><b>" + m.k + "</b></div>";
+    }
+
+    document.getElementById("lang-tr").onclick = () => { lang = "tr"; localStorage.setItem("lmcp_lang", lang); applyLang(); };
+    document.getElementById("lang-en").onclick = () => { lang = "en"; localStorage.setItem("lmcp_lang", lang); applyLang(); };
+
+    document.getElementById("beta-form").addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      const fd = new FormData(ev.target);
+      const note = document.getElementById("beta-note");
+      note.textContent = lang === "tr" ? "Gönderiliyor…" : "Sending…";
+      try {
+        const res = await fetch("/api/beta", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ email: fd.get("email"), use: fd.get("use") })
+        });
+        const data = await res.json();
+        note.textContent = data.joined
+          ? (lang === "tr" ? "Listeye yazıldı." : "You're on the list.")
+          : ((data.look_again || []).join(" ") || (lang === "tr" ? "Tekrar dene." : "Try again."));
+      } catch (_) {
+        note.textContent = lang === "tr" ? "Sunucuya ulaşılamadı." : "Could not reach the server.";
+      }
+    });
+
+    const WOW = [
+      { src: "/demo/traffic_light.src.svg", cut: "/demo/traffic_light.cut.svg", t: "wow_t1", b: "wow_b1" },
+      { src: "/demo/product_box.src.svg", cut: "/demo/product_box.cut.svg", t: "wow_t2", b: "wow_b2" },
+      { src: "/demo/robot_bank.src.svg", cut: "/demo/robot_bank.cut.svg", t: "wow_t3", b: "wow_b3" }
+    ];
+    let wowI = 0;
+
+    function renderWow() {
+      const box = document.getElementById("wow-picks");
+      if (!box) return;
+      box.innerHTML = "";
+      WOW.forEach((k, i) => {
+        const el = document.createElement("button");
+        el.type = "button";
+        el.className = "pick" + (i === wowI ? " on" : "");
+        el.innerHTML = "<img alt=\"\" src=\"" + k.src + "\"><div class=\"meta\"><strong>" + I[lang][k.t] + "</strong><small>" + I[lang][k.b] + "</small></div>";
+        el.onclick = () => {
+          wowI = i;
+          document.getElementById("wow-svg").removeAttribute("data");
+          document.getElementById("wow-status").textContent = "";
+          renderWow();
+        };
+        box.appendChild(el);
+      });
+      document.getElementById("wow-src").src = WOW[wowI].src;
+      document.getElementById("wow-src").alt = I[lang][WOW[wowI].t];
+    }
+
+    document.getElementById("wow-go").addEventListener("click", () => {
+      const pane = document.getElementById("wow-pane");
+      const status = document.getElementById("wow-status");
+      const obj = document.getElementById("wow-svg");
+      status.textContent = I[lang].wow_wait;
+      obj.removeAttribute("data");
+      pane.classList.remove("running");
+      void pane.offsetWidth;
+      pane.classList.add("running");
+      window.setTimeout(() => {
+        obj.data = WOW[wowI].cut;
+        status.textContent = I[lang].wow_done;
+        pane.classList.remove("running");
+      }, 680);
+    });
+
+    document.getElementById("copy-mcp").addEventListener("click", async (ev) => {
+      ev.preventDefault();
+      const url = "https://mcp.metehanavci.com/mcp";
+      try { await navigator.clipboard.writeText(url); } catch (_) {}
+      const el = ev.currentTarget;
+      el.textContent = lang === "tr" ? "Kopyalandı: /mcp" : "Copied: /mcp";
+      setTimeout(applyLang, 1600);
+      document.getElementById("connect").scrollIntoView({ behavior: "smooth" });
+    });
+
+    applyLang();
+  </script>
+</body>
+</html>

@@ -60,7 +60,9 @@ ASSEMBLY_TYPES = frozenset(
 GRAMMAR = {
     "edges": (
         "rectangularWall edges are bottom,right,top,left. "
-        "e=straight, f=male fingers, F=female finger holes."
+        "e=straight, f=male fingers, F=female finger holes, "
+        "h=hole, s/S=stackable, l/L=slide-on lid, X=living hinge. "
+        "Hinge/flex/lid need those letters on panel.edges — do not ask for a new tool."
     ),
     "box": {
         "type": "box",
@@ -236,7 +238,8 @@ HINT = (
     "Do not use disc for a propeller. Do not ask for a new kit tool."
 )
 
-_EDGE_OK = set("eEfFhH")
+# e/E straight, f/F fingers, h hole, s/S stackable, l/L slide lid, X living hinge.
+_EDGE_OK = set("eEfFhHsSlLxX")
 _MAX_PARTS = 48
 
 # Incoming AIs send these as parts. They are features on a wall, not a part type.
@@ -403,7 +406,7 @@ def _edges4(raw: Any, default: str = "eeee") -> str:
         raise ValueError(f"panel edges must be 4 letters (bottom,right,top,left), got {text!r}")
     bad = [c for c in text if c not in _EDGE_OK]
     if bad:
-        raise ValueError(f"unknown edge {bad}. Use e, f, F (h allowed).")
+        raise ValueError(f"unknown edge {bad}. Use e,f,F,h,s,S,l,L,X.")
     return text
 
 
@@ -413,7 +416,7 @@ def _edges3(raw: Any, default: str = "eee") -> str:
         raise ValueError(f"triangle edges must be 2 or 3 letters, got {text!r}")
     bad = [c for c in text if c not in _EDGE_OK]
     if bad:
-        raise ValueError(f"unknown edge {bad}. Use e, f, F (h allowed).")
+        raise ValueError(f"unknown edge {bad}. Use e,f,F,h,s,S,l,L,X.")
     return text
 
 
@@ -485,7 +488,14 @@ class PayasToolbox(Boxes):
     def __init__(self) -> None:
         Boxes.__init__(self)
         self.addSettingsArgs(edges.FingerJointSettings)
+        self.addSettingsArgs(edges.StackableSettings)
+        self.addSettingsArgs(edges.SlideOnLidSettings)
+        self.addSettingsArgs(edges.FlexSettings)
         self.parts_spec: list[dict[str, Any]] = []
+        self.drawn_labels: list[str] = []
+
+    def _note_part(self, label: str) -> None:
+        self.drawn_labels.append(str(label or "part"))
 
     def render(self) -> None:
         drawn = 0
@@ -629,6 +639,7 @@ class PayasToolbox(Boxes):
             for i in range(count):
                 name = label if count == 1 else f"{label}-{i + 1}"
                 self.rectangularWall(w, h, edge, callback=cb, move="up", label=name)
+                self._note_part(name)
             return count
         if kind in {"disc", "disk", "circle", "washer", "spacer"}:
             d = _num(part.get("d") or part.get("diameter") or part.get("w"), 40)
@@ -640,6 +651,7 @@ class PayasToolbox(Boxes):
             for i in range(count):
                 name = label if count == 1 else f"{label}-{i + 1}"
                 self.parts.disc(d, hole=hole, callback=cb, move="up", label=name)
+                self._note_part(name)
             return count
         if kind in {"triangle", "gable"}:
             w = _num(part.get("w") or part.get("x") or part.get("width"), 80)
@@ -649,6 +661,7 @@ class PayasToolbox(Boxes):
             for i in range(count):
                 name = label if count == 1 else f"{label}-{i + 1}"
                 self.rectangularTriangle(w, h, edge, callback=cb, move="up", label=name)
+                self._note_part(name)
             return count
         if kind in {"propeller", "pervane", "blades", "fan", "cross", "plus"}:
             d = _num(part.get("d") or part.get("diameter") or part.get("w"), 80)
@@ -660,6 +673,7 @@ class PayasToolbox(Boxes):
             for i in range(count):
                 name = label if count == 1 else f"{label}-{i + 1}"
                 self._closed_contour(pts, hole, name, feats=feats)
+                self._note_part(name)
             return count
         if kind in {"polygon", "contour", "outline", "polyline"}:
             raw_pts = part.get("points") or part.get("vertices") or part.get("coords") or part.get("contour")
@@ -670,6 +684,7 @@ class PayasToolbox(Boxes):
                 for i in range(count):
                     name = label if count == 1 else f"{label}-{i + 1}"
                     self._closed_contour(pts, hole, name, feats=feats)
+                    self._note_part(name)
                 return count
             borders = part.get("borders") or part.get("sides")
             if not isinstance(borders, list) or len(borders) < 4:
@@ -684,6 +699,7 @@ class PayasToolbox(Boxes):
             for i in range(count):
                 name = label if count == 1 else f"{label}-{i + 1}"
                 self.polygonWall(list(borders), edge=edge, callback=cb, move="up", label=name)
+                self._note_part(name)
             return count
         raise ValueError(
             f"Unknown primitive type {kind!r}. Assembly types: "
@@ -718,22 +734,27 @@ class PayasToolbox(Boxes):
             x, h, f"{b}F{wall_top}F", ignore_widths=ignore,
             callback=self._wall_cb(wall("front")), move="up", label="front",
         )
+        self._note_part("front")
         self.rectangularWall(
             x, h, f"{b}F{wall_top}F", ignore_widths=ignore,
             callback=self._wall_cb(wall("back")), move="up", label="back",
         )
+        self._note_part("back")
         if bottom_on:
             self.rectangularWall(
                 x, y, "ffff", callback=self._wall_cb(wall("bottom")), move="up", label="bottom",
             )
+            self._note_part("bottom")
         self.rectangularWall(
             y, h, f"{b}f{side_top}f", ignore_widths=ignore,
             callback=self._wall_cb(wall("left")), move="up", label="left",
         )
+        self._note_part("left")
         self.rectangularWall(
             y, h, f"{b}f{side_top}f", ignore_widths=ignore,
             callback=self._wall_cb(wall("right")), move="up", label="right",
         )
+        self._note_part("right")
         if lid_on:
             self.rectangularWall(
                 x, y, "ffff" if top in "fF" else "eeee",
@@ -741,6 +762,7 @@ class PayasToolbox(Boxes):
                 move="up",
                 label="lid",
             )
+            self._note_part("lid")
 
     def _coupon(self, part: dict[str, Any]) -> None:
         """Dry-fit FingerJoint pair + 100 mm bar (Boxes.py rectangularWall, not hand-drawn)."""
@@ -749,8 +771,11 @@ class PayasToolbox(Boxes):
         strip_h = max(12.0, float(self.thickness) * 4)
         label = str(part.get("label") or "coupon")
         self.rectangularWall(x, strip_h, "fefe", move="up", label=f"{label}-male")
+        self._note_part(f"{label}-male")
         self.rectangularWall(x, strip_h, "FeFe", move="up", label=f"{label}-female")
+        self._note_part(f"{label}-female")
         self.rectangularWall(100, 8, "eeee", move="up", label=f"{label}-100mm")
+        self._note_part(f"{label}-100mm")
 
 
 def compile_toolbox(primitives: list[Any], parameters: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -767,19 +792,25 @@ def render_toolbox(primitives: list[Any], parameters: dict[str, Any] | None = No
     parts = _prepare_parts(primitives)
     if not parts:
         raise ValueError("no assembly primitives (box, panel, disc, triangle, propeller, contour, coupon). " + HINT)
-    params = parameters or {}
+    from studio import prepare_parameters
+
+    params = prepare_parameters(parameters)
     from scale import scale_primitives
 
     parts, scale_info = scale_primitives(parts, params)
     from assembly import apply_roof_lock, check_assembly
 
     parts, roof_lock = apply_roof_lock(parts)
+    from physical import resolve_burn
+
+    moving = any(_kind(p) in {"propeller", "pervane", "blades", "fan"} for p in parts if isinstance(p, dict))
     thickness = float(params.get("thickness") or PAYAS_DEFAULTS["thickness"])
+    burn, physical = resolve_burn(params, moving=moving)
     box = PayasToolbox()
     box.parseArgs(
         [
             f"--thickness={thickness}",
-            f"--burn={PAYAS_DEFAULTS['burn']}",
+            f"--burn={burn}",
             "--format=svg",
             "--labels=0",
             "--reference=0",
@@ -795,10 +826,17 @@ def render_toolbox(primitives: list[Any], parameters: dict[str, Any] | None = No
     from nesting import nest_svg
     from topology import inspect_topology
 
-    assembly = check_assembly(parts, thickness=thickness, burn=PAYAS_DEFAULTS["burn"])
+    assembly = check_assembly(parts, thickness=thickness, burn=burn)
     if roof_lock:
         assembly["roof_lock"] = assembly.get("roof_lock") or roof_lock
-    svg_bytes, nesting = nest_svg(svg_bytes)
+    machine = params.get("_machine") or {}
+    svg_bytes, nesting = nest_svg(
+        svg_bytes,
+        bed_width=machine.get("bed_w"),
+        bed_height=machine.get("bed_h"),
+        gap=float(machine.get("gap_mm") or 3.0),
+        panel_names=list(box.drawn_labels),
+    )
     try:
         from text_path import prepare_lasercad_svg
 
@@ -836,6 +874,8 @@ def render_toolbox(primitives: list[Any], parameters: dict[str, Any] | None = No
         "topology": topology,
         "scale": scale_info,
         "primitives": parts,
+        "parameters": {**params, "burn": burn, "thickness": thickness},
+        "physical": physical,
         "note": (
             "This SVG is the parts you passed, compiled with Boxes.py. "
             "It is not a named windmill generator and not a catalog preset."

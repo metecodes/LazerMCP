@@ -144,6 +144,7 @@ def list_cad_tools() -> dict[str, Any]:
             "validate_svg",
             "validate_assembly",
             "render_preview",
+            "studio",
         ],
     }
 
@@ -212,10 +213,12 @@ def create_traffic_light(
         thickness, burn, led, base_width, base_depth, base_height,
         tower_width, tower_depth, tower_height, parameters,
     )
-    result = boxespy.generate_svg("STEMTrafficLight", params, public_base_url=public_base_url)
-    result["product"] = "traffic_light"
-    result["title"] = "Trafik lambası"
-    return result
+    return boxespy.generate_svg(
+        "STEMTrafficLight",
+        params,
+        public_base_url=public_base_url,
+        extra={"product": "traffic_light", "title": "Trafik lambası", "parameters": params},
+    )
 
 
 def create_product_box(
@@ -227,14 +230,16 @@ def create_product_box(
     outside: bool = True,
     public_base_url: str = "http://127.0.0.1:8000",
 ) -> dict[str, Any]:
-    result = boxespy.generate_svg(
+    return boxespy.generate_svg(
         "ABox",
         {"x": x, "y": y, "h": h, "thickness": thickness, "burn": burn, "outside": outside},
         public_base_url=public_base_url,
+        extra={
+            "product": "product_box",
+            "title": "Ürün kutusu",
+            "parameters": {"x": x, "y": y, "h": h, "thickness": thickness, "burn": burn, "outside": outside},
+        },
     )
-    result["product"] = "product_box"
-    result["title"] = "Ürün kutusu"
-    return result
 
 
 def _save_build(
@@ -272,7 +277,7 @@ def _dxf_from_built(built: dict[str, Any], fmt: str | None) -> bytes | None:
 
 
 def create_robot_bank(public_base_url: str = "http://127.0.0.1:8000") -> dict[str, Any]:
-    result = boxespy.generate_svg(
+    return boxespy.generate_svg(
         "PayasRobot",
         {
             "x": 120,
@@ -283,11 +288,13 @@ def create_robot_bank(public_base_url: str = "http://127.0.0.1:8000") -> dict[st
             "labels": False,
         },
         public_base_url=public_base_url,
+        extra={
+            "product": "robot_bank",
+            "title": "Robot kumbara",
+            "generator": "PayasRobot",
+            "parameters": {"x": 120, "y": 100, "h": 180, "thickness": 3.0, "material": "poplar_3mm"},
+        },
     )
-    result["product"] = "robot_bank"
-    result["title"] = "Robot kumbara"
-    result["generator"] = "PayasRobot"
-    return result
 
 
 def create_drawing_robot(public_base_url: str = "http://127.0.0.1:8000") -> dict[str, Any]:
@@ -348,6 +355,11 @@ def create_from_reference(
     public_base_url: str = "http://127.0.0.1:8000",
 ) -> dict[str, Any]:
     from image_trace import produce_photo_job
+    from plans import gate_job
+
+    gate = gate_job("photo")
+    if not gate.get("ok"):
+        return _mcp({"ready_to_cut": False, "plan": gate.get("plan"), "look_again": gate.get("look_again") or []})
 
     try:
         built = produce_photo_job(
@@ -389,6 +401,13 @@ def create_from_reference(
             "thickness": boxespy.PAYAS_DEFAULTS["thickness"],
             "burn": boxespy.PAYAS_DEFAULTS["burn"],
         },
+        "parameters": {
+            "width_mm": width_mm,
+            "height_mm": height_mm,
+            "style": style,
+            "layout": layout,
+            "format": format,
+        },
     }
     return _save_build(
         built["svg_bytes"],
@@ -409,6 +428,11 @@ def create_design(
 ) -> dict[str, Any]:
     from design_engine import compile_design, import_svg_document
     from toolbox import GRAMMAR, HINT
+    from plans import gate_job
+
+    gate = gate_job("design")
+    if not gate.get("ok"):
+        return _mcp({"ready_to_cut": False, "plan": gate.get("plan"), "look_again": gate.get("look_again") or []})
 
     try:
         if svg:
@@ -468,13 +492,16 @@ def create_design(
         "authorized_output": built.get("authorized_output"),
         "production_export": built.get("production_export") or "BLOCKED",
         "production_summary": built.get("production_summary"),
+        "physical": built.get("physical"),
+        "assembly_sheet": built.get("assembly_sheet"),
+        "parameters": parameters or built.get("parameters"),
         "dimensions": {
             "width_mm": built.get("width_mm"),
             "height_mm": built.get("height_mm"),
             "card_w": built.get("card_w"),
             "card_h": built.get("card_h"),
-            "thickness": boxespy.PAYAS_DEFAULTS["thickness"],
-            "burn": boxespy.PAYAS_DEFAULTS["burn"],
+            "thickness": (built.get("parameters") or {}).get("thickness") or boxespy.PAYAS_DEFAULTS["thickness"],
+            "burn": (built.get("parameters") or {}).get("burn") or boxespy.PAYAS_DEFAULTS["burn"],
         },
     }
     fmt = str((parameters or {}).get("format") or "svg")
@@ -497,11 +524,15 @@ def create_design(
         extra["production_export"] = gated.get("production_export") or "BLOCKED"
         extra["production_summary"] = gated.get("production_summary")
         extra["look_again"] = gated.get("look_again") or extra.get("look_again")
-    extra["ready_to_cut"] = False
+        extra["physical"] = gated.get("physical")
+        extra["assembly_sheet"] = gated.get("assembly_sheet")
     extra["production_export"] = extra.get("production_export") or "BLOCKED"
+    extra["ready_to_cut"] = extra.get("final_status") == "PRODUCTION READY"
     extra.setdefault(
         "authorized_output",
-        "Prototype SVG" if extra.get("final_status") == "PROTOTYPE READY" else "None",
+        "Production SVG"
+        if extra.get("final_status") == "PRODUCTION READY"
+        else ("Prototype SVG" if extra.get("final_status") == "PROTOTYPE READY" else "None"),
     )
     return _mcp(_save_build(built["svg_bytes"], name, title, public_base_url, extra, dxf_bytes=_dxf_from_built(built, fmt)))
 
@@ -516,7 +547,10 @@ def validate_assembly(
     if primitives:
         from pipeline import run_pipeline
 
-        built = run_pipeline(primitives, {})
+        try:
+            built = run_pipeline(primitives, {})
+        except Exception as exc:
+            return _mcp({"source": "primitives", "ready_to_cut": False, "look_again": [str(exc)]})
         report = built.get("assembly") or check_assembly(apply_roof_lock(primitives)[0])
         return _mcp(
             {
@@ -531,7 +565,9 @@ def validate_assembly(
                 "scorecard": built.get("scorecard"),
                 "authorized_output": built.get("authorized_output"),
                 "production_export": built.get("production_export") or "BLOCKED",
-                "ready_to_cut": False,
+                "physical": built.get("physical"),
+                "assembly_sheet": built.get("assembly_sheet"),
+                "ready_to_cut": built.get("final_status") == "PRODUCTION READY",
                 "look_again": built.get("look_again") or report.get("look_again") or [],
             }
         )
@@ -542,7 +578,10 @@ def validate_assembly(
                 "look_again": ["Pass primitives or file_id from create_design."],
             }
         )
-    svg_report = boxespy.validate_svg(file_id)
+    try:
+        svg_report = boxespy.validate_svg(file_id)
+    except Exception as exc:
+        return _mcp({"ready_to_cut": False, "file_id": file_id, "look_again": [str(exc)]})
     sidecar = svg_report.get("review") or {}
     status = svg_report.get("final_status") or sidecar.get("final_status")
     return _mcp(

@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Laser mcp · Studio</title>
+  <style>
+    :root {
+      --bg: #f4f0ea; --panel: #fffdfb; --ink: #2b241c; --muted: #7a7168;
+      --line: #eadfd3; --laser: #ff5a1f; --mint: #14b8a6;
+      --shadow: 0 10px 30px rgba(80, 42, 18, 0.07);
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 "Segoe UI", system-ui, sans-serif; }
+    body {
+      background:
+        radial-gradient(900px 420px at 8% -10%, rgba(255, 90, 31, 0.16), transparent 60%),
+        linear-gradient(180deg, #fff8f1, var(--bg));
+    }
+    header {
+      display: flex; justify-content: space-between; align-items: center; gap: 16px;
+      padding: 18px 24px; margin: 14px 16px 0;
+      border: 1px solid rgba(255,255,255,0.7); border-radius: 24px;
+      background: rgba(255, 253, 251, 0.78); box-shadow: var(--shadow);
+    }
+    h1 { margin: 0; font-size: 22px; }
+    h1 span { color: var(--laser); }
+    a { color: var(--laser); }
+    main { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; padding: 14px 16px 24px; }
+    section { background: var(--panel); border-radius: 18px; box-shadow: var(--shadow); padding: 18px; }
+    h2 { margin: 0 0 12px; font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: #a39486; }
+    pre, .row { font-size: 13px; white-space: pre-wrap; margin: 0 0 8px; }
+    .row { border-bottom: 1px solid var(--line); padding: 8px 0; }
+    .muted { color: var(--muted); }
+    input, button { font: inherit; border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px; }
+    button { background: var(--laser); color: #fff; border: 0; cursor: pointer; font-weight: 700; }
+    .ok { color: var(--mint); font-weight: 700; }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Laser <span>studio</span></h1>
+      <p class="muted" style="margin:4px 0 0">Profiller, kerf, projeler, kullanım. Malzeme listesini MCP yazar.</p>
+    </div>
+    <div><a href="/">Landing</a> · <a href="/app">Atölye</a></div>
+  </header>
+  <main>
+    <section>
+      <h2>Malzeme / makine</h2>
+      <div id="profiles">yükleniyor…</div>
+    </section>
+    <section>
+      <h2>Kerf kalibrasyonu</h2>
+      <div id="cal">kayıt yok</div>
+    </section>
+    <section>
+      <h2>Projeler / geçmiş</h2>
+      <div id="projects">kayıt yok</div>
+    </section>
+    <section>
+      <h2>Kullanım</h2>
+      <div id="usage">—</div>
+    </section>
+    <section>
+      <h2>API anahtarları</h2>
+      <div id="keys"></div>
+      <p>
+        <input id="key-name" placeholder="anahtar adı">
+        <button id="make-key" type="button">Üret</button>
+      </p>
+      <pre id="new-key" class="ok"></pre>
+    </section>
+    <section>
+      <h2>Telemetry</h2>
+      <div id="tel">—</div>
+    </section>
+  </main>
+  <script>
+    const TOKEN_KEY = "mcp_auth_token";
+    function getToken() { return sessionStorage.getItem(TOKEN_KEY) || ""; }
+    function authHeaders() {
+      const headers = {};
+      const token = getToken() || new URLSearchParams(location.search).get("token");
+      if (token) {
+        sessionStorage.setItem(TOKEN_KEY, token);
+        headers.Authorization = "Bearer " + token;
+      }
+      return headers;
+    }
+    async function api(url, opts) {
+      const res = await fetch(url, Object.assign({}, opts || {}, { headers: Object.assign(authHeaders(), (opts || {}).headers || {}) }));
+      if (res.status === 401) {
+        const token = window.prompt("MCP token");
+        if (token) { sessionStorage.setItem(TOKEN_KEY, token); return api(url, opts); }
+      }
+      return res.json();
+    }
+    function rows(items, fn) {
+      if (!items || !items.length) return "<p class='muted'>boş</p>";
+      return items.map(fn).join("");
+    }
+    async function load() {
+      const data = await api("/api/studio");
+      const mats = ((data.profiles || {}).materials || []).map(m =>
+        "<div class='row'><strong>" + m.id + "</strong> · " + m.name + " · kerf " + m.kerf + "</div>"
+      ).join("");
+      const macs = ((data.profiles || {}).machines || []).map(m =>
+        "<div class='row'><strong>" + m.id + "</strong> · " + m.name + " · " + m.bed_w + "×" + m.bed_h + "</div>"
+      ).join("");
+      document.getElementById("profiles").innerHTML = mats + macs || "—";
+      document.getElementById("cal").innerHTML = rows(data.calibrations, r =>
+        "<div class='row'>" + (r.at || "") + " · " + r.machine + " / " + r.material + " · bar " + r.measured_bar_mm + " → burn " + r.burn + "</div>"
+      );
+      document.getElementById("projects").innerHTML = rows(data.projects, p =>
+        "<div class='row'><strong>" + (p.name || p.id) + "</strong> · v" + p.versions + " · " + (p.updated || "") +
+        (p.latest && p.latest.file_id ? " · " + p.latest.file_id : "") + "</div>"
+      );
+      const usage = data.usage || {};
+      const by = usage.by_key || {};
+      document.getElementById("usage").innerHTML =
+        "<div class='row'>olay: " + (usage.count || 0) + "</div>" +
+        Object.keys(by).map(k => "<div class='row'>" + k + " · " + by[k] + "</div>").join("");
+      document.getElementById("keys").innerHTML = rows(data.keys, k =>
+        "<div class='row'>" + (k.name || k.id) + " · " + (k.role || "") + " · " + (k.last_used || "hiç") + "</div>"
+      );
+      document.getElementById("tel").innerHTML = rows(data.telemetry, e =>
+        "<div class='row'>" + (e.at || "") + " · " + e.level + " · " + e.event + " · " + (e.detail || "") + "</div>"
+      );
+    }
+    document.getElementById("make-key").onclick = async () => {
+      const name = document.getElementById("key-name").value || "workshop";
+      const created = await api("/api/studio/keys", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name }) });
+      document.getElementById("new-key").textContent = created.token ? ("bir kez: " + created.token) : (created.look_again || []).join("\n");
+      load();
+    };
+    load();
+  </script>
+</body>
+</html>

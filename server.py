@@ -23,7 +23,7 @@ PUBLIC_BASE_URL = os.environ.get("MCP_PUBLIC_BASE_URL", "")
 AUTH_TOKEN = os.environ.get("MCP_AUTH_TOKEN", "").strip()
 IS_VERCEL = os.environ.get("VERCEL") == "1"
 WEB_DIR = Path(__file__).resolve().parent / "web"
-PUBLIC_PATHS = {"/", "/health"}
+PUBLIC_PATHS = {"/", "/health", "/dashboard", "/app", "/workshop", "/api/plans", "/api/beta", "/api/demo"}
 MCP_TOOLS = [
     "plan_laser_job",
     "create_from_reference",
@@ -35,6 +35,7 @@ MCP_TOOLS = [
     "validate_svg",
     "validate_assembly",
     "render_preview",
+    "studio",
     "create_traffic_light",
     "create_robot_bank",
     "create_drawing_robot",
@@ -67,15 +68,22 @@ mcp = MCPServer(
         "method=compose_primitives and generator=create_design "
         "means the designer step ran — not a missed mill kit and not a Boxes.py catalog class. "
         "Door/window are slots cut into the front wall, not separate sliding parts. "
-        "If the user stated a size, use it. Else pick ONE photo length and pass "
+        "If the user stated a size, use it. Else pick ONE photo length (or count 3 mm plywood edges) and pass "
         "parameters.reference={feature, mm, drawn_mm} so the whole recipe scales. "
+        "Copy what_you_see into parameters.what_you_see. "
+        "After a coupon cut, pass the human's measured_bar_mm — never invent it. "
+        "physical_assembly and movement_test are human-only; inventing them is a FAIL. "
         "A 4-blade rotor is type=propeller, not a disc. Odd silhouettes are type=contour with points in mm. "
         "First uncalibrated laser: add {type:coupon} once (FingerJoint dry-fit + 100 mm bar). Do not add it to every mill. "
+        "Pass parameters.material (poplar_3mm|poplar_4mm|mdf_3mm|acrylic_3mm) and parameters.machine "
+        "(payas_workshop|desktop_400|lasercad_900). Do not invent kerf. "
+        "MCP writes the kit material list (bom / MATERIALS (MCP)). Never invent hardware. "
+        "Optional parameters.project names the job for version history. "
         "create_from_reference only 2D-traces artwork or etches a photo onto a jigsaw. "
         "Do not skip the plan. Do not use number_match_puzzle unless the plan says so. "
         "If final_status is BLOCKED, read look_again, fix primitives, call create_design again. "
         "Do not invent a PASS. Working SVG is not a cuttable product until the gate says so. "
-        "Defaults: 3 mm poplar, kerf 0.15 mm, 1500×3000 mm bed, SVG, optional DXF, "
+        "Defaults: 3 mm poplar, kerf 0.15 mm, 1500×3000 mm bed, SVG + DXF, "
         "cut #FF0000, etch #000000, LaserCAD Y-up. "
         "Notches and closed cuts keep ~1 mm holding nicks so pieces do not fall; do not omit them."
     ),
@@ -99,6 +107,15 @@ def _tool_public_base() -> str:
             return vercel.rstrip("/")
         return f"https://{vercel}".rstrip("/")
     return f"http://{HOST}:{PORT}"
+
+
+def _auth_on() -> bool:
+    try:
+        from keys import auth_required
+
+        return auth_required()
+    except Exception:
+        return bool(AUTH_TOKEN)
 
 
 def _error(exc: Exception, status: int = 400) -> JSONResponse:
@@ -148,32 +165,42 @@ class McpOriginAlias:
 
 
 class BearerGate:
-    """Protect /mcp, /api, /files when MCP_AUTH_TOKEN is set. UI and /health stay public."""
+    """Protect /mcp, /api, /files when MCP_AUTH_TOKEN or hashed keys exist. UI and /health stay public."""
 
-    def __init__(self, app, token: str | None):
+    def __init__(self, app, token: str | None = None):
         self.app = app
         self.token = token or None
 
     async def __call__(self, scope, receive, send):
-        if scope["type"] != "http" or not self.token:
+        if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
         path = scope.get("path") or ""
         method = scope.get("method") or "GET"
-        if method == "OPTIONS" or path in PUBLIC_PATHS:
+        if method == "OPTIONS" or path in PUBLIC_PATHS or path.startswith("/demo/"):
             await self.app(scope, receive, send)
             return
-        if _token_ok(_extract_token(scope), self.token):
+        from keys import auth_required, current_auth, resolve_key
+
+        if not auth_required():
             await self.app(scope, receive, send)
             return
-        body = b'{"error":"unauthorized"}'
-        headers = [
-            (b"content-type", b"application/json"),
-            (b"content-length", str(len(body)).encode("ascii")),
-            (b"www-authenticate", b'Bearer realm="Laser mcp"'),
-        ]
-        await send({"type": "http.response.start", "status": 401, "headers": headers})
-        await send({"type": "http.response.body", "body": body})
+        key = resolve_key(_extract_token(scope))
+        if not key:
+            body = b'{"error":"unauthorized"}'
+            headers = [
+                (b"content-type", b"application/json"),
+                (b"content-length", str(len(body)).encode("ascii")),
+                (b"www-authenticate", b'Bearer realm="Laser mcp"'),
+            ]
+            await send({"type": "http.response.start", "status": 401, "headers": headers})
+            await send({"type": "http.response.body", "body": body})
+            return
+        token = current_auth.set(key)
+        try:
+            await self.app(scope, receive, send)
+        finally:
+            current_auth.reset(token)
 
 
 @mcp.tool(
@@ -208,6 +235,7 @@ def plan_laser_job(
         "Optional marks: part.markings or {type:marking, target_part} "
         "(kind=text|path|icon|line, x,y,width or height, rotation, align, operation=engrave|cut). "
         "Scale with parameters.scale or parameters.reference={feature, mm, drawn_mm}. "
+        "parameters.material / parameters.machine pick profiles. MCP writes bom. "
         "preset=jigsaw_puzzle or number_match_puzzle only when the plan says so. "
         "Paste speak as the gate card. BLOCKED = no authorized SVG. "
         "PROTOTYPE READY = Prototype SVG only; PRODUCTION EXPORT BLOCKED. "
@@ -291,17 +319,26 @@ def list_cad_tools() -> dict[str, Any]:
 
 @mcp.tool(description="Parameter schema for one Boxes.py class. Not used for puzzles or uploaded pictures.")
 def get_generator_schema(generator: str) -> dict[str, Any]:
-    return boxespy.get_generator_schema(generator)
+    try:
+        return payas_cad._mcp(boxespy.get_generator_schema(generator))
+    except Exception as exc:
+        return payas_cad._mcp({"look_again": [str(exc)]})
 
 
 @mcp.tool(description="Boxes.py class SVG only (ABox, TypeTray, …). Use only if plan_laser_job next_tool is generate_svg. Photos of things to build: plan_laser_job then create_design primitives.")
 def generate_svg(generator: str, parameters: dict[str, Any] | None = None) -> dict[str, Any]:
-    return payas_cad._mcp(boxespy.generate_svg(generator, parameters, public_base_url=_tool_public_base()))
+    try:
+        return payas_cad._mcp(boxespy.generate_svg(generator, parameters, public_base_url=_tool_public_base()))
+    except Exception as exc:
+        return payas_cad._mcp({"look_again": [str(exc)], "ready_to_cut": False})
 
 
 @mcp.tool(description="Validate a generated SVG: XML, 1500×3000 bed, nested part spacing. Loads assembly report if present.")
 def validate_svg(file_id: str) -> dict[str, Any]:
-    return payas_cad._mcp(boxespy.validate_svg(file_id))
+    try:
+        return payas_cad._mcp(boxespy.validate_svg(file_id))
+    except Exception as exc:
+        return payas_cad._mcp({"look_again": [str(exc)], "file_id": file_id, "well_formed": False})
 
 
 @mcp.tool(
@@ -320,7 +357,36 @@ def validate_assembly(
 
 @mcp.tool(description="Return a preview URL for a previously generated SVG.")
 def render_preview(file_id: str) -> dict[str, Any]:
-    return boxespy.render_preview(file_id, public_base_url=_tool_public_base())
+    try:
+        return payas_cad._mcp(boxespy.render_preview(file_id, public_base_url=_tool_public_base()))
+    except Exception as exc:
+        return payas_cad._mcp({"look_again": [str(exc)], "file_id": file_id})
+
+
+@mcp.tool(
+    description=(
+        "Workshop studio — not a kit. action=profiles|calibrate|projects|usage|keys|telemetry. "
+        "profiles lists materials/machines. projects lists design versions. "
+        "keys with name= creates a token (shown once). Do not invent kerf or hardware."
+    )
+)
+def studio(
+    action: str = "profiles",
+    name: str = "",
+    project_id: str = "",
+    role: str = "workshop",
+    plan: str = "",
+) -> dict[str, Any]:
+    from studio import studio_action
+
+    return payas_cad._mcp(studio_action(action, name=name, project_id=project_id, role=role, plan=plan))
+
+
+def _named_kit(fn, **kwargs):
+    try:
+        return payas_cad._mcp(fn(public_base_url=_tool_public_base(), **kwargs))
+    except Exception as exc:
+        return payas_cad._mcp({"look_again": [str(exc)], "ready_to_cut": False})
 
 
 @mcp.tool(description="Payas STEM trafik lambası SVG. led=LED çapı mm.")
@@ -331,28 +397,32 @@ def create_traffic_light(
     base_width: float | None = None,
     base_depth: float | None = None,
     base_height: float | None = None,
+    tower_width: float | None = None,
+    tower_depth: float | None = None,
     tower_height: float | None = None,
 ) -> dict[str, Any]:
-    return payas_cad.create_traffic_light(
+    return _named_kit(
+        payas_cad.create_traffic_light,
         thickness=thickness,
         burn=burn,
         led=led,
         base_width=base_width,
         base_depth=base_depth,
         base_height=base_height,
+        tower_width=tower_width,
+        tower_depth=tower_depth,
         tower_height=tower_height,
-        public_base_url=_tool_public_base(),
     )
 
 
 @mcp.tool(description="Payas STEM robot kumbara (PayasRobot) kesim SVG.")
 def create_robot_bank() -> dict[str, Any]:
-    return payas_cad.create_robot_bank(public_base_url=_tool_public_base())
+    return _named_kit(payas_cad.create_robot_bank)
 
 
 @mcp.tool(description="Payas STEM ressam/çizim robotu kesim SVG.")
 def create_drawing_robot() -> dict[str, Any]:
-    return payas_cad.create_drawing_robot(public_base_url=_tool_public_base())
+    return _named_kit(payas_cad.create_drawing_robot)
 
 
 @mcp.tool(description="Basit ürün kutusu SVG. x, y, h mm, dış ölçü.")
@@ -363,25 +433,54 @@ def create_product_box(
     thickness: float = 3.0,
     burn: float = 0.15,
 ) -> dict[str, Any]:
-    return payas_cad.create_product_box(
-        x=x, y=y, h=h, thickness=thickness, burn=burn,
-        public_base_url=_tool_public_base(),
-    )
+    return _named_kit(payas_cad.create_product_box, x=x, y=y, h=h, thickness=thickness, burn=burn)
 
 
 @mcp.tool(description="Payas STEM statik yat kiti kesim SVG.")
 def create_yacht() -> dict[str, Any]:
-    return payas_cad.create_yacht(public_base_url=_tool_public_base())
+    return _named_kit(payas_cad.create_yacht)
 
 
 @mcp.tool(description="Payas STEM açık şase astronot kiti kesim SVG.")
 def create_astronaut() -> dict[str, Any]:
-    return payas_cad.create_astronaut(public_base_url=_tool_public_base())
+    return _named_kit(payas_cad.create_astronaut)
 
 
 @mcp.custom_route("/", methods=["GET"])
+async def landing(request: Request) -> Response:
+    return FileResponse(WEB_DIR / "landing.html", media_type="text/html; charset=utf-8")
+
+
+@mcp.custom_route("/app", methods=["GET"])
+@mcp.custom_route("/workshop", methods=["GET"])
 async def ui(request: Request) -> Response:
     return FileResponse(WEB_DIR / "index.html", media_type="text/html; charset=utf-8")
+
+
+@mcp.custom_route("/dashboard", methods=["GET"])
+async def dashboard(request: Request) -> Response:
+    return FileResponse(WEB_DIR / "dashboard.html", media_type="text/html; charset=utf-8")
+
+
+@mcp.custom_route("/api/demo", methods=["GET"])
+async def api_demo(request: Request) -> Response:
+    from demo_kits import list_kits
+
+    return JSONResponse(list_kits())
+
+
+@mcp.custom_route("/demo/{filename}", methods=["GET"])
+async def serve_demo(request: Request) -> Response:
+    from demo_kits import demo_file
+
+    try:
+        path = demo_file(request.path_params["filename"])
+    except FileNotFoundError:
+        return JSONResponse({"look_again": ["unknown demo file"]}, status_code=404)
+    except ValueError:
+        return JSONResponse({"look_again": ["invalid filename"]}, status_code=400)
+    media = "image/svg+xml" if path.suffix.lower() == ".svg" else "application/octet-stream"
+    return FileResponse(path, media_type=media)
 
 
 @mcp.custom_route("/api/status", methods=["GET"])
@@ -392,8 +491,10 @@ async def api_status(request: Request) -> Response:
             "name": "Laser mcp",
             "status": health["status"],
             "mcp": "/mcp",
-            "ui": "/",
-            "auth_required": bool(AUTH_TOKEN),
+            "ui": "/app",
+            "landing": "/",
+            "auth_required": _auth_on(),
+            "dashboard": "/dashboard",
             "boxes": health["boxes"],
             "generator_count": health["generator_count"],
             "defaults": boxespy.PAYAS_DEFAULTS,
@@ -406,7 +507,7 @@ async def api_status(request: Request) -> Response:
 @mcp.custom_route("/health", methods=["GET"])
 async def health(request: Request) -> Response:
     payload = boxespy.health_status()
-    payload["auth_required"] = bool(AUTH_TOKEN)
+    payload["auth_required"] = _auth_on()
     status = 200 if payload["status"] == "ok" else 503
     return JSONResponse(payload, status_code=status)
 
@@ -456,6 +557,75 @@ async def api_preview(request: Request) -> Response:
         return _error(exc, 404)
     except Exception as exc:
         return _error(exc)
+
+
+@mcp.custom_route("/api/plans", methods=["GET"])
+async def api_plans(request: Request) -> Response:
+    from plans import public_plans
+
+    return JSONResponse(public_plans())
+
+
+@mcp.custom_route("/api/beta", methods=["POST"])
+async def api_beta(request: Request) -> Response:
+    from studio_store import append_jsonl, now_iso
+
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    email = str((body or {}).get("email") or "").strip()
+    if not email or "@" not in email or "." not in email.split("@")[-1]:
+        return JSONResponse({"success": True, "look_again": ["Pass a real email."]})
+    append_jsonl(
+        "beta.jsonl",
+        {
+            "at": now_iso(),
+            "email": email[:120],
+            "use": str((body or {}).get("use") or "")[:160],
+        },
+    )
+    return JSONResponse({"success": True, "joined": True, "note": "You're on the LaserMCP beta list."})
+
+
+@mcp.custom_route("/api/studio", methods=["GET"])
+async def api_studio(request: Request) -> Response:
+    from studio import overview, studio_action
+
+    action = (request.query_params.get("action") or "overview").strip().lower()
+    if action in {"", "overview"}:
+        return JSONResponse(overview())
+    return JSONResponse(
+        studio_action(
+            action,
+            name=request.query_params.get("name") or "",
+            project_id=request.query_params.get("project_id") or "",
+            role=request.query_params.get("role") or "workshop",
+        )
+    )
+
+
+@mcp.custom_route("/api/studio/{action}", methods=["GET", "POST"])
+async def api_studio_action(request: Request) -> Response:
+    from studio import studio_action
+
+    action = request.path_params.get("action") or "profiles"
+    body: dict[str, Any] = {}
+    if request.method == "POST":
+        try:
+            raw = await request.json()
+            if isinstance(raw, dict):
+                body = raw
+        except Exception:
+            body = {}
+    return JSONResponse(
+        studio_action(
+            action,
+            name=str(body.get("name") or request.query_params.get("name") or ""),
+            project_id=str(body.get("project_id") or request.query_params.get("project_id") or ""),
+            role=str(body.get("role") or request.query_params.get("role") or "workshop"),
+        )
+    )
 
 
 @mcp.custom_route("/api/cad/products", methods=["GET"])
@@ -574,7 +744,14 @@ async def serve_file(request: Request) -> Response:
     except ValueError:
         return JSONResponse({"error": "invalid filename"}, status_code=400)
     suffix = path.suffix.lower()
-    media = "image/svg+xml" if suffix == ".svg" else "image/vnd.dxf" if suffix == ".dxf" else "application/octet-stream"
+    media = {
+        ".svg": "image/svg+xml",
+        ".dxf": "image/vnd.dxf",
+        ".png": "image/png",
+        ".json": "application/json",
+        ".txt": "text/plain; charset=utf-8",
+        ".md": "text/markdown; charset=utf-8",
+    }.get(suffix, "application/octet-stream")
     return FileResponse(path, media_type=media, filename=path.name)
 
 

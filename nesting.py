@@ -102,6 +102,7 @@ def nest_svg(
     bed_height: float | None = None,
     gap: float = 3.0,
     margin: float = 10.0,
+    panel_names: list[str] | None = None,
 ) -> tuple[bytes, dict[str, Any]]:
     """Pack part groups by translation only (no rotate/mirror). Shrink sheet to occupied size."""
     bed_w = float(bed_width or PAYAS_DEFAULTS["bed_width"])
@@ -135,26 +136,117 @@ def nest_svg(
         info["errors"] = ["no path groups to nest"]
         return svg_bytes, info
 
-    packer = newPacker(rotation=False)
+    bin_w = max(1.0, bed_w - 2 * margin)
+    bin_h = max(1.0, bed_h - 2 * margin)
     for i, (x0, y0, x1, y1) in enumerate(bounds):
-        packer.add_rect((x1 - x0) + gap, (y1 - y0) + gap, rid=i)
-    packer.add_bin(max(1.0, bed_w - 2 * margin), max(1.0, bed_h - 2 * margin))
-    packer.pack()
-    placed = packer.rect_list()
+        if (x1 - x0) + gap > bin_w + 0.05 or (y1 - y0) + gap > bin_h + 0.05:
+            info["errors"] = [
+                f"part {i} {(x1 - x0):.1f}×{(y1 - y0):.1f} mm does not fit the {bed_w:.0f}×{bed_h:.0f} mm bed (no rotate/mirror)"
+            ]
+            return svg_bytes, info
+
+    placed: list = []
+    n_bins = 1
+    while n_bins <= 12:
+        packer = newPacker(rotation=False)
+        order = sorted(
+            range(len(bounds)),
+            key=lambda i: -((bounds[i][2] - bounds[i][0]) * (bounds[i][3] - bounds[i][1])),
+        )
+        for i in order:
+            x0, y0, x1, y1 = bounds[i]
+            packer.add_rect((x1 - x0) + gap, (y1 - y0) + gap, rid=i)
+        for _ in range(n_bins):
+            packer.add_bin(bin_w, bin_h)
+        packer.pack()
+        placed = packer.rect_list()
+        if len(placed) == len(live):
+            break
+        n_bins += 1
     if len(placed) != len(live):
-        info["errors"] = [f"rectpack placed {len(placed)}/{len(live)} parts; they do not fit the bed"]
+        info["errors"] = [f"rectpack placed {len(placed)}/{len(live)} parts; they do not fit {n_bins - 1} sheets"]
+        info["sheets"] = n_bins - 1
         return svg_bytes, info
 
+    by_bin: dict[int, list] = {}
+    for bin_id, x, y, w, h, index in placed:
+        by_bin.setdefault(int(bin_id), []).append((index, x, y, w, h))
+    sheet_svgs: list[bytes] = []
+    sheet_meta: list[dict[str, Any]] = []
+    first_placements: list[dict[str, Any]] = []
+    first_out = svg_bytes
+    first_occ = [bed_w, bed_h]
+    for sheet_i, bin_id in enumerate(sorted(by_bin)):
+        items = by_bin[bin_id]
+        out, placements, occupied = _render_sheet(
+            svg_bytes, bounds, items, gap, margin, panel_names, bed_w, bed_h, sheet_i
+        )
+        sheet_svgs.append(out)
+        sheet_meta.append({"n": sheet_i + 1, "occupied_mm": occupied, "part_count": len(placements), "placements": placements})
+        if sheet_i == 0:
+            first_placements = placements
+            first_out = out
+            first_occ = occupied
+
+    occ = first_occ
+    area = occ[0] * occ[1]
+    used = sum(p["w"] * p["h"] for p in first_placements)
+    info.update(
+        {
+            "ok": True,
+            "errors": [],
+            "occupied_mm": occ,
+            "utilization": round(used / area, 3) if area else 0,
+            "part_count": len(live),
+            "placements": first_placements,
+            "sheets": len(sheet_svgs),
+            "sheet_meta": sheet_meta,
+            "_sheet_svgs": sheet_svgs,
+        }
+    )
+    geom = inspect_nesting(first_out, gap=gap)
+    if not geom["ok"]:
+        info["ok"] = False
+        info["errors"] = geom["errors"]
+    return first_out, info
+
+
+def _render_sheet(
+    src_bytes: bytes,
+    bounds: list[tuple[float, float, float, float]],
+    items: list[tuple[Any, ...]],
+    gap: float,
+    margin: float,
+    panel_names: list[str] | None,
+    bed_w: float,
+    bed_h: float,
+    sheet_i: int,
+) -> tuple[bytes, list[dict[str, Any]], list[float]]:
+    root_in = ET.fromstring(src_bytes)
+    groups = _groups(root_in)
+    live: list[ET.Element] = []
+    for group in groups:
+        if _bbox(group):
+            live.append(group)
+    ns = "http://www.w3.org/2000/svg"
+    ET.register_namespace("", ns)
+    out_root = ET.Element(f"{{{ns}}}svg")
+    placements: list[dict[str, Any]] = []
     right = margin
     bottom = margin
-    placements = []
-    for _bin, x, y, w, h, index in placed:
-        group = live[index]
-        x0, y0, x1, y1 = bounds[index]
+    for index, x, y, w, h in items:
+        group = live[int(index)]
+        x0, y0, _x1, _y1 = bounds[int(index)]
         dx = margin + x - x0
         dy = margin + y - y0
-        name = group.get("id") or f"p-{index}"
+        fallback = group.get("id") or f"p-{index}"
+        name = ""
+        if panel_names and 0 <= int(index) < len(panel_names) and panel_names[int(index)]:
+            name = str(panel_names[int(index)])
+        name = name or fallback
+        group.set("id", fallback)
         group.set("data-panel", name)
+        group.set("data-sheet", str(sheet_i + 1))
         for el in list(group.iter()):
             if el.tag.split("}")[-1].lower() != "path":
                 continue
@@ -170,37 +262,23 @@ def nest_svg(
         placements.append(
             {
                 "name": name,
+                "sheet": sheet_i + 1,
                 "x": round(margin + x, 2),
                 "y": round(margin + y, 2),
                 "w": round(w - gap, 2),
                 "h": round(h - gap, 2),
             }
         )
-
+        out_root.append(group)
     sheet_w = min(bed_w, round(right + margin, 2))
     sheet_h = min(bed_h, round(bottom + margin, 2))
-    root.set("width", f"{sheet_w:.2f}mm")
-    root.set("height", f"{sheet_h:.2f}mm")
-    root.set("viewBox", f"0 0 {sheet_w:.3f} {sheet_h:.3f}")
-    root.set("data-layout", "compact")
-    root.set("data-gap", str(gap))
-    root.set("data-margin", str(margin))
-    ET.register_namespace("", "http://www.w3.org/2000/svg")
-    out = ET.tostring(root, encoding="utf-8", xml_declaration=True)
-    area = sheet_w * sheet_h
-    used = sum(p["w"] * p["h"] for p in placements)
-    info.update(
-        {
-            "ok": True,
-            "errors": [],
-            "occupied_mm": [sheet_w, sheet_h],
-            "utilization": round(used / area, 3) if area else 0,
-            "part_count": len(placements),
-            "placements": placements,
-        }
-    )
-    geom = inspect_nesting(out, gap=gap)
-    if not geom["ok"]:
-        info["ok"] = False
-        info["errors"] = geom["errors"]
-    return out, info
+    out_root.set("width", f"{sheet_w:.2f}mm")
+    out_root.set("height", f"{sheet_h:.2f}mm")
+    out_root.set("viewBox", f"0 0 {sheet_w:.3f} {sheet_h:.3f}")
+    out_root.set("data-layout", "compact")
+    out_root.set("data-sheet", str(sheet_i + 1))
+    out_root.set("data-gap", str(gap))
+    out_root.set("data-margin", str(margin))
+    ET.register_namespace("", ns)
+    out = ET.tostring(out_root, encoding="utf-8", xml_declaration=True)
+    return out, placements, [sheet_w, sheet_h]

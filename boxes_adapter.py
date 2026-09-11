@@ -31,7 +31,10 @@ def _resolve_boxes_path() -> str:
 
 
 def _resolve_output_dir() -> Path:
-    if os.environ.get("VERCEL"):
+    env = (os.environ.get("MCP_OUTPUT_DIR") or os.environ.get("LASER_OUTPUT_DIR") or "").strip()
+    if env:
+        path = Path(env)
+    elif os.environ.get("VERCEL"):
         path = Path(os.environ.get("TMPDIR") or "/tmp") / "laser-mcp-output"
     else:
         path = ROOT / "output"
@@ -70,6 +73,19 @@ LATEST_SVG = "latest.svg"
 LATEST_DXF = "latest.dxf"
 _SAFE_NAME = re.compile(r"^[\w][\w .+-]*$", re.UNICODE)
 _SKIP_ARGS = {"help", "output", "format"}
+_STUDIO_ARGS = {
+    "material",
+    "material_id",
+    "machine",
+    "machine_id",
+    "project",
+    "project_name",
+    "project_id",
+    "what_you_see",
+    "measured_bar_mm",
+    "physical_assembly",
+    "movement_test",
+}
 _LATEST_ALIASES = {
     "laser mcp",
     "laser mcp.svg",
@@ -82,6 +98,34 @@ _LATEST_ALIASES = {
 
 def _file_url(public_base_url: str, file_id: str) -> str:
     return f"{public_base_url.rstrip('/')}/files/{quote(file_id)}"
+
+
+def _blob_url(file_id: str, data: bytes, content_type: str = "image/svg+xml") -> str | None:
+    token = (
+        os.environ.get("BLOB_READ_WRITE_TOKEN")
+        or os.environ.get("VERCEL_BLOB_READ_WRITE_TOKEN")
+        or ""
+    ).strip()
+    if not token:
+        return None
+    try:
+        import urllib.request
+
+        req = urllib.request.Request(
+            f"https://blob.vercel-storage.com/{quote(file_id)}",
+            data=data,
+            method="PUT",
+            headers={
+                "Authorization": f"Bearer {token}",
+                "x-api-version": "7",
+                "x-content-type": content_type,
+            },
+        )
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+        return payload.get("url") or payload.get("downloadUrl")
+    except Exception:
+        return None
 
 
 def _slug(name: str) -> str:
@@ -135,10 +179,11 @@ def _public_result(
     svg_bytes: bytes,
     extra: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    blob = _blob_url(file_id, svg_bytes)
     result: dict[str, Any] = {
         "success": True,
         "file_id": file_id,
-        "svg_url": _file_url(public_base_url, file_id),
+        "svg_url": blob or _file_url(public_base_url, file_id),
         "bytes": len(svg_bytes),
         "applied_defaults": {
             "material": PAYAS_DEFAULTS["material"],
@@ -228,8 +273,7 @@ def _schema_for_class(cls: type) -> dict[str, Any]:
         }
         if dest == "burn":
             item["default"] = PAYAS_DEFAULTS["burn"]
-            item["locked"] = True
-            item["help"] = "Payas kerf/burn is locked at 0.15 mm."
+            item["help"] = "Kerf from material profile or coupon. Do not invent."
         if action.choices:
             item["choices"] = [_jsonable(c) for c in action.choices]
         parameters.append(item)
@@ -242,15 +286,22 @@ def _schema_for_class(cls: type) -> dict[str, Any]:
 
 
 def _merge_parameters(user_params: dict[str, Any] | None) -> dict[str, Any]:
-    merged = {
-        "thickness": PAYAS_DEFAULTS["thickness"],
-        "burn": PAYAS_DEFAULTS["burn"],
-    }
-    if user_params:
-        if not isinstance(user_params, dict):
-            raise ValueError("parameters must be an object")
-        merged.update(user_params)
-    merged["burn"] = PAYAS_DEFAULTS["burn"]
+    if user_params is not None and not isinstance(user_params, dict):
+        raise ValueError("parameters must be an object")
+    incoming = dict(user_params or {})
+    try:
+        from studio import prepare_parameters
+
+        prepared = prepare_parameters(incoming)
+    except Exception:
+        prepared = {
+            "thickness": PAYAS_DEFAULTS["thickness"],
+            "burn": PAYAS_DEFAULTS["burn"],
+            **incoming,
+        }
+    merged = {key: value for key, value in prepared.items() if not str(key).startswith("_")}
+    merged.setdefault("thickness", PAYAS_DEFAULTS["thickness"])
+    merged.setdefault("burn", PAYAS_DEFAULTS["burn"])
     merged["format"] = "svg"
     return merged
 
@@ -258,7 +309,7 @@ def _merge_parameters(user_params: dict[str, Any] | None) -> dict[str, Any]:
 def _to_cli_args(params: dict[str, Any]) -> list[str]:
     args: list[str] = []
     for key, value in params.items():
-        if key in ("format", "output"):
+        if key in ("format", "output") or key in _STUDIO_ARGS or str(key).startswith("_"):
             continue
         if isinstance(value, bool):
             args.append(f"--{key}={'1' if value else '0'}")
@@ -352,6 +403,23 @@ def payas_defaults() -> dict[str, Any]:
         "Closed cuts and notches keep ~1 mm uncut nicks so pieces do not fall through the bed. "
         "Snap them out after cutting. Tiny bolt holes stay fully cut."
     )
+    try:
+        from profiles import list_profiles
+
+        defaults["profiles"] = list_profiles()
+    except Exception:
+        pass
+    defaults["studio"] = (
+        "Pass parameters.material and parameters.machine. "
+        "MCP writes the material list (bom / MATERIALS (MCP)). "
+        "Do not invent kerf or hardware. After a coupon, pass measured_bar_mm."
+    )
+    try:
+        from plans import public_plans
+
+        defaults["plans"] = public_plans()
+    except Exception:
+        pass
     return defaults
 
 
@@ -442,12 +510,13 @@ def generate_svg(
     generator: str,
     parameters: dict[str, Any] | None = None,
     public_base_url: str = "http://127.0.0.1:8000",
+    extra: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     name, cls = _resolve_generator(generator)
     merged = _merge_parameters(parameters)
     box = cls()
     known = _known_dests(box)
-    unknown = [key for key in merged if key not in known]
+    unknown = [key for key in merged if key not in known and key not in _SKIP_ARGS and key not in _STUDIO_ARGS and not str(key).startswith("_")]
     if unknown:
         raise ValueError(
             f"Unknown parameters for {name}: {unknown}. "
@@ -458,28 +527,29 @@ def generate_svg(
     box.render()
     data = box.close()
     svg_bytes = data.getvalue() if hasattr(data, "getvalue") else data.read()
-    file_id, svg_bytes = _write_svg(svg_bytes, name)
     dimensions = {
         key: merged[key]
         for key in ("x", "y", "h", "thickness", "burn")
         if key in merged
     }
-    return _public_result(
-        file_id,
-        public_base_url,
-        svg_bytes,
-        extra={
-            "generator": name,
-            "dimensions": dimensions,
-            "applied_defaults": {
-                "material": PAYAS_DEFAULTS["material"],
-                "thickness": merged["thickness"],
-                "burn": merged["burn"],
-                "holding_nick_mm": PAYAS_DEFAULTS.get("holding_nick_mm", 1.0),
-                "output": "svg",
-            },
+    payload = {
+        "generator": name,
+        "product": (extra or {}).get("product") or name,
+        "title": (extra or {}).get("title"),
+        "parameters": parameters,
+        "dimensions": dimensions,
+        "applied_defaults": {
+            "material": merged.get("material") or PAYAS_DEFAULTS["material"],
+            "thickness": merged["thickness"],
+            "burn": merged["burn"],
+            "holding_nick_mm": PAYAS_DEFAULTS.get("holding_nick_mm", 1.0),
+            "output": "svg+dxf",
         },
-    )
+    }
+    if extra:
+        payload.update(extra)
+        payload.setdefault("generator", name)
+    return save_generated_svg(svg_bytes, public_base_url=public_base_url, extra=payload, generator=name)
 
 
 def validate_svg(file_id: str) -> dict[str, Any]:
@@ -632,7 +702,7 @@ def render_preview(file_id: str, public_base_url: str = "http://127.0.0.1:8000")
         "width_mm": metrics["width_mm"],
         "height_mm": metrics["height_mm"],
         "path_count": metrics["path_count"],
-        "note": "Stage 1 preview is the generated SVG. PNG raster comes later.",
+        "note": "Preview is the generated SVG. A nest PNG is attached when available.",
     }
 
 
@@ -673,26 +743,77 @@ def save_generated_svg(
         extra["authorized_output"] = gated.get("authorized_output")
         extra["production_export"] = gated.get("production_export") or "BLOCKED"
         extra["production_summary"] = gated.get("production_summary")
-        extra["ready_to_cut"] = False
+        extra["physical"] = gated.get("physical")
+        extra["assembly_sheet"] = gated.get("assembly_sheet")
+        extra["ready_to_cut"] = gated.get("final_status") == "PRODUCTION READY"
         if gated.get("look_again"):
             extra["look_again"] = gated["look_again"]
     except Exception:
         extra.setdefault("final_status", extra.get("final_status") or "BLOCKED")
-        extra["ready_to_cut"] = False
         extra.setdefault("production_export", "BLOCKED")
-    extra["ready_to_cut"] = False
+    extra["ready_to_cut"] = extra.get("final_status") == "PRODUCTION READY"
     extra["production_export"] = extra.get("production_export") or "BLOCKED"
     extra.setdefault(
         "authorized_output",
-        "Prototype SVG" if extra.get("final_status") == "PROTOTYPE READY" else "None",
+        "Production SVG"
+        if extra.get("final_status") == "PRODUCTION READY"
+        else ("Prototype SVG" if extra.get("final_status") == "PROTOTYPE READY" else "None"),
     )
+    nest = extra.get("nesting") if isinstance(extra.get("nesting"), dict) else {}
+    extra_sheets = list(nest.pop("_sheet_svgs", None) or [])
+    try:
+        from studio import attach
+
+        extra = attach(extra, svg_bytes, extra.get("primitives"))
+    except Exception:
+        pass
+    from plans import entitled
+
+    if not dxf_bytes and entitled("dxf"):
+        try:
+            from dxf_export import svg_bytes_to_dxf
+
+            dxf_bytes = svg_bytes_to_dxf(svg_bytes)
+        except Exception:
+            dxf_bytes = None
+    if not entitled("dxf"):
+        dxf_bytes = None
+    if extra_sheets and not entitled("advanced_nesting"):
+        extra_sheets = extra_sheets[:1]
+    preview_id = None
+    preview_bytes = None
+    try:
+        from preview_sheet import nest_preview_png
+
+        preview_bytes = nest_preview_png(extra.get("nesting"))
+    except Exception:
+        preview_bytes = None
+    stem = file_id[:-4] if file_id.lower().endswith(".svg") else file_id
     result = _public_result(file_id, public_base_url, svg_bytes, extra)
-    side = file_id[:-4] + ".json" if file_id.lower().endswith(".svg") else f"{file_id}.json"
+    result["preview_url"] = result.get("svg_url")
+    if preview_bytes:
+        preview_id = f"{stem}-preview.png"
+        (OUTPUT_DIR / preview_id).write_bytes(preview_bytes)
+        preview_blob = _blob_url(preview_id, preview_bytes, "image/png")
+        result["preview_url"] = preview_blob or _file_url(public_base_url, preview_id)
+        result["preview_id"] = preview_id
+        extra["preview_url"] = result["preview_url"]
+    if extra_sheets:
+        sheet_ids = [file_id]
+        for i, raw in enumerate(extra_sheets[1:], start=2):
+            sid = f"{stem}-sheet{i}.svg"
+            (OUTPUT_DIR / sid).write_bytes(raw)
+            sheet_ids.append(sid)
+        result["sheet_ids"] = sheet_ids
+        result["sheets"] = len(extra_sheets)
+    side = f"{stem}.json"
     payload = {
         "file_id": file_id,
         "product": extra.get("product"),
         "final_status": extra.get("final_status"),
-        "ready_to_cut": False,
+        "ready_to_cut": extra.get("ready_to_cut"),
+        "physical": extra.get("physical"),
+        "assembly_sheet": extra.get("assembly_sheet"),
         "speak": extra.get("speak"),
         "scorecard": extra.get("scorecard"),
         "authorized_output": extra.get("authorized_output"),
@@ -706,23 +827,47 @@ def save_generated_svg(
         "connections": extra.get("connections"),
         "production_summary": extra.get("production_summary"),
         "primitives": extra.get("primitives"),
+        "bom": extra.get("bom"),
+        "project": extra.get("project"),
+        "profiles": extra.get("profiles"),
+        "preview_url": result.get("preview_url"),
+        "calibration": extra.get("calibration"),
     }
     (OUTPUT_DIR / side).write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     result["report_id"] = side
     summary = extra.get("production_summary")
     if summary:
-        md_id = file_id[:-4] + "-production.md" if file_id.lower().endswith(".svg") else f"{file_id}-production.md"
+        md_id = f"{stem}-production.md"
         (OUTPUT_DIR / md_id).write_text(str(summary), encoding="utf-8")
         result["production_report_id"] = md_id
+    sheet = extra.get("assembly_sheet")
+    if sheet:
+        sheet_id = f"{stem}-assembly.txt"
+        (OUTPUT_DIR / sheet_id).write_text(str(sheet), encoding="utf-8")
+        result["assembly_sheet_id"] = sheet_id
+    bom_speak = extra.get("materials_speak") or (extra.get("bom") or {}).get("speak")
+    if bom_speak:
+        bom_id = f"{stem}-bom.txt"
+        (OUTPUT_DIR / bom_id).write_text(str(bom_speak), encoding="utf-8")
+        result["bom_id"] = bom_id
     if dxf_bytes:
-        dxf_id = file_id[:-4] + ".dxf" if file_id.lower().endswith(".svg") else f"{file_id}.dxf"
+        dxf_id = f"{stem}.dxf"
         (OUTPUT_DIR / dxf_id).write_bytes(dxf_bytes)
         (OUTPUT_DIR / LATEST_DXF).write_bytes(dxf_bytes)
         result["dxf_id"] = dxf_id
-        result["dxf_url"] = _file_url(public_base_url, dxf_id)
+        result["dxf_url"] = _blob_url(dxf_id, dxf_bytes, "image/vnd.dxf") or _file_url(public_base_url, dxf_id)
         defaults = dict(result.get("applied_defaults") or {})
         defaults["output"] = "svg+dxf"
         result["applied_defaults"] = defaults
+    try:
+        from studio import finish_result
+
+        result = finish_result(result, extra)
+        if extra.get("project"):
+            payload["project"] = extra.get("project")
+            (OUTPUT_DIR / side).write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    except Exception:
+        pass
     return result
 
 
