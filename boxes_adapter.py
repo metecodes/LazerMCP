@@ -868,6 +868,13 @@ def save_generated_svg(
             (OUTPUT_DIR / side).write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     except Exception:
         pass
+    try:
+        from persist.job import attach_durable_artifacts
+
+        result = attach_durable_artifacts(result, extra)
+    except Exception:
+        result["durable_persistence"] = False
+        result["artifact_persistence"] = "ARTIFACT_PERSISTENCE_FAILED"
     return result
 
 

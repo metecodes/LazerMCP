@@ -146,7 +146,14 @@ def upsert_user(identity: dict[str, Any], *, kind: str | None = None) -> dict[st
     hit["last_seen"] = now_iso()
     hit["kind"] = "org" if is_org_email(str(hit.get("email") or "")) else "individual"
     write_json("users.json", rows)
-    return dict(hit)
+    stored = dict(hit)
+    try:
+        from persist.orgs import ensure_personal_org
+
+        stored["organization_id"] = ensure_personal_org(str(stored.get("id") or ""), str(stored.get("name") or ""))
+    except Exception:
+        pass
+    return stored
 
 
 def user_by_id(uid: str) -> dict[str, Any] | None:
@@ -162,13 +169,27 @@ def can_mint_keys(user: dict[str, Any] | None) -> bool:
     return is_org_email(str(user.get("email") or ""))
 
 
+class SessionSecretError(RuntimeError):
+    """Production is missing an independent MCP_SESSION_SECRET."""
+
+
 def _session_secret() -> bytes:
-    raw = (
-        os.environ.get("MCP_SESSION_SECRET")
-        or os.environ.get("MCP_AUTH_TOKEN")
-        or supabase_anon_key()
-        or "lasermcp-dev-session"
-    )
+    """HMAC material. Anon/publishable keys are never used. Production requires MCP_SESSION_SECRET."""
+    from persist.env import is_production
+
+    raw = (os.environ.get("MCP_SESSION_SECRET") or "").strip()
+    anon = supabase_anon_key()
+    if raw and anon and raw == anon:
+        raw = ""
+    publishable = (os.environ.get("SUPABASE_PUBLISHABLE_KEY") or "").strip()
+    if raw and publishable and raw == publishable:
+        raw = ""
+    if is_production():
+        if not raw:
+            raise SessionSecretError("MCP_SESSION_SECRET is required in production")
+        return hashlib.sha256(raw.encode("utf-8")).digest()
+    if not raw:
+        raw = "lasermcp-dev-session"
     return hashlib.sha256(raw.encode("utf-8")).digest()
 
 
@@ -182,15 +203,17 @@ def _b64d(text: str) -> bytes:
 
 
 def new_session(user: dict[str, Any]) -> str:
+    secret = _session_secret()
     payload = {
         "id": user.get("id"),
         "email": user.get("email"),
         "name": user.get("name"),
         "kind": "org" if is_org_email(str(user.get("email") or "")) else "individual",
+        "organization_id": user.get("organization_id") or "",
         "exp": int(time.time()) + 30 * 24 * 3600,
     }
     body = _b64(json.dumps(payload, separators=(",", ":"), ensure_ascii=True).encode("utf-8"))
-    sig = _b64(hmac.new(_session_secret(), body.encode("ascii"), hashlib.sha256).digest())
+    sig = _b64(hmac.new(secret, body.encode("ascii"), hashlib.sha256).digest())
     return f"{body}.{sig}"
 
 
@@ -200,7 +223,11 @@ def _parse_signed_session(raw: str) -> dict[str, Any] | None:
     body, _, sig = raw.partition(".")
     if not body or not sig:
         return None
-    expected = _b64(hmac.new(_session_secret(), body.encode("ascii"), hashlib.sha256).digest())
+    try:
+        secret = _session_secret()
+    except SessionSecretError:
+        return None
+    expected = _b64(hmac.new(secret, body.encode("ascii"), hashlib.sha256).digest())
     if not hmac.compare_digest(sig, expected):
         return None
     try:
@@ -213,11 +240,21 @@ def _parse_signed_session(raw: str) -> dict[str, Any] | None:
         return None
     email = str(payload.get("email") or "")
     kind = "org" if is_org_email(email) else "individual"
+    uid = str(payload.get("id"))
+    org_id = str(payload.get("organization_id") or "")
+    if uid and not org_id:
+        try:
+            from persist.orgs import ensure_personal_org
+
+            org_id = ensure_personal_org(uid, str(payload.get("name") or ""))
+        except Exception:
+            org_id = ""
     return {
-        "id": str(payload.get("id")),
+        "id": uid,
         "email": email,
         "name": str(payload.get("name") or email or "user"),
         "kind": kind,
+        "organization_id": org_id,
     }
 
 
@@ -239,6 +276,15 @@ def session_user(sid: str | None) -> dict[str, Any] | None:
 def principal_from_identity(identity: dict[str, Any], stored: dict[str, Any] | None = None) -> dict[str, Any]:
     row = stored or {}
     kind = str(row.get("kind") or "individual")
+    uid = str(identity.get("id") or row.get("id") or "")
+    org_id = str(row.get("organization_id") or "")
+    if uid and not org_id:
+        try:
+            from persist.orgs import ensure_personal_org
+
+            org_id = ensure_personal_org(uid, str(identity.get("name") or row.get("name") or ""))
+        except Exception:
+            org_id = ""
     return {
         "id": identity.get("id") or row.get("id"),
         "name": identity.get("name") or row.get("name") or "user",
@@ -247,4 +293,5 @@ def principal_from_identity(identity: dict[str, Any], stored: dict[str, Any] | N
         "plan": "maker" if kind == "org" else "free",
         "kind": kind,
         "provider": "google",
+        "organization_id": org_id,
     }

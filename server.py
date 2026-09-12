@@ -329,6 +329,23 @@ class BearerGate:
             await send({"type": "http.response.start", "status": 401, "headers": headers})
             await send({"type": "http.response.body", "body": body})
             return
+        if (scope.get("method") or "GET").upper() in {"POST", "PUT"} and (
+            path.startswith("/mcp") or path.startswith("/api/generate") or path.startswith("/api/cad/")
+        ):
+            from persist.rate_limit import check
+
+            ident = str(key.get("organization_id") or key.get("id") or "anon")
+            expensive = path.startswith("/api/generate") or path.startswith("/api/cad/")
+            if not check("http", ident, limit=30 if expensive else 60, window_sec=3600 if expensive else 60):
+                limited = b'{"success":true,"look_again":["Rate limit. Try again later."]}'
+                headers = [
+                    (b"content-type", b"application/json"),
+                    (b"content-length", str(len(limited)).encode("ascii")),
+                    (b"retry-after", b"60"),
+                ]
+                await send({"type": "http.response.start", "status": 429, "headers": headers})
+                await send({"type": "http.response.body", "body": limited})
+                return
         token = current_auth.set(key)
         try:
             await self.app(scope, receive, send)
@@ -801,6 +818,19 @@ async def api_auth_session(request: Request) -> Response:
         return JSONResponse({"success": True, "look_again": ["Google sign-in failed."]}, status_code=401)
     stored = upsert_user(identity)
     principal = principal_from_identity(identity, stored)
+    try:
+        from supabase_auth import SessionSecretError, new_session as _new_sid
+
+        sid = _new_sid(stored)
+    except Exception as exc:
+        from supabase_auth import SessionSecretError
+
+        if isinstance(exc, SessionSecretError) or "MCP_SESSION_SECRET" in str(exc):
+            return JSONResponse(
+                {"success": True, "look_again": ["Server session secret is not configured."]},
+                status_code=503,
+            )
+        raise
     response = JSONResponse(
         {
             "success": True,
@@ -811,7 +841,7 @@ async def api_auth_session(request: Request) -> Response:
     )
     response.set_cookie(
         "lmcp_sid",
-        new_session(stored),
+        sid,
         httponly=True,
         samesite="lax",
         max_age=30 * 24 * 3600,
@@ -885,15 +915,36 @@ async def api_account_keys(request: Request) -> Response:
         body = await request.json()
     except Exception:
         body = {}
+    from persist.rate_limit import check
+
+    owner = str(key.get("id") or "")
+    if not check("mint", owner, limit=10, window_sec=3600):
+        return JSONResponse({"success": True, "look_again": ["Rate limit. Try again later."]}, status_code=429)
     created = create_key(
         str((body or {}).get("name") or "workshop"),
         role="workshop",
         plan="maker",
-        owner=str(key.get("id") or ""),
+        owner=owner,
         email=str(key.get("email") or stored.get("email") or ""),
         kind="org",
     )
     return JSONResponse({"success": True, **created})
+
+
+@mcp.custom_route("/api/account/keys/revoke", methods=["POST"])
+async def api_account_keys_revoke(request: Request) -> Response:
+    from keys import current_auth, revoke_key
+    from supabase_auth import session_user
+
+    key = current_auth.get() or session_user(request.cookies.get("lmcp_sid"))
+    if not key:
+        return JSONResponse({"success": True, "look_again": ["Sign in with Google."]}, status_code=401)
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    ok = revoke_key(str((body or {}).get("id") or ""), owner=str(key.get("id") or ""))
+    return JSONResponse({"success": True, "revoked": ok})
 
 
 @mcp.custom_route("/health", methods=["GET"])
@@ -966,6 +1017,11 @@ async def api_beta(request: Request) -> Response:
         body = await request.json()
     except Exception:
         body = {}
+    from persist.rate_limit import check
+
+    ip = request.client.host if request.client else "anon"
+    if not check("beta", ip, limit=5, window_sec=3600):
+        return JSONResponse({"success": True, "look_again": ["Rate limit. Try again later."]}, status_code=429)
     email = str((body or {}).get("email") or "").strip()
     if not email or "@" not in email or "." not in email.split("@")[-1]:
         return JSONResponse({"success": True, "look_again": ["Pass a real email."]})
@@ -1128,13 +1184,33 @@ async def api_cad_create(request: Request) -> Response:
 
 @mcp.custom_route("/files/{filename}", methods=["GET"])
 async def serve_file(request: Request) -> Response:
+    from keys import auth_required, current_auth
+    from persist.authz import authorize_customer_file
+    from persist.storage import StorageService
+    from supabase_auth import session_user
+
     filename = request.path_params["filename"]
+    principal = current_auth.get() or session_user(request.cookies.get("lmcp_sid"))
+    decision = authorize_customer_file(filename, principal, auth_on=auth_required())
+    if not decision.get("allow"):
+        return JSONResponse({"look_again": ["Not found."]}, status_code=404)
+    artifact = decision.get("artifact")
+    if artifact:
+        store = StorageService()
+        signed = store.signed_url(str(artifact.get("storage_path") or ""))
+        if signed:
+            return _redirect(signed)
+        try:
+            data = store.get(str(artifact["storage_path"]))
+        except FileNotFoundError:
+            return JSONResponse({"look_again": ["Not found."]}, status_code=404)
+        return Response(content=data, media_type=str(artifact.get("mime_type") or "application/octet-stream"))
     try:
         path = boxespy._safe_output_file(filename)
     except FileNotFoundError:
-        return JSONResponse({"error": "not found"}, status_code=404)
+        return JSONResponse({"look_again": ["Not found."]}, status_code=404)
     except ValueError:
-        return JSONResponse({"error": "invalid filename"}, status_code=400)
+        return JSONResponse({"look_again": ["invalid filename"]}, status_code=400)
     suffix = path.suffix.lower()
     media = {
         ".svg": "image/svg+xml",
@@ -1143,6 +1219,7 @@ async def serve_file(request: Request) -> Response:
         ".json": "application/json",
         ".txt": "text/plain; charset=utf-8",
         ".md": "text/markdown; charset=utf-8",
+        ".webp": "image/webp",
     }.get(suffix, "application/octet-stream")
     return FileResponse(path, media_type=media, filename=path.name)
 
