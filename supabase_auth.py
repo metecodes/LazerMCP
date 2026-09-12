@@ -73,10 +73,23 @@ def safe_next_path(raw: str, *, origins: list[str] | None = None) -> str:
     return path + (("?" + parsed.query) if parsed.query else "")
 
 
+def session_ready() -> bool:
+    """True when a cookie can be signed. Never returns the secret."""
+    try:
+        _session_secret()
+    except SessionSecretError:
+        return False
+    except Exception:
+        return False
+    return True
+
+
 def public_config(mcp_url: str) -> dict[str, Any]:
+    ready = session_ready()
     return {
         "success": True,
         "configured": configured(),
+        "session_ready": ready,
         "url": supabase_url() if configured() else "",
         "anon_key": supabase_anon_key() if configured() else "",
         "google": True,
@@ -86,6 +99,11 @@ def public_config(mcp_url: str) -> dict[str, Any]:
             "Individuals must sign in with Google. "
             "Organizations mint API keys after Google sign-in. "
             "A bare MCP URL is not enough."
+        ),
+        "look_again": (
+            []
+            if ready
+            else ["Production needs an independent MCP_SESSION_SECRET. Google can finish but the site cannot keep you signed in."]
         ),
     }
 
@@ -145,7 +163,10 @@ def upsert_user(identity: dict[str, Any], *, kind: str | None = None) -> dict[st
     hit["name"] = identity.get("name") or hit.get("name")
     hit["last_seen"] = now_iso()
     hit["kind"] = "org" if is_org_email(str(hit.get("email") or "")) else "individual"
-    write_json("users.json", rows)
+    try:
+        write_json("users.json", rows)
+    except Exception:
+        pass
     stored = dict(hit)
     try:
         from persist.orgs import ensure_personal_org
@@ -228,7 +249,10 @@ def _parse_signed_session(raw: str) -> dict[str, Any] | None:
     except SessionSecretError:
         return None
     expected = _b64(hmac.new(secret, body.encode("ascii"), hashlib.sha256).digest())
-    if not hmac.compare_digest(sig, expected):
+    try:
+        if not hmac.compare_digest(sig, expected):
+            return None
+    except (TypeError, ValueError):
         return None
     try:
         payload = json.loads(_b64d(body).decode("utf-8"))

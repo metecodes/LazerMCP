@@ -2,7 +2,7 @@
 
 ## Vercel / host environment
 
-- [ ] `MCP_SESSION_SECRET` — random, **not** the Supabase anon key
+- [ ] `MCP_SESSION_SECRET` — random, **not** the Supabase anon/publishable key. Without this, Google can finish but `/account` stays signed out (cookie never set).
 - [ ] `MCP_ENV=production` if `VERCEL` is not `1`
 - [ ] `SUPABASE_URL`
 - [ ] `SUPABASE_ANON_KEY` (browser Google only)

@@ -136,6 +136,21 @@ class AuthTests(unittest.TestCase):
         self.assertIsNone(session_user(sid + "tamper"))
         self.assertIsNone(session_user("not-a-session"))
 
+    def test_public_config_reports_session_ready(self):
+        os.environ.pop("MCP_ENV", None)
+        os.environ.pop("VERCEL", None)
+        os.environ.pop("MCP_SESSION_SECRET", None)
+        from supabase_auth import public_config
+
+        cfg = public_config("https://mcp.metehanavci.com/mcp")
+        self.assertTrue(cfg["session_ready"])
+        self.assertEqual(cfg["look_again"], [])
+
+    def test_session_user_ignores_bad_signature_length(self):
+        from supabase_auth import session_user
+
+        self.assertIsNone(session_user("aaa.bb"))
+
     def test_overview_keys_are_owner_scoped(self):
         from importlib import reload
 

@@ -153,7 +153,18 @@
       if (!cfg || !cfg.url || !cfg.anon_key) return next ? "/auth/google?next=" + encodeURIComponent(next) : "/auth/google";
       let redirect = location.origin + "/auth/callback";
       if (next) redirect += "?next=" + encodeURIComponent(next);
-      return cfg.url + "/auth/v1/authorize?provider=google&redirect_to=" + encodeURIComponent(redirect) + "&apikey=" + encodeURIComponent(cfg.anon_key);
+      return cfg.url + "/auth/v1/authorize?provider=google&redirect_to=" + encodeURIComponent(redirect) + "&apikey=" + encodeURIComponent(cfg.anon_key) + "&flow_type=implicit";
+    }
+
+    function tokenFromUrl() {
+      const hash = new URLSearchParams((location.hash || "").replace(/^#/, ""));
+      const query = new URLSearchParams(location.search || "");
+      return hash.get("access_token") || query.get("access_token") || "";
+    }
+
+    function showNote(text) {
+      const el = document.getElementById("status");
+      if (el) el.textContent = text || "";
     }
 
     function displayName(user) {
@@ -194,19 +205,22 @@
     }
 
     async function sync(kind) {
-      const hash = new URLSearchParams((location.hash || "").replace(/^#/, ""));
-      const token = accessToken || hash.get("access_token") || "";
+      const token = accessToken || tokenFromUrl();
       if (!token) {
-        const me = await fetch("/api/account", { credentials: "same-origin" }).then((r) => r.json());
+        const me = await fetch("/api/account", { credentials: "same-origin" }).then((r) => r.json()).catch(() => ({}));
         return me;
       }
       accessToken = token;
       const res = await fetch("/api/auth/session", {
         method: "POST",
+        credentials: "same-origin",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ access_token: token })
       });
-      return res.json();
+      const created = await res.json().catch(() => ({}));
+      if (!created.user) return created;
+      const me = await fetch("/api/account", { credentials: "same-origin" }).then((r) => r.json()).catch(() => ({}));
+      return me.user ? me : created;
     }
 
     async function boot() {
@@ -217,12 +231,20 @@
         document.getElementById("need-config").classList.remove("hide");
         return;
       }
+      if (cfg.session_ready === false) {
+        showNote((cfg.look_again || []).join(" ") || (lang === "en"
+          ? "The server cannot keep a signed-in session."
+          : "Sunucu oturumu tutamıyor. MCP_SESSION_SECRET gerekli."));
+      }
       const data = await sync();
       if (data && data.user) {
         showUser(data);
         if (next && location.pathname === "/auth/callback") location.replace(next);
         if (location.hash) history.replaceState({}, "", location.pathname + location.search);
+        return;
       }
+      const note = ((data && data.look_again) || []).join(" ");
+      if (note) showNote(note);
     }
 
     document.getElementById("mint").onclick = async () => {

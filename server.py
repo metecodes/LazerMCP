@@ -245,6 +245,7 @@ def _google_authorize_url(request: Request, nxt: str = "") -> str:
         f"{supabase_url()}/auth/v1/authorize?provider=google"
         f"&redirect_to={quote(redirect_to, safe='')}"
         f"&apikey={quote(supabase_anon_key(), safe='')}"
+        "&flow_type=implicit"
     )
 
 
@@ -816,7 +817,10 @@ async def api_auth_session(request: Request) -> Response:
     identity = verify_access_token(token)
     if not identity:
         return JSONResponse({"success": True, "look_again": ["Google sign-in failed."]}, status_code=401)
-    stored = upsert_user(identity)
+    try:
+        stored = upsert_user(identity)
+    except Exception:
+        stored = dict(identity)
     principal = principal_from_identity(identity, stored)
     try:
         from supabase_auth import SessionSecretError, new_session as _new_sid
