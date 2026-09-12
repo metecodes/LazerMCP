@@ -17,8 +17,8 @@
       if (connect) connect.classList.add("hide");
       profile.classList.remove("hide");
       const email = data.user.email || "";
-      const given = String(data.user.name || "").trim().split(/\s+/)[0];
-      const local = (email.split("@")[0] || "hesap").replace(/[._]/g, " ");
+      const given = String(data.user.name || "").trim();
+      const local = (email.split("@")[0] || "hesap").replace(/[._]+/g, " ");
       const label = given && given.indexOf("@") < 0 ? given : local;
       const ava = profile.querySelector(".ava");
       const who = profile.querySelector(".who");

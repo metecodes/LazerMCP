@@ -37,6 +37,7 @@
     .kicker { font: 11px/1 var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--cut); }
     h1 { font-size: 36px; letter-spacing: -0.03em; margin: 28px 0 10px; }
     .lede { color: var(--mute); }
+    .lede.mail { font: 16px/1.4 var(--sans); word-break: break-all; }
     .card { background: var(--paper); border: 1px solid var(--line); padding: 22px; margin: 22px 0; }
     .row { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); font: 13px var(--mono); }
     input { width: 100%; border: 1px solid var(--line); padding: 10px 12px; font: 14px var(--sans); margin: 10px 0; }
@@ -78,9 +79,8 @@
         <div><span>05</span><b id="p5">Kesim SVG</b></div>
       </div>
       <p class="lede" id="hat-note">Basit kutu hızlı. Kompakt makette parçaları yaz. Fotoğraf 3D olmaz.</p>
-      <div class="row"><span>E-posta</span><b id="email">—</b></div>
-      <div class="row"><span>Tür</span><b id="kind">—</b></div>
-      <div class="row"><span id="use-lab">Kullanım</span><b id="usage">—</b></div>
+      <div class="row"><span id="kind-lab">Tür</span><b id="kind">—</b></div>
+      <div class="row" id="use-row"><span id="use-lab">Kullanım</span><b id="usage">—</b></div>
       <p class="lede" id="org-note"></p>
       <div id="keys-box" class="hide" style="margin-top:18px">
         <input id="key-name" placeholder="atölye-anahtarı">
@@ -102,7 +102,7 @@
       mint: "Mint API key", out: "Sign out", need: "Sign in with Google first.",
       orgYes: "This email domain may mint organization API keys.",
       orgNo: "Organization keys are limited to allowlisted email domains.",
-      useLab: "Usage", jobs: "jobs this month",
+      useLab: "Usage", jobs: "jobs this month", kindLab: "Type",
       hat: "LINE", p1: "AI", p2: "Parametric", p3: "Mechanical", p4: "Production", p5: "Cut SVG",
       hatNote: "A simple box is fast. Name parts on a compact model. A photo is not 3D."
     } : {
@@ -113,7 +113,7 @@
       mint: "API anahtarı üret", out: "Çık", need: "Önce Google ile gir.",
       orgYes: "Bu e-posta alanı kurumsal API anahtarı üretebilir.",
       orgNo: "Kurumsal anahtar yalnız izinli e-posta alanlarına açık.",
-      useLab: "Kullanım", jobs: "iş bu ay",
+      useLab: "Kullanım", jobs: "iş bu ay", kindLab: "Tür",
       hat: "HAT", p1: "AI", p2: "Parametrik", p3: "Mekanik", p4: "Üretim", p5: "Kesim SVG",
       hatNote: "Basit kutu hızlı. Kompakt makette parçaları yaz. Fotoğraf 3D olmaz."
     };
@@ -125,6 +125,7 @@
     document.getElementById("mint").textContent = T.mint;
     document.getElementById("out").textContent = T.out;
     document.getElementById("use-lab").textContent = T.useLab;
+    document.getElementById("kind-lab").textContent = T.kindLab;
     document.getElementById("hat-kicker").textContent = T.hat;
     document.getElementById("hat-note").textContent = T.hatNote;
     document.getElementById("p1").textContent = T.p1;
@@ -155,17 +156,36 @@
       return cfg.url + "/auth/v1/authorize?provider=google&redirect_to=" + encodeURIComponent(redirect) + "&apikey=" + encodeURIComponent(cfg.anon_key);
     }
 
+    function displayName(user) {
+      const name = String((user && user.name) || "").trim();
+      const email = String((user && user.email) || "").trim();
+      if (name && name.indexOf("@") < 0) return name;
+      const local = (email.split("@")[0] || "").replace(/[._]+/g, " ").trim();
+      return local || (lang === "en" ? "Account" : "Hesap");
+    }
+
     function showUser(data) {
       document.getElementById("need-config").classList.add("hide");
       document.getElementById("signed-out").classList.add("hide");
       document.getElementById("signed-in").classList.remove("hide");
       const user = data.user || {};
-      document.getElementById("email").textContent = user.email || "—";
+      const name = displayName(user);
+      document.getElementById("title").textContent = name;
+      document.title = name + " — LaserMCP";
+      const lede = document.getElementById("lede");
+      lede.textContent = user.email || "";
+      lede.classList.toggle("mail", Boolean(user.email));
       document.getElementById("kind").textContent = user.kind === "org" ? (lang === "en" ? "organization" : "kurumsal") : (lang === "en" ? "individual" : "bireysel");
       document.getElementById("org-note").textContent = data.can_mint_keys ? T.orgYes : T.orgNo;
       const used = (data.usage && (data.usage.month || 0)) || 0;
       const total = (data.usage && (data.usage.total || 0)) || 0;
-      document.getElementById("usage").textContent = used + " " + T.jobs + (total ? " · " + total : "");
+      const useRow = document.getElementById("use-row");
+      if (used > 0 || total > 0) {
+        useRow.classList.remove("hide");
+        document.getElementById("usage").textContent = used + " " + T.jobs + (total ? " · " + total : "");
+      } else {
+        useRow.classList.add("hide");
+      }
       document.getElementById("keys-box").classList.toggle("hide", !data.can_mint_keys);
       const keys = data.keys || [];
       document.getElementById("key-list").innerHTML = keys.map((k) =>
