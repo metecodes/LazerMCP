@@ -304,6 +304,14 @@
       return parsed.pathname + parsed.search + parsed.hash;
     }
 
+    function fileHref(fileId, url, view) {
+      const name = fileId || "";
+      let href = name ? ("/files/" + encodeURIComponent(name)) : (url || "");
+      href = withToken(href);
+      if (view && href) href += (href.includes("?") ? "&" : "?") + "view=1";
+      return href;
+    }
+
     async function api(url, opts) {
       const options = opts || {};
       const headers = authHeaders(options.headers || {});
@@ -561,8 +569,8 @@
     async function showPreview(url, metrics, report) {
       const frame = $("preview");
       frame.innerHTML = "";
-      const stamped = withToken(url);
-      const src = stamped + (stamped.includes("?") ? "&" : "?") + "t=" + Date.now();
+      const stamped = url && url.indexOf("/files/") === 0 ? url : withToken(url);
+      const src = stamped + (stamped.includes("?") ? "&" : "?") + "view=1&t=" + Date.now();
       try {
         const res = await fetch(src);
         const text = await res.text();
@@ -631,10 +639,10 @@
             body: JSON.stringify({ file_id: data.file_id })
           });
           const report = await readJson(check);
-          showPreview(data.svg_url, report.metrics, report);
-          $("download").href = withToken(data.svg_url);
-          $("download").setAttribute("download", data.file_id || "latest.svg");
-          $("preview-title").textContent = "Önizleme · " + (data.file_id || "latest.svg");
+          showPreview(fileHref(data.file_id, data.svg_url), report.metrics, report);
+          $("download").href = fileHref(data.file_id, data.svg_url);
+          $("download").setAttribute("download", data.file_id || "cut.svg");
+          $("preview-title").textContent = "Önizleme · " + (data.file_id || "cut.svg");
             showGate(data);
           setStatus(
             (data.title || data.generator || data.product) + " · " + data.bytes + " byte · " + data.file_id
@@ -662,10 +670,10 @@
           body: JSON.stringify({ file_id: data.file_id })
         });
         const report = await readJson(check);
-        showPreview(data.svg_url, report.metrics, report);
-        $("download").href = withToken(data.svg_url);
-        $("download").setAttribute("download", data.file_id || "latest.svg");
-        $("preview-title").textContent = "Önizleme · " + (data.file_id || "latest.svg");
+        showPreview(fileHref(data.file_id, data.svg_url), report.metrics, report);
+        $("download").href = fileHref(data.file_id, data.svg_url);
+        $("download").setAttribute("download", data.file_id || "cut.svg");
+        $("preview-title").textContent = "Önizleme · " + (data.file_id || "cut.svg");
         showGate(data);
         setStatus(
           (data.title || data.generator || data.product) + " · " + data.bytes + " byte · " + data.file_id
@@ -706,10 +714,10 @@
             body: JSON.stringify({ file_id: p.file_id })
           });
           const report = v.ok ? await v.json() : null;
-          showPreview(p.preview_url, p, report);
-          $("preview-title").textContent = "Önizleme · " + (p.file_id || "latest.svg");
-          $("download").href = withToken(p.preview_url);
-          $("download").setAttribute("download", p.file_id || "latest.svg");
+          showPreview(fileHref(p.file_id, p.preview_url), p, report);
+          $("preview-title").textContent = "Önizleme · " + (p.file_id || "cut.svg");
+          $("download").href = fileHref(p.file_id, p.preview_url);
+          $("download").setAttribute("download", p.file_id || "cut.svg");
         }
       } catch (_) {}
     }

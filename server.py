@@ -60,6 +60,7 @@ PUBLIC_PATHS = {
     "/app",
     "/workshop",
     "/account",
+    "/admin",
     "/connect",
     "/auth/callback",
     "/auth/google",
@@ -169,6 +170,30 @@ def _auth_on() -> bool:
 
 def _error(exc: Exception, status: int = 400) -> JSONResponse:
     return JSONResponse({"success": False, "error": str(exc)}, status_code=status)
+
+
+def _safe_download_name(name: str) -> str:
+    base = Path(str(name or "file")).name.replace('"', "").replace("\r", "").replace("\n", "")
+    return base or "file"
+
+
+def _wants_inline_file(request: Request) -> bool:
+    flag = (request.query_params.get("view") or request.query_params.get("inline") or "").strip().lower()
+    return flag in {"1", "true", "yes"}
+
+
+def _file_payload(data: bytes, filename: str, media: str, *, inline: bool) -> Response:
+    name = _safe_download_name(filename)
+    kind = "inline" if inline else "attachment"
+    return Response(
+        content=data,
+        media_type=media if inline else "application/octet-stream",
+        headers={
+            "Content-Disposition": f'{kind}; filename="{name}"',
+            "Cache-Control": "private, no-store",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
 
 
 def _token_ok(provided: str | None, expected: str) -> bool:
@@ -613,6 +638,11 @@ async def account_page(request: Request) -> Response:
     return FileResponse(WEB_DIR / "account.html", media_type="text/html; charset=utf-8")
 
 
+@mcp.custom_route("/admin", methods=["GET"])
+async def admin_page(request: Request) -> Response:
+    return FileResponse(WEB_DIR / "admin.html", media_type="text/html; charset=utf-8")
+
+
 @mcp.custom_route("/auth/google", methods=["GET"])
 async def auth_google(request: Request) -> Response:
     from supabase_auth import configured
@@ -876,7 +906,7 @@ def _account_usage(user_id: str) -> dict[str, Any]:
 @mcp.custom_route("/api/account", methods=["GET"])
 async def api_account(request: Request) -> Response:
     from keys import current_auth, list_keys
-    from supabase_auth import can_mint_keys, session_user, user_by_id
+    from supabase_auth import can_mint_keys, is_admin, session_user, user_by_id
 
     key = current_auth.get() or session_user(request.cookies.get("lmcp_sid"))
     if not key:
@@ -893,6 +923,7 @@ async def api_account(request: Request) -> Response:
                 "kind": stored.get("kind") or key.get("kind") or "individual",
             },
             "can_mint_keys": can_mint_keys(stored or key),
+            "admin": is_admin(stored) or is_admin(key),
             "keys": list_keys(owner=uid),
             "usage": _account_usage(uid),
         }
@@ -949,6 +980,73 @@ async def api_account_keys_revoke(request: Request) -> Response:
         body = {}
     ok = revoke_key(str((body or {}).get("id") or ""), owner=str(key.get("id") or ""))
     return JSONResponse({"success": True, "revoked": ok})
+
+
+def _admin_actor(request: Request):
+    from keys import current_auth
+    from supabase_auth import is_admin, session_user, user_by_id
+
+    key = current_auth.get() or session_user(request.cookies.get("lmcp_sid"))
+    if not key:
+        return None, JSONResponse({"success": True, "look_again": ["Sign in with Google."]}, status_code=401)
+    stored = user_by_id(str(key.get("id") or "")) or {}
+    if not (is_admin(stored) or is_admin(key)):
+        return None, JSONResponse({"look_again": ["Not found."]}, status_code=404)
+    return {**stored, **key, "email": key.get("email") or stored.get("email")}, None
+
+
+@mcp.custom_route("/api/admin/overview", methods=["GET"])
+async def api_admin_overview(request: Request) -> Response:
+    from supabase_auth import session_ready, user_stats
+
+    actor, deny = _admin_actor(request)
+    if deny:
+        return deny
+    stats = user_stats(active_days=30)
+    return JSONResponse(
+        {
+            "success": True,
+            "admin": actor.get("email"),
+            "session_ready": session_ready(),
+            **stats,
+        }
+    )
+
+
+@mcp.custom_route("/api/admin/users", methods=["GET"])
+async def api_admin_users(request: Request) -> Response:
+    from persist.rate_limit import check
+    from supabase_auth import search_users
+
+    actor, deny = _admin_actor(request)
+    if deny:
+        return deny
+    ident = str(actor.get("email") or actor.get("id") or "admin")
+    if not check("admin-search", ident, limit=60, window_sec=60):
+        return JSONResponse({"success": True, "look_again": ["Rate limit. Try again later."]}, status_code=429)
+    q = str(request.query_params.get("q") or "")
+    return JSONResponse({"success": True, "users": search_users(q)})
+
+
+@mcp.custom_route("/api/admin/users/org", methods=["POST"])
+async def api_admin_grant_org(request: Request) -> Response:
+    from persist.rate_limit import check
+    from supabase_auth import grant_org
+
+    actor, deny = _admin_actor(request)
+    if deny:
+        return deny
+    ident = str(actor.get("email") or actor.get("id") or "admin")
+    if not check("admin-grant", ident, limit=30, window_sec=3600):
+        return JSONResponse({"success": True, "look_again": ["Rate limit. Try again later."]}, status_code=429)
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    user = grant_org(str((body or {}).get("email") or ""), by=str(actor.get("email") or ""))
+    if not user:
+        return JSONResponse({"success": True, "look_again": ["No user with that email. They must sign in with Google first."]})
+    return JSONResponse({"success": True, "user": user, "note": "Organization mint is on. They can create lzr_ keys."})
 
 
 @mcp.custom_route("/health", methods=["GET"])
@@ -1186,37 +1284,9 @@ async def api_cad_create(request: Request) -> Response:
         return _error(exc)
 
 
-@mcp.custom_route("/files/{filename}", methods=["GET"])
-async def serve_file(request: Request) -> Response:
-    from keys import auth_required, current_auth
-    from persist.authz import authorize_customer_file
-    from persist.storage import StorageService
-    from supabase_auth import session_user
-
-    filename = request.path_params["filename"]
-    principal = current_auth.get() or session_user(request.cookies.get("lmcp_sid"))
-    decision = authorize_customer_file(filename, principal, auth_on=auth_required())
-    if not decision.get("allow"):
-        return JSONResponse({"look_again": ["Not found."]}, status_code=404)
-    artifact = decision.get("artifact")
-    if artifact:
-        store = StorageService()
-        signed = store.signed_url(str(artifact.get("storage_path") or ""))
-        if signed:
-            return _redirect(signed)
-        try:
-            data = store.get(str(artifact["storage_path"]))
-        except FileNotFoundError:
-            return JSONResponse({"look_again": ["Not found."]}, status_code=404)
-        return Response(content=data, media_type=str(artifact.get("mime_type") or "application/octet-stream"))
-    try:
-        path = boxespy._safe_output_file(filename)
-    except FileNotFoundError:
-        return JSONResponse({"look_again": ["Not found."]}, status_code=404)
-    except ValueError:
-        return JSONResponse({"look_again": ["invalid filename"]}, status_code=400)
-    suffix = path.suffix.lower()
-    media = {
+def _file_media(name: str, fallback: str = "application/octet-stream") -> str:
+    suffix = Path(name).suffix.lower()
+    return {
         ".svg": "image/svg+xml",
         ".dxf": "image/vnd.dxf",
         ".png": "image/png",
@@ -1224,8 +1294,70 @@ async def serve_file(request: Request) -> Response:
         ".txt": "text/plain; charset=utf-8",
         ".md": "text/markdown; charset=utf-8",
         ".webp": "image/webp",
-    }.get(suffix, "application/octet-stream")
-    return FileResponse(path, media_type=media, filename=path.name)
+    }.get(suffix, fallback)
+
+
+def _authorize_output_file(request: Request, filename: str):
+    from keys import auth_required, current_auth
+    from persist.authz import authorize_customer_file
+    from supabase_auth import session_user
+
+    principal = current_auth.get() or session_user(request.cookies.get("lmcp_sid"))
+    return authorize_customer_file(filename, principal, auth_on=auth_required())
+
+
+@mcp.custom_route("/out/{filename}", methods=["GET"])
+async def file_open_page(request: Request) -> Response:
+    filename = _safe_download_name(request.path_params["filename"])
+    decision = _authorize_output_file(request, filename)
+    if not decision.get("allow"):
+        return JSONResponse({"look_again": ["Not found."]}, status_code=404)
+    safe = html.escape(filename, quote=True)
+    body = f"""<!doctype html><html lang="tr"><head><meta charset="utf-8">
+<title>{safe} — LaserMCP</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+body{{margin:0;font:16px/1.5 'Segoe UI',sans-serif;background:#fafafa;color:#111}}
+nav{{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid #e4e4e4}}
+a.btn{{display:inline-flex;padding:10px 16px;background:#e10600;color:#fff;text-decoration:none;font-weight:600}}
+.frame{{margin:20px;padding:16px;background:#fff;border:1px solid #e4e4e4;min-height:50vh}}
+.frame img,.frame object{{max-width:100%;background:#fff}}
+</style></head><body>
+<nav><strong>LaserMCP</strong>
+<a class="btn" href="/files/{safe}" download="{safe}">İndir</a>
+</nav>
+<div class="frame"><object data="/files/{safe}?view=1" type="image/svg+xml" style="width:100%;min-height:60vh">
+<img src="/files/{safe}?view=1" alt="{safe}">
+</object></div>
+</body></html>"""
+    return Response(content=body, media_type="text/html; charset=utf-8", headers={"Cache-Control": "private, no-store"})
+
+
+@mcp.custom_route("/files/{filename}", methods=["GET"])
+async def serve_file(request: Request) -> Response:
+    from persist.storage import StorageService
+
+    filename = request.path_params["filename"]
+    inline = _wants_inline_file(request)
+    decision = _authorize_output_file(request, filename)
+    if not decision.get("allow"):
+        return JSONResponse({"look_again": ["Not found."]}, status_code=404)
+    artifact = decision.get("artifact")
+    if artifact:
+        store = StorageService()
+        try:
+            data = store.get(str(artifact["storage_path"]))
+        except FileNotFoundError:
+            return JSONResponse({"look_again": ["Not found."]}, status_code=404)
+        media = str(artifact.get("mime_type") or _file_media(filename))
+        return _file_payload(data, str(artifact.get("source_file_id") or filename), media, inline=inline)
+    try:
+        path = boxespy._safe_output_file(filename)
+    except FileNotFoundError:
+        return JSONResponse({"look_again": ["Not found."]}, status_code=404)
+    except ValueError:
+        return JSONResponse({"look_again": ["invalid filename"]}, status_code=400)
+    return _file_payload(path.read_bytes(), path.name, _file_media(path.name), inline=inline)
 
 
 def create_asgi_app():

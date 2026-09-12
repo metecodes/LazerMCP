@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LaserMCP — Admin</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <meta name="robots" content="noindex">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root { --bg:#fafafa; --paper:#fff; --ink:#111; --mute:#5a5a5a; --line:#e4e4e4; --cut:#e10600; --pass:#0b7a4b; --mono:"IBM Plex Mono",monospace; --sans:"IBM Plex Sans","Segoe UI",sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin: 0; color: var(--ink); font: 16px/1.55 var(--sans); background: var(--bg); }
+    a { color: inherit; }
+    .wrap { width: min(720px, calc(100% - 40px)); margin: 0 auto; }
+    nav { display: flex; justify-content: space-between; align-items: center; padding: 16px 0; border-bottom: 1px solid var(--line); }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; text-decoration: none; }
+    .mark { width: 18px; height: 18px; border: 1.5px solid var(--ink); position: relative; }
+    .mark::after { content: ""; position: absolute; left: 3px; right: 3px; top: 8px; height: 1.5px; background: var(--cut); }
+    .btn { display: inline-flex; align-items: center; justify-content: center; padding: 11px 16px; font-size: 13px; font-weight: 600; border: 1px solid var(--ink); background: var(--ink); color: #fff; cursor: pointer; text-decoration: none; }
+    .btn.ghost { background: transparent; color: var(--ink); }
+    .btn.cut { background: var(--cut); border-color: var(--cut); }
+    .kicker { font: 11px/1 var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--cut); }
+    h1 { font-size: 36px; letter-spacing: -0.03em; margin: 28px 0 10px; }
+    .lede { color: var(--mute); }
+    .card { background: var(--paper); border: 1px solid var(--line); padding: 22px; margin: 22px 0; }
+    .row { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); font: 13px var(--mono); }
+    .stat { font: 42px/1 var(--sans); letter-spacing: -0.04em; margin: 8px 0 0; }
+    input { width: 100%; border: 1px solid var(--line); padding: 10px 12px; font: 14px var(--sans); margin: 10px 0; }
+    .warn { color: var(--cut); font: 13px var(--mono); }
+    .ok { color: var(--pass); font: 13px var(--mono); }
+    .hide { display: none; }
+    .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <nav>
+      <a class="brand" href="/"><span class="mark"></span>LaserMCP</a>
+      <a href="/account">Hesap</a>
+    </nav>
+    <p class="kicker">ADMIN</p>
+    <h1>Operatör</h1>
+    <p class="lede" id="who">Google ile giriş gerekir.</p>
+
+    <div class="card hide" id="denied">
+      <p class="warn">Bu sayfa yok.</p>
+    </div>
+
+    <div class="card hide" id="panel">
+      <p class="kicker">Aktif kullanıcı</p>
+      <p class="stat" id="active">—</p>
+      <p class="lede" id="window">Son 30 günde last_seen</p>
+      <div class="row"><span>Toplam kayıt</span><b id="total">—</b></div>
+      <div class="row"><span>Kurumsal</span><b id="orgs">—</b></div>
+    </div>
+
+    <div class="card hide" id="search-box">
+      <p class="kicker">Kurumsala geçir</p>
+      <p class="lede">E-posta ile ara. Kullanıcı önce Google ile girmiş olmalı.</p>
+      <input id="q" type="email" placeholder="kisi@ornek.com" autocomplete="off">
+      <div class="actions">
+        <button class="btn" type="button" id="find">Ara</button>
+      </div>
+      <p class="lede" id="note"></p>
+      <div id="hits"></div>
+    </div>
+  </div>
+  <script>
+    async function api(url, opts) {
+      const res = await fetch(url, Object.assign({ credentials: "same-origin" }, opts || {}));
+      const data = await res.json().catch(() => ({}));
+      return { status: res.status, data };
+    }
+
+    function showNote(text, ok) {
+      const el = document.getElementById("note");
+      el.textContent = text || "";
+      el.className = ok ? "ok" : "lede";
+    }
+
+    function renderHits(users) {
+      const box = document.getElementById("hits");
+      if (!users || !users.length) {
+        box.innerHTML = "";
+        return;
+      }
+      box.innerHTML = users.map(function (u) {
+        const kind = u.kind === "org" ? "kurumsal" : "bireysel";
+        const grant = u.org_grant ? " · grant" : "";
+        const seen = u.last_seen || "—";
+        const disabled = u.kind === "org" ? " disabled" : "";
+        const label = u.kind === "org" ? "Zaten kurumsal" : "Kurumsala geçir";
+        return "<div class='row'><span>" + (u.email || "") + "<br>" + kind + grant + " · " + seen +
+          "</span><button class='btn cut' type='button' data-email='" + (u.email || "") + "'" + disabled + ">" + label + "</button></div>";
+      }).join("");
+      box.querySelectorAll("button[data-email]").forEach(function (btn) {
+        btn.onclick = function () { promote(btn.getAttribute("data-email")); };
+      });
+    }
+
+    async function promote(email) {
+      const { status, data } = await api("/api/admin/users/org", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email: email })
+      });
+      if (status === 401) { location.replace("/account?next=/admin"); return; }
+      if (status === 404) { document.getElementById("denied").classList.remove("hide"); return; }
+      if (data.user) {
+        showNote((data.user.email || email) + " kurumsal. API anahtarı üretebilir.", true);
+        renderHits([data.user]);
+        loadOverview();
+        return;
+      }
+      showNote((data.look_again || []).join(" ") || "Bulunamadı.");
+    }
+
+    async function loadOverview() {
+      const { status, data } = await api("/api/admin/overview");
+      if (status === 401) { location.replace("/account?next=/admin"); return false; }
+      if (status === 404) {
+        document.getElementById("denied").classList.remove("hide");
+        return false;
+      }
+      document.getElementById("panel").classList.remove("hide");
+      document.getElementById("search-box").classList.remove("hide");
+      document.getElementById("who").textContent = data.admin || "";
+      document.getElementById("active").textContent = String(data.active_users ?? "—");
+      document.getElementById("window").textContent = "Son " + (data.active_window_days || 30) + " günde görülen kullanıcı";
+      document.getElementById("total").textContent = String(data.total_users ?? "—");
+      document.getElementById("orgs").textContent = String(data.org_users ?? "—");
+      return true;
+    }
+
+    document.getElementById("find").onclick = async function () {
+      const q = document.getElementById("q").value.trim();
+      const { status, data } = await api("/api/admin/users?q=" + encodeURIComponent(q));
+      if (status === 401) { location.replace("/account?next=/admin"); return; }
+      if (status === 404) { document.getElementById("denied").classList.remove("hide"); return; }
+      const users = data.users || [];
+      if (!users.length) showNote("Eşleşme yok. En az 2 karakter; kullanıcı Google ile girmiş olmalı.");
+      else showNote(users.length + " kayıt");
+      renderHits(users);
+    };
+
+    loadOverview();
+  </script>
+</body>
+</html>

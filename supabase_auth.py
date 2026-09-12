@@ -52,6 +52,32 @@ def is_org_email(email: str) -> bool:
     return bool(domains) and host in domains
 
 
+DEFAULT_ADMIN_EMAIL = "metehan1387@gmail.com"
+
+
+def admin_emails() -> list[str]:
+    raw = (os.environ.get("LASERMCP_ADMIN_EMAILS") or DEFAULT_ADMIN_EMAIL).strip()
+    emails = [p.strip().lower() for p in raw.split(",") if p.strip()]
+    if DEFAULT_ADMIN_EMAIL not in emails:
+        emails.append(DEFAULT_ADMIN_EMAIL)
+    return emails
+
+
+def is_admin(user: dict[str, Any] | None) -> bool:
+    if not user:
+        return False
+    email = str(user.get("email") or "").strip().lower()
+    return bool(email) and email in admin_emails()
+
+
+def user_is_org(user: dict[str, Any] | None) -> bool:
+    if not user:
+        return False
+    if is_org_email(str(user.get("email") or "")):
+        return True
+    return bool(user.get("org_grant"))
+
+
 def safe_next_path(raw: str, *, origins: list[str] | None = None) -> str:
     value = (raw or "").strip()
     if not value or any(ch in value for ch in ("\n", "\r", "\\")):
@@ -162,7 +188,7 @@ def upsert_user(identity: dict[str, Any], *, kind: str | None = None) -> dict[st
     hit["email"] = identity.get("email") or hit.get("email")
     hit["name"] = identity.get("name") or hit.get("name")
     hit["last_seen"] = now_iso()
-    hit["kind"] = "org" if is_org_email(str(hit.get("email") or "")) else "individual"
+    hit["kind"] = "org" if user_is_org(hit) else "individual"
     try:
         write_json("users.json", rows)
     except Exception:
@@ -185,9 +211,93 @@ def user_by_id(uid: str) -> dict[str, Any] | None:
 
 
 def can_mint_keys(user: dict[str, Any] | None) -> bool:
-    if not user:
-        return False
-    return is_org_email(str(user.get("email") or ""))
+    return user_is_org(user)
+
+
+def public_user(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": row.get("id"),
+        "email": row.get("email"),
+        "name": row.get("name"),
+        "kind": "org" if user_is_org(row) else "individual",
+        "org_grant": bool(row.get("org_grant")),
+        "last_seen": row.get("last_seen"),
+        "created": row.get("created"),
+    }
+
+
+def _seen_at(raw: str):
+    from datetime import datetime, timezone
+
+    text = str(raw or "").replace("Z", "+00:00")
+    if not text:
+        return None
+    try:
+        stamp = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if stamp.tzinfo is None:
+        stamp = stamp.replace(tzinfo=timezone.utc)
+    return stamp
+
+
+def user_stats(*, active_days: int = 30) -> dict[str, Any]:
+    from datetime import datetime, timedelta, timezone
+
+    rows = _users()
+    now = datetime.now(timezone.utc)
+    window = timedelta(days=max(1, int(active_days)))
+    active = 0
+    org = 0
+    for row in rows:
+        if user_is_org(row):
+            org += 1
+        seen = _seen_at(str(row.get("last_seen") or ""))
+        if seen and now - seen <= window:
+            active += 1
+    return {
+        "active_users": active,
+        "active_window_days": int(active_days),
+        "total_users": len(rows),
+        "org_users": org,
+    }
+
+
+def search_users(query: str, *, limit: int = 20) -> list[dict[str, Any]]:
+    needle = str(query or "").strip().lower()
+    if len(needle) < 2:
+        return []
+    out: list[dict[str, Any]] = []
+    for row in _users():
+        email = str(row.get("email") or "").lower()
+        if needle in email:
+            out.append(public_user(row))
+        if len(out) >= limit:
+            break
+    return out
+
+
+def grant_org(email: str, *, by: str) -> dict[str, Any] | None:
+    needle = str(email or "").strip().lower()
+    if "@" not in needle:
+        return None
+    rows = _users()
+    hit: dict[str, Any] | None = None
+    for row in rows:
+        if str(row.get("email") or "").strip().lower() == needle:
+            hit = row
+            break
+    if hit is None:
+        return None
+    hit["org_grant"] = True
+    hit["kind"] = "org"
+    hit["org_granted_at"] = now_iso()
+    hit["org_granted_by"] = str(by or "")[:120]
+    try:
+        write_json("users.json", rows)
+    except Exception:
+        return None
+    return public_user(hit)
 
 
 class SessionSecretError(RuntimeError):
@@ -229,7 +339,7 @@ def new_session(user: dict[str, Any]) -> str:
         "id": user.get("id"),
         "email": user.get("email"),
         "name": user.get("name"),
-        "kind": "org" if is_org_email(str(user.get("email") or "")) else "individual",
+        "kind": "org" if user_is_org(user) or is_org_email(str(user.get("email") or "")) else "individual",
         "organization_id": user.get("organization_id") or "",
         "exp": int(time.time()) + 30 * 24 * 3600,
     }
@@ -263,8 +373,9 @@ def _parse_signed_session(raw: str) -> dict[str, Any] | None:
     if int(payload.get("exp") or 0) <= int(time.time()):
         return None
     email = str(payload.get("email") or "")
-    kind = "org" if is_org_email(email) else "individual"
     uid = str(payload.get("id"))
+    stored = user_by_id(uid) if uid else None
+    kind = "org" if user_is_org(stored) or is_org_email(email) else "individual"
     org_id = str(payload.get("organization_id") or "")
     if uid and not org_id:
         try:

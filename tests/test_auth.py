@@ -19,6 +19,22 @@ class AuthTests(unittest.TestCase):
         for key in ("SUPABASE_URL", "SUPABASE_ANON_KEY", "LASERMCP_ORG_DOMAINS", "LASERMCP_OAUTH_REDIRECT_HOSTS"):
             os.environ.pop(key, None)
 
+    def test_file_download_is_attachment(self):
+        from server import _file_payload, _safe_download_name, _wants_inline_file
+        from starlette.requests import Request
+
+        self.assertEqual(_safe_download_name("../x.svg"), "x.svg")
+
+        file_bytes = b"<svg xmlns='http://www.w3.org/2000/svg'></svg>"
+        down = _file_payload(file_bytes, "box.svg", "image/svg+xml", inline=False)
+        self.assertEqual(down.headers["content-disposition"], 'attachment; filename="box.svg"')
+        self.assertEqual(down.media_type, "application/octet-stream")
+        preview = _file_payload(file_bytes, "box.svg", "image/svg+xml", inline=True)
+        self.assertIn("inline", preview.headers["content-disposition"])
+        self.assertEqual(preview.media_type, "image/svg+xml")
+        scope = {"type": "http", "method": "GET", "path": "/files/box.svg", "query_string": b"view=1", "headers": []}
+        self.assertTrue(_wants_inline_file(Request(scope)))
+
     def test_redirect_helper_sets_location(self):
         from server import _redirect
 

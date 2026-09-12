@@ -88,7 +88,8 @@
         <p class="ok" id="new-key"></p>
         <div id="key-list"></div>
       </div>
-      <p style="margin-top:16px"><button class="btn ghost" type="button" id="out">Çık</button></p>
+      <p style="margin-top:16px"><a class="btn ghost hide" id="to-admin" href="/admin">Admin</a>
+      <button class="btn ghost" type="button" id="out">Çık</button></p>
     </div>
     <p class="lede" id="status"></p>
   </div>
@@ -198,6 +199,8 @@
         useRow.classList.add("hide");
       }
       document.getElementById("keys-box").classList.toggle("hide", !data.can_mint_keys);
+      const adminLink = document.getElementById("to-admin");
+      if (adminLink) adminLink.classList.toggle("hide", !data.admin);
       const keys = data.keys || [];
       document.getElementById("key-list").innerHTML = keys.map((k) =>
         "<div class='row'><span>" + (k.name || k.id) + "</span><span>" + (k.last_used || "—") + "</span></div>"
