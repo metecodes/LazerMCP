@@ -35,6 +35,29 @@ class AuthTests(unittest.TestCase):
         scope = {"type": "http", "method": "GET", "path": "/files/box.svg", "query_string": b"view=1", "headers": []}
         self.assertTrue(_wants_inline_file(Request(scope)))
 
+    def test_missing_file_is_html_for_browsers(self):
+        from server import _missing_output, _prefers_html
+        from starlette.requests import Request
+
+        html_scope = {
+            "type": "http",
+            "method": "GET",
+            "path": "/files/gone.svg",
+            "query_string": b"",
+            "headers": [(b"accept", b"text/html,application/xhtml+xml")],
+        }
+        req = Request(html_scope)
+        self.assertTrue(_prefers_html(req))
+        page = _missing_output(req, signed_in=False)
+        self.assertEqual(page.status_code, 404)
+        self.assertIn("text/html", page.media_type)
+        self.assertNotIn(b"Not found.", page.body)
+        json_scope = dict(html_scope)
+        json_scope["headers"] = [(b"accept", b"application/json")]
+        api = _missing_output(Request(json_scope), signed_in=True)
+        self.assertEqual(api.media_type, "application/json")
+        self.assertNotIn("Not found.", api.body.decode())
+
     def test_redirect_helper_sets_location(self):
         from server import _redirect
 

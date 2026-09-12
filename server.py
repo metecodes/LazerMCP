@@ -73,7 +73,7 @@ PUBLIC_PATHS = {
     "/api/account",
     *BRAND_FILES,
 }
-PUBLIC_PREFIXES = ("/demo/", "/oauth/", "/.well-known/", "/auth/")
+PUBLIC_PREFIXES = ("/demo/", "/oauth/", "/.well-known/", "/auth/", "/files/", "/out/")
 MCP_TOOLS = [
     "plan_laser_job",
     "create_from_reference",
@@ -180,6 +180,49 @@ def _safe_download_name(name: str) -> str:
 def _wants_inline_file(request: Request) -> bool:
     flag = (request.query_params.get("view") or request.query_params.get("inline") or "").strip().lower()
     return flag in {"1", "true", "yes"}
+
+
+def _prefers_html(request: Request) -> bool:
+    accept = (request.headers.get("accept") or "").lower()
+    if "text/html" in accept:
+        return True
+    if "application/json" in accept:
+        return False
+    return True
+
+
+def _missing_output(request: Request, *, signed_in: bool = False) -> Response:
+    if not _prefers_html(request):
+        note = "Dosya yok veya bu hesaba ait değil." if signed_in else "Dosyayı görmek için Google ile gir."
+        return JSONResponse({"success": True, "look_again": [note]}, status_code=404)
+    title = "Dosya yok" if signed_in else "Giriş gerekli"
+    body_tr = (
+        "Bu dosya yok, süresi dolmuş veya başka bir hesaba ait."
+        if signed_in
+        else "Bu kesim dosyasını görmek veya indirmek için Google ile gir."
+    )
+    extra = (
+        '<a class="btn ghost" href="/">Ana sayfa</a>'
+        if signed_in
+        else '<a class="btn" href="/account?next=/app">Google ile gir</a>'
+    )
+    html_page = f"""<!doctype html><html lang="tr"><head><meta charset="utf-8">
+<title>{title} — LaserMCP</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+body{{margin:0;font:16px/1.5 'Segoe UI',sans-serif;background:#fafafa;color:#111}}
+.wrap{{width:min(560px,calc(100% - 40px));margin:48px auto}}
+.btn{{display:inline-flex;margin-right:8px;padding:10px 16px;background:#111;color:#fff;text-decoration:none;font-weight:600}}
+.btn.ghost{{background:transparent;color:#111;border:1px solid #111}}
+.lede{{color:#5a5a5a}}
+</style></head><body>
+<div class="wrap">
+<p style="letter-spacing:.14em;text-transform:uppercase;color:#e10600;font:11px monospace">LaserMCP</p>
+<h1>{title}</h1>
+<p class="lede">{body_tr}</p>
+<p>{extra}<a class="btn ghost" href="/app">Atölye</a></p>
+</div></body></html>"""
+    return Response(content=html_page, status_code=404, media_type="text/html; charset=utf-8")
 
 
 def _file_payload(data: bytes, filename: str, media: str, *, inline: bool) -> Response:
@@ -991,7 +1034,7 @@ def _admin_actor(request: Request):
         return None, JSONResponse({"success": True, "look_again": ["Sign in with Google."]}, status_code=401)
     stored = user_by_id(str(key.get("id") or "")) or {}
     if not (is_admin(stored) or is_admin(key)):
-        return None, JSONResponse({"look_again": ["Not found."]}, status_code=404)
+        return None, JSONResponse({"success": True, "look_again": ["Bu sayfa yok."]}, status_code=404)
     return {**stored, **key, "email": key.get("email") or stored.get("email")}, None
 
 
@@ -1298,20 +1341,27 @@ def _file_media(name: str, fallback: str = "application/octet-stream") -> str:
 
 
 def _authorize_output_file(request: Request, filename: str):
-    from keys import auth_required, current_auth
+    from keys import auth_required, current_auth, resolve_bearer
     from persist.authz import authorize_customer_file
     from supabase_auth import session_user
 
-    principal = current_auth.get() or session_user(request.cookies.get("lmcp_sid"))
-    return authorize_customer_file(filename, principal, auth_on=auth_required())
+    principal = current_auth.get()
+    if not principal:
+        auth = request.headers.get("authorization") or ""
+        token = auth[7:].strip() if auth.lower().startswith("bearer ") else None
+        if token:
+            principal = resolve_bearer(token)
+    if not principal:
+        principal = session_user(request.cookies.get("lmcp_sid"))
+    return authorize_customer_file(filename, principal, auth_on=auth_required()), principal
 
 
 @mcp.custom_route("/out/{filename}", methods=["GET"])
 async def file_open_page(request: Request) -> Response:
     filename = _safe_download_name(request.path_params["filename"])
-    decision = _authorize_output_file(request, filename)
+    decision, principal = _authorize_output_file(request, filename)
     if not decision.get("allow"):
-        return JSONResponse({"look_again": ["Not found."]}, status_code=404)
+        return _missing_output(request, signed_in=bool(principal))
     safe = html.escape(filename, quote=True)
     body = f"""<!doctype html><html lang="tr"><head><meta charset="utf-8">
 <title>{safe} — LaserMCP</title>
@@ -1339,24 +1389,24 @@ async def serve_file(request: Request) -> Response:
 
     filename = request.path_params["filename"]
     inline = _wants_inline_file(request)
-    decision = _authorize_output_file(request, filename)
+    decision, principal = _authorize_output_file(request, filename)
     if not decision.get("allow"):
-        return JSONResponse({"look_again": ["Not found."]}, status_code=404)
+        return _missing_output(request, signed_in=bool(principal))
     artifact = decision.get("artifact")
     if artifact:
         store = StorageService()
         try:
             data = store.get(str(artifact["storage_path"]))
         except FileNotFoundError:
-            return JSONResponse({"look_again": ["Not found."]}, status_code=404)
+            return _missing_output(request, signed_in=bool(principal))
         media = str(artifact.get("mime_type") or _file_media(filename))
         return _file_payload(data, str(artifact.get("source_file_id") or filename), media, inline=inline)
     try:
         path = boxespy._safe_output_file(filename)
     except FileNotFoundError:
-        return JSONResponse({"look_again": ["Not found."]}, status_code=404)
+        return _missing_output(request, signed_in=bool(principal))
     except ValueError:
-        return JSONResponse({"look_again": ["invalid filename"]}, status_code=400)
+        return _missing_output(request, signed_in=bool(principal))
     return _file_payload(path.read_bytes(), path.name, _file_media(path.name), inline=inline)
 
 
