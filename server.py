@@ -17,6 +17,24 @@ from mcp.server.transport_security import TransportSecuritySettings
 import boxes_adapter as boxespy
 import payas_cad
 
+
+def _load_dotenv() -> None:
+    path = Path(__file__).resolve().parent / ".env"
+    if not path.is_file():
+        return
+    for line in path.read_text(encoding="utf-8").splitlines():
+        raw = line.strip()
+        if not raw or raw.startswith("#") or "=" not in raw:
+            continue
+        key, _, value = raw.partition("=")
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key and key not in os.environ:
+            os.environ[key] = value
+
+
+_load_dotenv()
+
 HOST = os.environ.get("MCP_HOST", "127.0.0.1")
 PORT = int(os.environ.get("MCP_PORT", "8000"))
 PUBLIC_BASE_URL = os.environ.get("MCP_PUBLIC_BASE_URL", "")
@@ -32,6 +50,7 @@ PUBLIC_PATHS = {
     "/account",
     "/connect",
     "/auth/callback",
+    "/auth/google",
     "/api/plans",
     "/api/beta",
     "/api/demo",
@@ -505,6 +524,25 @@ async def connect_page(request: Request) -> Response:
 @mcp.custom_route("/auth/callback", methods=["GET"])
 async def account_page(request: Request) -> Response:
     return FileResponse(WEB_DIR / "account.html", media_type="text/html; charset=utf-8")
+
+
+@mcp.custom_route("/auth/google", methods=["GET"])
+async def auth_google(request: Request) -> Response:
+    from starlette.responses import RedirectResponse
+    from supabase_auth import configured, supabase_anon_key, supabase_url
+
+    if not configured():
+        return RedirectResponse("/account", status_code=302)
+    redirect_to = f"{_public_base(request)}/auth/callback"
+    nxt = request.query_params.get("next") or ""
+    if nxt:
+        redirect_to += "?next=" + __import__("urllib.parse").quote(nxt, safe="")
+    target = (
+        f"{supabase_url()}/auth/v1/authorize?provider=google"
+        f"&redirect_to={__import__('urllib.parse').quote(redirect_to, safe='')}"
+        f"&apikey={__import__('urllib.parse').quote(supabase_anon_key(), safe='')}"
+    )
+    return RedirectResponse(target, status_code=302)
 
 
 @mcp.custom_route("/app", methods=["GET"])

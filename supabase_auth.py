@@ -17,7 +17,11 @@ def supabase_url() -> str:
 
 
 def supabase_anon_key() -> str:
-    return (os.environ.get("SUPABASE_ANON_KEY") or "").strip()
+    return (
+        os.environ.get("SUPABASE_ANON_KEY")
+        or os.environ.get("SUPABASE_PUBLISHABLE_KEY")
+        or ""
+    ).strip()
 
 
 def configured() -> bool:
