@@ -51,6 +51,7 @@ BRAND_FILES = {
     "/icon-512.png": ("icon-512.png", "image/png"),
     "/og.png": ("og.png", "image/png"),
     "/site.webmanifest": ("site.webmanifest", "application/manifest+json"),
+    "/nav-auth.js": ("nav-auth.js", "text/javascript; charset=utf-8"),
 }
 PUBLIC_PATHS = {
     "/",
@@ -67,6 +68,8 @@ PUBLIC_PATHS = {
     "/api/demo",
     "/api/auth/config",
     "/api/auth/session",
+    "/api/auth/logout",
+    "/api/account",
     *BRAND_FILES,
 }
 PUBLIC_PREFIXES = ("/demo/", "/oauth/", "/.well-known/", "/auth/")
@@ -624,6 +627,7 @@ async def dashboard(request: Request) -> Response:
 @mcp.custom_route("/icon-512.png", methods=["GET"])
 @mcp.custom_route("/og.png", methods=["GET"])
 @mcp.custom_route("/site.webmanifest", methods=["GET"])
+@mcp.custom_route("/nav-auth.js", methods=["GET"])
 async def brand_asset(request: Request) -> Response:
     spec = BRAND_FILES.get(request.url.path)
     if not spec:
@@ -817,6 +821,24 @@ async def api_auth_session(request: Request) -> Response:
     return response
 
 
+@mcp.custom_route("/api/auth/logout", methods=["POST", "GET"])
+async def api_auth_logout(request: Request) -> Response:
+    response = JSONResponse({"success": True, "signed_out": True})
+    response.delete_cookie("lmcp_sid", path="/")
+    return response
+
+
+def _account_usage(user_id: str) -> dict[str, Any]:
+    from metering import designs_this_month, usage_summary
+
+    uid = str(user_id or "")
+    summary = usage_summary()
+    return {
+        "total": int((summary.get("by_key") or {}).get(uid, 0)),
+        "month": designs_this_month(uid),
+    }
+
+
 @mcp.custom_route("/api/account", methods=["GET"])
 async def api_account(request: Request) -> Response:
     from keys import current_auth, list_keys
@@ -826,17 +848,19 @@ async def api_account(request: Request) -> Response:
     if not key:
         return JSONResponse({"success": True, "look_again": ["Sign in with Google."]}, status_code=401)
     stored = user_by_id(str(key.get("id") or "")) or {}
+    uid = str(key.get("id") or "")
     return JSONResponse(
         {
             "success": True,
             "user": {
                 "id": key.get("id"),
-                "name": key.get("name"),
+                "name": key.get("name") or stored.get("name"),
                 "email": key.get("email") or stored.get("email"),
                 "kind": stored.get("kind") or key.get("kind") or "individual",
             },
             "can_mint_keys": can_mint_keys(stored or key),
-            "keys": list_keys(owner=str(key.get("id") or "")),
+            "keys": list_keys(owner=uid),
+            "usage": _account_usage(uid),
         }
     )
 

@@ -67,6 +67,7 @@
     <div class="card hide" id="signed-in">
       <div class="row"><span>E-posta</span><b id="email">—</b></div>
       <div class="row"><span>Tür</span><b id="kind">—</b></div>
+      <div class="row"><span id="use-lab">Kullanım</span><b id="usage">—</b></div>
       <p class="lede" id="org-note"></p>
       <div id="keys-box" class="hide" style="margin-top:18px">
         <input id="key-name" placeholder="atölye-anahtarı">
@@ -87,7 +88,8 @@
       google: "Continue with Google",
       mint: "Mint API key", out: "Sign out", need: "Sign in with Google first.",
       orgYes: "This email domain may mint organization API keys.",
-      orgNo: "Organization keys are limited to allowlisted email domains."
+      orgNo: "Organization keys are limited to allowlisted email domains.",
+      useLab: "Usage", jobs: "jobs this month"
     } : {
       connect: "Bağlama adımları", title: "Google ile gir",
       lede: "Bireysel kullanıcı link yapıştırmaz. Google zorunlu. Kurumsal hesap anahtar üretir.",
@@ -95,7 +97,8 @@
       google: "Google ile devam et",
       mint: "API anahtarı üret", out: "Çık", need: "Önce Google ile gir.",
       orgYes: "Bu e-posta alanı kurumsal API anahtarı üretebilir.",
-      orgNo: "Kurumsal anahtar yalnız izinli e-posta alanlarına açık."
+      orgNo: "Kurumsal anahtar yalnız izinli e-posta alanlarına açık.",
+      useLab: "Kullanım", jobs: "iş bu ay"
     };
     document.getElementById("to-connect").textContent = T.connect;
     document.getElementById("title").textContent = T.title;
@@ -104,6 +107,7 @@
     document.getElementById("google").textContent = T.google;
     document.getElementById("mint").textContent = T.mint;
     document.getElementById("out").textContent = T.out;
+    document.getElementById("use-lab").textContent = T.useLab;
 
     function safeNext(raw) {
       if (!raw) return "";
@@ -135,6 +139,9 @@
       document.getElementById("email").textContent = user.email || "—";
       document.getElementById("kind").textContent = user.kind === "org" ? (lang === "en" ? "organization" : "kurumsal") : (lang === "en" ? "individual" : "bireysel");
       document.getElementById("org-note").textContent = data.can_mint_keys ? T.orgYes : T.orgNo;
+      const used = (data.usage && (data.usage.month || 0)) || 0;
+      const total = (data.usage && (data.usage.total || 0)) || 0;
+      document.getElementById("usage").textContent = used + " " + T.jobs + (total ? " · " + total : "");
       document.getElementById("keys-box").classList.toggle("hide", !data.can_mint_keys);
       const keys = data.keys || [];
       document.getElementById("key-list").innerHTML = keys.map((k) =>
@@ -146,7 +153,7 @@
       const hash = new URLSearchParams((location.hash || "").replace(/^#/, ""));
       const token = accessToken || hash.get("access_token") || "";
       if (!token) {
-        const me = await fetch("/api/account").then((r) => r.json());
+        const me = await fetch("/api/account", { credentials: "same-origin" }).then((r) => r.json());
         return me;
       }
       accessToken = token;
@@ -182,10 +189,13 @@
       });
       const data = await res.json();
       document.getElementById("new-key").textContent = data.token ? ((lang === "en" ? "shown once: " : "bir kez: ") + data.token) : (data.look_again || []).join(" ");
-      const me = await fetch("/api/account").then((r) => r.json());
+      const me = await fetch("/api/account", { credentials: "same-origin" }).then((r) => r.json());
       if (me.user) showUser(me);
     };
-    document.getElementById("out").onclick = () => { location.href = "/account"; };
+    document.getElementById("out").onclick = async () => {
+      await fetch("/api/auth/logout", { method: "POST", credentials: "same-origin" }).catch(() => {});
+      location.href = "/account";
+    };
     boot();
   </script>
 </body>

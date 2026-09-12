@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import base64
+import hashlib
+import hmac
 import json
 import os
 import re
-import secrets
+import time
 import urllib.error
 import urllib.request
 from typing import Any
@@ -159,23 +162,77 @@ def can_mint_keys(user: dict[str, Any] | None) -> bool:
     return is_org_email(str(user.get("email") or ""))
 
 
+def _session_secret() -> bytes:
+    raw = (
+        os.environ.get("MCP_SESSION_SECRET")
+        or os.environ.get("MCP_AUTH_TOKEN")
+        or supabase_anon_key()
+        or "lasermcp-dev-session"
+    )
+    return hashlib.sha256(raw.encode("utf-8")).digest()
+
+
+def _b64(raw: bytes) -> str:
+    return base64.urlsafe_b64encode(raw).rstrip(b"=").decode("ascii")
+
+
+def _b64d(text: str) -> bytes:
+    pad = "=" * (-len(text) % 4)
+    return base64.urlsafe_b64decode(text + pad)
+
+
 def new_session(user: dict[str, Any]) -> str:
-    sid = secrets.token_urlsafe(24)
-    rows = read_json("sessions.json", [])
-    if not isinstance(rows, list):
-        rows = []
-    rows.append({"id": sid, "user_id": user.get("id"), "email": user.get("email"), "created": now_iso()})
-    write_json("sessions.json", rows[-400:])
-    return sid
+    payload = {
+        "id": user.get("id"),
+        "email": user.get("email"),
+        "name": user.get("name"),
+        "kind": "org" if is_org_email(str(user.get("email") or "")) else "individual",
+        "exp": int(time.time()) + 30 * 24 * 3600,
+    }
+    body = _b64(json.dumps(payload, separators=(",", ":"), ensure_ascii=True).encode("utf-8"))
+    sig = _b64(hmac.new(_session_secret(), body.encode("ascii"), hashlib.sha256).digest())
+    return f"{body}.{sig}"
+
+
+def _parse_signed_session(raw: str) -> dict[str, Any] | None:
+    if "." not in raw:
+        return None
+    body, _, sig = raw.partition(".")
+    if not body or not sig:
+        return None
+    expected = _b64(hmac.new(_session_secret(), body.encode("ascii"), hashlib.sha256).digest())
+    if not hmac.compare_digest(sig, expected):
+        return None
+    try:
+        payload = json.loads(_b64d(body).decode("utf-8"))
+    except Exception:
+        return None
+    if not isinstance(payload, dict) or not payload.get("id"):
+        return None
+    if int(payload.get("exp") or 0) <= int(time.time()):
+        return None
+    email = str(payload.get("email") or "")
+    kind = "org" if is_org_email(email) else "individual"
+    return {
+        "id": str(payload.get("id")),
+        "email": email,
+        "name": str(payload.get("name") or email or "user"),
+        "kind": kind,
+    }
 
 
 def session_user(sid: str | None) -> dict[str, Any] | None:
     raw = (sid or "").strip()
     if not raw:
         return None
+    signed = _parse_signed_session(raw)
+    if signed:
+        return signed
     for row in read_json("sessions.json", []) or []:
         if isinstance(row, dict) and row.get("id") == raw:
-            return user_by_id(str(row.get("user_id") or ""))
+            stored = user_by_id(str(row.get("user_id") or ""))
+            if stored:
+                return stored
     return None
 
 

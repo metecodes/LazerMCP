@@ -127,6 +127,15 @@ class AuthTests(unittest.TestCase):
         org = upsert_user({"id": "2", "email": "b@payas.edu.tr", "name": "B"})
         self.assertEqual(org["kind"], "org")
 
+    def test_signed_session_survives_without_store(self):
+        from supabase_auth import new_session, session_user
+
+        sid = new_session({"id": "u9", "email": "ada@b.com", "name": "Ada"})
+        self.assertEqual(session_user(sid)["email"], "ada@b.com")
+        self.assertEqual(session_user(sid)["name"], "Ada")
+        self.assertIsNone(session_user(sid + "tamper"))
+        self.assertIsNone(session_user("not-a-session"))
+
     def test_overview_keys_are_owner_scoped(self):
         from keys import create_key, current_auth
         from studio import overview
