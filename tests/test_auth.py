@@ -137,18 +137,22 @@ class AuthTests(unittest.TestCase):
         self.assertIsNone(session_user("not-a-session"))
 
     def test_overview_keys_are_owner_scoped(self):
-        from keys import create_key, current_auth
-        from studio import overview
+        from importlib import reload
 
-        create_key("mine", owner="u1", email="a@y.com")
-        create_key("theirs", owner="u2", email="b@y.com")
-        token = current_auth.set({"id": "u1", "email": "a@y.com"})
+        import keys
+        import studio
+
+        reload(keys)
+        reload(studio)
+        keys.create_key("mine", owner="u1", email="a@y.com")
+        keys.create_key("theirs", owner="u2", email="b@y.com")
+        token = keys.current_auth.set({"id": "u1", "email": "a@y.com"})
         try:
-            names = {row.get("name") for row in overview()["keys"]}
+            names = {row.get("name") for row in studio.overview()["keys"]}
         finally:
-            current_auth.reset(token)
+            keys.current_auth.reset(token)
         self.assertEqual(names, {"mine"})
-        self.assertEqual(overview()["keys"], [])
+        self.assertEqual(studio.overview()["keys"], [])
 
 
 if __name__ == "__main__":

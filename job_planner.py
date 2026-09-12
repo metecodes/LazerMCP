@@ -72,6 +72,11 @@ _ASSEMBLY = (
     "shed",
     "taban",
     "kaide",
+    "kutu",
+    "box",
+    "kapak",
+    "govde",
+    "panel",
 )
 
 _TRACE_ONLY = (
@@ -488,6 +493,34 @@ def plan_laser_job(
             seen,
         )
 
+    if photo and not _wants_trace_only(text):
+        look = (
+            "LOOK at the photo. Name walls, floor, lid, holes, rotors in what_you_see. "
+            "Do not 2D-trace a thing to build. Call create_design with primitives."
+        )
+        if not seen.strip():
+            return {
+                "success": True,
+                "method": "ask_or_compose",
+                "summary": "Photo of a thing to build. Describe the parts first — do not trace it as 2D art.",
+                "next_tool": "plan_laser_job",
+                "next_arguments": {"has_photo": True},
+                "look_again": look,
+                "grammar": GRAMMAR,
+                "measure": MEASURE,
+                "rules": rules,
+                "defaults": dict(PAYAS_DEFAULTS),
+            }
+        return _compose_plan(
+            "Compose the photographed object with create_design primitives. Do not trace the photo.",
+            width or 80.0,
+            height or width or 80.0,
+            fmt,
+            look,
+            text,
+            seen,
+        )
+
     if photo:
         width = width or 200.0
         return {
@@ -505,9 +538,8 @@ def plan_laser_job(
                 "format": fmt,
             },
             "look_again": (
-                "If this is a thing to build (walls, roof, propeller, box), call plan_laser_job again "
-                "and describe those parts in what_you_see — then compose with create_design. "
-                "If it is 2D artwork, compress JPEG ~1200px and call create_from_reference."
+                "2D artwork only. If this is a box, mill, or kit, describe parts in what_you_see "
+                "and call plan_laser_job again — then create_design."
             ),
             "grammar": GRAMMAR, "measure": MEASURE,
             "rules": rules,

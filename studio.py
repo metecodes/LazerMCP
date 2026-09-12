@@ -6,11 +6,17 @@ from typing import Any
 
 from bom import build_bom
 from calibrate import apply_stored_burn, list_calibrations, record_calibration
-from keys import create_key, current_auth, list_keys
+from keys import create_key, list_keys
 from metering import record_usage, usage_summary
 from profiles import apply_profiles, list_profiles
 from projects import list_projects, project_history, save_version
 from telemetry import emit, recent
+
+
+def _principal() -> dict[str, Any] | None:
+    from keys import current_auth
+
+    return current_auth.get()
 
 
 def prepare_parameters(parameters: dict[str, Any] | None) -> dict[str, Any]:
@@ -64,7 +70,7 @@ def finish_result(result: dict[str, Any], extra: dict[str, Any] | None = None) -
             result["project"] = project
             payload["project"] = project
     result = apply_plan_to_result(result, extra)
-    key = current_auth.get()
+    key = _principal()
     record_usage(
         key,
         str(result.get("generator") or result.get("product") or "job"),
@@ -110,7 +116,7 @@ def studio_action(
     if verb in {"keys", "key"}:
         from supabase_auth import can_mint_keys, configured
 
-        key = current_auth.get()
+        key = _principal()
         if configured() and not can_mint_keys(key):
             return {
                 "success": True,
@@ -143,7 +149,9 @@ def studio_action(
 
 
 def overview() -> dict[str, Any]:
-    key = current_auth.get()
+    from keys import list_keys as keys_for_owner
+
+    key = _principal()
     owner = str((key or {}).get("id") or "")
     return {
         "success": True,
@@ -151,7 +159,7 @@ def overview() -> dict[str, Any]:
         "calibrations": list_calibrations(),
         "projects": list_projects(),
         "usage": usage_summary(),
-        "keys": list_keys(owner=owner) if owner else [],
+        "keys": keys_for_owner(owner=owner) if owner else [],
         "telemetry": recent(40),
         "plans": __import__("plans").public_plans(),
     }

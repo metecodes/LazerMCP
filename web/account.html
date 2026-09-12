@@ -43,6 +43,10 @@
     .warn { color: var(--cut); font: 13px var(--mono); }
     .ok { color: var(--pass); font: 13px var(--mono); word-break: break-all; }
     .hide { display: none; }
+    .pipe { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin: 0 0 18px; }
+    .pipe span { display: block; font: 11px var(--mono); color: var(--cut); }
+    .pipe b { display: block; margin-top: 4px; font-size: 12px; }
+    @media (max-width: 720px) { .pipe { grid-template-columns: 1fr 1fr; } }
   </style>
 </head>
 <body>
@@ -65,6 +69,15 @@
     </div>
 
     <div class="card hide" id="signed-in">
+      <p class="kicker" id="hat-kicker">HAT</p>
+      <div class="pipe" id="hat">
+        <div><span>01</span><b id="p1">AI</b></div>
+        <div><span>02</span><b id="p2">Parametrik</b></div>
+        <div><span>03</span><b id="p3">Mekanik</b></div>
+        <div><span>04</span><b id="p4">Üretim</b></div>
+        <div><span>05</span><b id="p5">Kesim SVG</b></div>
+      </div>
+      <p class="lede" id="hat-note">Basit kutu hızlı. Kompakt makette parçaları yaz. Fotoğraf 3D olmaz.</p>
       <div class="row"><span>E-posta</span><b id="email">—</b></div>
       <div class="row"><span>Tür</span><b id="kind">—</b></div>
       <div class="row"><span id="use-lab">Kullanım</span><b id="usage">—</b></div>
@@ -89,7 +102,9 @@
       mint: "Mint API key", out: "Sign out", need: "Sign in with Google first.",
       orgYes: "This email domain may mint organization API keys.",
       orgNo: "Organization keys are limited to allowlisted email domains.",
-      useLab: "Usage", jobs: "jobs this month"
+      useLab: "Usage", jobs: "jobs this month",
+      hat: "LINE", p1: "AI", p2: "Parametric", p3: "Mechanical", p4: "Production", p5: "Cut SVG",
+      hatNote: "A simple box is fast. Name parts on a compact model. A photo is not 3D."
     } : {
       connect: "Bağlama adımları", title: "Google ile gir",
       lede: "Bireysel kullanıcı link yapıştırmaz. Google zorunlu. Kurumsal hesap anahtar üretir.",
@@ -98,7 +113,9 @@
       mint: "API anahtarı üret", out: "Çık", need: "Önce Google ile gir.",
       orgYes: "Bu e-posta alanı kurumsal API anahtarı üretebilir.",
       orgNo: "Kurumsal anahtar yalnız izinli e-posta alanlarına açık.",
-      useLab: "Kullanım", jobs: "iş bu ay"
+      useLab: "Kullanım", jobs: "iş bu ay",
+      hat: "HAT", p1: "AI", p2: "Parametrik", p3: "Mekanik", p4: "Üretim", p5: "Kesim SVG",
+      hatNote: "Basit kutu hızlı. Kompakt makette parçaları yaz. Fotoğraf 3D olmaz."
     };
     document.getElementById("to-connect").textContent = T.connect;
     document.getElementById("title").textContent = T.title;
@@ -108,6 +125,13 @@
     document.getElementById("mint").textContent = T.mint;
     document.getElementById("out").textContent = T.out;
     document.getElementById("use-lab").textContent = T.useLab;
+    document.getElementById("hat-kicker").textContent = T.hat;
+    document.getElementById("hat-note").textContent = T.hatNote;
+    document.getElementById("p1").textContent = T.p1;
+    document.getElementById("p2").textContent = T.p2;
+    document.getElementById("p3").textContent = T.p3;
+    document.getElementById("p4").textContent = T.p4;
+    document.getElementById("p5").textContent = T.p5;
 
     function safeNext(raw) {
       if (!raw) return "";
