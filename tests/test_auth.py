@@ -19,6 +19,16 @@ class AuthTests(unittest.TestCase):
         for key in ("SUPABASE_URL", "SUPABASE_ANON_KEY", "LASERMCP_ORG_DOMAINS", "LASERMCP_OAUTH_REDIRECT_HOSTS"):
             os.environ.pop(key, None)
 
+    def test_redirect_helper_sets_location(self):
+        from server import _redirect
+
+        gone = _redirect("https://claude.ai/api/mcp/auth_callback")
+        self.assertEqual(gone.status_code, 302)
+        self.assertEqual(gone.headers["location"], "https://claude.ai/api/mcp/auth_callback")
+        browser = _redirect("https://example.supabase.co/auth/v1/authorize", status=200)
+        self.assertEqual(browser.status_code, 200)
+        self.assertIn("example.supabase.co", browser.body.decode())
+
     def test_oauth_metadata(self):
         from oauth_mcp import metadata, resource_metadata
 

@@ -118,8 +118,14 @@
     }
 
     const next = safeNext(new URLSearchParams(location.search).get("next") || "");
-    if (next) document.getElementById("google").href = "/auth/google?next=" + encodeURIComponent(next);
     let accessToken = "";
+
+    function googleHref(cfg) {
+      if (!cfg || !cfg.url || !cfg.anon_key) return next ? "/auth/google?next=" + encodeURIComponent(next) : "/auth/google";
+      let redirect = location.origin + "/auth/callback";
+      if (next) redirect += "?next=" + encodeURIComponent(next);
+      return cfg.url + "/auth/v1/authorize?provider=google&redirect_to=" + encodeURIComponent(redirect) + "&apikey=" + encodeURIComponent(cfg.anon_key);
+    }
 
     function showUser(data) {
       document.getElementById("need-config").classList.add("hide");
@@ -154,6 +160,7 @@
 
     async function boot() {
       const cfg = await fetch("/api/auth/config").then((r) => r.json()).catch(() => ({ configured: false }));
+      document.getElementById("google").href = googleHref(cfg);
       if (!cfg.configured) {
         document.getElementById("signed-out").classList.add("hide");
         document.getElementById("need-config").classList.remove("hide");

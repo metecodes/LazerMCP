@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import hmac
+import html
+import json
 import os
 from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qs
+from urllib.parse import parse_qs, quote
 
 from starlette.requests import Request
 from starlette.responses import FileResponse, JSONResponse, Response
@@ -211,6 +213,36 @@ def _safe_next(raw: str, request: Request) -> str:
     from supabase_auth import safe_next_path
 
     return safe_next_path(raw, origins=_next_origins(request))
+
+
+def _redirect(url: str, *, status: int = 302) -> Response:
+    """HTML + Location. Avoid Starlette RedirectResponse — Vercel 500s when it follows 302."""
+    safe = html.escape(url, quote=True)
+    body = (
+        "<!doctype html><meta charset='utf-8'>"
+        f"<meta http-equiv='refresh' content='0;url={safe}'>"
+        f"<a href='{safe}'>Continue</a>"
+        f"<script>location.replace({json.dumps(url)})</script>"
+    )
+    return Response(
+        content=body,
+        status_code=status,
+        media_type="text/html; charset=utf-8",
+        headers={"Location": url, "Cache-Control": "no-store"},
+    )
+
+
+def _google_authorize_url(request: Request, nxt: str = "") -> str:
+    from supabase_auth import supabase_anon_key, supabase_url
+
+    redirect_to = f"{_public_base(request)}/auth/callback"
+    if nxt:
+        redirect_to += "?next=" + quote(nxt, safe="")
+    return (
+        f"{supabase_url()}/auth/v1/authorize?provider=google"
+        f"&redirect_to={quote(redirect_to, safe='')}"
+        f"&apikey={quote(supabase_anon_key(), safe='')}"
+    )
 
 
 class McpOriginAlias:
@@ -562,21 +594,16 @@ async def account_page(request: Request) -> Response:
 
 @mcp.custom_route("/auth/google", methods=["GET"])
 async def auth_google(request: Request) -> Response:
-    from starlette.responses import RedirectResponse
-    from supabase_auth import configured, supabase_anon_key, supabase_url
+    from supabase_auth import configured
 
     if not configured():
-        return RedirectResponse("/account", status_code=302)
-    redirect_to = f"{_public_base(request)}/auth/callback"
-    nxt = _safe_next(request.query_params.get("next") or "", request)
-    if nxt:
-        redirect_to += "?next=" + __import__("urllib.parse").quote(nxt, safe="")
-    target = (
-        f"{supabase_url()}/auth/v1/authorize?provider=google"
-        f"&redirect_to={__import__('urllib.parse').quote(redirect_to, safe='')}"
-        f"&apikey={__import__('urllib.parse').quote(supabase_anon_key(), safe='')}"
-    )
-    return RedirectResponse(target, status_code=302)
+        return _redirect("/account", status=200)
+    try:
+        nxt = _safe_next(request.query_params.get("next") or "", request)
+        # 200: Vercel follows 302 Location server-side and 500s on supabase.co
+        return _redirect(_google_authorize_url(request, nxt), status=200)
+    except Exception:
+        return _redirect("/account", status=200)
 
 
 @mcp.custom_route("/app", methods=["GET"])
@@ -709,13 +736,12 @@ async def oauth_register(request: Request) -> Response:
 async def oauth_authorize(request: Request) -> Response:
     from oauth_mcp import authorize_redirect, issue_code
     from supabase_auth import session_user
-    from starlette.responses import RedirectResponse
 
     q = request.query_params
     nxt = _safe_next(str(request.url), request)
     user = session_user(request.cookies.get("lmcp_sid"))
     if not user:
-        return RedirectResponse("/account?next=" + __import__("urllib.parse").quote(nxt or "/connect", safe=""), status_code=302)
+        return _redirect("/account?next=" + quote(nxt or "/connect", safe=""))
     try:
         code = issue_code(
             client_id=str(q.get("client_id") or ""),
@@ -724,7 +750,7 @@ async def oauth_authorize(request: Request) -> Response:
             challenge=str(q.get("code_challenge") or ""),
             user=user,
         )
-        return RedirectResponse(authorize_redirect(str(q.get("redirect_uri") or ""), code, str(q.get("state") or "")), status_code=302)
+        return _redirect(authorize_redirect(str(q.get("redirect_uri") or ""), code, str(q.get("state") or "")))
     except ValueError as exc:
         return _cors({"error": "invalid_request", "error_description": str(exc)}, 400)
 
