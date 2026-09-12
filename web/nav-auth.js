@@ -2,6 +2,7 @@
   const signin = document.getElementById("nav-signin");
   const google = document.getElementById("nav-google");
   const midGoogle = document.getElementById("mid-google");
+  const connect = document.getElementById("nav-connect");
   const profile = document.getElementById("nav-profile");
   if (!profile) return;
   const lang = localStorage.getItem("lmcp_lang") || "tr";
@@ -13,6 +14,7 @@
       if (signin) signin.classList.add("hide");
       if (google) google.classList.add("hide");
       if (midGoogle) midGoogle.classList.add("hide");
+      if (connect) connect.classList.add("hide");
       profile.classList.remove("hide");
       const email = data.user.email || "";
       const given = String(data.user.name || "").trim().split(/\s+/)[0];
