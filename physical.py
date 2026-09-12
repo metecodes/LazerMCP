@@ -34,10 +34,10 @@ def _truthy_pass(value: Any) -> bool:
 
 def _na(value: Any) -> bool:
     text = str(value or "").strip().lower()
-    return text in {"n/a", "na", "none", "no_moving", "stationary"}
+    return text in {"n/a", "na", "none", "no_moving", "stationary", "no_use", "unpowered"}
 
 
-def read_physical(parameters: dict[str, Any] | None, *, moving: bool = False) -> dict[str, Any]:
+def read_physical(parameters: dict[str, Any] | None, *, moving: bool = False, powered: bool = False) -> dict[str, Any]:
     params = parameters or {}
     nested = params.get("physical") if isinstance(params.get("physical"), dict) else {}
     measured = _num(
@@ -83,18 +83,35 @@ def read_physical(parameters: dict[str, Any] | None, *, moving: bool = False) ->
         movement = FAIL
         movement_note = f"movement_test={raw_move!r} is not verified"
 
+    use = NOT_VERIFIED
+    use_note = "after assembly, run the kit; pass use_test=verified"
+    raw_use = params.get("use_test") if "use_test" in params else nested.get("use")
+    if not powered and (raw_use in (None, "") or _na(raw_use)):
+        use = NA
+        use_note = "no powered function — use test not applicable"
+    elif _truthy_pass(raw_use):
+        use = PASS
+        use_note = "human verified after-assembly use"
+    elif _na(raw_use):
+        use = NA
+        use_note = "human marked use N/A"
+    elif raw_use not in (None, ""):
+        use = FAIL
+        use_note = f"use_test={raw_use!r} is not verified"
+
     current = _num(params.get("burn")) or float(PAYAS_DEFAULTS["burn"])
     suggested = current
     if measured is not None and 96.0 <= measured <= 104.0:
         suggested = max(BURN_LO, min(BURN_HI, current + (nominal - measured) / 2.0))
         suggested = round(suggested, 3)
 
-    production_ok = kerf == PASS and assembly == PASS and movement in {PASS, NA}
+    production_ok = kerf == PASS and assembly == PASS and movement in {PASS, NA} and use in {PASS, NA}
     return {
         "kerf": kerf,
         "assembly": assembly,
         "movement": movement,
-        "notes": {"kerf": kerf_note, "assembly": assembly_note, "movement": movement_note},
+        "use": use,
+        "notes": {"kerf": kerf_note, "assembly": assembly_note, "movement": movement_note, "use": use_note},
         "measured_bar_mm": measured,
         "nominal_bar_mm": nominal,
         "suggested_burn": suggested,
@@ -102,10 +119,10 @@ def read_physical(parameters: dict[str, Any] | None, *, moving: bool = False) ->
     }
 
 
-def resolve_burn(parameters: dict[str, Any] | None, *, moving: bool = False) -> tuple[float, dict[str, Any]]:
+def resolve_burn(parameters: dict[str, Any] | None, *, moving: bool = False, powered: bool = False) -> tuple[float, dict[str, Any]]:
     """Use an explicit burn, or the coupon-derived suggestion. Never invent a measurement."""
     params = dict(parameters or {})
-    report = read_physical(params, moving=moving)
+    report = read_physical(params, moving=moving, powered=powered)
     explicit = _num(params.get("burn"))
     if explicit is not None and BURN_LO <= explicit <= BURN_HI and "measured_bar_mm" not in params:
         return round(explicit, 3), report

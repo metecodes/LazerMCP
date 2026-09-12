@@ -1,12 +1,44 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 220" fill="none">
-  <rect width="260" height="220" fill="#f4efe6"/>
-  <!-- plan-ish open crate: thick walls, dark mouth — reads at 140px -->
-  <path d="M38 48 H222 V172 H38 Z" fill="#c9a06e" stroke="#5a4030" stroke-width="2"/>
-  <path d="M62 72 H198 V148 H62 Z" fill="#3d2a1c"/>
-  <path d="M70 80 H190 V140 H70 Z" fill="#f0d7b0" stroke="#5a4030" stroke-width="1.2"/>
-  <!-- finger notches on the open rim -->
-  <path d="M78 48 V62 M104 48 V62 M130 48 V62 M156 48 V62 M182 48 V62" stroke="#8a5a38" stroke-width="3"/>
-  <path d="M78 172 V158 M104 172 V158 M130 172 V158 M156 172 V158 M182 172 V158" stroke="#8a5a38" stroke-width="3"/>
-  <path d="M38 86 H52 M38 110 H52 M38 134 H52" stroke="#8a5a38" stroke-width="3"/>
-  <path d="M222 86 H208 M222 110 H208 M222 134 H208" stroke="#8a5a38" stroke-width="3"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="40 48 280 220" fill="none">
+  <defs>
+    <linearGradient id="wallL" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#e8c896"/>
+      <stop offset="1" stop-color="#c08950"/>
+    </linearGradient>
+    <linearGradient id="wallR" x1="1" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#b57a45"/>
+      <stop offset="1" stop-color="#7a4a28"/>
+    </linearGradient>
+    <linearGradient id="floor" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f3d7b0"/>
+      <stop offset="1" stop-color="#c99a62"/>
+    </linearGradient>
+    <pattern id="g2" width="22" height="8" patternUnits="userSpaceOnUse">
+      <path d="M0 4 Q5 1 11 4 T22 4" stroke="#7a4a28" stroke-opacity=".14" stroke-width=".8" fill="none"/>
+    </pattern>
+  </defs>
+  <rect width="360" height="300" fill="#f3eee6"/>
+  <ellipse cx="180" cy="248" rx="118" ry="12" fill="#000" opacity=".08"/>
+
+  <!-- open isometric crate, looking into the mouth -->
+  <path d="M64 118 L180 70 L296 118 L296 198 L180 248 L64 198 Z" fill="#c99a62"/>
+  <path d="M64 118 L64 198 L180 248 L180 168 Z" fill="url(#wallL)"/>
+  <path d="M296 118 L296 198 L180 248 L180 168 Z" fill="url(#wallR)"/>
+  <path d="M64 118 L180 168 L296 118 L180 70 Z" fill="#efd2a8"/>
+  <path d="M64 118 L180 70 L296 118 L180 168 Z" fill="url(#g2)"/>
+
+  <!-- inner well / open mouth -->
+  <path d="M96 132 L180 168 L264 132 L180 98 Z" fill="#2a1810"/>
+  <path d="M108 136 L180 166 L252 136 L180 108 Z" fill="url(#floor)"/>
+  <path d="M108 136 L180 166 L252 136 L180 108 Z" fill="url(#g2)"/>
+  <path d="M108 136 L180 108 L180 166 L108 136 Z" fill="#000" opacity=".08"/>
+  <path d="M252 136 L180 108 L180 166 L252 136 Z" fill="#000" opacity=".16"/>
+
+  <!-- finger joints on the open rim -->
+  <g stroke="#6a4228" stroke-width="2.2" stroke-linecap="square">
+    <path d="M92 108 L100 104 M120 96 L128 93 M152 84 L160 81 M200 81 L208 84 M232 93 L240 96 M260 104 L268 108"/>
+    <path d="M64 140 L76 146 M64 162 L76 168 M64 184 L76 190"/>
+    <path d="M296 140 L284 146 M296 162 L284 168 M296 184 L284 190"/>
+  </g>
+  <!-- ply edge on rim -->
+  <path d="M96 132 L180 98 L264 132" stroke="#f7e2c0" stroke-width="2.4" opacity=".7"/>
 </svg>

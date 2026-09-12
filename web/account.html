@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LaserMCP — Giriş</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root { --bg:#fafafa; --paper:#fff; --ink:#111; --mute:#5a5a5a; --line:#e4e4e4; --cut:#e10600; --pass:#0b7a4b; --mono:"IBM Plex Mono",monospace; --sans:"IBM Plex Sans","Segoe UI",sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin: 0; color: var(--ink); font: 16px/1.55 var(--sans); background: var(--bg); }
+    a { color: inherit; }
+    .wrap { width: min(720px, calc(100% - 40px)); margin: 0 auto; }
+    nav { display: flex; justify-content: space-between; align-items: center; padding: 16px 0; border-bottom: 1px solid var(--line); }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; text-decoration: none; }
+    .mark { width: 18px; height: 18px; border: 1.5px solid var(--ink); position: relative; }
+    .mark::after { content: ""; position: absolute; left: 3px; right: 3px; top: 8px; height: 1.5px; background: var(--cut); }
+    .btn { display: inline-flex; align-items: center; justify-content: center; padding: 11px 16px; text-decoration: none; font-size: 13px; font-weight: 600; border: 1px solid var(--ink); background: var(--ink); color: #fff; cursor: pointer; }
+    .btn.ghost { background: transparent; color: var(--ink); }
+    .btn.cut { background: var(--cut); border-color: var(--cut); }
+    .kicker { font: 11px/1 var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--cut); }
+    h1 { font-size: 36px; letter-spacing: -0.03em; margin: 28px 0 10px; }
+    .lede { color: var(--mute); }
+    .card { background: var(--paper); border: 1px solid var(--line); padding: 22px; margin: 22px 0; }
+    .row { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); font: 13px var(--mono); }
+    input { width: 100%; border: 1px solid var(--line); padding: 10px 12px; font: 14px var(--sans); margin: 10px 0; }
+    .warn { color: var(--cut); font: 13px var(--mono); }
+    .ok { color: var(--pass); font: 13px var(--mono); word-break: break-all; }
+    .hide { display: none; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <nav>
+      <a class="brand" href="/"><span class="mark"></span>LaserMCP</a>
+      <a href="/connect" id="to-connect">Bağlama adımları</a>
+    </nav>
+    <p class="kicker" id="kicker">HESAP</p>
+    <h1 id="title">Google ile gir</h1>
+    <p class="lede" id="lede">Bireysel kullanıcı link yapıştırmaz. Google zorunlu. Kurumsal hesap anahtar üretir.</p>
+
+    <div class="card" id="need-config">
+      <p class="warn" id="cfg-note">Supabase henüz bağlı değil. Proje URL ve anon anahtarını sunucuya yaz.</p>
+      <p class="lede">SUPABASE_URL · SUPABASE_ANON_KEY · Google provider · Redirect: /auth/callback</p>
+    </div>
+
+    <div class="card hide" id="signed-out">
+      <button class="btn cut" type="button" id="google">Google ile devam et</button>
+    </div>
+
+    <div class="card hide" id="signed-in">
+      <div class="row"><span>E-posta</span><b id="email">—</b></div>
+      <div class="row"><span>Tür</span><b id="kind">—</b></div>
+      <p style="margin-top:16px">
+        <button class="btn ghost" type="button" id="make-org">Kurumsal yap</button>
+        <button class="btn ghost" type="button" id="make-ind">Bireysel yap</button>
+      </p>
+      <div id="keys-box" class="hide" style="margin-top:18px">
+        <input id="key-name" placeholder="atölye-anahtarı">
+        <button class="btn" type="button" id="mint">API anahtarı üret</button>
+        <p class="ok" id="new-key"></p>
+        <div id="key-list"></div>
+      </div>
+      <p style="margin-top:16px"><button class="btn ghost" type="button" id="out">Çık</button></p>
+    </div>
+    <p class="lede" id="status"></p>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    const lang = localStorage.getItem("lmcp_lang") || "tr";
+    const T = lang === "en" ? {
+      connect: "Connection steps", title: "Sign in with Google",
+      lede: "Individuals do not paste a bare link. Google is required. Organizations mint API keys.",
+      cfg: "Supabase is not connected yet. Put the project URL and anon key on the server.",
+      google: "Continue with Google", org: "Make organization", ind: "Make individual",
+      mint: "Mint API key", out: "Sign out", need: "Sign in with Google first."
+    } : {
+      connect: "Bağlama adımları", title: "Google ile gir",
+      lede: "Bireysel kullanıcı link yapıştırmaz. Google zorunlu. Kurumsal hesap anahtar üretir.",
+      cfg: "Supabase henüz bağlı değil. Proje URL ve anon anahtarını sunucuya yaz.",
+      google: "Google ile devam et", org: "Kurumsal yap", ind: "Bireysel yap",
+      mint: "API anahtarı üret", out: "Çık", need: "Önce Google ile gir."
+    };
+    document.getElementById("to-connect").textContent = T.connect;
+    document.getElementById("title").textContent = T.title;
+    document.getElementById("lede").textContent = T.lede;
+    document.getElementById("cfg-note").textContent = T.cfg;
+    document.getElementById("google").textContent = T.google;
+    document.getElementById("make-org").textContent = T.org;
+    document.getElementById("make-ind").textContent = T.ind;
+    document.getElementById("mint").textContent = T.mint;
+    document.getElementById("out").textContent = T.out;
+
+    let supabase = null;
+    const next = new URLSearchParams(location.search).get("next") || "";
+
+    async function sessionFromHash() {
+      if (!supabase) return null;
+      const { data } = await supabase.auth.getSession();
+      return data.session || null;
+    }
+
+    async function sync(kind) {
+      const session = await sessionFromHash();
+      if (!session) return null;
+      const res = await fetch("/api/auth/session", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ access_token: session.access_token, kind: kind || "" })
+      });
+      return res.json();
+    }
+
+    function showUser(data) {
+      document.getElementById("need-config").classList.add("hide");
+      document.getElementById("signed-out").classList.add("hide");
+      document.getElementById("signed-in").classList.remove("hide");
+      const user = data.user || {};
+      document.getElementById("email").textContent = user.email || "—";
+      document.getElementById("kind").textContent = user.kind === "org" ? (lang === "en" ? "organization" : "kurumsal") : (lang === "en" ? "individual" : "bireysel");
+      document.getElementById("keys-box").classList.toggle("hide", !data.can_mint_keys);
+      const keys = data.keys || [];
+      document.getElementById("key-list").innerHTML = keys.map((k) =>
+        "<div class='row'><span>" + (k.name || k.id) + "</span><span>" + (k.last_used || "—") + "</span></div>"
+      ).join("");
+    }
+
+    async function boot() {
+      const cfg = await fetch("/api/auth/config").then((r) => r.json());
+      if (!cfg.configured) {
+        document.getElementById("signed-out").classList.add("hide");
+        document.getElementById("need-config").classList.remove("hide");
+        return;
+      }
+      document.getElementById("need-config").classList.add("hide");
+      supabase = window.supabase.createClient(cfg.url, cfg.anon_key);
+      const session = await sessionFromHash();
+      if (!session) {
+        document.getElementById("signed-out").classList.remove("hide");
+        return;
+      }
+      const data = await sync();
+      if (data && data.user) {
+        showUser(data);
+        if (next) location.replace(next);
+      } else {
+        document.getElementById("signed-out").classList.remove("hide");
+        document.getElementById("status").textContent = (data && (data.look_again || []).join(" ")) || T.need;
+      }
+    }
+
+    document.getElementById("google").onclick = async () => {
+      if (!supabase) return;
+      const redirectTo = location.origin + "/auth/callback" + (next ? ("?next=" + encodeURIComponent(next)) : "");
+      await supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo } });
+    };
+    document.getElementById("make-org").onclick = async () => { showUser(await sync("org")); };
+    document.getElementById("make-ind").onclick = async () => { showUser(await sync("individual")); };
+    document.getElementById("mint").onclick = async () => {
+      const session = await sessionFromHash();
+      const res = await fetch("/api/account/keys", {
+        method: "POST",
+        headers: { "content-type": "application/json", Authorization: "Bearer " + (session && session.access_token || "") },
+        body: JSON.stringify({ name: document.getElementById("key-name").value || "workshop" })
+      });
+      const data = await res.json();
+      document.getElementById("new-key").textContent = data.token ? ((lang === "en" ? "shown once: " : "bir kez: ") + data.token) : (data.look_again || []).join(" ");
+      const me = await fetch("/api/account", { headers: { Authorization: "Bearer " + (session && session.access_token || "") } }).then((r) => r.json());
+      if (me.user) showUser(me);
+    };
+    document.getElementById("out").onclick = async () => {
+      if (supabase) await supabase.auth.signOut();
+      location.href = "/account";
+    };
+    boot();
+  </script>
+</body>
+</html>

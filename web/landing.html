@@ -84,7 +84,7 @@
     .picks { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin: 28px 0 18px; }
     .pick { text-align: left; cursor: pointer; background: var(--paper); border: 1px solid var(--line); padding: 0; }
     .pick.on { border-color: var(--cut); box-shadow: 0 0 0 2px var(--cut); }
-    .pick img, .pick object { display: block; width: 100%; height: 140px; object-fit: contain; background: #f4efe6; }
+    .pick img, .pick object { display: block; width: 100%; height: 168px; object-fit: contain; background: #f3eee6; }
     .pick .meta { padding: 12px 14px; }
     .pick strong { display: block; }
     .pick small { color: var(--mute); font-size: 13px; }
@@ -122,11 +122,12 @@
         <a href="#gate" data-i="nav_gate">Kontrol</a>
         <a href="#beta" data-i="nav_beta">Beta</a>
         <a href="/app" data-i="nav_workshop">Atölye</a>
+        <a href="/account" data-i="nav_account">Giriş</a>
         <div class="lang" role="group" aria-label="Language">
           <button type="button" id="lang-tr" class="on">TR</button>
           <button type="button" id="lang-en">EN</button>
         </div>
-        <a class="btn" href="#connect" data-i="nav_connect">Bağla</a>
+        <a class="btn" href="/connect" data-i="nav_connect">Bağla</a>
       </div>
     </nav>
 
@@ -136,7 +137,7 @@
         <h1 data-i="hero_h1">Tarif et. Kes. Kur.</h1>
         <p class="lede" style="margin-top:16px" data-i="hero_lede">Asistanına ne istediğini söyle. LaserMCP parçaları üretir, montajı denetler, prototip SVG verir. Resim çizmez.</p>
         <div class="ctas">
-          <a class="btn cut" href="#connect" id="copy-mcp" data-i="cta_connect">MCP’yi bağla</a>
+          <a class="btn cut" href="/connect" id="copy-mcp" data-i="cta_connect">MCP’yi bağla</a>
           <a class="btn ghost" href="#wow" data-i="cta_wow">Birini kesime çevir</a>
         </div>
         <div class="legend">
@@ -264,6 +265,7 @@ studio</pre>
         <div class="row"><span data-i="g3">Fiziksel kerf testi</span><span class="nv" data-i="nv">DOĞRULANMADI</span></div>
         <div class="row"><span data-i="g4">Fiziksel montaj</span><span class="nv" data-i="nv">DOĞRULANMADI</span></div>
         <div class="row"><span data-i="g5">Hareket testi</span><span class="nv" data-i="nv">DOĞRULANMADI</span></div>
+        <div class="row"><span data-i="g6">Montaj sonrası kullanım</span><span class="nv" data-i="nv">DOĞRULANMADI</span></div>
         <div class="status-box" data-i="gate_status">SON DURUM: PROTOTİP HAZIR</div>
       </div>
       <p class="lede" style="margin-top:16px" data-i="gate_p">100 mm çubuğu insan ölçer. Montaj ve hareket ancak gerçek denemeden sonra. Yazılım üretime izin vermez.</p>
@@ -284,17 +286,21 @@ studio</pre>
       <p class="kicker">MCP</p>
       <h2 data-i="mcp_h2">Asistanın neredeyse orada çalışır.</h2>
       <div class="mcp-row">
-        <div class="card">ChatGPT</div>
-        <div class="card">Claude</div>
-        <div class="card">Cursor</div>
+        <a class="card" href="/connect#chatgpt" style="text-decoration:none"><h3>ChatGPT</h3><p data-i="mcp_cg">Developer mode. Google ile OAuth.</p></a>
+        <a class="card" href="/connect#claude" style="text-decoration:none"><h3>Claude</h3><p data-i="mcp_cl">Customize → Connectors. Google ile bağlan.</p></a>
+        <a class="card" href="/connect#cursor" style="text-decoration:none"><h3>Cursor</h3><p data-i="mcp_cu">Kurumsal: Bearer API anahtarı.</p></a>
       </div>
     </section>
 
     <section class="block" id="connect">
       <p class="kicker" data-i="dev_kicker">MCP</p>
-      <h2 data-i="dev_h2">Tek adres. Tam iş hattı.</h2>
-      <p class="lede" data-i="dev_lede">Asistan → LaserMCP → parçalar → kontrol → malzeme profili → SVG / DXF → lazer.</p>
+      <h2 data-i="dev_h2">Link yetmez. Giriş gerekir.</h2>
+      <p class="lede" data-i="dev_lede">Bireysel Google. Kurumsal API anahtarı. Adres yalnız başına MCP açmaz.</p>
       <pre class="card" style="margin-top:20px;font:13px/1.5 var(--mono);overflow:auto">https://mcp.metehanavci.com/mcp</pre>
+      <p style="margin-top:18px">
+        <a class="btn cut" href="/connect" data-i="dev_steps">ChatGPT ve Claude adımları</a>
+        <a class="btn ghost" href="/account" data-i="dev_google">Google ile gir</a>
+      </p>
     </section>
 
     <section class="block">
@@ -329,7 +335,7 @@ studio</pre>
     <section class="final">
       <h2 data-i="final_h2">Bir şey kes.</h2>
       <p class="lede" data-i="final_p">Asistanını bağla. Çıktı prototip SVG.</p>
-      <a class="btn cut" href="#connect" data-i="final_cta">MCP’yi bağla</a>
+      <a class="btn cut" href="/connect" data-i="final_cta">MCP’yi bağla</a>
       <p style="margin-top:16px;font:12px var(--mono);color:var(--mute)">MCP · Boxes.py · SVG / DXF</p>
     </section>
 
@@ -341,7 +347,7 @@ studio</pre>
   <script>
     const I = {
       tr: {
-        nav_wow: "Dene", nav_mcp: "MCP", nav_how: "Nasıl", nav_gate: "Kontrol", nav_beta: "Beta", nav_workshop: "Atölye", nav_connect: "Bağla",
+        nav_wow: "Dene", nav_mcp: "MCP", nav_how: "Nasıl", nav_gate: "Kontrol", nav_beta: "Beta", nav_workshop: "Atölye", nav_account: "Giriş", nav_connect: "Bağla",
         cta_wow: "Birini kesime çevir",
         wow_kicker: "3 saniye", wow_h2: "Seç. Kesim SVG’si gelsin.",
         wow_lede: "Yükleme yok. Üç gerçek Payas işinden birini seç. Parçalar hemen gelir.",
@@ -349,9 +355,9 @@ studio</pre>
         wow_wait: "Kesiliyor…", wow_done: "PROTOTİP SVG",
         cut_lab: "KESİM", etch_lab: "KAZIMA",
         foot_colors: "KESİM #FF0000 · KAZIMA #000000",
-        wow_t1: "Trafik lambası", wow_b1: "Kule + kaide. LED delikleri, 3 mm kavak.",
+        wow_t1: "Trafik lambası", wow_b1: "3 şalter, 3 LED. Her şartel kendi lambasını yakar.",
         wow_t2: "Ağzı açık kutu", wow_b2: "Dört duvar + taban. Kapak yok. Parmak eklem.",
-        wow_t3: "Robot kumbara", wow_b3: "Yüz, kollar, para kapağı. Tek gövde.",
+        wow_t3: "Robot kumbara", wow_b3: "Para atılınca LED. Arka kapak vida ile açılır.",
         hero_kicker: "ChatGPT · Claude · Cursor",
         hero_h1: "Tarif et. Kes. Kur.",
         hero_lede: "Asistanına ne istediğini söyle. LaserMCP parçaları üretir, montajı denetler, prototip SVG verir. Resim çizmez.",
@@ -379,17 +385,22 @@ studio</pre>
         gate_kicker: "Kontrol", gate_h2: "Fiziksel testi yazılım uydurmaz.",
         g1: "Dijital geometri", g2: "Bağlantılar",
         g3: "Fiziksel kerf testi", g4: "Fiziksel montaj", g5: "Hareket testi",
+        g6: "Montaj sonrası kullanım",
         nv: "DOĞRULANMADI", gate_status: "SON DURUM: PROTOTİP HAZIR",
         email_ph: "atolye@ornek.com", use_ph: "STEM, kutu, tabela…",
-        gate_p: "100 mm çubuğu insan ölçer. Montaj ve hareket ancak gerçek denemeden sonra. Yazılım üretime izin vermez.",
+        gate_p: "100 mm çubuğu insan ölçer. Montaj, hareket ve kullanım (LED/şalter) ancak gerçek denemeden sonra. Yazılım lambayı yakmış saymaz.",
         cap_kicker: "Ne kesilir", cap_h2: "Katalog değil. Takım çantası.",
         cap_lede: "Yeni maket için yeni araç istenmez. Asistan parçaları birleştirir. İsimli kitler yalnız mevcut Payas işleridir.",
         c1h: "Bestelenmiş kesim", c1p: "Kutu, panel, pervane, kontur, yazı.",
         c2h: "Payas kitleri", c2p: "Trafik lambası, robot kumbara, ressam robot, açık kutu, yat, astronot.",
         c3h: "Çıktı", c3p: "SVG, DXF, malzeme listesi, önizleme, proje kaydı.",
         mcp_h2: "Asistanın neredeyse orada çalışır.",
-        dev_kicker: "MCP", dev_h2: "Tek adres. Tam iş hattı.",
-        dev_lede: "Asistan → LaserMCP → parçalar → kontrol → malzeme profili → SVG / DXF → lazer.",
+        mcp_cg: "Developer mode. Google ile OAuth.",
+        mcp_cl: "Customize → Connectors. Google ile bağlan.",
+        mcp_cu: "Kurumsal: Bearer API anahtarı.",
+        dev_kicker: "MCP", dev_h2: "Link yetmez. Giriş gerekir.",
+        dev_lede: "Bireysel Google. Kurumsal API anahtarı. Adres yalnız başına MCP açmaz.",
+        dev_steps: "ChatGPT ve Claude adımları", dev_google: "Google ile gir",
         who_kicker: "Kim için", who_h2: "Üç kişi. Aynı MCP.",
         u1h: "Atölye", u1p: "Her paneli elle çizmeden prototip.",
         u2h: "STEM", u2p: "Sınıfta kit ve maket. Aynı gün kes.",
@@ -400,7 +411,7 @@ studio</pre>
         final_h2: "Bir şey kes.", final_p: "Asistanını bağla. Çıktı prototip SVG.", final_cta: "MCP’yi bağla"
       },
       en: {
-        nav_wow: "Try it", nav_mcp: "MCP", nav_how: "How", nav_gate: "Check", nav_beta: "Beta", nav_workshop: "Workshop", nav_connect: "Connect",
+        nav_wow: "Try it", nav_mcp: "MCP", nav_how: "How", nav_gate: "Check", nav_beta: "Beta", nav_workshop: "Workshop", nav_account: "Sign in", nav_connect: "Connect",
         cta_wow: "Turn one into a cut",
         wow_kicker: "3 seconds", wow_h2: "Pick one. Get the cut SVG.",
         wow_lede: "No upload. Three real Payas jobs. Parts appear at once.",
@@ -408,9 +419,9 @@ studio</pre>
         wow_wait: "Cutting…", wow_done: "PROTOTYPE SVG",
         cut_lab: "CUT", etch_lab: "ENGRAVE",
         foot_colors: "CUT #FF0000 · ENGRAVE #000000",
-        wow_t1: "Traffic light", wow_b1: "Tower + base. LED holes, 3 mm poplar.",
+        wow_t1: "Traffic light", wow_b1: "3 switches, 3 LEDs. Each switch lights its lamp.",
         wow_t2: "Open finger-joint box", wow_b2: "Four walls + floor. No lid. Finger joints.",
-        wow_t3: "Robot bank", wow_b3: "Face, arms, coin lid. One body.",
+        wow_t3: "Robot bank", wow_b3: "Coin in, LED on. Rear door opens with screws.",
         hero_kicker: "ChatGPT · Claude · Cursor",
         hero_h1: "Describe it. Cut it. Build it.",
         hero_lede: "Tell your assistant what you want. LaserMCP makes the parts, checks the fit, and returns a prototype SVG. It does not draw a picture.",
@@ -438,17 +449,22 @@ studio</pre>
         gate_kicker: "Check", gate_h2: "Software does not fake a physical PASS.",
         g1: "Digital geometry", g2: "Connections",
         g3: "Physical kerf test", g4: "Physical assembly", g5: "Movement test",
+        g6: "After assembly use",
         nv: "NOT VERIFIED", gate_status: "FINAL STATUS: PROTOTYPE READY",
         email_ph: "you@workshop.com", use_ph: "STEM, box, sign…",
-        gate_p: "A human measures the 100 mm bar. Assembly and movement only after a real dry-fit. Software does not authorize production.",
+        gate_p: "A human measures the 100 mm bar. Assembly, movement, and use (LED/switch) only after a real try. Software does not pretend a lamp lit.",
         cap_kicker: "What gets cut", cap_h2: "A toolbox. Not a catalog.",
         cap_lede: "Do not ask for a new tool per model. The assistant composes parts. Named kits are current Payas jobs only.",
         c1h: "Composed cuts", c1p: "Box, panel, rotor, contour, text.",
         c2h: "Payas kits", c2p: "Traffic light, robot bank, drawing robot, open box, yacht, astronaut.",
         c3h: "Output", c3p: "SVG, DXF, material list, preview, project record.",
         mcp_h2: "It works where your assistant already is.",
-        dev_kicker: "MCP", dev_h2: "One URL. The whole job.",
-        dev_lede: "Assistant → LaserMCP → parts → check → material profile → SVG / DXF → laser.",
+        mcp_cg: "Developer mode. Google OAuth.",
+        mcp_cl: "Customize → Connectors. Sign in with Google.",
+        mcp_cu: "Organization: Bearer API key.",
+        dev_kicker: "MCP", dev_h2: "A link is not enough. Sign in.",
+        dev_lede: "Individuals use Google. Organizations mint an API key. The URL alone does not open MCP.",
+        dev_steps: "ChatGPT and Claude steps", dev_google: "Sign in with Google",
         who_kicker: "Who", who_h2: "Three people. One MCP.",
         u1h: "Workshop", u1p: "A prototype without drawing every panel.",
         u2h: "STEM", u2p: "Kits and models in class. Cut the same day.",
@@ -532,9 +548,9 @@ studio</pre>
     });
 
     const WOW = [
-      { src: "/demo/traffic_light.src.svg?v=5", cut: "/demo/traffic_light.cut.svg", t: "wow_t1", b: "wow_b1" },
-      { src: "/demo/product_box.src.svg?v=7", cut: "/demo/product_box.cut.svg", t: "wow_t2", b: "wow_b2" },
-      { src: "/demo/robot_bank.src.svg?v=5", cut: "/demo/robot_bank.cut.svg", t: "wow_t3", b: "wow_b3" }
+      { src: "/demo/traffic_light.src.svg?v=11", cut: "/demo/traffic_light.cut.svg", t: "wow_t1", b: "wow_b1" },
+      { src: "/demo/product_box.src.svg?v=11", cut: "/demo/product_box.cut.svg", t: "wow_t2", b: "wow_b2" },
+      { src: "/demo/robot_bank.src.svg?v=11", cut: "/demo/robot_bank.cut.svg", t: "wow_t3", b: "wow_b3" }
     ];
     let wowI = 0;
 
@@ -575,14 +591,8 @@ studio</pre>
       }, 680);
     });
 
-    document.getElementById("copy-mcp").addEventListener("click", async (ev) => {
-      ev.preventDefault();
-      const url = "https://mcp.metehanavci.com/mcp";
-      try { await navigator.clipboard.writeText(url); } catch (_) {}
-      const el = ev.currentTarget;
-      el.textContent = lang === "tr" ? "Kopyalandı: /mcp" : "Copied: /mcp";
-      setTimeout(applyLang, 1600);
-      document.getElementById("connect").scrollIntoView({ behavior: "smooth" });
+    document.getElementById("copy-mcp").addEventListener("click", async () => {
+      try { await navigator.clipboard.writeText("https://mcp.metehanavci.com/mcp"); } catch (_) {}
     });
 
     applyLang();

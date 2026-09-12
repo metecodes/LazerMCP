@@ -68,6 +68,8 @@ class PayasRobot(HayalKumbaram):
                 self.ring(w/2+2,h*.86,3)
             self.art(draw)
         else:
+            self.rectangularHole(w/2,26,13,19,r=1)
+            self.caption('ŞALTER',w/2,44,3.5)
             self.caption('BU KUMBARA',w/2,h*.74,5)
             self.caption('BENİM HAYALİM',w/2,h*.66,4)
             self.caption('BİRİKTİR',w/2,h*.33,6)
@@ -82,7 +84,7 @@ class PayasRobot(HayalKumbaram):
     def door(self):
         for x in (3,81):self.hole(x,36,d=3.2)
         self.caption('PARA KAPAĞI',42,54,5)
-        self.caption('DENE YAP',42,18,5)
+        self.caption('VİDA İLE AÇ',42,18,4)
     def arm(self):
         # RoundedPlate's callback origin is radius mm right of its lower-left.
         for yy in (18,50):self.hole(30-5,yy,d=3.2)

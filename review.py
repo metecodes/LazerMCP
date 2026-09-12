@@ -42,6 +42,14 @@ _NAMED_KITS = {
     "STEMTrafficLight",
     "ABox",
 }
+_POWERED_KITS = {
+    "traffic_light",
+    "robot_bank",
+    "drawing_robot",
+    "astronaut",
+    "PayasRobot",
+    "STEMTrafficLight",
+}
 
 
 def _kind(part: dict[str, Any]) -> str:
@@ -89,6 +97,11 @@ def _job_class(built: dict[str, Any]) -> str:
     if product in {"jigsaw_puzzle", "number_match_puzzle", "classic_jigsaw", "number_match"}:
         return "flat"
     return "flat"
+
+
+def _powered(built: dict[str, Any]) -> bool:
+    product = str(built.get("product") or built.get("preset") or built.get("generator") or "")
+    return product in _POWERED_KITS
 
 
 def _moving(faces: list[dict[str, Any]], primitives: list[Any] | None) -> bool:
@@ -459,7 +472,7 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
     from physical import read_physical
 
     physical = built.get("physical") if isinstance(built.get("physical"), dict) else None
-    physical = physical or read_physical(built.get("parameters") or {}, moving=moving)
+    physical = physical or read_physical(built.get("parameters") or {}, moving=moving, powered=_powered(built))
     if physical.get("kerf") == FAIL:
         looks.append(str((physical.get("notes") or {}).get("kerf") or "measured_bar_mm is out of range"))
     scorecard = build_scorecard(cats, physical)
@@ -483,7 +496,8 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
     card = format_gate_card(scorecard, final, authorized, production_export)
     from assembly_sheet import assembly_sheet as _sheet
 
-    sheet = _sheet(dmap, connections)
+    product = str(built.get("product") or built.get("preset") or built.get("generator") or "")
+    sheet = _sheet(dmap, connections, product=product)
 
     return {
         "job_class": job,
@@ -545,6 +559,7 @@ def build_scorecard(cats: list[dict[str, Any]], physical: dict[str, Any] | None 
             "Physical Kerf Test": phys.get("kerf") or NOT_VERIFIED,
             "Physical Assembly": phys.get("assembly") or NOT_VERIFIED,
             "Movement Test": phys.get("movement") or NOT_VERIFIED,
+            "After Assembly Use": phys.get("use") or NOT_VERIFIED,
         },
     }
 
@@ -576,6 +591,7 @@ def format_gate_card(
         f"{'Physical Kerf Test':<24}{_card_label(physical.get('Physical Kerf Test', NOT_VERIFIED))}",
         f"{'Physical Assembly':<24}{_card_label(physical.get('Physical Assembly', NOT_VERIFIED))}",
         f"{'Movement Test':<24}{_card_label(physical.get('Movement Test', NOT_VERIFIED))}",
+        f"{'After Assembly Use':<24}{_card_label(physical.get('After Assembly Use', NOT_VERIFIED))}",
         "",
         "AUTHORIZED OUTPUT:",
         authorized,

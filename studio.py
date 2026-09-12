@@ -108,9 +108,28 @@ def studio_action(
     if verb in {"usage", "metering"}:
         return usage_summary()
     if verb in {"keys", "key"}:
+        from supabase_auth import can_mint_keys, configured
+
+        key = current_auth.get()
+        if configured() and not can_mint_keys(key):
+            return {
+                "success": True,
+                "look_again": ["Organization accounts mint API keys. Individuals sign in with Google."],
+                "keys": list_keys(owner=str((key or {}).get("id") or "")),
+            }
         if name:
-            return {"success": True, **create_key(name, role, plan)}
-        return {"success": True, "keys": list_keys()}
+            return {
+                "success": True,
+                **create_key(
+                    name,
+                    role,
+                    plan,
+                    owner=str((key or {}).get("id") or ""),
+                    email=str((key or {}).get("email") or ""),
+                    kind="org",
+                ),
+            }
+        return {"success": True, "keys": list_keys(owner=str((key or {}).get("id") or "") if configured() else "")}
     if verb in {"telemetry", "events"}:
         return {"success": True, "events": recent()}
     return {

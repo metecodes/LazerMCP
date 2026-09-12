@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LaserMCP — Bağla</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root { --bg:#fafafa; --paper:#fff; --ink:#111; --mute:#5a5a5a; --line:#e4e4e4; --cut:#e10600; --mono:"IBM Plex Mono",monospace; --sans:"IBM Plex Sans","Segoe UI",sans-serif; }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { margin: 0; color: var(--ink); font: 16px/1.55 var(--sans); background: var(--bg); }
+    a { color: inherit; }
+    .wrap { width: min(1080px, calc(100% - 40px)); margin: 0 auto; }
+    nav { position: sticky; top: 0; z-index: 20; display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 16px 0; border-bottom: 1px solid var(--line); background: var(--bg); }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: -0.03em; text-decoration: none; }
+    .mark { width: 18px; height: 18px; border: 1.5px solid var(--ink); position: relative; }
+    .mark::after { content: ""; position: absolute; left: 3px; right: 3px; top: 8px; height: 1.5px; background: var(--cut); }
+    nav .links { display: flex; align-items: center; gap: 20px; font-size: 13px; color: var(--mute); }
+    nav .links a { text-decoration: none; }
+    .lang { display: flex; border: 1px solid var(--ink); }
+    .lang button { border: 0; background: transparent; font: 11px var(--mono); padding: 6px 9px; cursor: pointer; }
+    .lang button.on { background: var(--ink); color: #fff; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; padding: 11px 16px; text-decoration: none; font-size: 13px; font-weight: 600; border: 1px solid var(--ink); background: var(--ink); color: #fff; cursor: pointer; }
+    .btn.ghost { background: transparent; color: var(--ink); }
+    .btn.cut { background: var(--cut); border-color: var(--cut); }
+    .kicker { font: 11px/1 var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--cut); margin: 0 0 12px; }
+    h1, h2, h3 { letter-spacing: -0.03em; margin: 0; }
+    h1 { font-size: clamp(32px, 5vw, 52px); line-height: 1.05; }
+    h2 { font-size: clamp(22px, 3vw, 32px); }
+    .lede { font-size: 18px; color: var(--mute); max-width: 58ch; }
+    .hero { padding: 48px 0 28px; }
+    .tabs { display: flex; border: 1px solid var(--ink); margin: 28px 0 0; }
+    .tabs button { flex: 1; border: 0; background: transparent; padding: 12px; font: 13px var(--mono); cursor: pointer; }
+    .tabs button.on { background: var(--ink); color: #fff; }
+    .url { margin: 20px 0 0; background: var(--paper); border: 1px solid var(--line); padding: 14px 16px; font: 13px/1.5 var(--mono); display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+    .two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 24px; }
+    .card { background: var(--paper); border: 1px solid var(--line); padding: 20px; }
+    .card ol { margin: 12px 0 0; padding-left: 20px; }
+    .card li { margin: 8px 0; }
+    .note { color: var(--mute); font-size: 14px; }
+    .guide { display: none; padding: 36px 0 72px; }
+    .guide.on { display: block; }
+    footer { border-top: 1px solid var(--line); padding: 22px 0 40px; color: var(--mute); font: 12px var(--mono); }
+    @media (max-width: 860px) { .two { grid-template-columns: 1fr; } nav .links a:not(.btn) { display: none; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <nav>
+      <a class="brand" href="/"><span class="mark"></span>LaserMCP</a>
+      <div class="links">
+        <a href="/" data-i="nav_home">Ana sayfa</a>
+        <a href="/account" data-i="nav_account">Giriş</a>
+        <div class="lang">
+          <button type="button" id="lang-tr" class="on">TR</button>
+          <button type="button" id="lang-en">EN</button>
+        </div>
+        <a class="btn" href="/account" data-i="nav_google">Google ile gir</a>
+      </div>
+    </nav>
+
+    <header class="hero">
+      <p class="kicker" data-i="kicker">BAĞLA</p>
+      <h1 data-i="h1">Link yetmez. Giriş gerekir.</h1>
+      <p class="lede" style="margin-top:14px" data-i="lede">Bireysel hesap Google ile girer. Kurumsal atölye API anahtarı üretir. Adres yalnız başına MCP açmaz.</p>
+      <div class="url">
+        <span id="mcp-url">https://mcp.metehanavci.com/mcp</span>
+        <button class="btn ghost" type="button" id="copy" data-i="copy">Kopyala</button>
+      </div>
+    </header>
+
+    <div class="two">
+      <article class="card">
+        <p class="kicker" data-i="ind_k">BİREYSEL</p>
+        <h3 data-i="ind_h">Google zorunlu</h3>
+        <p class="note" data-i="ind_p">ChatGPT veya Claude bağlarken Google penceresi açılır. Önce bu sitede de Google ile gir.</p>
+        <p style="margin-top:16px"><a class="btn cut" href="/account" data-i="ind_cta">Google ile gir</a></p>
+      </article>
+      <article class="card">
+        <p class="kicker" data-i="org_k">KURUMSAL</p>
+        <h3 data-i="org_h">API anahtarı</h3>
+        <p class="note" data-i="org_p">Google ile gir, hesabı kurumsal yap, anahtar üret. Cursor ve otomasyon Bearer token kullanır. Çıplak URL kullanma.</p>
+        <p style="margin-top:16px"><a class="btn ghost" href="/account" data-i="org_cta">Anahtar üret</a></p>
+      </article>
+    </div>
+
+    <div class="tabs" role="tablist">
+      <button type="button" class="on" data-tab="chatgpt">ChatGPT</button>
+      <button type="button" data-tab="claude">Claude</button>
+      <button type="button" data-tab="cursor">Cursor</button>
+    </div>
+
+    <section class="guide on" id="g-chatgpt">
+      <h2 data-i="cg_h">ChatGPT</h2>
+      <p class="note" data-i="cg_n">Plus, Pro, Business, Enterprise veya Education. Web. OpenAI Developer mode belgesi, 2026.</p>
+      <div class="two" style="margin-top:20px">
+        <article class="card">
+          <h3 data-i="cg_i_h">Bireysel — Google</h3>
+          <ol>
+            <li data-i="cg1">chatgpt.com aç.</li>
+            <li data-i="cg2">Settings → Security and login → Developer mode açık.</li>
+            <li data-i="cg3">Plugins (Apps) git. + bas.</li>
+            <li data-i="cg4">Ad: LaserMCP. URL: https://mcp.metehanavci.com/mcp</li>
+            <li data-i="cg5">Kimlik: OAuth. Google penceresinde bu hesaba gir.</li>
+            <li data-i="cg6">Sohbette + → Developer mode → LaserMCP’yi aç.</li>
+          </ol>
+        </article>
+        <article class="card">
+          <h3 data-i="cg_o_h">Kurumsal — API anahtarı</h3>
+          <ol>
+            <li data-i="cg7">/account sayfasında Google ile gir, Kurumsal’ı seç, anahtar üret.</li>
+            <li data-i="cg8">ChatGPT web yine OAuth ister; her kişi kendi Google’ı ile bağlanır.</li>
+            <li data-i="cg9">Otomasyon ve Cursor: Authorization: Bearer lzr_…</li>
+            <li data-i="cg10">İsteğe bağlı URL: https://mcp.metehanavci.com/mcp?token=lzr_…</li>
+          </ol>
+        </article>
+      </div>
+    </section>
+
+    <section class="guide" id="g-claude">
+      <h2 data-i="cl_h">Claude</h2>
+      <p class="note" data-i="cl_n">claude.ai, Cowork, Desktop. Anthropic Help Center, Ağustos 2026. Free planda 1 özel bağlayıcı.</p>
+      <div class="two" style="margin-top:20px">
+        <article class="card">
+          <h3 data-i="cl_i_h">Pro / Max — Google</h3>
+          <ol>
+            <li data-i="cl1">Customize → Connectors.</li>
+            <li data-i="cl2">+ → Add custom connector.</li>
+            <li data-i="cl3">URL: https://mcp.metehanavci.com/mcp</li>
+            <li data-i="cl4">Add. Connect. Google ile bu hesaba gir.</li>
+            <li data-i="cl5">Sohbette + → Connectors → LaserMCP açık.</li>
+          </ol>
+        </article>
+        <article class="card">
+          <h3 data-i="cl_t_h">Team / Enterprise</h3>
+          <ol>
+            <li data-i="cl6">Owner: Organization settings → Connectors → Add → Custom → Web.</li>
+            <li data-i="cl7">Aynı MCP adresini yapıştır. Add.</li>
+            <li data-i="cl8">Üye: Customize → Connectors → Connect → Google.</li>
+            <li data-i="cl9">Atölye otomasyonu için kurumsal API anahtarı kullan; çıplak link değil.</li>
+          </ol>
+        </article>
+      </div>
+    </section>
+
+    <section class="guide" id="g-cursor">
+      <h2 data-i="cu_h">Cursor</h2>
+      <p class="note" data-i="cu_n">Yerel MCP. Bireysel OAuth; kurumsal Bearer anahtar.</p>
+      <article class="card" style="margin-top:20px">
+        <ol>
+          <li data-i="cu1">Cursor Settings → MCP → Add new global MCP server.</li>
+          <li data-i="cu2">Type: streamableHttp. URL: https://mcp.metehanavci.com/mcp</li>
+          <li data-i="cu3">Bireysel: bağlarken Google.</li>
+          <li data-i="cu4">Kurumsal headers: Authorization: Bearer lzr_…</li>
+        </ol>
+        <pre style="margin-top:16px;font:12.5px/1.5 var(--mono);overflow:auto">{
+  "mcpServers": {
+    "lasermcp": {
+      "url": "https://mcp.metehanavci.com/mcp",
+      "headers": { "Authorization": "Bearer lzr_KURUMSAL_ANAHTAR" }
+    }
+  }
+}</pre>
+      </article>
+    </section>
+
+    <footer>LaserMCP · Payas STEM</footer>
+  </div>
+  <script>
+    const I = {
+      tr: {
+        nav_home: "Ana sayfa", nav_account: "Giriş", nav_google: "Google ile gir",
+        kicker: "BAĞLA", h1: "Link yetmez. Giriş gerekir.",
+        lede: "Bireysel hesap Google ile girer. Kurumsal atölye API anahtarı üretir. Adres yalnız başına MCP açmaz.",
+        copy: "Kopyala",
+        ind_k: "BİREYSEL", ind_h: "Google zorunlu",
+        ind_p: "ChatGPT veya Claude bağlarken Google penceresi açılır. Önce bu sitede de Google ile gir.",
+        ind_cta: "Google ile gir",
+        org_k: "KURUMSAL", org_h: "API anahtarı",
+        org_p: "Google ile gir, hesabı kurumsal yap, anahtar üret. Cursor ve otomasyon Bearer token kullanır. Çıplak URL kullanma.",
+        org_cta: "Anahtar üret",
+        cg_h: "ChatGPT", cg_n: "Plus, Pro, Business, Enterprise veya Education. Web. OpenAI Developer mode belgesi, 2026.",
+        cg_i_h: "Bireysel — Google",
+        cg1: "chatgpt.com aç.",
+        cg2: "Settings → Security and login → Developer mode açık.",
+        cg3: "Plugins (Apps) git. + bas.",
+        cg4: "Ad: LaserMCP. URL: https://mcp.metehanavci.com/mcp",
+        cg5: "Kimlik: OAuth. Google penceresinde bu hesaba gir.",
+        cg6: "Sohbette + → Developer mode → LaserMCP’yi aç.",
+        cg_o_h: "Kurumsal — API anahtarı",
+        cg7: "/account sayfasında Google ile gir, Kurumsal’ı seç, anahtar üret.",
+        cg8: "ChatGPT web yine OAuth ister; her kişi kendi Google’ı ile bağlanır.",
+        cg9: "Otomasyon ve Cursor: Authorization: Bearer lzr_…",
+        cg10: "İsteğe bağlı URL: https://mcp.metehanavci.com/mcp?token=lzr_…",
+        cl_h: "Claude", cl_n: "claude.ai, Cowork, Desktop. Anthropic Help Center, Ağustos 2026. Free planda 1 özel bağlayıcı.",
+        cl_i_h: "Pro / Max — Google",
+        cl1: "Customize → Connectors.",
+        cl2: "+ → Add custom connector.",
+        cl3: "URL: https://mcp.metehanavci.com/mcp",
+        cl4: "Add. Connect. Google ile bu hesaba gir.",
+        cl5: "Sohbette + → Connectors → LaserMCP açık.",
+        cl_t_h: "Team / Enterprise",
+        cl6: "Owner: Organization settings → Connectors → Add → Custom → Web.",
+        cl7: "Aynı MCP adresini yapıştır. Add.",
+        cl8: "Üye: Customize → Connectors → Connect → Google.",
+        cl9: "Atölye otomasyonu için kurumsal API anahtarı kullan; çıplak link değil.",
+        cu_h: "Cursor", cu_n: "Yerel MCP. Bireysel OAuth; kurumsal Bearer anahtar.",
+        cu1: "Cursor Settings → MCP → Add new global MCP server.",
+        cu2: "Type: streamableHttp. URL: https://mcp.metehanavci.com/mcp",
+        cu3: "Bireysel: bağlarken Google.",
+        cu4: "Kurumsal headers: Authorization: Bearer lzr_…"
+      },
+      en: {
+        nav_home: "Home", nav_account: "Sign in", nav_google: "Sign in with Google",
+        kicker: "CONNECT", h1: "A link is not enough. Sign in.",
+        lede: "Individuals must use Google. Organizations mint an API key. The URL alone does not open MCP.",
+        copy: "Copy",
+        ind_k: "INDIVIDUAL", ind_h: "Google required",
+        ind_p: "ChatGPT or Claude will open a Google window. Sign in here first.",
+        ind_cta: "Sign in with Google",
+        org_k: "ORGANIZATION", org_h: "API key",
+        org_p: "Sign in with Google, switch to organization, mint a key. Cursor and automation use a Bearer token. Do not use a bare URL.",
+        org_cta: "Mint a key",
+        cg_h: "ChatGPT", cg_n: "Plus, Pro, Business, Enterprise, or Education. Web. OpenAI Developer mode docs, 2026.",
+        cg_i_h: "Individual — Google",
+        cg1: "Open chatgpt.com.",
+        cg2: "Settings → Security and login → turn on Developer mode.",
+        cg3: "Go to Plugins (Apps). Press +.",
+        cg4: "Name: LaserMCP. URL: https://mcp.metehanavci.com/mcp",
+        cg5: "Auth: OAuth. Sign in with this Google account.",
+        cg6: "In chat, + → Developer mode → enable LaserMCP.",
+        cg_o_h: "Organization — API key",
+        cg7: "On /account, sign in with Google, choose Organization, mint a key.",
+        cg8: "ChatGPT web still uses OAuth; each person signs in with Google.",
+        cg9: "Automation and Cursor: Authorization: Bearer lzr_…",
+        cg10: "Optional URL: https://mcp.metehanavci.com/mcp?token=lzr_…",
+        cl_h: "Claude", cl_n: "claude.ai, Cowork, Desktop. Anthropic Help Center, August 2026. Free plans get one custom connector.",
+        cl_i_h: "Pro / Max — Google",
+        cl1: "Customize → Connectors.",
+        cl2: "+ → Add custom connector.",
+        cl3: "URL: https://mcp.metehanavci.com/mcp",
+        cl4: "Add. Connect. Sign in with Google.",
+        cl5: "In chat, + → Connectors → enable LaserMCP.",
+        cl_t_h: "Team / Enterprise",
+        cl6: "Owner: Organization settings → Connectors → Add → Custom → Web.",
+        cl7: "Paste the same MCP URL. Add.",
+        cl8: "Member: Customize → Connectors → Connect → Google.",
+        cl9: "Workshop automation uses an organization API key, not a bare link.",
+        cu_h: "Cursor", cu_n: "Local MCP. Google for individuals. Bearer key for organizations.",
+        cu1: "Cursor Settings → MCP → Add new global MCP server.",
+        cu2: "Type: streamableHttp. URL: https://mcp.metehanavci.com/mcp",
+        cu3: "Individual: Google when connecting.",
+        cu4: "Organization headers: Authorization: Bearer lzr_…"
+      }
+    };
+    let lang = localStorage.getItem("lmcp_lang") || "tr";
+    function apply() {
+      document.documentElement.lang = lang;
+      document.querySelectorAll("[data-i]").forEach((el) => {
+        const k = el.getAttribute("data-i");
+        if (I[lang][k]) el.textContent = I[lang][k];
+      });
+      document.getElementById("lang-tr").classList.toggle("on", lang === "tr");
+      document.getElementById("lang-en").classList.toggle("on", lang === "en");
+    }
+    document.getElementById("lang-tr").onclick = () => { lang = "tr"; localStorage.setItem("lmcp_lang", lang); apply(); };
+    document.getElementById("lang-en").onclick = () => { lang = "en"; localStorage.setItem("lmcp_lang", lang); apply(); };
+    document.getElementById("copy").onclick = async () => {
+      try { await navigator.clipboard.writeText("https://mcp.metehanavci.com/mcp"); } catch (_) {}
+      document.getElementById("copy").textContent = lang === "tr" ? "Kopyalandı" : "Copied";
+      setTimeout(apply, 1200);
+    };
+    document.querySelectorAll(".tabs button").forEach((btn) => {
+      btn.onclick = () => {
+        document.querySelectorAll(".tabs button").forEach((b) => b.classList.remove("on"));
+        btn.classList.add("on");
+        document.querySelectorAll(".guide").forEach((g) => g.classList.remove("on"));
+        document.getElementById("g-" + btn.dataset.tab).classList.add("on");
+      };
+    });
+    const hash = (location.hash || "").replace("#", "");
+    if (hash && document.getElementById("g-" + hash)) {
+      document.querySelectorAll(".tabs button").forEach((b) => b.classList.toggle("on", b.dataset.tab === hash));
+      document.querySelectorAll(".guide").forEach((g) => g.classList.toggle("on", g.id === "g-" + hash));
+    }
+    apply();
+  </script>
+</body>
+</html>

@@ -7,13 +7,18 @@ from typing import Any
 KIT_BOM: dict[str, list[dict[str, Any]]] = {
     "robot_bank": [
         {"item": "3 mm kavak kontrplak", "qty": 1, "unit": "sheet", "note": "PayasRobot faces + arms + feet"},
-        {"item": "LED 5 mm (opsiyonel)", "qty": 2, "unit": "pcs", "note": "göz delikleri"},
-        {"item": "M3×10 vida + somun", "qty": 8, "unit": "pcs", "note": "kol / ayak"},
-        {"item": "Ahşap tutkalı", "qty": 1, "unit": "job", "note": "parmak eklemleri kuru geçmeden sonra"},
+        {"item": "LED 5 mm", "qty": 2, "unit": "pcs", "note": "göz delikleri — para atılınca yanar"},
+        {"item": "Şalter 13×19", "qty": 1, "unit": "pcs", "note": "yan yüzde kesik; LED aç/kapa"},
+        {"item": "Direnç 220 Ω", "qty": 2, "unit": "pcs"},
+        {"item": "Pil yuvası 3×AA", "qty": 1, "unit": "pcs"},
+        {"item": "M3×10 vida + somun", "qty": 10, "unit": "pcs", "note": "kol / ayak / arka kapak (vida ile aç)"},
+        {"item": "Kablo + makaron", "qty": 1, "unit": "set"},
+        {"item": "Ahşap tutkalı", "qty": 1, "unit": "job", "note": "parmak eklemleri kuru geçmeden sonra — devre insan doğrular"},
     ],
     "traffic_light": [
         {"item": "3 mm kavak kontrplak", "qty": 1, "unit": "sheet", "note": "kaide + kule"},
         {"item": "5 mm LED", "qty": 3, "unit": "pcs", "note": "kırmızı / sarı / yeşil"},
+        {"item": "Şalter 13×19", "qty": 3, "unit": "pcs", "note": "kaide üstü — her şalter kendi LED’ini yakar"},
         {"item": "Direnç 220 Ω", "qty": 3, "unit": "pcs"},
         {"item": "Pil yuvası 3×AA veya USB 5 V", "qty": 1, "unit": "pcs"},
         {"item": "Kablo + makaron", "qty": 1, "unit": "set"},

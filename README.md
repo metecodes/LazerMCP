@@ -41,6 +41,7 @@ Manufacturing Geometry  PASS
 Physical Kerf Test      NOT VERIFIED
 Physical Assembly       NOT VERIFIED
 Movement Test           NOT VERIFIED
+After Assembly Use      NOT VERIFIED
 
 AUTHORIZED OUTPUT:
 Prototype SVG
@@ -53,9 +54,9 @@ BLOCKED
 | --- | --- |
 | `BLOCKED` | Dijital satır FAIL / NOT VERIFIED. `AUTHORIZED OUTPUT: None`. `look_again` oku, primitive’i düzelt, `create_design` tekrar çağır. |
 | `PROTOTYPE READY` | Dijital satırlar PASS. Yetkili çıktı **Prototype SVG**. Fiziksel satırlar ölçülmediyse NOT VERIFIED. |
-| `PRODUCTION READY` | Dijital PASS + insan kerf/montaj/(hareket). Yetkili çıktı **Production SVG**. |
+| `PRODUCTION READY` | Dijital PASS + insan kerf/montaj/(hareket)/kullanım. Yetkili çıktı **Production SVG**. |
 
-Yazılım fiziksel satırı uydurmaz. İnsan 100 mm çubuğu ölçüp `measured_bar_mm` verir; kerf PASS olabilir. `physical_assembly=verified` ve `movement_test=verified` yalnız gerçek denemeden sonra. Üçü de (hareket yoksa kerf+montaj) PASS ise `PRODUCTION READY` ve `PRODUCTION EXPORT: AUTHORIZED`. Uydurma flag = FAIL.
+Yazılım fiziksel satırı uydurmaz. İnsan 100 mm çubuğu ölçüp `measured_bar_mm` verir; kerf PASS olabilir. `physical_assembly=verified`, `movement_test=verified` ve `use_test=verified` yalnız gerçek denemeden sonra. Hepsi (yoksa N/A) PASS ise `PRODUCTION READY` ve `PRODUCTION EXPORT: AUTHORIZED`. LED/şalter çalışmasını yazılım uydurmaz. Uydurma flag = FAIL.
 
 `error` / `errors` dönülmez. Öğretme `look_again` ve `speak` ile yapılır.
 

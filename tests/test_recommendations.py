@@ -28,6 +28,29 @@ class PhysicalTests(unittest.TestCase):
             {"measured_bar_mm": 100.0, "physical_assembly": "verified", "movement_test": "verified"},
             moving=True,
         )
+        self.assertEqual(report["use"], "N/A")
+        self.assertTrue(report["production_ok"])
+
+    def test_powered_needs_use_test(self):
+        report = read_physical(
+            {"measured_bar_mm": 100.0, "physical_assembly": "verified"},
+            moving=False,
+            powered=True,
+        )
+        self.assertEqual(report["use"], NOT_VERIFIED)
+        self.assertFalse(report["production_ok"])
+
+    def test_powered_use_verified(self):
+        report = read_physical(
+            {
+                "measured_bar_mm": 100.0,
+                "physical_assembly": "verified",
+                "use_test": "verified",
+            },
+            moving=False,
+            powered=True,
+        )
+        self.assertEqual(report["use"], PASS)
         self.assertTrue(report["production_ok"])
 
     def test_never_invent_assembly(self):
@@ -71,6 +94,7 @@ class CardTests(unittest.TestCase):
         card = format_gate_card(score, PROTOTYPE_READY, "Prototype SVG", "BLOCKED")
         self.assertIn("FINAL STATUS: PROTOTYPE READY", card)
         self.assertIn("Physical Kerf Test      NOT VERIFIED", card)
+        self.assertIn("After Assembly Use      NOT VERIFIED", card)
         self.assertIn("PRODUCTION EXPORT:\nBLOCKED", card)
 
     def test_production_card(self):
@@ -92,6 +116,18 @@ class CardTests(unittest.TestCase):
         self.assertIn("1. bottom", text)
         self.assertIn("front", text)
         self.assertLess(text.index("bottom"), text.index("propeller"))
+        self.assertNotIn("AFTER ASSEMBLY USE", text)
+
+    def test_use_sheet_named_kits(self):
+        from assembly_sheet import use_sheet
+
+        traffic = use_sheet("traffic_light")
+        self.assertIn("AFTER ASSEMBLY USE", traffic)
+        self.assertIn("şalter", traffic.lower())
+        robot = use_sheet("PayasRobot")
+        self.assertIn("LED", robot)
+        self.assertIn("vida", robot.lower())
+        self.assertEqual(use_sheet("product_box"), "")
 
 
 class StudioTests(unittest.TestCase):
@@ -104,6 +140,18 @@ class StudioTests(unittest.TestCase):
         )
         self.assertIn("MATERIALS (MCP)", bom["speak"])
         self.assertTrue(any("M3" in row["item"] for row in bom["lines"]))
+        self.assertTrue(any("LED" in row["item"] for row in bom["lines"]))
+        self.assertTrue(any("şalter" in row["item"].lower() for row in bom["lines"]))
+
+    def test_bom_traffic_has_three_switches(self):
+        from bom import build_bom
+
+        bom = build_bom(
+            product="traffic_light",
+            material={"id": "poplar_3mm", "name": "3 mm kavak kontrplak", "thickness": 3.0},
+        )
+        switch = next(row for row in bom["lines"] if "şalter" in row["item"].lower())
+        self.assertEqual(switch["qty"], 3)
 
     def test_bom_composed_writes_hardware(self):
         from bom import build_bom

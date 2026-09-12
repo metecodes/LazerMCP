@@ -23,7 +23,22 @@ PUBLIC_BASE_URL = os.environ.get("MCP_PUBLIC_BASE_URL", "")
 AUTH_TOKEN = os.environ.get("MCP_AUTH_TOKEN", "").strip()
 IS_VERCEL = os.environ.get("VERCEL") == "1"
 WEB_DIR = Path(__file__).resolve().parent / "web"
-PUBLIC_PATHS = {"/", "/health", "/dashboard", "/app", "/workshop", "/api/plans", "/api/beta", "/api/demo"}
+PUBLIC_PATHS = {
+    "/",
+    "/health",
+    "/dashboard",
+    "/app",
+    "/workshop",
+    "/account",
+    "/connect",
+    "/auth/callback",
+    "/api/plans",
+    "/api/beta",
+    "/api/demo",
+    "/api/auth/config",
+    "/api/auth/session",
+}
+PUBLIC_PREFIXES = ("/demo/", "/oauth/", "/.well-known/", "/auth/")
 MCP_TOOLS = [
     "plan_laser_job",
     "create_from_reference",
@@ -55,7 +70,7 @@ mcp = MCPServer(
         "Designer → Reviewer → Repair → Reviewer → Final Gate → SVG. "
         "Paste speak verbatim as the status card. "
         "final_status is BLOCKED | PROTOTYPE READY. Software never authorizes production. "
-        "Physical Kerf Test, Physical Assembly, and Movement Test stay NOT VERIFIED. "
+        "Physical Kerf Test, Physical Assembly, Movement Test, and After Assembly Use stay NOT VERIFIED. "
         "AUTHORIZED OUTPUT is Prototype SVG. PRODUCTION EXPORT is BLOCKED. "
         "Never say LAZER KESİME HAZIR or production-ready. "
         "Preferred tools: plan_laser_job, create_design, create_from_reference, "
@@ -72,7 +87,7 @@ mcp = MCPServer(
         "parameters.reference={feature, mm, drawn_mm} so the whole recipe scales. "
         "Copy what_you_see into parameters.what_you_see. "
         "After a coupon cut, pass the human's measured_bar_mm — never invent it. "
-        "physical_assembly and movement_test are human-only; inventing them is a FAIL. "
+        "physical_assembly, movement_test, and use_test are human-only; inventing them is a FAIL. "
         "A 4-blade rotor is type=propeller, not a disc. Odd silhouettes are type=contour with points in mm. "
         "First uncalibrated laser: add {type:coupon} once (FingerJoint dry-fit + 100 mm bar). Do not add it to every mill. "
         "Pass parameters.material (poplar_3mm|poplar_4mm|mdf_3mm|acrylic_3mm) and parameters.machine "
@@ -177,21 +192,51 @@ class BearerGate:
             return
         path = scope.get("path") or ""
         method = scope.get("method") or "GET"
-        if method == "OPTIONS" or path in PUBLIC_PATHS or path.startswith("/demo/"):
+        if method == "OPTIONS" or path in PUBLIC_PATHS or path.startswith(PUBLIC_PREFIXES):
             await self.app(scope, receive, send)
             return
-        from keys import auth_required, current_auth, resolve_key
+        from keys import auth_required, current_auth, resolve_bearer
 
         if not auth_required():
             await self.app(scope, receive, send)
             return
-        key = resolve_key(_extract_token(scope))
+        key = resolve_bearer(_extract_token(scope))
         if not key:
-            body = b'{"error":"unauthorized"}'
+            try:
+                from supabase_auth import principal_from_identity, session_user
+
+                cookie_header = ""
+                for hk, hv in scope.get("headers") or []:
+                    if hk.decode("latin-1").lower() == "cookie":
+                        cookie_header = hv.decode("latin-1")
+                        break
+                sid = ""
+                for part in cookie_header.split(";"):
+                    name, _, val = part.strip().partition("=")
+                    if name == "lmcp_sid":
+                        sid = val
+                        break
+                stored = session_user(sid)
+                if stored:
+                    key = principal_from_identity(stored, stored)
+            except Exception:
+                key = None
+        if not key:
+            host = ""
+            for hk, hv in scope.get("headers") or []:
+                if hk.decode("latin-1").lower() == "host":
+                    host = hv.decode("latin-1")
+                    break
+            proto = "https" if (scope.get("scheme") == "https" or host.endswith("metehanavci.com")) else "http"
+            meta = f'{proto}://{host}/.well-known/oauth-protected-resource'.encode("ascii") if host else b""
+            body = b'{"error":"unauthorized","look_again":["Sign in with Google or use an organization API key."]}'
             headers = [
                 (b"content-type", b"application/json"),
                 (b"content-length", str(len(body)).encode("ascii")),
-                (b"www-authenticate", b'Bearer realm="Laser mcp"'),
+                (
+                    b"www-authenticate",
+                    b'Bearer realm="LaserMCP"' + (b', resource_metadata="' + meta + b'"' if meta else b""),
+                ),
             ]
             await send({"type": "http.response.start", "status": 401, "headers": headers})
             await send({"type": "http.response.body", "body": body})
@@ -451,6 +496,17 @@ async def landing(request: Request) -> Response:
     return FileResponse(WEB_DIR / "landing.html", media_type="text/html; charset=utf-8")
 
 
+@mcp.custom_route("/connect", methods=["GET"])
+async def connect_page(request: Request) -> Response:
+    return FileResponse(WEB_DIR / "connect.html", media_type="text/html; charset=utf-8")
+
+
+@mcp.custom_route("/account", methods=["GET"])
+@mcp.custom_route("/auth/callback", methods=["GET"])
+async def account_page(request: Request) -> Response:
+    return FileResponse(WEB_DIR / "account.html", media_type="text/html; charset=utf-8")
+
+
 @mcp.custom_route("/app", methods=["GET"])
 @mcp.custom_route("/workshop", methods=["GET"])
 async def ui(request: Request) -> Response:
@@ -500,8 +556,205 @@ async def api_status(request: Request) -> Response:
             "defaults": boxespy.PAYAS_DEFAULTS,
             "tools": MCP_TOOLS,
             "cad_products": payas_cad.CAD_PRODUCTS,
+            "connect": "/connect",
+            "account": "/account",
         }
     )
+
+
+def _cors(payload: dict[str, Any], status: int = 200) -> JSONResponse:
+    response = JSONResponse(payload, status_code=status)
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+    return response
+
+
+def _cookie_secure(request: Request) -> bool:
+    proto = request.headers.get("x-forwarded-proto") or request.url.scheme
+    return proto == "https"
+
+
+async def _oauth_body(request: Request) -> dict[str, Any]:
+    ctype = (request.headers.get("content-type") or "").lower()
+    if "application/x-www-form-urlencoded" in ctype:
+        form = await request.form()
+        return {str(k): str(v) for k, v in form.items()}
+    try:
+        raw = await request.json()
+        return raw if isinstance(raw, dict) else {}
+    except Exception:
+        return {}
+
+
+@mcp.custom_route("/.well-known/oauth-authorization-server", methods=["GET"])
+async def oauth_as_meta(request: Request) -> Response:
+    from oauth_mcp import metadata
+
+    return _cors(metadata(_public_base(request)))
+
+
+@mcp.custom_route("/.well-known/oauth-protected-resource", methods=["GET"])
+@mcp.custom_route("/.well-known/oauth-protected-resource/mcp", methods=["GET"])
+async def oauth_rs_meta(request: Request) -> Response:
+    from oauth_mcp import resource_metadata
+
+    return _cors(resource_metadata(_public_base(request)))
+
+
+@mcp.custom_route("/oauth/register", methods=["POST", "OPTIONS"])
+async def oauth_register(request: Request) -> Response:
+    if request.method == "OPTIONS":
+        return _cors({"ok": True})
+    from oauth_mcp import register_client
+
+    try:
+        body = await _oauth_body(request)
+        return _cors(register_client(body), 201)
+    except ValueError as exc:
+        return _cors({"error": "invalid_client_metadata", "error_description": str(exc)}, 400)
+
+
+@mcp.custom_route("/oauth/authorize", methods=["GET"])
+async def oauth_authorize(request: Request) -> Response:
+    from oauth_mcp import authorize_redirect, issue_code
+    from supabase_auth import session_user
+    from starlette.responses import RedirectResponse
+
+    q = request.query_params
+    nxt = str(request.url)
+    user = session_user(request.cookies.get("lmcp_sid"))
+    if not user:
+        return RedirectResponse("/account?next=" + __import__("urllib.parse").quote(nxt, safe=""), status_code=302)
+    try:
+        code = issue_code(
+            client_id=str(q.get("client_id") or ""),
+            redirect_uri=str(q.get("redirect_uri") or ""),
+            state=str(q.get("state") or ""),
+            challenge=str(q.get("code_challenge") or ""),
+            user=user,
+        )
+        return RedirectResponse(authorize_redirect(str(q.get("redirect_uri") or ""), code, str(q.get("state") or "")), status_code=302)
+    except ValueError as exc:
+        return _cors({"error": "invalid_request", "error_description": str(exc)}, 400)
+
+
+@mcp.custom_route("/oauth/token", methods=["POST", "OPTIONS"])
+async def oauth_token(request: Request) -> Response:
+    if request.method == "OPTIONS":
+        return _cors({"ok": True})
+    from oauth_mcp import exchange_token
+
+    try:
+        return _cors(exchange_token(await _oauth_body(request)))
+    except ValueError as exc:
+        return _cors({"error": "invalid_grant", "error_description": str(exc)}, 400)
+
+
+@mcp.custom_route("/api/auth/config", methods=["GET"])
+async def api_auth_config(request: Request) -> Response:
+    from supabase_auth import public_config
+
+    return JSONResponse(public_config(f"{_public_base(request)}/mcp"))
+
+
+@mcp.custom_route("/api/auth/session", methods=["POST"])
+async def api_auth_session(request: Request) -> Response:
+    from supabase_auth import (
+        can_mint_keys,
+        configured,
+        new_session,
+        principal_from_identity,
+        upsert_user,
+        verify_access_token,
+    )
+
+    if not configured():
+        return JSONResponse({"success": True, "look_again": ["Supabase is not configured."], "configured": False})
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    token = str((body or {}).get("access_token") or "")
+    identity = verify_access_token(token)
+    if not identity:
+        return JSONResponse({"success": True, "look_again": ["Google sign-in failed."]}, status_code=401)
+    kind = str((body or {}).get("kind") or "")
+    stored = upsert_user(identity, kind=kind if kind in {"individual", "org"} else None)
+    principal = principal_from_identity(identity, stored)
+    response = JSONResponse(
+        {
+            "success": True,
+            "user": principal,
+            "can_mint_keys": can_mint_keys(stored),
+            "configured": True,
+        }
+    )
+    response.set_cookie(
+        "lmcp_sid",
+        new_session(stored),
+        httponly=True,
+        samesite="lax",
+        max_age=30 * 24 * 3600,
+        secure=_cookie_secure(request),
+        path="/",
+    )
+    return response
+
+
+@mcp.custom_route("/api/account", methods=["GET"])
+async def api_account(request: Request) -> Response:
+    from keys import current_auth, list_keys
+    from supabase_auth import can_mint_keys, session_user, user_by_id
+
+    key = current_auth.get() or session_user(request.cookies.get("lmcp_sid"))
+    if not key:
+        return JSONResponse({"success": True, "look_again": ["Sign in with Google."]}, status_code=401)
+    stored = user_by_id(str(key.get("id") or "")) or {}
+    return JSONResponse(
+        {
+            "success": True,
+            "user": {
+                "id": key.get("id"),
+                "name": key.get("name"),
+                "email": key.get("email") or stored.get("email"),
+                "kind": stored.get("kind") or key.get("kind") or "individual",
+            },
+            "can_mint_keys": can_mint_keys(stored or key),
+            "keys": list_keys(owner=str(key.get("id") or "")),
+        }
+    )
+
+
+@mcp.custom_route("/api/account/keys", methods=["POST"])
+async def api_account_keys(request: Request) -> Response:
+    from keys import create_key, current_auth
+    from supabase_auth import can_mint_keys, session_user, user_by_id
+
+    key = current_auth.get() or session_user(request.cookies.get("lmcp_sid"))
+    if not key:
+        return JSONResponse({"success": True, "look_again": ["Sign in with Google."]}, status_code=401)
+    stored = user_by_id(str(key.get("id") or "")) or key
+    if not can_mint_keys(stored):
+        return JSONResponse(
+            {
+                "success": True,
+                "look_again": ["Organization accounts mint API keys. Individuals sign in with Google."],
+            }
+        )
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    created = create_key(
+        str((body or {}).get("name") or "workshop"),
+        role="workshop",
+        plan="maker",
+        owner=str(key.get("id") or ""),
+        email=str(key.get("email") or stored.get("email") or ""),
+        kind="org",
+    )
+    return JSONResponse({"success": True, **created})
 
 
 @mcp.custom_route("/health", methods=["GET"])

@@ -119,7 +119,7 @@ def list_cad_tools() -> dict[str, Any]:
             "generate_svg only if the plan names a Boxes.py class. Never write SVG yourself. Cuts keep ~1 mm holding nicks. "
             "create_design runs Designer → Reviewer → Repair → Reviewer → Final Gate inside the tool. "
             "Paste speak as the status card. final_status is BLOCKED | PROTOTYPE READY. "
-            "Software never grants production: Physical Kerf/Assembly/Movement stay NOT VERIFIED, "
+            "Software never grants production: Physical Kerf/Assembly/Movement/Use stay NOT VERIFIED, "
             "AUTHORIZED OUTPUT is Prototype SVG, PRODUCTION EXPORT is BLOCKED. "
             "Never say LAZER KESİME HAZIR or production-ready."
         ),
