@@ -68,7 +68,7 @@ GENERATOR_ALIASES = {
 
 OUTPUT_DIR = _resolve_output_dir()
 
-MCP_NAME = "Laser mcp"
+MCP_NAME = "LaserMCP"
 LATEST_SVG = "latest.svg"
 LATEST_DXF = "latest.dxf"
 _SAFE_NAME = re.compile(r"^[\w][\w .+-]*$", re.UNICODE)

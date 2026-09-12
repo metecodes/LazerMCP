@@ -129,7 +129,10 @@ def studio_action(
                     kind="org",
                 ),
             }
-        return {"success": True, "keys": list_keys(owner=str((key or {}).get("id") or "") if configured() else "")}
+        oid = str((key or {}).get("id") or "")
+        if configured():
+            return {"success": True, "keys": list_keys(owner=oid) if oid else []}
+        return {"success": True, "keys": list_keys()}
     if verb in {"telemetry", "events"}:
         return {"success": True, "events": recent()}
     return {
@@ -140,13 +143,15 @@ def studio_action(
 
 
 def overview() -> dict[str, Any]:
+    key = current_auth.get()
+    owner = str((key or {}).get("id") or "")
     return {
         "success": True,
         "profiles": list_profiles(),
         "calibrations": list_calibrations(),
         "projects": list_projects(),
         "usage": usage_summary(),
-        "keys": list_keys(),
+        "keys": list_keys(owner=owner) if owner else [],
         "telemetry": recent(40),
         "plans": __import__("plans").public_plans(),
     }

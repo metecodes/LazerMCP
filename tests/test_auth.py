@@ -8,7 +8,7 @@ class AuthTests(unittest.TestCase):
         self.tmp = tempfile.mkdtemp()
         self.old = os.environ.get("MCP_DATA_DIR")
         os.environ["MCP_DATA_DIR"] = self.tmp
-        for key in ("SUPABASE_URL", "SUPABASE_ANON_KEY"):
+        for key in ("SUPABASE_URL", "SUPABASE_ANON_KEY", "LASERMCP_ORG_DOMAINS", "LASERMCP_OAUTH_REDIRECT_HOSTS"):
             os.environ.pop(key, None)
 
     def tearDown(self):
@@ -16,8 +16,8 @@ class AuthTests(unittest.TestCase):
             os.environ.pop("MCP_DATA_DIR", None)
         else:
             os.environ["MCP_DATA_DIR"] = self.old
-        os.environ.pop("SUPABASE_URL", None)
-        os.environ.pop("SUPABASE_ANON_KEY", None)
+        for key in ("SUPABASE_URL", "SUPABASE_ANON_KEY", "LASERMCP_ORG_DOMAINS", "LASERMCP_OAUTH_REDIRECT_HOSTS"):
+            os.environ.pop(key, None)
 
     def test_oauth_metadata(self):
         from oauth_mcp import metadata, resource_metadata
@@ -70,11 +70,66 @@ class AuthTests(unittest.TestCase):
         reload(supabase_auth)
         reload(keys)
         self.assertTrue(keys.auth_required())
-        self.assertTrue(can_mint_keys({"kind": "org", "email": "x@y.com"}))
-        self.assertFalse(can_mint_keys({"kind": "individual", "email": "x@y.com"}))
+        self.assertFalse(can_mint_keys({"kind": "org", "email": "x@y.com"}))
+        os.environ["LASERMCP_ORG_DOMAINS"] = "y.com"
+        self.assertTrue(can_mint_keys({"kind": "individual", "email": "x@y.com"}))
+        self.assertFalse(can_mint_keys({"kind": "org", "email": "x@other.com"}))
         created = create_key("atolye", owner="u1", email="x@y.com", kind="org")
         self.assertTrue(created["token"].startswith("lzr_"))
         self.assertEqual(resolve_key(created["token"])["kind"], "org")
+
+    def test_oauth_rejects_unknown_redirect(self):
+        from oauth_mcp import issue_code, register_client
+
+        with self.assertRaises(ValueError):
+            issue_code(
+                client_id="attacker",
+                redirect_uri="https://evil.example/cb",
+                state="s",
+                challenge="abc",
+                user={"id": "u1", "email": "a@b.com"},
+            )
+        with self.assertRaises(ValueError):
+            register_client({"redirect_uris": ["https://evil.example/cb"]})
+
+    def test_safe_next_path(self):
+        from supabase_auth import safe_next_path
+
+        origin = "https://mcp.metehanavci.com"
+        self.assertEqual(safe_next_path("/connect", origins=[origin]), "/connect")
+        self.assertEqual(
+            safe_next_path("/oauth/authorize?client_id=x", origins=[origin]),
+            "/oauth/authorize?client_id=x",
+        )
+        self.assertEqual(safe_next_path("https://evil.example/", origins=[origin]), "")
+        self.assertEqual(safe_next_path("//evil.example", origins=[origin]), "")
+        self.assertEqual(
+            safe_next_path("https://mcp.metehanavci.com/app", origins=[origin]),
+            "/app",
+        )
+
+    def test_upsert_ignores_client_org_kind(self):
+        from supabase_auth import upsert_user
+
+        guest = upsert_user({"id": "1", "email": "a@gmail.com", "name": "A"}, kind="org")
+        self.assertEqual(guest["kind"], "individual")
+        os.environ["LASERMCP_ORG_DOMAINS"] = "payas.edu.tr"
+        org = upsert_user({"id": "2", "email": "b@payas.edu.tr", "name": "B"})
+        self.assertEqual(org["kind"], "org")
+
+    def test_overview_keys_are_owner_scoped(self):
+        from keys import create_key, current_auth
+        from studio import overview
+
+        create_key("mine", owner="u1", email="a@y.com")
+        create_key("theirs", owner="u2", email="b@y.com")
+        token = current_auth.set({"id": "u1", "email": "a@y.com"})
+        try:
+            names = {row.get("name") for row in overview()["keys"]}
+        finally:
+            current_auth.reset(token)
+        self.assertEqual(names, {"mine"})
+        self.assertEqual(overview()["keys"], [])
 
 
 if __name__ == "__main__":

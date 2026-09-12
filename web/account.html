@@ -4,6 +4,20 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>LaserMCP — Giriş</title>
+  <meta name="description" content="LaserMCP hesabı: Google ile gir, kurumsal API anahtarı üret.">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/site.webmanifest">
+  <meta name="theme-color" content="#fafafa">
+  <meta name="application-name" content="LaserMCP">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="LaserMCP">
+  <meta property="og:title" content="LaserMCP — Giriş">
+  <meta property="og:description" content="Google ile gir. Kurumsal hesap anahtar üretir.">
+  <meta property="og:image" content="https://mcp.metehanavci.com/og.png">
+  <meta property="og:url" content="https://mcp.metehanavci.com/account">
+  <meta name="twitter:card" content="summary_large_image">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -53,10 +67,7 @@
     <div class="card hide" id="signed-in">
       <div class="row"><span>E-posta</span><b id="email">—</b></div>
       <div class="row"><span>Tür</span><b id="kind">—</b></div>
-      <p style="margin-top:16px">
-        <button class="btn ghost" type="button" id="make-org">Kurumsal yap</button>
-        <button class="btn ghost" type="button" id="make-ind">Bireysel yap</button>
-      </p>
+      <p class="lede" id="org-note"></p>
       <div id="keys-box" class="hide" style="margin-top:18px">
         <input id="key-name" placeholder="atölye-anahtarı">
         <button class="btn" type="button" id="mint">API anahtarı üret</button>
@@ -73,26 +84,40 @@
       connect: "Connection steps", title: "Sign in with Google",
       lede: "Individuals do not paste a bare link. Google is required. Organizations mint API keys.",
       cfg: "Supabase is not connected yet. Put the project URL and anon key on the server.",
-      google: "Continue with Google", org: "Make organization", ind: "Make individual",
-      mint: "Mint API key", out: "Sign out", need: "Sign in with Google first."
+      google: "Continue with Google",
+      mint: "Mint API key", out: "Sign out", need: "Sign in with Google first.",
+      orgYes: "This email domain may mint organization API keys.",
+      orgNo: "Organization keys are limited to allowlisted email domains."
     } : {
       connect: "Bağlama adımları", title: "Google ile gir",
       lede: "Bireysel kullanıcı link yapıştırmaz. Google zorunlu. Kurumsal hesap anahtar üretir.",
       cfg: "Supabase henüz bağlı değil. Proje URL ve anon anahtarını sunucuya yaz.",
-      google: "Google ile devam et", org: "Kurumsal yap", ind: "Bireysel yap",
-      mint: "API anahtarı üret", out: "Çık", need: "Önce Google ile gir."
+      google: "Google ile devam et",
+      mint: "API anahtarı üret", out: "Çık", need: "Önce Google ile gir.",
+      orgYes: "Bu e-posta alanı kurumsal API anahtarı üretebilir.",
+      orgNo: "Kurumsal anahtar yalnız izinli e-posta alanlarına açık."
     };
     document.getElementById("to-connect").textContent = T.connect;
     document.getElementById("title").textContent = T.title;
     document.getElementById("lede").textContent = T.lede;
     document.getElementById("cfg-note").textContent = T.cfg;
     document.getElementById("google").textContent = T.google;
-    document.getElementById("make-org").textContent = T.org;
-    document.getElementById("make-ind").textContent = T.ind;
     document.getElementById("mint").textContent = T.mint;
     document.getElementById("out").textContent = T.out;
 
-    const next = new URLSearchParams(location.search).get("next") || "";
+    function safeNext(raw) {
+      if (!raw) return "";
+      try {
+        if (raw.startsWith("/") && !raw.startsWith("//") && raw.indexOf("\\") < 0) return raw;
+        const u = new URL(raw, location.origin);
+        if (u.origin !== location.origin) return "";
+        return u.pathname + u.search;
+      } catch (e) {
+        return "";
+      }
+    }
+
+    const next = safeNext(new URLSearchParams(location.search).get("next") || "");
     if (next) document.getElementById("google").href = "/auth/google?next=" + encodeURIComponent(next);
     let accessToken = "";
 
@@ -103,6 +128,7 @@
       const user = data.user || {};
       document.getElementById("email").textContent = user.email || "—";
       document.getElementById("kind").textContent = user.kind === "org" ? (lang === "en" ? "organization" : "kurumsal") : (lang === "en" ? "individual" : "bireysel");
+      document.getElementById("org-note").textContent = data.can_mint_keys ? T.orgYes : T.orgNo;
       document.getElementById("keys-box").classList.toggle("hide", !data.can_mint_keys);
       const keys = data.keys || [];
       document.getElementById("key-list").innerHTML = keys.map((k) =>
@@ -121,7 +147,7 @@
       const res = await fetch("/api/auth/session", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ access_token: token, kind: kind || "" })
+        body: JSON.stringify({ access_token: token })
       });
       return res.json();
     }
@@ -141,8 +167,6 @@
       }
     }
 
-    document.getElementById("make-org").onclick = async () => { showUser(await sync("org")); };
-    document.getElementById("make-ind").onclick = async () => { showUser(await sync("individual")); };
     document.getElementById("mint").onclick = async () => {
       const res = await fetch("/api/account/keys", {
         method: "POST",

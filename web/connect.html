@@ -4,6 +4,20 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>LaserMCP — Bağla</title>
+  <meta name="description" content="LaserMCP’yi ChatGPT, Claude veya Cursor’a bağla.">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/site.webmanifest">
+  <meta name="theme-color" content="#fafafa">
+  <meta name="application-name" content="LaserMCP">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="LaserMCP">
+  <meta property="og:title" content="LaserMCP — Bağla">
+  <meta property="og:description" content="LaserMCP’yi ChatGPT, Claude veya Cursor’a bağla.">
+  <meta property="og:image" content="https://mcp.metehanavci.com/og.png">
+  <meta property="og:url" content="https://mcp.metehanavci.com/connect">
+  <meta name="twitter:card" content="summary_large_image">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -111,10 +125,10 @@
         <article class="card">
           <h3 data-i="cg_o_h">Kurumsal — API anahtarı</h3>
           <ol>
-            <li data-i="cg7">/account sayfasında Google ile gir, Kurumsal’ı seç, anahtar üret.</li>
+            <li data-i="cg7">/account sayfasında Google ile gir. İzinli kurumsal e-posta ise anahtar üret.</li>
             <li data-i="cg8">ChatGPT web yine OAuth ister; her kişi kendi Google’ı ile bağlanır.</li>
             <li data-i="cg9">Otomasyon ve Cursor: Authorization: Bearer lzr_…</li>
-            <li data-i="cg10">İsteğe bağlı URL: https://mcp.metehanavci.com/mcp?token=lzr_…</li>
+            <li data-i="cg10">Canlı sitede yalnız Authorization başlığı. URL’ye token koyma.</li>
           </ol>
         </article>
       </div>
@@ -180,7 +194,7 @@
         ind_p: "ChatGPT veya Claude bağlarken Google penceresi açılır. Önce bu sitede de Google ile gir.",
         ind_cta: "Google ile gir",
         org_k: "KURUMSAL", org_h: "API anahtarı",
-        org_p: "Google ile gir, hesabı kurumsal yap, anahtar üret. Cursor ve otomasyon Bearer token kullanır. Çıplak URL kullanma.",
+        org_p: "Google ile gir. İzinli kurumsal e-posta anahtar üretir. Cursor ve otomasyon Bearer kullanır. Çıplak URL kullanma.",
         org_cta: "Anahtar üret",
         cg_h: "ChatGPT", cg_n: "Plus, Pro, Business, Enterprise veya Education. Web. OpenAI Developer mode belgesi, 2026.",
         cg_i_h: "Bireysel — Google",
@@ -191,10 +205,10 @@
         cg5: "Kimlik: OAuth. Google penceresinde bu hesaba gir.",
         cg6: "Sohbette + → Developer mode → LaserMCP’yi aç.",
         cg_o_h: "Kurumsal — API anahtarı",
-        cg7: "/account sayfasında Google ile gir, Kurumsal’ı seç, anahtar üret.",
+        cg7: "/account sayfasında Google ile gir. İzinli kurumsal e-posta ise anahtar üret.",
         cg8: "ChatGPT web yine OAuth ister; her kişi kendi Google’ı ile bağlanır.",
         cg9: "Otomasyon ve Cursor: Authorization: Bearer lzr_…",
-        cg10: "İsteğe bağlı URL: https://mcp.metehanavci.com/mcp?token=lzr_…",
+        cg10: "Canlı sitede yalnız Authorization başlığı. URL’ye token koyma.",
         cl_h: "Claude", cl_n: "claude.ai, Cowork, Desktop. Anthropic Help Center, Ağustos 2026. Free planda 1 özel bağlayıcı.",
         cl_i_h: "Pro / Max — Google",
         cl1: "Customize → Connectors.",
@@ -222,7 +236,7 @@
         ind_p: "ChatGPT or Claude will open a Google window. Sign in here first.",
         ind_cta: "Sign in with Google",
         org_k: "ORGANIZATION", org_h: "API key",
-        org_p: "Sign in with Google, switch to organization, mint a key. Cursor and automation use a Bearer token. Do not use a bare URL.",
+        org_p: "Sign in with Google. An allowlisted organization email can mint a key. Cursor and automation use a Bearer token. Do not use a bare URL.",
         org_cta: "Mint a key",
         cg_h: "ChatGPT", cg_n: "Plus, Pro, Business, Enterprise, or Education. Web. OpenAI Developer mode docs, 2026.",
         cg_i_h: "Individual — Google",
@@ -233,10 +247,10 @@
         cg5: "Auth: OAuth. Sign in with this Google account.",
         cg6: "In chat, + → Developer mode → enable LaserMCP.",
         cg_o_h: "Organization — API key",
-        cg7: "On /account, sign in with Google, choose Organization, mint a key.",
+        cg7: "On /account, sign in with Google. Allowlisted organization emails can mint a key.",
         cg8: "ChatGPT web still uses OAuth; each person signs in with Google.",
         cg9: "Automation and Cursor: Authorization: Bearer lzr_…",
-        cg10: "Optional URL: https://mcp.metehanavci.com/mcp?token=lzr_…",
+        cg10: "Production accepts the Authorization header only. Do not put a token in the URL.",
         cl_h: "Claude", cl_n: "claude.ai, Cowork, Desktop. Anthropic Help Center, August 2026. Free plans get one custom connector.",
         cl_i_h: "Pro / Max — Google",
         cl1: "Customize → Connectors.",

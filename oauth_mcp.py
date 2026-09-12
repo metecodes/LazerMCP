@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import hmac
+import os
 import secrets
 import time
 from typing import Any
@@ -13,6 +14,15 @@ from urllib.parse import urlencode, urlparse
 from studio_store import now_iso, read_json, write_json
 
 SCOPES = ["mcp"]
+_FIRST_PARTY_REDIRECT_HOSTS = {
+    "chatgpt.com",
+    "www.chatgpt.com",
+    "chat.openai.com",
+    "claude.ai",
+    "www.claude.ai",
+    "cursor.com",
+    "www.cursor.com",
+}
 
 
 def _b64url(raw: bytes) -> str:
@@ -62,6 +72,8 @@ def register_client(body: dict[str, Any] | None) -> dict[str, Any]:
     uris = [str(u) for u in (payload.get("redirect_uris") or []) if str(u).startswith("http")]
     if not uris:
         raise ValueError("redirect_uris required")
+    if any(not redirect_host_ok(u) for u in uris):
+        raise ValueError("redirect_uri host is not allowed")
     client_id = "cli_" + secrets.token_urlsafe(16)
     row = {
         "client_id": client_id,
@@ -97,6 +109,20 @@ def _uri_ok(client: dict[str, Any] | None, redirect_uri: str) -> bool:
     return redirect_uri in allowed
 
 
+def redirect_hosts() -> set[str]:
+    extra = (os.environ.get("LASERMCP_OAUTH_REDIRECT_HOSTS") or "").strip()
+    more = {p.strip().lower() for p in extra.split(",") if p.strip()}
+    return _FIRST_PARTY_REDIRECT_HOSTS | more
+
+
+def redirect_host_ok(redirect_uri: str) -> bool:
+    parsed = urlparse(redirect_uri)
+    host = (parsed.hostname or "").lower()
+    if parsed.scheme == "https" and host in redirect_hosts():
+        return True
+    return parsed.scheme == "http" and host in {"127.0.0.1", "localhost", "::1"}
+
+
 def issue_code(
     *,
     client_id: str,
@@ -105,9 +131,10 @@ def issue_code(
     challenge: str,
     user: dict[str, Any],
 ) -> str:
+    if not redirect_host_ok(redirect_uri):
+        raise ValueError("redirect_uri host is not allowed")
     client = _client(client_id)
     if not client:
-        # First-party assistants often skip DCR. Bind the URI to a generated client.
         client = {
             "client_id": client_id or "cli_pending",
             "redirect_uris": [redirect_uri],

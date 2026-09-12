@@ -1,0 +1,21 @@
+{
+  "name": "LaserMCP",
+  "short_name": "LaserMCP",
+  "description": "ChatGPT, Claude ve Cursor için lazer kesim MCP sunucusu.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fafafa",
+  "theme_color": "#fafafa",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ]
+}

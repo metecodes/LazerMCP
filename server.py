@@ -41,6 +41,15 @@ PUBLIC_BASE_URL = os.environ.get("MCP_PUBLIC_BASE_URL", "")
 AUTH_TOKEN = os.environ.get("MCP_AUTH_TOKEN", "").strip()
 IS_VERCEL = os.environ.get("VERCEL") == "1"
 WEB_DIR = Path(__file__).resolve().parent / "web"
+BRAND_FILES = {
+    "/favicon.svg": ("favicon.svg", "image/svg+xml"),
+    "/favicon.ico": ("favicon.ico", "image/x-icon"),
+    "/favicon-32.png": ("favicon-32.png", "image/png"),
+    "/apple-touch-icon.png": ("apple-touch-icon.png", "image/png"),
+    "/icon-512.png": ("icon-512.png", "image/png"),
+    "/og.png": ("og.png", "image/png"),
+    "/site.webmanifest": ("site.webmanifest", "application/manifest+json"),
+}
 PUBLIC_PATHS = {
     "/",
     "/health",
@@ -56,6 +65,7 @@ PUBLIC_PATHS = {
     "/api/demo",
     "/api/auth/config",
     "/api/auth/session",
+    *BRAND_FILES,
 }
 PUBLIC_PREFIXES = ("/demo/", "/oauth/", "/.well-known/", "/auth/")
 MCP_TOOLS = [
@@ -79,7 +89,7 @@ MCP_TOOLS = [
 ]
 
 mcp = MCPServer(
-    "Laser mcp",
+    "LaserMCP",
     instructions=(
         "You are Payas STEM laser CAD at https://mcp.metehanavci.com/mcp. "
         "This server is a toolbox, not a catalog. Never ask for a new kit or MCP tool. "
@@ -167,6 +177,13 @@ def _token_ok(provided: str | None, expected: str) -> bool:
     return hmac.compare_digest(left, right)
 
 
+def _request_host(scope: dict[str, Any]) -> str:
+    for key, value in scope.get("headers", []):
+        if key.decode("latin-1").lower() == "host":
+            return value.decode("latin-1").split(":")[0].lower()
+    return ""
+
+
 def _extract_token(scope: dict[str, Any]) -> str | None:
     for key, value in scope.get("headers", []):
         if key.decode("latin-1").lower() == "authorization":
@@ -174,9 +191,26 @@ def _extract_token(scope: dict[str, Any]) -> str | None:
             if text.lower().startswith("bearer "):
                 return text[7:].strip()
             return None
+    if _request_host(scope) not in {"127.0.0.1", "localhost", "::1"}:
+        return None
     query = parse_qs(scope.get("query_string", b"").decode("latin-1"))
     values = query.get("token") or []
     return values[0] if values else None
+
+
+def _next_origins(request: Request) -> list[str]:
+    proto = request.headers.get("x-forwarded-proto") or request.url.scheme
+    host = request.headers.get("x-forwarded-host") or request.headers.get("host") or request.url.netloc
+    origins = [f"{proto}://{host}"]
+    if PUBLIC_BASE_URL:
+        origins.append(PUBLIC_BASE_URL.rstrip("/"))
+    return origins
+
+
+def _safe_next(raw: str, request: Request) -> str:
+    from supabase_auth import safe_next_path
+
+    return safe_next_path(raw, origins=_next_origins(request))
 
 
 class McpOriginAlias:
@@ -534,7 +568,7 @@ async def auth_google(request: Request) -> Response:
     if not configured():
         return RedirectResponse("/account", status_code=302)
     redirect_to = f"{_public_base(request)}/auth/callback"
-    nxt = request.query_params.get("next") or ""
+    nxt = _safe_next(request.query_params.get("next") or "", request)
     if nxt:
         redirect_to += "?next=" + __import__("urllib.parse").quote(nxt, safe="")
     target = (
@@ -554,6 +588,24 @@ async def ui(request: Request) -> Response:
 @mcp.custom_route("/dashboard", methods=["GET"])
 async def dashboard(request: Request) -> Response:
     return FileResponse(WEB_DIR / "dashboard.html", media_type="text/html; charset=utf-8")
+
+
+@mcp.custom_route("/favicon.svg", methods=["GET"])
+@mcp.custom_route("/favicon.ico", methods=["GET"])
+@mcp.custom_route("/favicon-32.png", methods=["GET"])
+@mcp.custom_route("/apple-touch-icon.png", methods=["GET"])
+@mcp.custom_route("/icon-512.png", methods=["GET"])
+@mcp.custom_route("/og.png", methods=["GET"])
+@mcp.custom_route("/site.webmanifest", methods=["GET"])
+async def brand_asset(request: Request) -> Response:
+    spec = BRAND_FILES.get(request.url.path)
+    if not spec:
+        return Response(status_code=404)
+    name, media = spec
+    path = WEB_DIR / name
+    if not path.is_file():
+        return Response(status_code=404)
+    return FileResponse(path, media_type=media)
 
 
 @mcp.custom_route("/api/demo", methods=["GET"])
@@ -582,7 +634,7 @@ async def api_status(request: Request) -> Response:
     health = boxespy.health_status()
     return JSONResponse(
         {
-            "name": "Laser mcp",
+            "name": "LaserMCP",
             "status": health["status"],
             "mcp": "/mcp",
             "ui": "/app",
@@ -660,10 +712,10 @@ async def oauth_authorize(request: Request) -> Response:
     from starlette.responses import RedirectResponse
 
     q = request.query_params
-    nxt = str(request.url)
+    nxt = _safe_next(str(request.url), request)
     user = session_user(request.cookies.get("lmcp_sid"))
     if not user:
-        return RedirectResponse("/account?next=" + __import__("urllib.parse").quote(nxt, safe=""), status_code=302)
+        return RedirectResponse("/account?next=" + __import__("urllib.parse").quote(nxt or "/connect", safe=""), status_code=302)
     try:
         code = issue_code(
             client_id=str(q.get("client_id") or ""),
@@ -717,8 +769,7 @@ async def api_auth_session(request: Request) -> Response:
     identity = verify_access_token(token)
     if not identity:
         return JSONResponse({"success": True, "look_again": ["Google sign-in failed."]}, status_code=401)
-    kind = str((body or {}).get("kind") or "")
-    stored = upsert_user(identity, kind=kind if kind in {"individual", "org"} else None)
+    stored = upsert_user(identity)
     principal = principal_from_identity(identity, stored)
     response = JSONResponse(
         {

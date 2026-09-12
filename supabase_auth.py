@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import secrets
 import urllib.error
 import urllib.request
 from typing import Any
+from urllib.parse import urlparse
 
 from studio_store import now_iso, read_json, write_json
 
@@ -31,6 +33,41 @@ def configured() -> bool:
 def org_domains() -> list[str]:
     raw = (os.environ.get("LASERMCP_ORG_DOMAINS") or "").strip()
     return [p.strip().lower() for p in raw.split(",") if p.strip()]
+
+
+_SAFE_NEXT_PATH = re.compile(r"^/[A-Za-z0-9/._~-]*$")
+
+
+def _email_host(email: str) -> str:
+    raw = str(email or "").strip().lower()
+    return raw.split("@")[-1] if "@" in raw else ""
+
+
+def is_org_email(email: str) -> bool:
+    domains = org_domains()
+    host = _email_host(email)
+    return bool(domains) and host in domains
+
+
+def safe_next_path(raw: str, *, origins: list[str] | None = None) -> str:
+    value = (raw or "").strip()
+    if not value or any(ch in value for ch in ("\n", "\r", "\\")):
+        return ""
+    if value.startswith("//"):
+        return ""
+    if value.startswith("/"):
+        path = value.split("?", 1)[0]
+        return value if _SAFE_NEXT_PATH.fullmatch(path) else ""
+    parsed = urlparse(value)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        return ""
+    allowed = {urlparse(o).netloc.lower() for o in (origins or []) if o}
+    if not allowed or parsed.netloc.lower() not in allowed:
+        return ""
+    path = parsed.path or "/"
+    if not _SAFE_NEXT_PATH.fullmatch(path):
+        return ""
+    return path + (("?" + parsed.query) if parsed.query else "")
 
 
 def public_config(mcp_url: str) -> dict[str, Any]:
@@ -104,8 +141,7 @@ def upsert_user(identity: dict[str, Any], *, kind: str | None = None) -> dict[st
     hit["email"] = identity.get("email") or hit.get("email")
     hit["name"] = identity.get("name") or hit.get("name")
     hit["last_seen"] = now_iso()
-    if kind in {"individual", "org"}:
-        hit["kind"] = kind
+    hit["kind"] = "org" if is_org_email(str(hit.get("email") or "")) else "individual"
     write_json("users.json", rows)
     return dict(hit)
 
@@ -120,12 +156,7 @@ def user_by_id(uid: str) -> dict[str, Any] | None:
 def can_mint_keys(user: dict[str, Any] | None) -> bool:
     if not user:
         return False
-    domains = org_domains()
-    email = str(user.get("email") or "").lower()
-    host = email.split("@")[-1] if "@" in email else ""
-    if domains:
-        return host in domains
-    return str(user.get("kind") or "") == "org"
+    return is_org_email(str(user.get("email") or ""))
 
 
 def new_session(user: dict[str, Any]) -> str:
