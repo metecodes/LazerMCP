@@ -45,6 +45,45 @@ def _bbox(group: ET.Element) -> tuple[float, float, float, float] | None:
     return float(xmin), float(ymin), float(xmax), float(ymax)
 
 
+_OP_LAYERS = {"CUT", "ENGRAVE", "SCORE", "GUIDE", "LABEL", "ETCH"}
+
+
+def _is_operation_layer(group: ET.Element) -> bool:
+    ident = (group.get("id") or group.get("data-operation") or "").strip().upper()
+    return ident in _OP_LAYERS
+
+
+def _inspect_parts(root: ET.Element) -> list[tuple[str, tuple[float, float, float, float]]]:
+    """One bbox per data-panel. Operation layers are not parts."""
+    merged: dict[str, tuple[float, float, float, float]] = {}
+    anonymous: list[tuple[str, tuple[float, float, float, float]]] = []
+    for group in root.iter():
+        if group.tag.split("}")[-1].lower() != "g":
+            continue
+        if _is_operation_layer(group):
+            continue
+        panel = group.get("data-panel")
+        if not panel:
+            continue
+        box = _bbox(group)
+        if not box:
+            continue
+        if panel in merged:
+            a = merged[panel]
+            merged[panel] = (min(a[0], box[0]), min(a[1], box[1]), max(a[2], box[2]), max(a[3], box[3]))
+        else:
+            merged[panel] = box
+    if merged:
+        return [(name, box) for name, box in merged.items()]
+    for i, group in enumerate(_groups(root)):
+        if _is_operation_layer(group):
+            continue
+        box = _bbox(group)
+        if box:
+            anonymous.append((group.get("id") or f"p-{i}", box))
+    return anonymous
+
+
 def inspect_nesting(svg_bytes: bytes, gap: float = 3.0) -> dict[str, Any]:
     """Geometry check on an already nested (or stacked) SVG. No rotation."""
     errors: list[str] = []
@@ -55,16 +94,12 @@ def inspect_nesting(svg_bytes: bytes, gap: float = 3.0) -> dict[str, Any]:
         root = ET.fromstring(svg_bytes)
     except ET.ParseError as exc:
         return {"ok": False, "errors": [f"xml: {exc}"], "parts": []}
-    groups = _groups(root)
     boxes = []
-    for i, group in enumerate(groups):
-        box = _bbox(group)
-        if not box:
-            continue
+    for i, (name, box) in enumerate(_inspect_parts(root)):
         x0, y0, x1, y1 = box
         rec = {
             "index": i,
-            "name": group.get("data-panel") or group.get("id") or f"p-{i}",
+            "name": name,
             "bbox": [round(x0, 2), round(y0, 2), round(x1, 2), round(y1, 2)],
             "w": round(x1 - x0, 2),
             "h": round(y1 - y0, 2),

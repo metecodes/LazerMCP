@@ -147,7 +147,8 @@ GRAMMAR = {
             "width_or_height": "mm; one is enough, both fits the box",
             "rotation": 0,
             "align": "center | left | right | top | bottom | left|bottom",
-            "operation": "engrave | cut",
+            "operation": "CUT | ENGRAVE | SCORE | GUIDE | LABEL (default by semantic_role)",
+            "semantic_role": "outer_contour | hole | slot | finger_joint | tab | text | logo | texture | decorative_detail | construction_guide",
         },
         "text": {"kind": "text", "value": "PAYAS", "x": 35, "y": 20, "height": 6, "align": "center", "operation": "engrave"},
         "icon": {"kind": "icon", "icon": "plus", "x": 18, "y": 18, "width": 10, "operation": "engrave"},
@@ -797,6 +798,9 @@ def render_toolbox(primitives: list[Any], parameters: dict[str, Any] | None = No
     params = prepare_parameters(parameters)
     from scale import scale_primitives
 
+    from manufacturing import annotate_primitives
+
+    parts = annotate_primitives(parts)
     parts, scale_info = scale_primitives(parts, params)
     from assembly import apply_roof_lock, check_assembly
 
@@ -845,6 +849,15 @@ def render_toolbox(primitives: list[Any], parameters: dict[str, Any] | None = No
             svg_bytes = prepared
     except Exception:
         pass
+    manufacturing = None
+    try:
+        from manufacturing import finish_manufacturing_svg
+
+        stamped, manufacturing = finish_manufacturing_svg(svg_bytes, parts)
+        if stamped:
+            svg_bytes = stamped
+    except Exception:
+        manufacturing = None
     try:
         from holding_nicks import NICK_MM, nick_cut_svg
         from boxes_adapter import PAYAS_DEFAULTS as _D
@@ -872,6 +885,7 @@ def render_toolbox(primitives: list[Any], parameters: dict[str, Any] | None = No
         "assembly": assembly,
         "nesting": nesting,
         "topology": topology,
+        "manufacturing": manufacturing,
         "scale": scale_info,
         "primitives": parts,
         "parameters": {**params, "burn": burn, "thickness": thickness},

@@ -454,8 +454,19 @@ def draw_markings(box: Any, markings: list[Any], origin: tuple[float, float] = (
             continue
         if ox or oy:
             geom = shp_translate(geom, xoff=ox, yoff=oy)
-        op = str(raw.get("operation") or raw.get("layer") or raw.get("op") or "engrave").strip().lower()
-        color = Color.INNER_CUT if op == "cut" else Color.ETCHING
+        from manufacturing import OPERATIONS, _canon_op
+
+        op = _canon_op(raw.get("operation") or raw.get("layer") or raw.get("op") or "ENGRAVE")
+        if op not in OPERATIONS:
+            op = "ENGRAVE"
+        if op == "CUT":
+            color = Color.INNER_CUT
+        elif op == "SCORE":
+            color = Color.YELLOW
+        elif op == "GUIDE":
+            color = Color.ANNOTATIONS
+        else:
+            color = Color.ETCHING
         with box.saved_context():
             box.set_source_color(color)
             stroke_geom(box.ctx, geom)

@@ -305,6 +305,9 @@ def compile_design(
         built["preset"] = (preset or "").strip().lower().replace(" ", "_")
         return built
     if primitives:
+        from manufacturing import annotate_primitives
+
+        primitives = annotate_primitives(list(primitives))
         built = _compile_primitives(primitives, params)
         from toolbox import is_assembly
 

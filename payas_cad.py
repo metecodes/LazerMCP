@@ -354,9 +354,12 @@ def create_from_reference(
     image_bytes: bytes | None = None,
     public_base_url: str = "http://127.0.0.1:8000",
 ) -> dict[str, Any]:
+    import time
+
     from image_trace import produce_photo_job
     from plans import gate_job
 
+    started_at = time.perf_counter()
     gate = gate_job("photo")
     if not gate.get("ok"):
         return _mcp({"ready_to_cut": False, "plan": gate.get("plan"), "look_again": gate.get("look_again") or []})
@@ -408,6 +411,7 @@ def create_from_reference(
             "layout": layout,
             "format": format,
         },
+        "_started_at": started_at,
     }
     return _save_build(
         built["svg_bytes"],
@@ -426,10 +430,13 @@ def create_design(
     svg: str | None = None,
     public_base_url: str = "http://127.0.0.1:8000",
 ) -> dict[str, Any]:
+    import time
+
     from design_engine import compile_design, import_svg_document
     from toolbox import GRAMMAR, HINT
     from plans import gate_job
 
+    started_at = time.perf_counter()
     gate = gate_job("design")
     if not gate.get("ok"):
         return _mcp({"ready_to_cut": False, "plan": gate.get("plan"), "look_again": gate.get("look_again") or []})
@@ -479,6 +486,7 @@ def create_design(
         "assembly": built.get("assembly"),
         "nesting": built.get("nesting"),
         "topology": built.get("topology"),
+        "manufacturing": built.get("manufacturing"),
         "scale": built.get("scale"),
         "primitives": built.get("primitives"),
         "parts": built.get("parts"),
@@ -526,6 +534,7 @@ def create_design(
         extra["look_again"] = gated.get("look_again") or extra.get("look_again")
         extra["physical"] = gated.get("physical")
         extra["assembly_sheet"] = gated.get("assembly_sheet")
+    extra["_started_at"] = started_at
     extra["production_export"] = extra.get("production_export") or "BLOCKED"
     extra["ready_to_cut"] = extra.get("final_status") == "PRODUCTION READY"
     extra.setdefault(

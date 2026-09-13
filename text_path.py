@@ -413,6 +413,9 @@ def _replace_text_with_paths(svg_bytes: bytes) -> bytes:
         parent.remove(el)
         nodes = geom_path_elements(geom, _style_color(el), 0.22, ns)
         for i, node in enumerate(nodes):
+            node.set("data-operation", "ENGRAVE")
+            node.set("data-semantic-role", "text")
+            node.set("data-operation-source", "default")
             parent.insert(idx + i, node)
     ET.register_namespace("", "http://www.w3.org/2000/svg")
     return ET.tostring(root, encoding="utf-8", xml_declaration=True)
@@ -490,6 +493,14 @@ def prepare_lasercad_svg(svg_bytes: bytes) -> bytes:
         svg_bytes = laserize_svg(svg_bytes) or original
     except Exception:
         svg_bytes = original
+    try:
+        from manufacturing import stamp_source_operations
+
+        stamped = stamp_source_operations(svg_bytes)
+        if stamped:
+            svg_bytes = stamped
+    except Exception:
+        pass
     try:
         text = svg_bytes.decode("utf-8")
         text = re.sub(r"#cc0000", LASER_CUT, text, flags=re.I)

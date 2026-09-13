@@ -9,35 +9,15 @@ from shapely.geometry import Polygon
 from shapely.validation import explain_validity
 from svgpathtools import Line, parse_path
 
-from boxes_adapter import PAYAS_DEFAULTS
 from holding_nicks import NICK_MM
 
 _NICK_GAP = float(NICK_MM) + 0.8
 
 
-def _stroke(el: ET.Element) -> str:
-    raw = (el.get("stroke") or "").lower().replace(" ", "")
-    style = el.get("style") or ""
-    if "stroke:" in style.lower():
-        for part in style.split(";"):
-            if part.strip().lower().startswith("stroke:"):
-                raw = part.split(":", 1)[1].strip().lower().replace(" ", "")
-                break
-    return raw
-
-
 def _is_cut(el: ET.Element) -> bool:
-    raw = _stroke(el)
-    if not raw:
-        return True
-    if "00ff00" in raw or "rgb(0,255,0)" in raw:
-        return False
-    if "ff0000" in raw or "rgb(255,0,0)" in raw:
-        return True
-    if raw in {"#000000", "black", "rgb(0,0,0)"}:
-        return False
-    cut = str(PAYAS_DEFAULTS.get("cut_color") or "#FF0000").lower().replace(" ", "")
-    return cut.lstrip("#") in raw
+    from manufacturing import element_is_cut
+
+    return element_is_cut(el)
 
 
 def inspect_topology(svg_bytes: bytes | None) -> dict[str, Any]:

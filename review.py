@@ -417,11 +417,30 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
     if built.get("svg_bytes") is None and not topology:
         mfg_c.append({"status": NOT_VERIFIED, "note": "no SVG bytes to inspect"})
     else:
-        mfg_c.append({"status": PASS, "note": "units mm, cut #FF0000, etch #000000, LaserCAD Y-up"})
+        mfg_c.append({"status": PASS, "note": "units mm; operation groups are authoritative, colors are presentation"})
         if topology.get("ok") is False:
             mfg_c.append({"status": FAIL, "note": "manufacturing geometry is not clean"})
         else:
             mfg_c.append({"status": PASS, "note": "CUT loops close (nicks allowed)"})
+        mfg_ops = built.get("manufacturing") if isinstance(built.get("manufacturing"), dict) else None
+        if mfg_ops is None:
+            try:
+                from manufacturing import validate_svg_operations
+
+                mfg_ops = validate_svg_operations(built.get("svg_bytes"), primitives)
+            except Exception:
+                mfg_ops = None
+        if mfg_ops:
+            for item in mfg_ops.get("checks") or []:
+                status = str(item.get("status") or PASS)
+                if status == "FAIL" and item.get("critical"):
+                    mfg_c.append({"status": FAIL, "note": item.get("note")})
+                elif status == "WARNING":
+                    mfg_c.append({"status": WARNING, "note": item.get("note")})
+            if mfg_ops.get("critical_fail"):
+                mfg_c.append({"status": FAIL, "note": "manufacturing-operation validation has critical FAIL"})
+            elif mfg_ops.get("ok"):
+                mfg_c.append({"status": PASS, "note": "every drawable has an explicit manufacturing operation"})
 
     nest_looks = list(nesting.get("errors") or nesting.get("look_again") or [])
     if not nesting:

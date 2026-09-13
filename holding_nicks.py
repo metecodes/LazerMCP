@@ -126,7 +126,13 @@ def nick_cut_svg(svg_bytes: bytes, nick_mm: float = NICK_MM) -> bytes:
         while cur is not None:
             ident = (cur.get("id") or "").upper()
             label = (cur.get("{http://www.inkscape.org/namespaces/inkscape}label") or "").upper()
-            if ident in {"ENGRAVE", "ETCH"} or "ENGRAVE" in label:
+            if ident in {"ENGRAVE", "ETCH", "SCORE", "GUIDE", "LABEL"} or label in {
+                "ENGRAVE",
+                "ETCH",
+                "SCORE",
+                "GUIDE",
+                "LABEL",
+            }:
                 return True
             cur = parents.get(cur)
         return False
@@ -138,10 +144,13 @@ def nick_cut_svg(svg_bytes: bytes, nick_mm: float = NICK_MM) -> bytes:
             continue
         if el.get("data-holding-bridges") or el.get("data-holding-nicks"):
             continue
+        op = (el.get("data-operation") or "").upper()
+        if op and op != "CUT":
+            continue
         if _in_engrave(el):
             continue
         stroke = f"{el.get('stroke') or ''} {el.get('style') or ''}"
-        if _is_engrave(stroke):
+        if not op and _is_engrave(stroke):
             continue
         d = el.get("d")
         if not d:

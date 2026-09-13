@@ -41,6 +41,7 @@ There is no onboarding table, step index, or completion flag in code.
 | Deploy | `vercel.json` maps `server.py` (`maxDuration` 300). `IS_VERCEL = os.environ.get("VERCEL") == "1"`. |
 | CAD | `boxes_adapter.py` imports Boxes.py from `BOXES_PATH` or `vendor/boxes-master`. |
 | Pipeline | `pipeline.py` runs Designer → Reviewer → Repair → Reviewer → Final Gate **inside** `create_design`. |
+| Manufacturing | Every primitive has `semantic_role` + `operation`. SVG export groups `CUT` / `ENGRAVE` / `SCORE` / `GUIDE` / `LABEL`. Color is presentation. See `docs/MANUFACTURING_OPERATIONS.md`. |
 
 ASGI stack (verified):
 

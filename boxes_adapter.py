@@ -7,6 +7,7 @@ import os
 import re
 import secrets
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -148,8 +149,13 @@ def _normalize_filename(file_id: str) -> str:
     return name
 
 
-def _write_svg(svg_bytes: bytes, generator: str) -> tuple[str, bytes]:
+def _write_svg(
+    svg_bytes: bytes,
+    generator: str,
+    primitives: list[Any] | None = None,
+) -> tuple[str, bytes, dict[str, Any] | None]:
     original = svg_bytes
+    manufacturing = None
     try:
         from text_path import prepare_lasercad_svg
 
@@ -158,6 +164,14 @@ def _write_svg(svg_bytes: bytes, generator: str) -> tuple[str, bytes]:
             svg_bytes = prepared
     except Exception:
         svg_bytes = original
+    try:
+        from manufacturing import finish_manufacturing_svg
+
+        stamped, manufacturing = finish_manufacturing_svg(svg_bytes, primitives)
+        if stamped:
+            svg_bytes = stamped
+    except Exception:
+        manufacturing = None
     try:
         from holding_nicks import NICK_MM, nick_cut_svg
 
@@ -170,7 +184,22 @@ def _write_svg(svg_bytes: bytes, generator: str) -> tuple[str, bytes]:
     path = OUTPUT_DIR / file_id
     path.write_bytes(svg_bytes)
     (OUTPUT_DIR / LATEST_SVG).write_bytes(svg_bytes)
-    return file_id, svg_bytes
+    return file_id, svg_bytes, manufacturing
+
+
+def attach_elapsed(result: dict[str, Any], started_at: float | None) -> dict[str, Any]:
+    """MCP speed note. Color/geometry unchanged."""
+    if started_at is None:
+        return result
+    sec = max(0.0, time.perf_counter() - float(started_at))
+    minutes = sec / 60.0
+    result["elapsed_s"] = round(sec, 3)
+    result["elapsed_min"] = round(minutes, 3)
+    if sec < 60:
+        result["speed_note"] = f"{sec:.1f} saniyede çıkarılmıştır ({minutes:.2f} dk)"
+    else:
+        result["speed_note"] = f"{minutes:.1f} dk'da çıkarılmıştır ({sec:.0f} s)"
+    return result
 
 
 def _public_result(
@@ -512,6 +541,7 @@ def generate_svg(
     public_base_url: str = "http://127.0.0.1:8000",
     extra: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    started_at = time.perf_counter()
     name, cls = _resolve_generator(generator)
     merged = _merge_parameters(parameters)
     box = cls()
@@ -533,6 +563,7 @@ def generate_svg(
         if key in merged
     }
     payload = {
+        "_started_at": started_at,
         "generator": name,
         "product": (extra or {}).get("product") or name,
         "title": (extra or {}).get("title"),
@@ -714,8 +745,22 @@ def save_generated_svg(
     dxf_bytes: bytes | None = None,
 ) -> dict[str, Any]:
     name = (extra or {}).get("generator") or (extra or {}).get("product") or generator
-    file_id, svg_bytes = _write_svg(svg_bytes, str(name))
     extra = dict(extra or {})
+    started_at = extra.pop("_started_at", None)
+    file_id, svg_bytes, manufacturing = _write_svg(
+        svg_bytes,
+        str(name),
+        extra.get("primitives") if isinstance(extra.get("primitives"), list) else None,
+    )
+    if manufacturing:
+        extra["manufacturing"] = manufacturing
+    elif extra.get("manufacturing") is None:
+        try:
+            from manufacturing import validate_svg_operations
+
+            extra["manufacturing"] = validate_svg_operations(svg_bytes, extra.get("primitives"))
+        except Exception:
+            pass
     try:
         from topology import inspect_topology
 
@@ -875,7 +920,7 @@ def save_generated_svg(
     except Exception:
         result["durable_persistence"] = False
         result["artifact_persistence"] = "ARTIFACT_PERSISTENCE_FAILED"
-    return result
+    return attach_elapsed(result, started_at)
 
 
 def dump_json(payload: dict[str, Any]) -> str:

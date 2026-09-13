@@ -208,6 +208,14 @@ class TenantIsolationTests(_Iso):
         )
         self.assertTrue(meta.get("expires_at"))
         self.assertTrue(str(meta["storage_path"]).startswith("tmp/"))
+        from datetime import datetime, timezone
+
+        exp = datetime.fromisoformat(str(meta["expires_at"]))
+        if exp.tzinfo is None:
+            exp = exp.replace(tzinfo=timezone.utc)
+        remain = (exp - datetime.now(timezone.utc)).total_seconds()
+        self.assertGreater(remain, 23 * 3600)
+        self.assertLessEqual(remain, 24 * 3600)
 
     def test_persist_failure_does_not_claim_durable_save(self):
         from keys import current_auth
