@@ -70,6 +70,7 @@ PUBLIC_PATHS = {
     "/api/beta",
     "/api/demo",
     "/api/auth/config",
+    "/api/auth/start",
     "/api/auth/session",
     "/api/auth/logout",
     "/api/account",
@@ -695,9 +696,30 @@ async def connect_page(request: Request) -> Response:
 
 
 @mcp.custom_route("/account", methods=["GET"])
-@mcp.custom_route("/auth/callback", methods=["GET"])
 async def account_page(request: Request) -> Response:
     return FileResponse(WEB_DIR / "account.html", media_type="text/html; charset=utf-8")
+
+
+@mcp.custom_route("/auth/callback", methods=["GET"])
+async def auth_callback_page(request: Request) -> Response:
+    return FileResponse(WEB_DIR / "auth-callback.html", media_type="text/html; charset=utf-8",
+                        headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"})
+
+
+@mcp.custom_route("/api/auth/start", methods=["GET"])
+async def api_auth_start(request: Request) -> Response:
+    """Start Google login without rendering an intermediate account page."""
+    from supabase_auth import configured, session_ready, session_user
+
+    nxt = _safe_next(request.query_params.get("next") or "", request) or "/dashboard"
+    if nxt.startswith("//") or nxt.split("?", 1)[0] in {"/auth/google", "/auth/callback"}:
+        nxt = "/dashboard"
+    headers = {"Cache-Control": "no-store"}
+    if session_user(request.cookies.get("lmcp_sid")):
+        return JSONResponse({"url": nxt, "signed_in": True}, headers=headers)
+    if not configured() or not session_ready():
+        return JSONResponse({"error": "signin_unavailable"}, status_code=503, headers=headers)
+    return JSONResponse({"url": _google_authorize_url(request, nxt)}, headers=headers)
 
 
 @mcp.custom_route("/admin", methods=["GET"])

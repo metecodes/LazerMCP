@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="tr">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Giriş tamamlanıyor — LaserMCP</title>
+<link rel="stylesheet" href="/styles.css">
+<main style="max-width:480px;margin:15vh auto;padding:24px">
+  <h1 id="title">Giriş tamamlanıyor</h1>
+  <p id="status" role="status" aria-live="polite">Oturumun hazırlanıyor…</p>
+  <a id="retry" class="btn-google" href="/auth/google" hidden>Tekrar dene</a>
+  <p><a href="/">Ana sayfaya dön</a></p>
+</main>
+<script>
+(async function () {
+  const query = new URLSearchParams(location.search);
+  const hash = new URLSearchParams(location.hash.slice(1));
+  const token = hash.get("access_token") || query.get("access_token");
+  const failed = hash.get("error") || query.get("error");
+  const rawNext = query.get("next") || "/dashboard";
+  let next = "/dashboard";
+  try {
+    const u = new URL(rawNext, location.origin);
+    if (u.origin === location.origin && !u.pathname.startsWith("//") && !["/auth/google", "/auth/callback"].includes(u.pathname)) {
+      next = u.pathname + u.search + u.hash;
+    }
+  } catch (_) {}
+  // Remove provider tokens and errors before any network call or retry.
+  history.replaceState(null, "", "/auth/callback?next=" + encodeURIComponent(next));
+  const retry = document.getElementById("retry");
+  retry.href = "/auth/google?next=" + encodeURIComponent(next);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15000);
+  try {
+    if (failed) throw new Error("cancelled");
+    if (!token) throw new Error("missing");
+    const response = await fetch("/api/auth/session", {
+      method: "POST", credentials: "same-origin", signal: controller.signal,
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({access_token: token})
+    });
+    const data = await response.json();
+    if (!response.ok || !data.user) throw new Error("session");
+    location.replace(next);
+  } catch (error) {
+    document.getElementById("title").textContent = "Giriş tamamlanamadı";
+    document.getElementById("status").textContent = failed
+      ? "Google ile giriş iptal edildi veya izin verilmedi. İstersen tekrar deneyebilirsin."
+      : "Oturum oluşturulamadı. Bağlantını kontrol edip tekrar dene.";
+    retry.hidden = false;
+  } finally { clearTimeout(timer); }
+})();
+</script>
+<script src="/nav-auth.js"></script>
+</html>

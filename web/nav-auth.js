@@ -4,8 +4,54 @@
   const midGoogle = document.getElementById("mid-google");
   const connect = document.getElementById("nav-connect");
   const profile = document.getElementById("nav-profile");
+  let lang = "tr";
+  try { lang = localStorage.getItem("lmcp_lang") || "tr"; } catch (_) {}
+  let busy = null;
+  function resetSignin() {
+    if (!busy) return;
+    busy.removeAttribute("aria-busy");
+    busy.removeAttribute("aria-disabled");
+    busy = null;
+  }
+  window.addEventListener("pageshow", resetSignin);
+  document.addEventListener("click", async function (event) {
+    const link = event.target.closest("a.btn-google, a#nav-signin, a[data-google-signin], a[href^='/auth/google']");
+    if (!link || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    if (busy) return;
+    busy = link;
+    link.setAttribute("aria-busy", "true");
+    link.setAttribute("aria-disabled", "true");
+    let note = document.getElementById("signin-feedback");
+    if (!note) {
+      note = document.createElement("p");
+      note.id = "signin-feedback";
+      note.setAttribute("role", "status");
+      note.setAttribute("aria-live", "polite");
+    }
+    link.insertAdjacentElement("afterend", note);
+    note.textContent = lang === "en" ? "Opening Google…" : "Google açılıyor…";
+    const url = new URL(link.href, location.origin);
+    const pageNext = ["/account", "/auth/callback"].includes(location.pathname)
+      ? new URLSearchParams(location.search).get("next") : "";
+    const next = url.searchParams.get("next") || pageNext || "/dashboard";
+    const controller = new AbortController();
+    const timer = setTimeout(function () { controller.abort(); }, 15000);
+    try {
+      const response = await fetch("/api/auth/start?next=" + encodeURIComponent(next), {
+        credentials: "same-origin", signal: controller.signal
+      });
+      const data = await response.json();
+      if (!response.ok || !data.url) throw new Error("signin");
+      location.assign(data.url);
+    } catch (_) {
+      note.textContent = lang === "en"
+        ? "Sign-in could not start. Please try again."
+        : "Giriş başlatılamadı. Lütfen tekrar dene.";
+      resetSignin();
+    } finally { clearTimeout(timer); }
+  });
   if (!profile) return;
-  const lang = localStorage.getItem("lmcp_lang") || "tr";
   const jobs = lang === "en" ? "jobs" : "iş";
   fetch("/api/account", { credentials: "same-origin" })
     .then(function (r) { return r.json(); })
