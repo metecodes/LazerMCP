@@ -2,7 +2,8 @@
 (function() {
   // --- Dark Mode Toggle ---
   function setupTheme() {
-    const saved = localStorage.getItem("lmcp_theme");
+    let saved = null;
+    try { saved = localStorage.getItem("lmcp_theme"); } catch (_) {}
     const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
     
     let isDark = saved === 'dark' || (!saved && prefersDark);
@@ -15,24 +16,28 @@
         document.body.classList.add('light-mode');
         document.body.classList.remove('dark-mode');
       }
-      localStorage.setItem("lmcp_theme", isDark ? 'dark' : 'light');
+      const themeMeta = document.querySelector('meta[name="theme-color"]');
+      if (themeMeta) themeMeta.setAttribute('content', isDark ? '#111111' : '#fafafa');
+      try { localStorage.setItem("lmcp_theme", isDark ? 'dark' : 'light'); } catch (_) {}
     }
     
     applyTheme();
 
     // Create Toggle Button in Nav
-    const navs = document.querySelectorAll('nav .links');
-    if (navs.length > 0) {
-      const navLinks = navs[0];
+    const navLinks = document.querySelector('nav .links') || document.querySelector('nav');
+    if (navLinks) {
       const toggleBtn = document.createElement('button');
       toggleBtn.className = 'theme-toggle';
       toggleBtn.title = 'Tema Değiştir';
+      toggleBtn.setAttribute('aria-label', 'Tema değiştir');
+      toggleBtn.setAttribute('aria-pressed', String(isDark));
       toggleBtn.style.cssText = 'background:transparent; border:none; color:inherit; cursor:pointer; font-size:16px; margin-left:12px;';
       toggleBtn.innerHTML = isDark ? '☀️' : '🌙';
       
       toggleBtn.addEventListener('click', function() {
         isDark = !isDark;
         toggleBtn.innerHTML = isDark ? '☀️' : '🌙';
+        toggleBtn.setAttribute('aria-pressed', String(isDark));
         applyTheme();
       });
       
