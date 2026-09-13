@@ -183,12 +183,12 @@ def svg_bytes_to_dxf(svg_bytes: bytes, step_mm: float = 0.6) -> bytes:
             continue
         geom = LineString(pts)
         op = (el.get("data-operation") or "").upper()
-        if op == "GUIDE":
+        if op in {"GUIDE", "UNKNOWN"}:
             continue
         stroke = f"{el.get('stroke') or ''} {el.get('style') or ''}"
         ident = (el.get("id") or "").upper()
         if op in {"ENGRAVE", "SCORE", "LABEL"} or _stroke_is_etch(stroke) or ident in {"ENGRAVE", "ETCH"}:
             etches.append(geom)
-        elif op == "CUT" or not op:
+        elif op == "CUT":
             cuts.append(geom)
     return geoms_to_dxf(cuts, etches)

@@ -454,11 +454,17 @@ def draw_markings(box: Any, markings: list[Any], origin: tuple[float, float] = (
             continue
         if ox or oy:
             geom = shp_translate(geom, xoff=ox, yoff=oy)
-        from manufacturing import OPERATIONS, _canon_op
+        from manufacturing import EXPORT_OPERATIONS, _marking_role, resolve_operation
 
-        op = _canon_op(raw.get("operation") or raw.get("layer") or raw.get("op") or "ENGRAVE")
-        if op not in OPERATIONS:
-            op = "ENGRAVE"
+        given = raw.get("operation") if raw.get("operation") not in (None, "") else raw.get("layer") or raw.get("op")
+        intent = resolve_operation(
+            semantic_role=_marking_role(raw),
+            operation=given,
+            origin="EXPLICIT" if given not in (None, "") else "",
+        )
+        op = intent["operation"]
+        if op not in EXPORT_OPERATIONS:
+            continue
         if op == "CUT":
             color = Color.INNER_CUT
         elif op == "SCORE":

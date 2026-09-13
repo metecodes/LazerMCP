@@ -437,10 +437,23 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
                     mfg_c.append({"status": FAIL, "note": item.get("note")})
                 elif status == "WARNING":
                     mfg_c.append({"status": WARNING, "note": item.get("note")})
-            if mfg_ops.get("critical_fail"):
+            intent = mfg_ops.get("intent") if isinstance(mfg_ops.get("intent"), dict) else {}
+            if intent:
+                if not intent.get("unknown_operations_zero", True):
+                    mfg_c.append(
+                        {
+                            "status": FAIL,
+                            "note": f"MANUFACTURING_INTENT unknown_operations={intent.get('unknown_operations')}",
+                        }
+                    )
+                if not intent.get("semantic_roles_complete", True):
+                    mfg_c.append({"status": FAIL, "note": "MANUFACTURING_INTENT semantic_roles_complete=false"})
+                if not intent.get("operations_resolved", True):
+                    mfg_c.append({"status": FAIL, "note": "MANUFACTURING_INTENT operations_resolved=false"})
+            if mfg_ops.get("critical_fail") or intent.get("exportable") is False:
                 mfg_c.append({"status": FAIL, "note": "manufacturing-operation validation has critical FAIL"})
             elif mfg_ops.get("ok"):
-                mfg_c.append({"status": PASS, "note": "every drawable has an explicit manufacturing operation"})
+                mfg_c.append({"status": PASS, "note": "every drawable has a resolved manufacturing operation"})
 
     nest_looks = list(nesting.get("errors") or nesting.get("look_again") or [])
     if not nesting:

@@ -1,56 +1,51 @@
 # Manufacturing operations
 
-Manufacturing intent is a first-class field on every geometry primitive. Stroke color is presentation only.
+Pipeline: **feature → semantic_role → operation resolution → validation → SVG export**.
+
+CUT is never a generic fallback. `UNKNOWN` is allowed only inside the resolver and **blocks final export**. Stroke color is presentation. The exporter does not decide semantics.
 
 ## Data model
 
-Every primitive and nested feature (`holes`, `slots`, `markings`) carries:
+Every primitive / feature carries:
 
 | Field | Meaning |
 | --- | --- |
+| `id` / `part_id` | Identity |
+| `geometry_type` | Contour, hole, text, … |
 | `semantic_role` | Why the geometry exists |
-| `operation` | How it is manufactured |
-| `operation_source` | `explicit` (designer set it), `default` (from role), or `inferred` (keywords / group / color hint) |
+| `operation` | `CUT` `ENGRAVE` `SCORE` `GUIDE` `LABEL` or `UNKNOWN` |
+| `operation_origin` | `EXPLICIT` `SEMANTIC_DEFAULT` `INFERRED` `UNKNOWN` |
 
-Operations: `CUT` | `ENGRAVE` | `SCORE` | `GUIDE` | `LABEL`.
+## Resolver
 
-Role defaults (general, not product-specific):
+`resolve_operation()` is the only place an operation is chosen.
 
-| Role | Default operation |
+- Designer-set `operation` → `EXPLICIT`
+- Known `semantic_role` → role default (`SEMANTIC_DEFAULT`)
+- Boxes.py **layer** (green etch / blue inner cut / black outer cut) **before** LaserCAD remap → `INFERRED`
+- Anything else → `UNKNOWN` (not CUT)
+
+Role defaults (not product names):
+
+| Role | Operation |
 | --- | --- |
-| `outer_contour`, `hole`, `slot`, `finger_joint`, `tab` | `CUT` |
-| `text`, `logo`, `texture`, `decorative_detail` | `ENGRAVE` |
-| `construction_guide` | `GUIDE` |
-| `score` | `SCORE` |
-| `label` | `LABEL` |
+| `outer_contour` `inner_cutout` `hole` `slot` `tab` `finger_joint` `pivot_hole` `shaft_hole` | CUT |
+| `text` `logo` `surface_decoration` `facade_detail` `roof_texture` `ornament` `engraved_line` | ENGRAVE |
+| `score_line` `fold_line` | SCORE |
+| `construction_guide` `alignment_guide` | GUIDE |
+| `label` | LABEL |
+| `custom` | UNKNOWN |
 
-A designer may mark text, logo, or decor as `CUT`. That must be an explicit `operation` and is logged as an auditable WARNING. Implicit text `CUT` is a critical FAIL.
+`ornament` defaults to ENGRAVE. `ornament` + explicit `CUT` is a valid decorative cutout and is recorded as `EXPLICIT`.
 
-## Pipeline
+## Designer helpers
 
-1. Boxes.py (or a kit) draws geometry. Etch uses the Boxes.py green layer; cuts use black/blue.
-2. `stamp_source_operations` records `data-operation` from group id, keywords, then Boxes.py color. Color is last.
-3. `prepare_lasercad_svg` remaps colors for LaserCAD. Existing `data-operation` is kept.
-4. `apply_manufacturing_svg` writes the five layer groups (`CUT`, `ENGRAVE`, `SCORE`, `GUIDE`, `LABEL`), stamps every drawable, and applies presentation colors.
-5. `nick_cut_svg` nicks only `CUT` paths. Holding nicks stay `CUT` and are closed topology, not open-path errors.
-6. `validate_svg_operations` / `validate_primitives` run in the reviewer. Critical FAIL blocks the final gate (`MANUFACTURING` → `BLOCKED`).
+`add_outer_contour`, `add_hole`, `add_slot`, `add_cutout`, `add_engraving`, `add_text`, `add_logo`, `add_texture`, `add_score_line`, `add_guide`.
 
-DXF export reads `data-operation` (and ancestor group), not stroke color alone. `GUIDE` is omitted from the cut file.
+## Exporter
 
-## Validator
+Consumes already-classified drawables only. Groups `CUT` / `ENGRAVE` / `SCORE` / `GUIDE` / `LABEL`. Does not convert `UNKNOWN` to CUT. `UNKNOWN` → `exportable=false`.
 
-| Condition | Result |
-| --- | --- |
-| Missing or unknown operation | FAIL (critical) |
-| Text `CUT` without `operation_source=explicit` | FAIL |
-| Text / logo `CUT` when explicit | WARNING (auditable) |
-| Texture / decorative `CUT` | WARNING |
-| Guide `CUT` | FAIL |
-| Outer contour not `CUT` | FAIL |
-| Slot / hole not `CUT` | FAIL |
-| Holding nick not `CUT` | FAIL |
-| No `CUT` on the sheet, or a missing operation group | FAIL |
+## Gate
 
-## What this is not
-
-Rules are role- and operation-based. Windmill, house, traffic light, Ferris wheel, and robot kit are regression fixtures only — none of them have special-case code in the manufacturing layer.
+`MANUFACTURING_INTENT`: semantic roles complete, operations resolved, unknown_operations = 0, explicit overrides recorded. Any `UNKNOWN` → **BLOCKED**.

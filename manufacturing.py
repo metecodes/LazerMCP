@@ -1,34 +1,87 @@
-"""Manufacturing operations: intent is explicit. Color is presentation only."""
+"""Manufacturing intent: feature → semantic_role → operation → validate → export.
+
+CUT is never a generic fallback. UNKNOWN is internal-only and blocks final export.
+Stroke color is presentation. The exporter does not decide semantics.
+"""
 
 from __future__ import annotations
 
+from collections import Counter
 from typing import Any
 from xml.etree import ElementTree as ET
 
-OPERATIONS = ("CUT", "ENGRAVE", "SCORE", "GUIDE", "LABEL")
+EXPORT_OPERATIONS = ("CUT", "ENGRAVE", "SCORE", "GUIDE", "LABEL")
+OPERATIONS = (*EXPORT_OPERATIONS, "UNKNOWN")
+ORIGINS = ("EXPLICIT", "SEMANTIC_DEFAULT", "INFERRED", "UNKNOWN")
+
 CRITICAL_FAIL = "FAIL"
 WARNING = "WARNING"
 PASS = "PASS"
 
 ROLE_DEFAULTS: dict[str, str] = {
     "outer_contour": "CUT",
+    "inner_cutout": "CUT",
     "hole": "CUT",
     "slot": "CUT",
-    "finger_joint": "CUT",
     "tab": "CUT",
+    "finger_joint": "CUT",
+    "pivot_hole": "CUT",
+    "shaft_hole": "CUT",
     "text": "ENGRAVE",
     "logo": "ENGRAVE",
+    "surface_decoration": "ENGRAVE",
+    "facade_detail": "ENGRAVE",
+    "roof_texture": "ENGRAVE",
+    "ornament": "ENGRAVE",
+    "engraved_line": "ENGRAVE",
     "texture": "ENGRAVE",
     "decorative_detail": "ENGRAVE",
-    "construction_guide": "GUIDE",
+    "score_line": "SCORE",
+    "fold_line": "SCORE",
     "score": "SCORE",
+    "construction_guide": "GUIDE",
+    "alignment_guide": "GUIDE",
     "label": "LABEL",
+    "custom": "UNKNOWN",
+}
+
+CUT_ROLES = frozenset(
+    {
+        "outer_contour",
+        "inner_cutout",
+        "hole",
+        "slot",
+        "tab",
+        "finger_joint",
+        "pivot_hole",
+        "shaft_hole",
+    }
+)
+SURFACE_ROLES = frozenset(
+    {
+        "text",
+        "logo",
+        "surface_decoration",
+        "facade_detail",
+        "roof_texture",
+        "ornament",
+        "engraved_line",
+        "texture",
+        "decorative_detail",
+        "label",
+    }
+)
+GUIDE_ROLES = frozenset({"construction_guide", "alignment_guide"})
+ROLE_ALIASES = {
+    "texture": "roof_texture",
+    "decorative_detail": "surface_decoration",
+    "score": "score_line",
 }
 
 TYPE_ROLES: dict[str, str] = {
     "text": "text",
     "number": "text",
-    "pips": "decorative_detail",
+    "pips": "surface_decoration",
     "box": "outer_contour",
     "panel": "outer_contour",
     "disc": "outer_contour",
@@ -42,21 +95,30 @@ TYPE_ROLES: dict[str, str] = {
     "token_grid": "outer_contour",
     "rounded_rect": "outer_contour",
     "circle": "outer_contour",
-    "marking": "decorative_detail",
+    "marking": "surface_decoration",
 }
 
 _ROLE_WORDS: dict[str, tuple[str, ...]] = {
-    "text": ("text", "yazi", "yazı", "letter", "glyph", "number", "label-text"),
+    "text": ("text", "yazi", "yazı", "letter", "glyph", "number"),
     "logo": ("logo", "amblem", "emblem", "brand"),
-    "texture": ("texture", "hatch", "tile", "shingle", "kiremit", "pattern", "roof-tile"),
-    "decorative_detail": ("decor", "decorative", "facade", "cephe", "ornament", "sus", "detail"),
-    "construction_guide": ("guide", "construction", "dim", "datum", "axis"),
-    "hole": ("hole", "delik", "bore", "pivot"),
+    "roof_texture": ("texture", "hatch", "tile", "shingle", "kiremit", "pattern", "roof-tile"),
+    "facade_detail": ("facade", "cephe"),
+    "ornament": ("ornament", "sus", "floral"),
+    "surface_decoration": ("decor", "decorative", "detail", "surface"),
+    "engraved_line": ("engrave", "engraved", "etch-line"),
+    "construction_guide": ("construction", "dim", "datum"),
+    "alignment_guide": ("alignment", "axis", "guide"),
+    "pivot_hole": ("pivot",),
+    "shaft_hole": ("shaft",),
+    "hole": ("hole", "delik", "bore"),
     "slot": ("slot", "kanal", "kerf-slot"),
     "finger_joint": ("finger", "parmak"),
     "tab": ("tab", "nick", "holding"),
-    "score": ("score", "fold", "crease", "cizik"),
-    "label": ("caption", "callout"),
+    "score_line": ("score", "cizik"),
+    "fold_line": ("fold", "crease"),
+    "label": ("caption", "callout", "label"),
+    "outer_contour": ("outer", "contour", "outline"),
+    "inner_cutout": ("inner-cutout", "cutout"),
 }
 
 _OP_WORDS: dict[str, tuple[str, ...]] = {
@@ -125,8 +187,26 @@ def _canon_op(raw: Any) -> str:
     return value
 
 
+def _canon_origin(raw: Any) -> str:
+    value = str(raw or "").strip().upper().replace(" ", "_")
+    aliases = {
+        "EXPLICIT": "EXPLICIT",
+        "DEFAULT": "SEMANTIC_DEFAULT",
+        "SEMANTIC_DEFAULT": "SEMANTIC_DEFAULT",
+        "INFERRED": "INFERRED",
+        "MISSING": "UNKNOWN",
+        "UNKNOWN": "UNKNOWN",
+    }
+    return aliases.get(value, "")
+
+
+def _canon_role(raw: Any) -> str:
+    role = str(raw or "").strip().lower()
+    return ROLE_ALIASES.get(role, role)
+
+
 def default_operation(role: str) -> str:
-    return ROLE_DEFAULTS.get(str(role or "").strip().lower(), "")
+    return ROLE_DEFAULTS.get(_canon_role(role), "")
 
 
 def infer_role(*hints: Any) -> str:
@@ -147,28 +227,86 @@ def infer_operation_words(*hints: Any) -> str:
     return ""
 
 
+def resolve_operation(
+    *,
+    semantic_role: str = "",
+    operation: Any = None,
+    origin: str = "",
+) -> dict[str, str]:
+    """Canonical resolver. Never assigns CUT unless the role or explicit op requires it."""
+    role = _canon_role(semantic_role)
+    explicit = _canon_op(operation)
+    given_origin = _canon_origin(origin)
+    if explicit in EXPORT_OPERATIONS and given_origin == "EXPLICIT":
+        return {"semantic_role": role or "custom", "operation": explicit, "operation_origin": "EXPLICIT"}
+    if explicit in EXPORT_OPERATIONS and operation not in (None, ""):
+        return {
+            "semantic_role": role or "custom",
+            "operation": explicit,
+            "operation_origin": given_origin or "EXPLICIT",
+        }
+    if explicit == "UNKNOWN":
+        return {"semantic_role": role or "custom", "operation": "UNKNOWN", "operation_origin": "UNKNOWN"}
+    if explicit and explicit not in OPERATIONS:
+        return {"semantic_role": role or "custom", "operation": "UNKNOWN", "operation_origin": "UNKNOWN"}
+    mapped = default_operation(role)
+    if mapped in EXPORT_OPERATIONS:
+        return {"semantic_role": role, "operation": mapped, "operation_origin": "SEMANTIC_DEFAULT"}
+    return {"semantic_role": role or "custom", "operation": "UNKNOWN", "operation_origin": "UNKNOWN"}
+
+
 def _explicit_operation(node: dict[str, Any]) -> str:
     for key in ("operation", "op"):
+        if key not in node or node.get(key) in (None, ""):
+            continue
         op = _canon_op(node.get(key))
-        if op in OPERATIONS:
+        if op in EXPORT_OPERATIONS:
             return op
+        return "UNKNOWN" if op else ""
     return ""
+
+
+def _apply_intent(node: dict[str, Any], role: str, *, explicit: str = "", inferred_op: str = "") -> dict[str, Any]:
+    given_role = _canon_role(node.get("semantic_role") or role)
+    if explicit:
+        intent = resolve_operation(semantic_role=given_role, operation=explicit, origin="EXPLICIT")
+    elif inferred_op in EXPORT_OPERATIONS:
+        intent = {
+            "semantic_role": given_role or "custom",
+            "operation": inferred_op,
+            "operation_origin": "INFERRED",
+        }
+    else:
+        intent = resolve_operation(semantic_role=given_role, operation=node.get("operation"))
+    node["semantic_role"] = intent["semantic_role"]
+    node["operation"] = intent["operation"]
+    node["operation_origin"] = intent["operation_origin"]
+    node["operation_source"] = intent["operation_origin"].lower()
+    node.setdefault("geometry_type", str(node.get("type") or node.get("kind") or "path"))
+    return node
 
 
 def annotate_feature(node: dict[str, Any], role: str) -> dict[str, Any]:
     if not isinstance(node, dict):
         return node
-    given_role = str(node.get("semantic_role") or "").strip().lower()
-    role = given_role or role
-    explicit = _explicit_operation(node)
-    if explicit:
-        node["operation"] = explicit
-        node["operation_source"] = "explicit"
-    else:
-        node["operation"] = default_operation(role) or "CUT"
-        node["operation_source"] = "default"
-    node["semantic_role"] = role
-    return node
+    return _apply_intent(node, role, explicit=_explicit_operation(node))
+
+
+def _marking_role(mark: dict[str, Any]) -> str:
+    given = _canon_role(mark.get("semantic_role"))
+    if given:
+        return given
+    kind = str(mark.get("kind") or mark.get("content") or "").strip().lower()
+    inferred = infer_role(kind, mark.get("value"), mark.get("label"), mark.get("icon"))
+    if inferred:
+        return inferred
+    if kind == "text":
+        return "text"
+    if kind in {"logo", "icon"}:
+        return "logo" if kind == "logo" else "ornament"
+    if kind in {"path", "line", "lines"}:
+        return "engraved_line"
+    return "surface_decoration"
 
 
 def annotate_primitive(part: dict[str, Any]) -> dict[str, Any]:
@@ -176,25 +314,20 @@ def annotate_primitive(part: dict[str, Any]) -> dict[str, Any]:
         return part
     kind = str(part.get("type") or part.get("kind") or "").strip().lower()
     label = str(part.get("label") or part.get("name") or "")
-    role = str(part.get("semantic_role") or "").strip().lower()
-    role = role or TYPE_ROLES.get(kind, "") or infer_role(kind, label)
+    role = _canon_role(part.get("semantic_role")) or TYPE_ROLES.get(kind, "") or infer_role(kind, label)
     if not role:
-        role = "decorative_detail" if kind in {"marking"} else "outer_contour"
+        role = "custom"
     explicit = _explicit_operation(part)
-    word_op = infer_operation_words(label, part.get("operation"))
-    if explicit:
-        part["operation"] = explicit
-        part["operation_source"] = "explicit"
-    elif word_op:
-        part["operation"] = word_op
-        part["operation_source"] = "default"
-    else:
-        part["operation"] = default_operation(role) or "CUT"
-        part["operation_source"] = "default"
-    part["semantic_role"] = role
+    word_op = "" if explicit else infer_operation_words(label)
+    _apply_intent(part, role, explicit=explicit, inferred_op=word_op)
+    part.setdefault("geometry_type", kind or "part")
+    part.setdefault("part_id", str(part.get("label") or part.get("id") or kind or "part"))
     for hole in part.get("holes") or []:
         if isinstance(hole, dict):
-            annotate_feature(hole, "hole")
+            hole_role = infer_role(hole.get("label"), hole.get("kind")) or "hole"
+            if hole_role not in {"pivot_hole", "shaft_hole", "hole"}:
+                hole_role = "hole"
+            annotate_feature(hole, hole_role)
     for slot in part.get("slots") or []:
         if isinstance(slot, dict):
             annotate_feature(slot, "slot")
@@ -205,46 +338,113 @@ def annotate_primitive(part: dict[str, Any]) -> dict[str, Any]:
                 continue
             for hole in wall.get("holes") or []:
                 if isinstance(hole, dict):
-                    annotate_feature(hole, "hole")
+                    hole_role = infer_role(hole.get("label"), hole.get("kind")) or "hole"
+                    if hole_role not in {"pivot_hole", "shaft_hole", "hole"}:
+                        hole_role = "hole"
+                    annotate_feature(hole, hole_role)
             for slot in wall.get("slots") or []:
                 if isinstance(slot, dict):
                     annotate_feature(slot, "slot")
             for mark in wall.get("markings") or []:
                 if isinstance(mark, dict):
-                    mrole = infer_role(mark.get("kind"), mark.get("value"), mark.get("label")) or (
-                        "text" if str(mark.get("kind") or "") == "text" else "decorative_detail"
-                    )
-                    annotate_feature(mark, mrole)
+                    annotate_feature(mark, _marking_role(mark))
     for mark in part.get("markings") or []:
         if isinstance(mark, dict):
-            mrole = infer_role(mark.get("kind"), mark.get("value"), mark.get("label")) or (
-                "text" if str(mark.get("kind") or "") == "text" else "decorative_detail"
-            )
-            annotate_feature(mark, mrole)
+            annotate_feature(mark, _marking_role(mark))
     return part
 
 
 def annotate_primitives(parts: list[Any] | None) -> list[Any]:
     out: list[Any] = []
-    for part in parts or []:
-        out.append(annotate_primitive(part) if isinstance(part, dict) else part)
+    for i, part in enumerate(parts or [], start=1):
+        if isinstance(part, dict):
+            part.setdefault("id", part.get("id") or f"P{i:02d}")
+            out.append(annotate_primitive(part))
+        else:
+            out.append(part)
     return out
+
+
+def feature(
+    *,
+    semantic_role: str,
+    operation: str | None = None,
+    geometry_type: str = "path",
+    part_id: str = "",
+    d: str = "",
+    **extra: Any,
+) -> dict[str, Any]:
+    node = {
+        "id": extra.pop("id", "") or "",
+        "part_id": part_id,
+        "geometry_type": geometry_type,
+        "semantic_role": semantic_role,
+        "d": d,
+        **extra,
+    }
+    if operation:
+        node["operation"] = operation
+        return _apply_intent(node, semantic_role, explicit=_canon_op(operation))
+    return _apply_intent(node, semantic_role)
+
+
+def add_outer_contour(**kw: Any) -> dict[str, Any]:
+    return feature(semantic_role="outer_contour", geometry_type=kw.pop("geometry_type", "contour"), **kw)
+
+
+def add_hole(**kw: Any) -> dict[str, Any]:
+    return feature(semantic_role="hole", geometry_type=kw.pop("geometry_type", "hole"), **kw)
+
+
+def add_slot(**kw: Any) -> dict[str, Any]:
+    return feature(semantic_role="slot", geometry_type=kw.pop("geometry_type", "slot"), **kw)
+
+
+def add_cutout(**kw: Any) -> dict[str, Any]:
+    role = kw.pop("semantic_role", "ornament")
+    op = kw.pop("operation", None)
+    return feature(semantic_role=role, operation=op, geometry_type=kw.pop("geometry_type", "cutout"), **kw)
+
+
+def add_engraving(**kw: Any) -> dict[str, Any]:
+    return feature(semantic_role=kw.pop("semantic_role", "surface_decoration"), **kw)
+
+
+def add_text(**kw: Any) -> dict[str, Any]:
+    return feature(semantic_role="text", geometry_type=kw.pop("geometry_type", "text"), **kw)
+
+
+def add_logo(**kw: Any) -> dict[str, Any]:
+    return feature(semantic_role="logo", geometry_type=kw.pop("geometry_type", "logo"), **kw)
+
+
+def add_texture(**kw: Any) -> dict[str, Any]:
+    return feature(semantic_role="roof_texture", geometry_type=kw.pop("geometry_type", "texture"), **kw)
+
+
+def add_score_line(**kw: Any) -> dict[str, Any]:
+    return feature(semantic_role="score_line", geometry_type=kw.pop("geometry_type", "line"), **kw)
+
+
+def add_guide(**kw: Any) -> dict[str, Any]:
+    return feature(semantic_role="construction_guide", geometry_type=kw.pop("geometry_type", "guide"), **kw)
 
 
 def _parents(root: ET.Element) -> dict[ET.Element, ET.Element]:
     return {child: parent for parent in root.iter() for child in list(parent)}
 
 
-def _ancestor_hint(el: ET.Element, parents: dict[ET.Element, ET.Element]) -> str:
-    cur: ET.Element | None = el
+def _ancestor_operation_group(el: ET.Element, parents: dict[ET.Element, ET.Element]) -> str:
+    cur = parents.get(el)
     while cur is not None:
-        for key in ("data-operation", "id"):
-            op = _canon_op(cur.get(key))
-            if op in OPERATIONS:
-                return op
+        ident = _canon_op(cur.get("id") or cur.get("data-operation"))
+        if ident in EXPORT_OPERATIONS:
+            return ident
         label = (cur.get("{http://www.inkscape.org/namespaces/inkscape}label") or "").upper()
-        if label in OPERATIONS or label == "ETCH":
-            return "ENGRAVE" if label == "ETCH" else label
+        if label == "ETCH":
+            return "ENGRAVE"
+        if label in EXPORT_OPERATIONS:
+            return label
         cur = parents.get(cur)
     return ""
 
@@ -260,58 +460,41 @@ def _stroke_raw(el: ET.Element) -> str:
     return raw
 
 
-def _role_for_op(op: str) -> str:
-    return {
-        "CUT": "outer_contour",
-        "ENGRAVE": "decorative_detail",
-        "SCORE": "score",
-        "GUIDE": "construction_guide",
-        "LABEL": "label",
-    }.get(op, "outer_contour")
-
-
-def boxes_color_hint(el: ET.Element) -> str:
-    """Boxes.py palette before LaserCAD remap. Color is a hint, not the authority."""
+def boxes_layer_intent(el: ET.Element) -> tuple[str, str]:
+    """Boxes.py Color layers only, before LaserCAD remap. Not presentation color."""
     raw = _stroke_raw(el)
     if "00ff00" in raw or "rgb(0,255,0)" in raw:
-        return "ENGRAVE"
+        return "ENGRAVE", "surface_decoration"
     if "00ffff" in raw or "rgb(0,255,255)" in raw:
-        return "ENGRAVE"
+        return "ENGRAVE", "surface_decoration"
     if "ffff00" in raw or "rgb(255,255,0)" in raw:
-        return "SCORE"
+        return "SCORE", "score_line"
     if "0000ff" in raw or "rgb(0,0,255)" in raw:
-        return "CUT"
-    if raw in {"#000000", "#000", "black", "rgb(0,0,0)"} or "rgb(0,0,0)" in raw:
-        return "CUT"
+        return "CUT", "inner_cutout"
+    if raw in {"#000000", "#000", "black"} or "rgb(0,0,0)" in raw:
+        return "CUT", "outer_contour"
     if "ff0000" in raw or "rgb(255,0,0)" in raw:
-        return "GUIDE"
-    return ""
+        return "GUIDE", "construction_guide"
+    return "", ""
 
 
-def _color_hint(el: ET.Element) -> str:
-    """LaserCAD presentation palette. Never the only classification signal."""
-    raw = _stroke_raw(el)
-    if "00ff00" in raw or "00aa00" in raw or "rgb(0,255,0)" in raw:
-        return "GUIDE"
-    if "0000ff" in raw or "rgb(0,0,255)" in raw:
-        return "SCORE"
-    if "ff0000" in raw or "rgb(255,0,0)" in raw or "e10600" in raw:
-        return "CUT"
-    if raw in {"#000000", "#000", "black", "rgb(0,0,0)", "#333333"}:
-        return "ENGRAVE"
-    return ""
+def _svg_has_boxes_layers(root: ET.Element) -> bool:
+    for el in root.iter():
+        if _local(el.tag) not in _DRAW:
+            continue
+        raw = _stroke_raw(el)
+        if "rgb(0,255,0)" in raw or "rgb(0,0,255)" in raw or "rgb(0,0,0)" in raw:
+            return True
+        if raw in {"#00ff00", "#0000ff", "#00ffff"}:
+            return True
+    return False
 
 
-def classify_element(
-    el: ET.Element,
-    parents: dict[ET.Element, ET.Element],
-    *,
-    palette: str = "presentation",
-) -> tuple[str, str, str]:
-    """Return (operation, role, source). Source explicit|default|inferred|missing."""
+def classify_element(el: ET.Element, parents: dict[ET.Element, ET.Element]) -> tuple[str, str, str]:
+    """Resolve intent. Never invent CUT. Color is not used after LaserCAD remap."""
     stamped = _canon_op(el.get("data-operation"))
-    source = str(el.get("data-operation-source") or "")
-    role = str(el.get("data-semantic-role") or "").strip().lower()
+    origin = _canon_origin(el.get("data-operation-origin") or el.get("data-operation-source"))
+    role = _canon_role(el.get("data-semantic-role") or el.get("data-role"))
     hints = (
         el.get("id"),
         el.get("class"),
@@ -321,26 +504,36 @@ def classify_element(
     if not role:
         role = infer_role(*hints)
     if el.get("data-holding-nicks") or el.get("data-holding-bridges"):
-        role = role or "tab"
-        if stamped in OPERATIONS and stamped != "CUT" and source == "explicit":
-            return stamped, role, "explicit"
-        return "CUT", role or "tab", "default"
-    if stamped in OPERATIONS:
-        if source == "explicit":
-            return stamped, role or _role_for_op(stamped), "explicit"
-        return stamped, role or _role_for_op(stamped), source or "inferred"
-    if role and default_operation(role):
-        return default_operation(role), role, "default"
+        if stamped in EXPORT_OPERATIONS and stamped != "CUT" and origin == "EXPLICIT":
+            return stamped, role or "tab", "EXPLICIT"
+        return "CUT", role or "tab", "SEMANTIC_DEFAULT"
+    if stamped in EXPORT_OPERATIONS and origin == "EXPLICIT":
+        return stamped, role or "custom", "EXPLICIT"
+    if stamped in EXPORT_OPERATIONS:
+        return stamped, role or _canon_role(el.get("data-semantic-role")) or "custom", origin or "INFERRED"
+    if stamped == "UNKNOWN":
+        return "UNKNOWN", role or "custom", "UNKNOWN"
+    if role:
+        intent = resolve_operation(semantic_role=role)
+        return intent["operation"], intent["semantic_role"], intent["operation_origin"]
     word_op = infer_operation_words(*hints)
-    if word_op:
-        return word_op, role or infer_role(*hints) or "decorative_detail", "inferred"
-    group = _ancestor_hint(el, parents)
+    if word_op in EXPORT_OPERATIONS:
+        return word_op, role or "custom", "INFERRED"
+    group = _ancestor_operation_group(el, parents)
     if group:
-        return group, role or _role_for_op(group), "inferred"
-    color = boxes_color_hint(el) if palette == "boxes" else _color_hint(el)
-    if color:
-        return color, role or _role_for_op(color), "inferred"
-    return "", role, "missing"
+        return group, role or "custom", "INFERRED"
+    return "UNKNOWN", role or "custom", "UNKNOWN"
+
+
+def classify_element_pre_remap(el: ET.Element, parents: dict[ET.Element, ET.Element], *, allow_boxes_layer: bool) -> tuple[str, str, str]:
+    op, role, origin = classify_element(el, parents)
+    if op != "UNKNOWN":
+        return op, role, origin
+    if allow_boxes_layer:
+        layer_op, layer_role = boxes_layer_intent(el)
+        if layer_op in EXPORT_OPERATIONS:
+            return layer_op, role if role and role != "custom" else layer_role, "INFERRED"
+    return "UNKNOWN", role or "custom", "UNKNOWN"
 
 
 def _ensure_groups(root: ET.Element) -> dict[str, ET.Element]:
@@ -349,12 +542,12 @@ def _ensure_groups(root: ET.Element) -> dict[str, ET.Element]:
         if _local(child.tag) != "g":
             continue
         ident = _canon_op(child.get("id") or child.get("data-operation"))
-        if ident in OPERATIONS:
+        if ident in EXPORT_OPERATIONS:
             groups[ident] = child
             child.set("id", ident)
             child.set("data-operation", ident)
     tag = f"{{{_NS}}}g" if root.tag.startswith("{") else "g"
-    for op in OPERATIONS:
+    for op in EXPORT_OPERATIONS:
         if op in groups:
             continue
         g = ET.SubElement(root, tag)
@@ -364,8 +557,16 @@ def _ensure_groups(root: ET.Element) -> dict[str, ET.Element]:
     return groups
 
 
+def _stamp_attrs(el: ET.Element, op: str, role: str, origin: str) -> None:
+    el.set("data-operation", op)
+    if role:
+        el.set("data-semantic-role", role)
+    el.set("data-operation-origin", origin)
+    el.set("data-operation-source", origin.lower())
+
+
 def stamp_source_operations(svg_bytes: bytes) -> bytes:
-    """Stamp operation from Boxes.py color, group, and keywords. Do not regroup or recolor."""
+    """Pre-export classifier. Boxes.py layers only while still in Boxes palette."""
     if not svg_bytes:
         return svg_bytes
     try:
@@ -373,20 +574,17 @@ def stamp_source_operations(svg_bytes: bytes) -> bytes:
     except ET.ParseError:
         return svg_bytes
     parents = _parents(root)
-    palette = "presentation" if _svg_has_operation_groups(root) else "boxes"
+    allow_boxes = _svg_has_boxes_layers(root)
     changed = False
     for el in root.iter():
         if _local(el.tag) not in _DRAW:
             continue
-        if _canon_op(el.get("data-operation")) in OPERATIONS:
+        if _canon_op(el.get("data-operation")) in OPERATIONS and _canon_origin(
+            el.get("data-operation-origin") or el.get("data-operation-source")
+        ):
             continue
-        op, role, source = classify_element(el, parents, palette=palette)
-        if op not in OPERATIONS:
-            continue
-        el.set("data-operation", op)
-        if role:
-            el.set("data-semantic-role", role)
-        el.set("data-operation-source", source)
+        op, role, origin = classify_element_pre_remap(el, parents, allow_boxes_layer=allow_boxes)
+        _stamp_attrs(el, op, role, origin)
         changed = True
     if not changed:
         return svg_bytes
@@ -398,7 +596,7 @@ def _panel_context(el: ET.Element, parents: dict[ET.Element, ET.Element]) -> tup
     cur: ET.Element | None = el
     while cur is not None:
         panel = cur.get("data-panel") or ""
-        if panel and _canon_op(cur.get("id") or cur.get("data-operation")) not in OPERATIONS:
+        if panel and _canon_op(cur.get("id") or cur.get("data-operation")) not in EXPORT_OPERATIONS:
             return panel, cur.get("data-sheet") or ""
         cur = parents.get(cur)
     return "", ""
@@ -411,8 +609,7 @@ def _panel_bucket(dest: ET.Element, panel: str, sheet: str, cache: dict[tuple[st
     hit = cache.get(key)
     if hit is not None:
         return hit
-    tag = dest.tag
-    child = ET.SubElement(dest, tag)
+    child = ET.SubElement(dest, dest.tag)
     child.set("data-panel", panel)
     if sheet:
         child.set("data-sheet", sheet)
@@ -421,8 +618,8 @@ def _panel_bucket(dest: ET.Element, panel: str, sheet: str, cache: dict[tuple[st
 
 
 def apply_manufacturing_svg(svg_bytes: bytes, primitives: list[Any] | None = None) -> bytes:
-    """Stamp operation/role on every drawable and group by operation. Color is presentation."""
-    del primitives  # reserved: future path-to-primitive matching
+    """Group already-classified drawables. Does not invent CUT or repair UNKNOWN."""
+    del primitives
     if not svg_bytes:
         return svg_bytes
     try:
@@ -435,13 +632,12 @@ def apply_manufacturing_svg(svg_bytes: bytes, primitives: list[Any] | None = Non
     for el in list(root.iter()):
         if _local(el.tag) not in _DRAW:
             continue
-        op, role, source = classify_element(el, parents)
+        op, role, origin = classify_element(el, parents)
         if op not in OPERATIONS:
-            op, role, source = "CUT", role or "outer_contour", "inferred"
-        el.set("data-operation", op)
-        if role:
-            el.set("data-semantic-role", role)
-        el.set("data-operation-source", source)
+            op, role, origin = "UNKNOWN", role or "custom", "UNKNOWN"
+        _stamp_attrs(el, op, role, origin)
+        if op not in EXPORT_OPERATIONS:
+            continue
         color, width = PRESENTATION[op]
         el.set("stroke", color)
         if not el.get("stroke-width"):
@@ -449,15 +645,14 @@ def apply_manufacturing_svg(svg_bytes: bytes, primitives: list[Any] | None = Non
         el.set("fill", el.get("fill") or "none")
         parent = parents.get(el)
         dest = _panel_bucket(groups[op], *_panel_context(el, parents), buckets)
-        if parent is dest:
+        if parent is dest or parent is None:
             continue
-        if parent is not None:
-            try:
-                parent.remove(el)
-            except ValueError:
-                continue
-            dest.append(el)
-            parents[el] = dest
+        try:
+            parent.remove(el)
+        except ValueError:
+            continue
+        dest.append(el)
+        parents[el] = dest
     ET.register_namespace("", _NS)
     return ET.tostring(root, encoding="utf-8", xml_declaration=True)
 
@@ -469,21 +664,63 @@ def iter_drawables(svg_bytes: bytes) -> list[dict[str, Any]]:
         root = ET.fromstring(svg_bytes)
     except ET.ParseError:
         return []
-    parents = _parents(root)
     rows: list[dict[str, Any]] = []
     for el in root.iter():
         if _local(el.tag) not in _DRAW:
             continue
-        op = _canon_op(el.get("data-operation"))
         rows.append(
             {
-                "operation": op,
-                "semantic_role": str(el.get("data-semantic-role") or ""),
+                "operation": _canon_op(el.get("data-operation")),
+                "semantic_role": _canon_role(el.get("data-semantic-role")),
+                "origin": _canon_origin(el.get("data-operation-origin") or el.get("data-operation-source"))
+                or "UNKNOWN",
                 "source": str(el.get("data-operation-source") or ""),
                 "nicked": bool(el.get("data-holding-nicks") or el.get("data-holding-bridges")),
+                "id": el.get("id") or "",
             }
         )
     return rows
+
+
+def debug_report(svg_bytes: bytes | None = None, primitives: list[Any] | None = None) -> dict[str, Any]:
+    rows = list(iter_drawables(svg_bytes or b""))
+    for part in primitives or []:
+        if not isinstance(part, dict):
+            continue
+        rows.append(
+            {
+                "operation": _canon_op(part.get("operation")),
+                "semantic_role": _canon_role(part.get("semantic_role")),
+                "origin": _canon_origin(part.get("operation_origin") or part.get("operation_source")) or "UNKNOWN",
+                "id": str(part.get("id") or part.get("label") or part.get("type") or "part"),
+            }
+        )
+        for nest in list(part.get("holes") or []) + list(part.get("slots") or []) + list(part.get("markings") or []):
+            if isinstance(nest, dict):
+                rows.append(
+                    {
+                        "operation": _canon_op(nest.get("operation")),
+                        "semantic_role": _canon_role(nest.get("semantic_role")),
+                        "origin": _canon_origin(nest.get("operation_origin") or nest.get("operation_source"))
+                        or "UNKNOWN",
+                        "id": str(nest.get("kind") or nest.get("semantic_role") or "feature"),
+                    }
+                )
+    by_role = Counter(r.get("semantic_role") or "missing" for r in rows)
+    by_op = Counter(r.get("operation") or "UNKNOWN" for r in rows)
+    by_origin = Counter(r.get("origin") or "UNKNOWN" for r in rows)
+    unknown = [r for r in rows if r.get("operation") not in EXPORT_OPERATIONS]
+    explicit_cut = [
+        r for r in rows if r.get("operation") == "CUT" and r.get("origin") == "EXPLICIT" and r.get("semantic_role") in SURFACE_ROLES
+    ]
+    return {
+        "total_primitives": len(rows),
+        "by_semantic_role": dict(by_role),
+        "by_operation": {op: by_op.get(op, 0) for op in OPERATIONS},
+        "by_operation_origin": {origin: by_origin.get(origin, 0) for origin in ORIGINS},
+        "unknown_items": unknown,
+        "explicit_cut_overrides": explicit_cut,
+    }
 
 
 def validate_primitives(parts: list[Any] | None) -> dict[str, Any]:
@@ -499,41 +736,92 @@ def validate_primitives(parts: list[Any] | None) -> dict[str, Any]:
                 for wall in walls.values():
                     if not isinstance(wall, dict):
                         continue
-                    for nest in list(wall.get("holes") or []) + list(wall.get("slots") or []) + list(wall.get("markings") or []):
+                    for nest in list(wall.get("holes") or []) + list(wall.get("slots") or []) + list(
+                        wall.get("markings") or []
+                    ):
                         if isinstance(nest, dict):
                             checks.extend(
-                                _validate_node(nest, path=str(nest.get("semantic_role") or nest.get("kind") or "wall-feature"))
+                                _validate_node(
+                                    nest, path=str(nest.get("semantic_role") or nest.get("kind") or "wall-feature")
+                                )
                             )
     return _pack(checks)
 
 
 def _validate_node(node: dict[str, Any], *, path: str) -> list[dict[str, Any]]:
     checks: list[dict[str, Any]] = []
-    role = str(node.get("semantic_role") or "").strip().lower()
+    role = _canon_role(node.get("semantic_role"))
     op = _canon_op(node.get("operation"))
-    source = str(node.get("operation_source") or "")
-    explicit = source == "explicit"
+    origin = _canon_origin(node.get("operation_origin") or node.get("operation_source"))
+    explicit = origin == "EXPLICIT"
+    if not role:
+        checks.append({"status": CRITICAL_FAIL, "note": f"{path}: missing semantic_role", "critical": True})
     if not op:
         checks.append({"status": CRITICAL_FAIL, "note": f"{path}: missing operation", "critical": True})
         return checks
-    if op not in OPERATIONS:
-        checks.append({"status": CRITICAL_FAIL, "note": f"{path}: unknown operation {op}", "critical": True})
+    if op == "UNKNOWN":
+        checks.append({"status": CRITICAL_FAIL, "note": f"{path}: operation UNKNOWN blocks export", "critical": True})
         return checks
-    if role == "text" and op == "CUT":
+    if op not in EXPORT_OPERATIONS:
+        checks.append({"status": CRITICAL_FAIL, "note": f"{path}: malformed operation {op}", "critical": True})
+        return checks
+    if role in {"text", "label"} and op == "CUT":
         if explicit:
-            checks.append({"status": WARNING, "note": f"{path}: text CUT is explicit and auditable", "critical": False})
+            checks.append({"status": WARNING, "note": f"{path}: {role} CUT is explicit and auditable", "critical": False})
         else:
-            checks.append({"status": CRITICAL_FAIL, "note": f"{path}: text marked CUT without explicit operation", "critical": True})
-    if role in {"texture", "decorative_detail"} and op == "CUT":
-        checks.append({"status": WARNING, "note": f"{path}: decorative/texture marked CUT", "critical": False})
-    if role == "construction_guide" and op == "CUT":
+            checks.append(
+                {"status": CRITICAL_FAIL, "note": f"{path}: {role} marked CUT without explicit operation", "critical": True}
+            )
+    if role in SURFACE_ROLES - {"text", "label"} and op == "CUT":
+        if origin == "INFERRED":
+            checks.append({"status": WARNING, "note": f"{path}: decorative-looking path marked CUT through inference", "critical": False})
+        else:
+            checks.append({"status": WARNING, "note": f"{path}: {role} marked CUT", "critical": False})
+    if role in GUIDE_ROLES and op == "CUT":
         checks.append({"status": CRITICAL_FAIL, "note": f"{path}: guide marked CUT", "critical": True})
-    if role == "outer_contour" and op != "CUT":
-        checks.append({"status": CRITICAL_FAIL, "note": f"{path}: outer contour must be CUT", "critical": True})
-    if role in {"slot", "hole"} and op != "CUT":
+    if role in CUT_ROLES and op != "CUT":
         checks.append({"status": CRITICAL_FAIL, "note": f"{path}: {role} must be CUT", "critical": True})
     if not checks:
         checks.append({"status": PASS, "note": f"{path}: {role or 'part'} → {op}", "critical": False})
+    return checks
+
+
+def _distribution_warnings(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    checks: list[dict[str, Any]] = []
+    if not rows:
+        return checks
+    ops = [r.get("operation") for r in rows]
+    cut_n = sum(1 for op in ops if op == "CUT")
+    roles = {str(r.get("semantic_role") or "") for r in rows}
+    if roles & SURFACE_ROLES and cut_n / len(rows) > 0.9:
+        checks.append(
+            {
+                "status": WARNING,
+                "note": "more than 90% of primitives resolve to CUT in a design with text/decoration/texture",
+                "critical": False,
+            }
+        )
+    if len(set(ops)) == 1 and len(rows) > 8 and "CUT" in ops:
+        checks.append(
+            {
+                "status": WARNING,
+                "note": "operation distribution is suspiciously uniform (all CUT)",
+                "critical": False,
+            }
+        )
+    inferred_cut_decor = [
+        r
+        for r in rows
+        if r.get("operation") == "CUT" and r.get("origin") == "INFERRED" and r.get("semantic_role") in SURFACE_ROLES
+    ]
+    if inferred_cut_decor:
+        checks.append(
+            {
+                "status": WARNING,
+                "note": f"{len(inferred_cut_decor)} decorative-looking path(s) marked CUT through inference",
+                "critical": False,
+            }
+        )
     return checks
 
 
@@ -545,10 +833,11 @@ def validate_svg_operations(svg_bytes: bytes | None, primitives: list[Any] | Non
         checks.append({"status": CRITICAL_FAIL, "note": "SVG has no drawable geometry with an operation", "critical": True})
     cut_n = 0
     nick_n = 0
+    unknown_n = 0
     for i, row in enumerate(rows, start=1):
         op = _canon_op(row.get("operation"))
-        role = str(row.get("semantic_role") or "").strip().lower()
-        source = str(row.get("source") or "")
+        role = _canon_role(row.get("semantic_role"))
+        origin = _canon_origin(row.get("origin") or row.get("source"))
         path = f"svg[{i}]"
         if row.get("nicked"):
             nick_n += 1
@@ -557,42 +846,51 @@ def validate_svg_operations(svg_bytes: bytes | None, primitives: list[Any] | Non
             else:
                 cut_n += 1
             continue
+        if not role:
+            checks.append({"status": CRITICAL_FAIL, "note": f"{path}: missing semantic_role", "critical": True})
         if not op:
             checks.append({"status": CRITICAL_FAIL, "note": f"{path}: missing operation", "critical": True})
+            unknown_n += 1
             continue
-        if op not in OPERATIONS:
-            checks.append({"status": CRITICAL_FAIL, "note": f"{path}: unknown operation {op}", "critical": True})
+        if op == "UNKNOWN":
+            unknown_n += 1
+            checks.append({"status": CRITICAL_FAIL, "note": f"{path}: operation UNKNOWN blocks export", "critical": True})
+            continue
+        if op not in EXPORT_OPERATIONS:
+            unknown_n += 1
+            checks.append({"status": CRITICAL_FAIL, "note": f"{path}: malformed operation {op}", "critical": True})
             continue
         if op == "CUT":
             cut_n += 1
-        if role == "text" and op == "CUT" and source != "explicit":
-            checks.append({"status": CRITICAL_FAIL, "note": f"{path}: text marked CUT without explicit operation", "critical": True})
-        elif role == "text" and op == "CUT":
-            checks.append({"status": WARNING, "note": f"{path}: text CUT is explicit and auditable", "critical": False})
-        if role in {"texture", "decorative_detail"} and op == "CUT":
-            checks.append({"status": WARNING, "note": f"{path}: decorative/texture marked CUT", "critical": False})
-        if role == "construction_guide" and op == "CUT":
-            checks.append({"status": CRITICAL_FAIL, "note": f"{path}: guide marked CUT", "critical": True})
-        if role == "outer_contour" and op != "CUT":
-            checks.append({"status": CRITICAL_FAIL, "note": f"{path}: outer contour must be CUT", "critical": True})
-        if role in {"slot", "hole"} and op != "CUT":
-            checks.append({"status": CRITICAL_FAIL, "note": f"{path}: {role} must be CUT", "critical": True})
-    if rows and cut_n < 1:
+        checks.extend(_validate_node({"semantic_role": role, "operation": op, "operation_origin": origin}, path=path))
+    checks.extend(_distribution_warnings(rows))
+    if rows and cut_n < 1 and unknown_n == 0:
         checks.append({"status": CRITICAL_FAIL, "note": "no CUT operation on the sheet", "critical": True})
     groups = _group_ids(svg_bytes or b"")
-    missing_groups = [op for op in OPERATIONS if op not in groups]
-    if missing_groups and rows:
+    missing_groups = [op for op in EXPORT_OPERATIONS if op not in groups]
+    if missing_groups and rows and unknown_n == 0:
         checks.append({"status": CRITICAL_FAIL, "note": f"SVG missing operation groups: {', '.join(missing_groups)}", "critical": True})
-    return _pack(checks, extra={"cut_paths": cut_n, "nicked": nick_n, "drawables": len(rows), "groups": groups})
-
-
-def _svg_has_operation_groups(root: ET.Element) -> bool:
-    for el in root.iter():
-        if _local(el.tag) != "g":
-            continue
-        if _canon_op(el.get("id") or el.get("data-operation")) in OPERATIONS:
-            return True
-    return False
+    report = debug_report(svg_bytes, primitives)
+    intent = {
+        "semantic_roles_complete": not any("missing semantic_role" in str(c.get("note")) for c in checks),
+        "operations_resolved": unknown_n == 0,
+        "unknown_operations_zero": unknown_n == 0,
+        "unknown_operations": unknown_n,
+        "suspicious_defaulting_checked": True,
+        "explicit_overrides_recorded": True,
+        "exportable": unknown_n == 0 and not any(c.get("critical") and c.get("status") == CRITICAL_FAIL for c in checks),
+    }
+    return _pack(
+        checks,
+        extra={
+            "cut_paths": cut_n,
+            "nicked": nick_n,
+            "drawables": len(rows),
+            "groups": groups,
+            "intent": intent,
+            "debug": report,
+        },
+    )
 
 
 def _group_ids(svg_bytes: bytes) -> list[str]:
@@ -607,7 +905,7 @@ def _group_ids(svg_bytes: bytes) -> list[str]:
         if _local(el.tag) != "g":
             continue
         ident = _canon_op(el.get("id") or el.get("data-operation"))
-        if ident in OPERATIONS and ident not in found:
+        if ident in EXPORT_OPERATIONS and ident not in found:
             found.append(ident)
     return found
 
@@ -629,8 +927,15 @@ def _pack(checks: list[dict[str, Any]], extra: dict[str, Any] | None = None) -> 
 
 def finish_manufacturing_svg(svg_bytes: bytes, primitives: list[Any] | None = None) -> tuple[bytes, dict[str, Any]]:
     annotated = annotate_primitives(list(primitives or []))
-    stamped = apply_manufacturing_svg(svg_bytes, annotated)
+    classified = stamp_source_operations(svg_bytes)
+    stamped = apply_manufacturing_svg(classified, annotated)
     report = validate_svg_operations(stamped, annotated)
+    if not (report.get("intent") or {}).get("exportable", report.get("ok")):
+        report["exportable"] = False
+        report["ok"] = False
+        report["critical_fail"] = True
+        return stamped, report
+    report["exportable"] = True
     return stamped, report
 
 
@@ -639,7 +944,5 @@ def element_is_cut(el: ET.Element, parents: dict[ET.Element, ET.Element] | None 
     if op:
         return op == "CUT"
     if parents:
-        hint = _ancestor_hint(el, parents)
-        if hint:
-            return hint == "CUT"
-    return _color_hint(el) == "CUT" or not _color_hint(el)
+        return _ancestor_operation_group(el, parents) == "CUT"
+    return False

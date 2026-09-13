@@ -8,11 +8,17 @@ import unittest
 from xml.etree import ElementTree as ET
 
 from manufacturing import (
+    EXPORT_OPERATIONS,
     OPERATIONS,
+    add_cutout,
+    add_outer_contour,
+    add_text,
     annotate_primitive,
     annotate_primitives,
     apply_manufacturing_svg,
+    debug_report,
     finish_manufacturing_svg,
+    resolve_operation,
     validate_primitives,
     validate_svg_operations,
 )
@@ -20,14 +26,14 @@ from manufacturing import (
 
 def _ops(svg: bytes) -> dict[str, list[str]]:
     root = ET.fromstring(svg)
-    found: dict[str, list[str]] = {op: [] for op in OPERATIONS}
+    found: dict[str, list[str]] = {op: [] for op in EXPORT_OPERATIONS}
     for el in root.iter():
         tag = el.tag.split("}")[-1].lower()
         if tag not in {"path", "line", "polyline", "polygon", "circle", "rect", "ellipse"}:
             continue
         op = (el.get("data-operation") or "").upper()
         if op in found:
-            found[op].append(el.get("data-semantic-role") or "")
+            found.setdefault(op, []).append(el.get("data-semantic-role") or "")
     return found
 
 
@@ -38,7 +44,7 @@ def _group_ids(svg: bytes) -> list[str]:
         if el.tag.split("}")[-1].lower() != "g":
             continue
         ident = (el.get("id") or "").upper()
-        if ident in OPERATIONS and ident not in ids:
+        if ident in EXPORT_OPERATIONS and ident not in ids:
             ids.append(ident)
     return ids
 
@@ -50,15 +56,15 @@ class PrimitiveIntentTests(unittest.TestCase):
             ({"type": "panel", "w": 20, "h": 20, "holes": [{"x": 10, "y": 10, "d": 4}]}, "outer_contour", "CUT"),
             ({"type": "text", "value": "PAYAS"}, "text", "ENGRAVE"),
             ({"type": "panel", "w": 20, "h": 20, "label": "logo-plate", "semantic_role": "logo"}, "logo", "ENGRAVE"),
-            ({"semantic_role": "texture", "type": "marking", "kind": "line"}, "texture", "ENGRAVE"),
-            ({"semantic_role": "decorative_detail", "type": "panel", "w": 10, "h": 10}, "decorative_detail", "ENGRAVE"),
+            ({"semantic_role": "texture", "type": "marking", "kind": "line"}, "roof_texture", "ENGRAVE"),
+            ({"semantic_role": "decorative_detail", "type": "panel", "w": 10, "h": 10}, "surface_decoration", "ENGRAVE"),
             ({"semantic_role": "construction_guide", "type": "panel", "w": 10, "h": 10}, "construction_guide", "GUIDE"),
         ]
         for part, role, op in cases:
             annotated = annotate_primitive(dict(part))
             self.assertEqual(annotated["semantic_role"], role, part)
             self.assertEqual(annotated["operation"], op, part)
-            self.assertTrue(annotated["operation_source"])
+            self.assertEqual(annotated["operation_origin"], "SEMANTIC_DEFAULT")
 
     def test_holes_slots_and_markings_are_annotated(self):
         part = annotate_primitive(
@@ -85,14 +91,14 @@ class PrimitiveIntentTests(unittest.TestCase):
         self.assertEqual(slot["operation"], "CUT")
         self.assertEqual(mark["semantic_role"], "text")
         self.assertEqual(mark["operation"], "ENGRAVE")
-        self.assertEqual(mark["operation_source"], "default")
+        self.assertEqual(mark["operation_origin"], "SEMANTIC_DEFAULT")
 
     def test_explicit_text_cut_is_auditable_warning(self):
         part = annotate_primitive(
             {"type": "text", "value": "CUTOUT", "operation": "CUT", "semantic_role": "text"}
         )
         self.assertEqual(part["operation"], "CUT")
-        self.assertEqual(part["operation_source"], "explicit")
+        self.assertEqual(part["operation_origin"], "EXPLICIT")
         report = validate_primitives([part])
         self.assertTrue(report["ok"])
         self.assertTrue(any("explicit and auditable" in w for w in report["warnings"]))
@@ -131,6 +137,30 @@ class PrimitiveIntentTests(unittest.TestCase):
         self.assertTrue(report["ok"])
         self.assertTrue(report["warnings"])
 
+    def test_unknown_type_is_not_cut(self):
+        part = annotate_primitive({"type": "scribble", "d": "M 0 0 L 1 1"})
+        self.assertEqual(part["semantic_role"], "custom")
+        self.assertEqual(part["operation"], "UNKNOWN")
+        self.assertEqual(part["operation_origin"], "UNKNOWN")
+        self.assertTrue(validate_primitives([part])["critical_fail"])
+
+    def test_no_generic_cut_fallback(self):
+        intent = resolve_operation(semantic_role="custom")
+        self.assertEqual(intent["operation"], "UNKNOWN")
+        self.assertNotEqual(intent["operation"], "CUT")
+
+    def test_ornament_explicit_cut_is_auditable(self):
+        cutout = add_cutout(d="M 0 0 L 4 0 L 2 4 Z", semantic_role="ornament", operation="CUT")
+        self.assertEqual(cutout["operation"], "CUT")
+        self.assertEqual(cutout["operation_origin"], "EXPLICIT")
+        report = validate_primitives([cutout])
+        self.assertTrue(report["ok"])
+        self.assertTrue(report["warnings"])
+
+    def test_feature_helpers(self):
+        self.assertEqual(add_outer_contour()["operation"], "CUT")
+        self.assertEqual(add_text(value="PAYAS")["operation"], "ENGRAVE")
+
 
 class SvgExporterTests(unittest.TestCase):
     def test_groups_and_keywords_not_color_alone(self):
@@ -144,15 +174,16 @@ class SvgExporterTests(unittest.TestCase):
             "</svg>"
         ).encode("utf-8")
         stamped, report = finish_manufacturing_svg(raw)
-        self.assertEqual(set(_group_ids(stamped)), set(OPERATIONS))
+        self.assertEqual(set(_group_ids(stamped)), set(EXPORT_OPERATIONS))
         ops = _ops(stamped)
         self.assertTrue(ops["CUT"])
-        self.assertTrue(any(r == "texture" for r in ops["ENGRAVE"]))
-        self.assertTrue(any(r == "decorative_detail" for r in ops["ENGRAVE"]))
+        self.assertTrue(any(r == "roof_texture" for r in ops["ENGRAVE"]))
+        self.assertTrue(any(r in {"facade_detail", "surface_decoration"} for r in ops["ENGRAVE"]))
         self.assertTrue(any(r == "text" for r in ops["ENGRAVE"]))
         self.assertTrue(ops["GUIDE"])
-        self.assertTrue(report["ok"])
+        self.assertTrue(report["ok"], report.get("fail"))
         self.assertFalse(report["critical_fail"])
+        self.assertNotIn("UNKNOWN", [el.get("data-operation") for el in ET.fromstring(stamped).iter() if el.tag.split("}")[-1] == "path"])
 
     def test_missing_operation_on_export_fails(self):
         raw = (
@@ -176,7 +207,8 @@ class SvgExporterTests(unittest.TestCase):
 
         raw = (
             '<svg xmlns="http://www.w3.org/2000/svg">'
-            '<path d="M 0 0 L 80 0 L 80 40 L 0 40 Z" stroke="#FF0000"/>'
+            '<path d="M 0 0 L 80 0 L 80 40 L 0 40 Z" stroke="#FF0000"'
+            ' data-semantic-role="outer_contour"/>'
             "</svg>"
         ).encode("utf-8")
         stamped, _report = finish_manufacturing_svg(raw)
@@ -219,6 +251,32 @@ class SvgExporterTests(unittest.TestCase):
         self.assertEqual(report["final_status"], "BLOCKED")
         self.assertEqual(report["categories"]["MANUFACTURING"]["status"], "FAIL")
 
+    def test_unknown_raw_path_blocks_export(self):
+        raw = (
+            '<svg xmlns="http://www.w3.org/2000/svg">'
+            '<path d="M 0 0 L 10 0 L 10 10 Z" stroke="#FF0000"/>'
+            "</svg>"
+        ).encode("utf-8")
+        stamped, report = finish_manufacturing_svg(raw)
+        root = ET.fromstring(stamped)
+        ops = {(el.get("data-operation") or "") for el in root.iter() if el.tag.split("}")[-1] == "path"}
+        self.assertIn("UNKNOWN", ops)
+        self.assertNotIn("CUT", ops)
+        self.assertTrue(report["critical_fail"])
+        self.assertFalse(report.get("exportable", True))
+        self.assertTrue((report.get("intent") or {}).get("unknown_operations", 0) >= 1)
+
+    def test_exporter_does_not_repair_unknown_to_cut(self):
+        raw = (
+            '<svg xmlns="http://www.w3.org/2000/svg">'
+            '<path d="M 0 0 L 5 0" data-operation="UNKNOWN" data-semantic-role="custom"'
+            ' data-operation-origin="UNKNOWN" stroke="#FF0000"/>'
+            "</svg>"
+        ).encode("utf-8")
+        stamped = apply_manufacturing_svg(raw)
+        path = next(el for el in ET.fromstring(stamped).iter() if el.tag.split("}")[-1] == "path")
+        self.assertEqual(path.get("data-operation"), "UNKNOWN")
+
 
 class ProductRegressionTests(unittest.TestCase):
     def setUp(self):
@@ -236,7 +294,8 @@ class ProductRegressionTests(unittest.TestCase):
         report = validate_svg_operations(svg, primitives)
         self.assertTrue(report["ok"], report.get("fail"))
         self.assertGreaterEqual(int(report.get("cut_paths") or 0), 1)
-        self.assertEqual(set(report.get("groups") or []), set(OPERATIONS))
+        self.assertEqual(set(report.get("groups") or []), set(EXPORT_OPERATIONS))
+        self.assertEqual((report.get("debug") or {}).get("by_operation", {}).get("UNKNOWN", 1), 0)
         ops = _ops(svg)
         self.assertTrue(ops["CUT"])
         if expect_engrave:
@@ -246,6 +305,18 @@ class ProductRegressionTests(unittest.TestCase):
             for part in annotate_primitives(list(primitives)):
                 self.assertIn(part.get("operation"), OPERATIONS)
                 self.assertTrue(part.get("semantic_role"))
+
+    def test_plain_box(self):
+        from toolbox import render_toolbox
+
+        built = render_toolbox(
+            [{"type": "box", "x": 80, "y": 60, "h": 40, "bottom": True}],
+            {"thickness": 3.0, "burn": 0.15},
+        )
+        self._assert_sheet(built["svg_bytes"], built.get("primitives"))
+        dbg = (built.get("manufacturing") or {}).get("debug") or debug_report(built["svg_bytes"])
+        self.assertGreater(int(dbg["by_operation"]["CUT"]), 0)
+        self.assertEqual(int(dbg["by_operation"]["UNKNOWN"]), 0)
 
     def test_windmill(self):
         from toolbox import GRAMMAR, render_toolbox
@@ -312,6 +383,9 @@ class ProductRegressionTests(unittest.TestCase):
         self._assert_sheet(built["svg_bytes"], built.get("primitives"), expect_engrave=True)
         report = built.get("manufacturing") or validate_svg_operations(built["svg_bytes"], built.get("primitives"))
         self.assertFalse(any("text marked CUT" in n for n in report.get("fail") or []))
+        dbg = report.get("debug") or debug_report(built["svg_bytes"], built.get("primitives"))
+        self.assertGreater(int(dbg["by_operation"]["ENGRAVE"]), 0)
+        self.assertEqual(int(dbg["by_operation"]["UNKNOWN"]), 0)
 
     def test_traffic_light(self):
         from payas_cad import create_traffic_light
