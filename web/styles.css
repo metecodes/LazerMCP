@@ -10,11 +10,12 @@
   /* Semantic Colors */
   --cut: #e10600;
   --pass: #0b7a4b;
-  --warn: #9a6b00;
+  --warn: #8a5d00;
   
   /* Fonts */
   --mono: "IBM Plex Mono", ui-monospace, monospace;
   --sans: "IBM Plex Sans", "Segoe UI", sans-serif;
+  color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -40,7 +41,25 @@ body.dark-mode {
   --line: #333333;
   --cut: #ff4d4d;
   --pass: #32a852;
-  --warn: #f5b041;
+  --warn: #f5b041;  color-scheme: dark;
+}
+
+
+/* This must override the OS-level media query. Without it, an OS set to dark
+   could keep dark tokens after the user explicitly chose the light theme. */
+body.light-mode {
+  --bg: #fafafa;
+  --paper: #ffffff;
+  --ink: #111111;
+  --mute: #5a5a5a;
+  --line: #e4e4e4;
+  --cut: #e10600;
+  --pass: #0b7a4b;
+  --warn: #8a5d00;
+  --surface: #f3eee6;
+  --surface-alt: #f4efe6;
+  --surface-ok: #eef7f2;
+  color-scheme: light;
 }
 
 * {
@@ -74,6 +93,11 @@ input, select, textarea {
 input:focus, select:focus, textarea:focus {
   outline: none;
   border-color: var(--ink);
+}
+
+:where(a, button, input, select, textarea):focus-visible {
+  outline: 3px solid var(--cut);
+  outline-offset: 3px;
 }
 
 /* Typography */
@@ -197,6 +221,18 @@ nav .links a {
   width: 18px;
   height: 18px;
   flex: none;
+}
+
+.btn-google[aria-disabled="true"] {
+  opacity: 0.62;
+  cursor: progress;
+  pointer-events: none;
+}
+
+.theme-toggle {
+  color: var(--ink) !important;
+  border-radius: 4px;
+  line-height: 1;
 }
 
 .btn:disabled {
