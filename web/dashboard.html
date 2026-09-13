@@ -3,135 +3,242 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>LaserMCP · Studio</title>
-  <meta name="description" content="LaserMCP studio — profiller, kerf, projeler.">
+  <title>LaserMCP — Stüdyo</title>
+  <meta name="description" content="Makineyi kaydet, kesimi doğrula, işleri aç. Yazılım kerf uydurmaz.">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="icon" href="/favicon.ico" sizes="any">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
   <meta name="theme-color" content="#fafafa">
-  <meta name="application-name" content="LaserMCP">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
   <style>
-    :root {
-      --bg: #f4f0ea; --panel: #fffdfb; --ink: #2b241c; --muted: #7a7168;
-      --line: #eadfd3; --laser: #e10600; --mint: #14b8a6;
-      --shadow: 0 10px 30px rgba(80, 42, 18, 0.07);
+    
+    
+    
+    
+    .wrap { width: min(1080px, calc(100% - 40px)); margin: 0 auto; }
+    
+    
+    
+    
+    
+    nav .links 
+    .kicker { font: 11px/1 var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--cut); margin: 28px 0 10px; }
+    h1 { font-size: clamp(32px, 4vw, 44px); letter-spacing: -0.03em; margin: 0 0 8px; }
+    h2 { font-size: 18px; letter-spacing: -0.02em; margin: 0 0 6px; }
+    .lede { color: var(--mute); max-width: 56ch; margin: 0 0 28px; }
+    .steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 0 0 28px; }
+    .steps span { display: block; font: 11px var(--mono); color: var(--cut); }
+    .steps b { display: block; margin-top: 4px; font-size: 13px; }
+    .steps div { border: 1px solid var(--line); background: var(--paper); padding: 12px 14px; }
+    .steps div.on { border-color: var(--ink); }
+    .steps div.done { border-color: var(--pass); }
+    .layout { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(280px, 0.8fr); gap: 16px; padding-bottom: 64px; }
+    .card { background: var(--paper); border: 1px solid var(--line); padding: 22px; }
+    .card + .card { margin-top: 16px; }
+    .hint { color: var(--mute); font-size: 14px; margin: 0 0 16px; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    label { display: block; font: 11px var(--mono); letter-spacing: 0.08em; text-transform: uppercase; margin: 12px 0 6px; color: var(--mute); }
+    input, select, textare
+    textare
+    
+    
+    
+    
+    
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+    .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .chip {
+      border: 1px solid var(--line); background: #fff; padding: 10px 12px;
+      font-size: 13px; cursor: pointer; text-align: left;
     }
-    * { box-sizing: border-box; }
-    html, body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 "Segoe UI", system-ui, sans-serif; }
-    body {
-      background:
-        radial-gradient(900px 420px at 8% -10%, rgba(225, 6, 0, 0.12), transparent 60%),
-        linear-gradient(180deg, #fff8f1, var(--bg));
+    .chip b { display: block; font-size: 13px; }
+    .chip small { display: block; color: var(--mute); font: 11px var(--mono); margin-top: 2px; }
+    .chip.on { border-color: var(--ink); }
+    .status {
+      border: 1px solid var(--ink); padding: 16px 18px; margin: 0 0 16px;
+      font: 13px var(--mono);
     }
-    header {
-      display: flex; justify-content: space-between; align-items: center; gap: 16px;
-      padding: 18px 24px; margin: 14px 16px 0;
-      border: 1px solid rgba(255,255,255,0.7); border-radius: 24px;
-      background: rgba(255, 253, 251, 0.78); box-shadow: var(--shadow);
+    .status.pass { border-color: var(--pass); color: var(--pass); }
+    .status.warn { border-color: var(--warn); color: var(--warn); }
+    .status.fail { border-color: var(--cut); color: var(--cut); }
+    .row {
+      display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+      padding: 10px 0; border-bottom: 1px solid var(--line); font: 13px var(--mono);
     }
-    h1 { margin: 0; font-size: 22px; }
-    h1 span { color: var(--laser); }
-    a { color: var(--laser); }
-    main { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; padding: 14px 16px 24px; }
-    section { background: var(--panel); border-radius: 18px; box-shadow: var(--shadow); padding: 18px; }
-    h2 { margin: 0 0 12px; font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: #a39486; }
-    pre, .row { font-size: 13px; white-space: pre-wrap; margin: 0 0 8px; }
-    .row { border-bottom: 1px solid var(--line); padding: 8px 0; }
-    .muted { color: var(--muted); }
-    input, button { font: inherit; border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px; }
-    button { background: var(--laser); color: #fff; border: 0; cursor: pointer; font-weight: 700; }
-    .ok { color: var(--mint); font-weight: 700; }
+    .row 
+    .empty { color: var(--mute); font-size: 14px; margin: 0; }
+    .note { font: 13px var(--mono); color: var(--mute); margin: 12px 0 0; }
+    .note.ok { color: var(--pass); }
+    .note.bad { color: var(--cut); }
+    .fit { display: flex; flex-wrap: wrap; gap: 8px; }
+    .fit button { border: 1px solid var(--line); background: #fff; padding: 8px 12px; font-size: 13px; cursor: pointer; }
+    .fit button.on { border-color: var(--ink); background: var(--ink); color: #fff; }
+    details { margin-top: 16px; }
+    details summary { cursor: pointer; font: 12px var(--mono); color: var(--mute); }
+    
+    body.signed-in .guest-only, body.signed-in #signin-note { display: none !important; }
+    @media (max-width: 860px) {
+      .layout, .grid2, .steps { grid-template-columns: 1fr; }
+    }
   </style>
 </head>
 <body>
-  <header>
-    <div>
-      <h1>LaserMCP <span>studio</span></h1>
-      <p class="muted" style="margin:4px 0 0">Makine onboarding, kesim geri bildirimi, sürümler. Kerf uydurulmaz.</p>
+  <div class="wrap">
+    <nav>
+      <a class="brand" href="/"><span class="mark"></span>LaserMCP</a>
+      <div class="links">
+        <a href="/">Ana sayfa</a>
+        <a href="/connect">Bağla</a>
+        <a href="/account" id="nav-account">Hesap</a>
+      </div>
+    </nav>
+
+    <p class="kicker">Stüdyo</p>
+    <h1>Makineni kaydet</h1>
+    <p class="lede">Makineyi ve malzemeyi kaydet. Kesimi sen doğrula. Yazılım kerf uydurmaz, fiziksel PASS yazmaz.</p>
+    <p class="note hide guest-only" id="signin-note">
+      <a class="btn-google" href="/account?next=/dashboard">
+        <svg viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+        <span>Google ile gir</span>
+      </a>
+      <span> Kayıt ve geri bildirim için hesap gerekir.</span>
+    </p>
+
+    <div class="steps" id="steps">
+      <div data-step="machine"><span>01</span><b>Makine</b></div>
+      <div data-step="bed"><span>02</span><b>Tabla</b></div>
+      <div data-step="material"><span>03</span><b>Malzeme</b></div>
+      <div data-step="coupon"><span>04</span><b>Kesim</b></div>
     </div>
-    <div><a href="/">Landing</a> · <a href="/app">Atölye</a></div>
-  </header>
-  <main>
-    <section>
-      <h2>Onboarding</h2>
-      <p class="muted">Makine → tabla → malzeme → kalınlık → kupon</p>
-      <div id="onboard-step" class="row">adım: machine</div>
-      <p>
-        <input id="ob-brand" placeholder="marka">
-        <input id="ob-model" placeholder="model">
-        <input id="ob-bedw" placeholder="tabla en mm" style="width:7em">
-        <input id="ob-bedh" placeholder="boy mm" style="width:7em">
-      </p>
-      <p>
-        <input id="ob-mat" placeholder="malzeme id (mdf_3mm)">
-        <input id="ob-th" placeholder="kalınlık mm" style="width:7em">
-        <button id="ob-save" type="button">Kaydet</button>
-      </p>
-      <p>
-        <input id="act-code" placeholder="bayi aktivasyon kodu">
-        <button id="act-go" type="button">Kodu kullan</button>
-      </p>
-      <pre id="onboard-note" class="muted"></pre>
-    </section>
-    <section>
-      <h2>Malzeme / makine</h2>
-      <div id="profiles">yükleniyor…</div>
-    </section>
-    <section>
-      <h2>Kesim geri bildirimi</h2>
-      <p class="muted">Yazılım PASS yazmaz. İnsan sonucu kaydeder.</p>
-      <p>
-        <input id="fb-project" placeholder="project_id">
-        <select id="fb-fit">
-          <option value="seated">tam oturdu</option>
-          <option value="loose">gevşek</option>
-          <option value="tight">sıkı</option>
-          <option value="collision">parça çarpıyor</option>
-          <option value="hole_small">delik küçük</option>
-          <option value="hole_large">delik büyük</option>
-        </select>
-        <input id="fb-note" placeholder="not">
-        <button id="fb-save" type="button">Kaydet</button>
-      </p>
-      <div id="feedback">kayıt yok</div>
-    </section>
-    <section>
-      <h2>Pre-flight</h2>
-      <button id="pf-run" type="button">Kontrol et</button>
-      <pre id="preflight" class="row"></pre>
-    </section>
-    <section>
-      <h2>Kerf kalibrasyonu</h2>
-      <div id="cal">kayıt yok</div>
-    </section>
-    <section>
-      <h2>Projeler / geçmiş</h2>
-      <div id="projects">kayıt yok</div>
-    </section>
-    <section>
-      <h2>Kullanım</h2>
-      <div id="usage">—</div>
-    </section>
-    <section>
-      <h2>API anahtarları</h2>
-      <div id="keys"></div>
-      <p>
-        <input id="key-name" placeholder="anahtar adı">
-        <button id="make-key" type="button">Üret</button>
-      </p>
-      <pre id="new-key" class="ok"></pre>
-    </section>
-    <section>
-      <h2>Telemetry</h2>
-      <div id="tel">—</div>
-    </section>
-  </main>
+
+    <div class="layout">
+      <div>
+        <section class="card">
+          <h2>Makine ve malzeme</h2>
+          <p class="hint">Kütüphaneden bir tabla seç veya kendi makineni yaz. Kerf yalnız ölçtüğün kuponla gelir.</p>
+          <div class="status" id="machine-status">Makine henüz seçilmedi.</div>
+          <p class="kicker" style="margin:0 0 10px">Kütüphane</p>
+          <div class="chips" id="machines"></div>
+          <div class="grid2">
+            <div>
+              <label for="ob-brand">Marka</label>
+              <input id="ob-brand" placeholder="Marka">
+            </div>
+            <div>
+              <label for="ob-model">Model</label>
+              <input id="ob-model" placeholder="9060">
+            </div>
+            <div>
+              <label for="ob-bedw">Tabla en (mm)</label>
+              <input id="ob-bedw" type="number" min="50" placeholder="900">
+            </div>
+            <div>
+              <label for="ob-bedh">Tabla boy (mm)</label>
+              <input id="ob-bedh" type="number" min="50" placeholder="600">
+            </div>
+          </div>
+          <label>Malzeme</label>
+          <div class="chips" id="materials"></div>
+          <div class="grid2">
+            <div>
+              <label for="ob-th">Ölçülen kalınlık (mm)</label>
+              <input id="ob-th" type="number" step="0.1" placeholder="3.0">
+            </div>
+            <div>
+              <label for="act-code">Bayi aktivasyon kodu</label>
+              <input id="act-code" placeholder="LM-…">
+            </div>
+          </div>
+          <div class="actions">
+            <button class="btn cut" type="button" id="ob-save">Makineyi kaydet</button>
+            <button class="btn ghost" type="button" id="act-go">Kodu kullan</button>
+          </div>
+          <p class="note" id="onboard-note"></p>
+        </section>
+
+        <section class="card">
+          <h2>Kesim sonucu</h2>
+          <p class="hint">Parça çıktıktan sonra ne olduğunu sen yazarsın. Bu bir yazılım PASS’i değildir.</p>
+          <label for="fb-project">İş</label>
+          <select id="fb-project"></select>
+          <label>Nasıl oturdu</label>
+          <div class="fit" id="fb-fit">
+            <button type="button" data-fit="seated" class="on">Tam oturdu</button>
+            <button type="button" data-fit="loose">Gevşek</button>
+            <button type="button" data-fit="tight">Sıkı</button>
+            <button type="button" data-fit="collision">Çarpıyor</button>
+            <button type="button" data-fit="hole_small">Delik küçük</button>
+            <button type="button" data-fit="hole_large">Delik büyük</button>
+          </div>
+          <label for="fb-note">Not</label>
+          <textarea id="fb-note" placeholder="Hangi parça, hangi delik, ne yaptın."></textarea>
+          <div class="actions">
+            <button class="btn" type="button" id="fb-save">Sonucu kaydet</button>
+          </div>
+          <div id="feedback"></div>
+        </section>
+      </div>
+
+      <aside>
+        <section class="card">
+          <h2>Pre-flight</h2>
+          <p class="hint">Dijital kontrol. İnsan satırları kesilene kadar doğrulanmadı kalır.</p>
+          <div class="status" id="preflight">Henüz çalıştırılmadı.</div>
+          <button class="btn ghost" type="button" id="pf-run">Kontrol et</button>
+        </section>
+
+        <section class="card">
+          <h2>İşler</h2>
+          <p class="hint">SVG’ye tıklayınca düzenleme açılır.</p>
+          <div id="projects"><p class="empty">Henüz iş yok.</p></div>
+        </section>
+
+        <section class="card">
+          <h2>Hesap</h2>
+          <div class="row"><span>Bu ay</span><b id="usage">0 iş</b></div>
+          <div id="keys"></div>
+          <div id="key-mint">
+            <label for="key-name">API anahtarı</label>
+            <input id="key-name" placeholder="atölye">
+            <div class="actions">
+              <button class="btn ghost" type="button" id="make-key">Anahtar üret</button>
+            </div>
+          </div>
+          <div id="key-ask" class="hide">
+            <label for="ask-note">Anahtar talebi</label>
+            <input id="ask-note" placeholder="Cursor, atölye, sınıf…">
+            <div class="actions">
+              <button class="btn ghost" type="button" id="ask-key">Talep aç</button>
+            </div>
+          </div>
+          <p class="note" id="new-key"></p>
+        </section>
+      </aside>
+    </div>
+  </div>
   <script>
     const TOKEN_KEY = "mcp_auth_token";
+    const state = { material: "poplar_3mm", machine: "", fit: "seated", signedIn: false };
+    const DEFAULT_MACHINES = [
+      { id: "payas_workshop", name: "Payas STEM 1500×3000", brand: "Payas STEM", model: "1500", bed_w: 1500, bed_h: 3000 },
+      { id: "lasercad_900", name: "Orta tabla 900×600", brand: "Genel", model: "900", bed_w: 900, bed_h: 600 },
+      { id: "desktop_400", name: "Masaüstü 400×400", brand: "Desktop", model: "400", bed_w: 400, bed_h: 400 }
+    ];
+    const DEFAULT_MATERIALS = [
+      { id: "poplar_3mm", name: "3 mm kavak kontrplak", thickness: 3 },
+      { id: "poplar_4mm", name: "4 mm kavak kontrplak", thickness: 4 },
+      { id: "mdf_3mm", name: "3 mm MDF", thickness: 3 },
+      { id: "acrylic_3mm", name: "3 mm akrilik", thickness: 3 }
+    ];
+
     function getToken() { return sessionStorage.getItem(TOKEN_KEY) || ""; }
     function authHeaders() {
-      const headers = {};
+      const headers = { "content-type": "application/json" };
       const token = getToken() || new URLSearchParams(location.search).get("token");
       if (token) {
         sessionStorage.setItem(TOKEN_KEY, token);
@@ -139,107 +246,273 @@
       }
       return headers;
     }
+    function esc(value) {
+      return String(value == null ? "" : value)
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    }
+    function showNote(id, text, kind) {
+      const el = document.getElementById(id);
+      el.textContent = text || "";
+      el.className = "note" + (kind ? " " + kind : "");
+    }
     async function api(url, opts) {
-      const res = await fetch(url, Object.assign({}, opts || {}, { headers: Object.assign(authHeaders(), (opts || {}).headers || {}) }));
-      if (res.status === 401) {
-        const token = window.prompt("MCP token");
-        if (token) { sessionStorage.setItem(TOKEN_KEY, token); return api(url, opts); }
+      const res = await fetch(url, Object.assign({ credentials: "same-origin" }, opts || {}, {
+        headers: Object.assign(authHeaders(), (opts && opts.headers) || {})
+      }));
+      const data = await res.json().catch(function () { return {}; });
+      if (res.status === 401) data.unauthorized = true;
+      return data;
+    }
+    function showLibrary(machines, materials) {
+      state.catalogMachines = (machines && machines.length) ? machines : DEFAULT_MACHINES;
+      state.catalogMaterials = (materials && materials.length) ? materials : DEFAULT_MATERIALS;
+      renderChips("machines", state.catalogMachines.map(function (m) {
+        return { group: "machine", id: m.id, name: m.name || ((m.brand || "") + " " + (m.model || "")).trim() || m.id, detail: (m.bed_w || "—") + " × " + (m.bed_h || "—") + " mm" };
+      }));
+      renderChips("materials", state.catalogMaterials.map(function (m) {
+        return { group: "material", id: m.id, name: m.name || m.id, detail: "kalınlık " + (m.thickness || "—") + " mm" };
+      }));
+    }
+    function empty(text) {
+      return "<p class='empty'>" + esc(text) + "</p>";
+    }
+    function markSteps(step) {
+      const order = { machine: 0, bed: 1, material: 2, thickness: 2, coupon: 3 };
+      const idx = order[step] == null ? 0 : order[step];
+      document.querySelectorAll("#steps [data-step]").forEach(function (el, i) {
+        el.classList.toggle("done", i < idx);
+        el.classList.toggle("on", i === idx);
+      });
+    }
+    function chipItems(items) {
+      return (items || []).map(function (item) {
+        const key = item.id || item.name;
+        return "<button type='button' class='chip" + ((item.selected || state[item.group] === key) ? " on" : "") +
+          "' data-group='" + esc(item.group || "") + "' data-id='" + esc(key) + "'><b>" +
+          esc(item.name || key) + "</b><small>" + esc(item.detail || "") + "</small></button>";
+      }).join("");
+    }
+    function renderChips(id, items) {
+      const box = document.getElementById(id);
+      box.innerHTML = chipItems(items);
+    }
+    function fillProjects(projects) {
+      const sel = document.getElementById("fb-project");
+      const list = document.getElementById("projects");
+      if (!projects || !projects.length) {
+        sel.innerHTML = "<option value=''>Önce bir iş üret</option>";
+        list.innerHTML = empty("Henüz iş yok. SVG üretince burada görünür.");
+        return;
       }
-      return res.json();
+      sel.innerHTML = projects.map(function (p) {
+        return "<option value='" + esc(p.id) + "'>" + esc(p.name || p.id) + "</option>";
+      }).join("");
+      list.innerHTML = projects.map(function (p) {
+        const file = p.latest && p.latest.file_id;
+        const href = file && String(file).toLowerCase().endsWith(".svg") ? ("/out/" + encodeURIComponent(file)) : "";
+        const name = esc(p.name || p.id);
+        const meta = "v" + esc(p.versions || 1);
+        return "<div class='row'><span>" + (href ? "<a href='" + href + "'>" + name + "</a>" : name) +
+          "</span><span>" + meta + "</span></div>";
+      }).join("");
     }
-    function rows(items, fn) {
-      if (!items || !items.length) return "<p class='muted'>boş</p>";
-      return items.map(fn).join("");
-    }
+
     async function load() {
+      const me = await api("/api/account");
+      const signed = Boolean(me.user);
+      state.signedIn = signed;
+      state.canMint = Boolean(me.can_mint_keys);
+      document.getElementById("signin-note").classList.toggle("hide", signed);
+      document.getElementById("key-mint").classList.toggle("hide", !signed || !me.can_mint_keys);
+      document.getElementById("key-ask").classList.toggle("hide", !signed || me.can_mint_keys);
+      if (me.key_request && me.key_request.status === "open") {
+        showNote("new-key", "Talebin açık. Admin bakınca anahtar üretirsin.");
+      }
+      const catalog = await api("/api/catalog");
+      showLibrary(catalog.machines, catalog.materials);
       const data = await api("/api/studio");
-      const mats = ((data.profiles || {}).materials || []).map(m =>
-        "<div class='row'><strong>" + m.id + "</strong> · " + m.name + " · kerf " + m.kerf + "</div>"
-      ).join("");
-      const macs = ((data.profiles || {}).machines || []).map(m =>
-        "<div class='row'><strong>" + m.id + "</strong> · " + m.name + " · " + m.bed_w + "×" + m.bed_h + "</div>"
-      ).join("");
-      document.getElementById("profiles").innerHTML = mats + macs || "—";
-      document.getElementById("cal").innerHTML = rows(data.calibrations, r =>
-        "<div class='row'>" + (r.at || "") + " · " + r.machine + " / " + r.material + " · bar " + r.measured_bar_mm + " → burn " + r.burn + "</div>"
-      );
-      document.getElementById("projects").innerHTML = rows(data.projects, p =>
-        "<div class='row'><strong>" + (p.name || p.id) + "</strong> · v" + p.versions + " · " + (p.updated || "") +
-        (p.latest && p.latest.file_id ? " · " + p.latest.file_id : "") + "</div>"
-      );
-      const usage = data.usage || {};
-      const by = usage.by_key || {};
-      document.getElementById("usage").innerHTML =
-        "<div class='row'>olay: " + (usage.count || 0) + "</div>" +
-        Object.keys(by).map(k => "<div class='row'>" + k + " · " + by[k] + "</div>").join("");
-      document.getElementById("keys").innerHTML = rows(data.keys, k =>
-        "<div class='row'>" + (k.name || k.id) + " · " + (k.role || "") + " · " + (k.last_used || "hiç") + "</div>"
-      );
-      document.getElementById("tel").innerHTML = rows(data.telemetry, e =>
-        "<div class='row'>" + (e.at || "") + " · " + e.level + " · " + e.event + " · " + (e.detail || "") + "</div>"
-      );
+      const locked = Boolean(data.unauthorized || data.error === "unauthorized");
+      if (locked && !signed) {
+        markSteps("machine");
+        return;
+      }
+      const profiles = data.profiles || {};
       const onb = ((data.workshop || {}).onboarding) || {};
-      document.getElementById("onboard-step").textContent = "adım: " + (onb.step || "machine") +
-        (onb.machine ? " · " + onb.machine : "") + (onb.material ? " · " + onb.material : "");
-      document.getElementById("feedback").innerHTML = rows(data.feedback, r =>
-        "<div class='row'>" + (r.at || "") + " · " + (r.fit || "") + " · " + (r.project_id || "") + " · " + (r.note || "") + "</div>"
-      );
+      state.machine = onb.machine || state.machine;
+      state.material = onb.material || state.material;
+      markSteps(onb.step || "machine");
+      if ((profiles.machines || []).length || (profiles.materials || []).length) {
+        showLibrary(
+          (profiles.machines || []).concat(((data.workshop || {}).catalog || {}).machines || []),
+          profiles.materials
+        );
+      }
+
+      const status = document.getElementById("machine-status");
+      if (onb.machine || onb.material) {
+        status.textContent = [onb.machine, onb.material, onb.thickness ? (onb.thickness + " mm") : ""]
+          .filter(Boolean).join(" · ");
+        status.className = "status pass";
+      } else {
+        status.textContent = "Makine henüz seçilmedi.";
+        status.className = "status";
+      }
+
+      fillProjects(data.projects || []);
+      const usage = data.usage || {};
+      document.getElementById("usage").textContent = (usage.count || 0) + " iş";
+      const keys = data.keys || [];
+      document.getElementById("keys").innerHTML = keys.length
+        ? keys.map(function (k) {
+            return "<div class='row'><span>" + esc(k.name || k.id) + "</span><span>" + esc(k.last_used || "kullanılmadı") + "</span></div>";
+          }).join("")
+        : empty(state.canMint ? "Henüz anahtar yok." : "Anahtar için talep aç. Admin onaylar.");
+      const rows = data.feedback || [];
+      document.getElementById("feedback").innerHTML = rows.length
+        ? rows.slice(0, 6).map(function (r) {
+            return "<div class='row'><span>" + esc(r.fit || "") + (r.note ? " · " + esc(r.note) : "") +
+              "</span><span>" + esc(r.project_id || "") + "</span></div>";
+          }).join("")
+        : empty("Henüz kesim notu yok.");
     }
-    document.getElementById("ob-save").onclick = async () => {
+
+    document.getElementById("machines").onclick = function (ev) {
+      const btn = ev.target.closest(".chip");
+      if (!btn) return;
+      const id = btn.getAttribute("data-id");
+      const hit = (state.catalogMachines || []).find(function (m) { return m.id === id; }) || {};
+      state.machine = id;
+      document.getElementById("ob-brand").value = hit.brand || "";
+      document.getElementById("ob-model").value = hit.model || hit.name || "";
+      document.getElementById("ob-bedw").value = hit.bed_w || "";
+      document.getElementById("ob-bedh").value = hit.bed_h || "";
+      renderChips("machines", (state.catalogMachines || []).map(function (m) {
+        return { group: "machine", id: m.id, name: m.name || m.id, detail: (m.bed_w || "—") + " × " + (m.bed_h || "—") + " mm" };
+      }));
+    };
+    document.getElementById("materials").onclick = function (ev) {
+      const btn = ev.target.closest(".chip");
+      if (!btn) return;
+      const id = btn.getAttribute("data-id");
+      const hit = (state.catalogMaterials || []).find(function (m) { return m.id === id; }) || {};
+      state.material = id;
+      if (hit.thickness && !document.getElementById("ob-th").value) {
+        document.getElementById("ob-th").value = hit.thickness;
+      }
+      renderChips("materials", (state.catalogMaterials || []).map(function (m) {
+        return { group: "material", id: m.id, name: m.name || m.id, detail: "kalınlık " + (m.thickness || "—") + " mm" };
+      }));
+    };
+    document.getElementById("fb-fit").onclick = function (ev) {
+      const btn = ev.target.closest("button[data-fit]");
+      if (!btn) return;
+      state.fit = btn.getAttribute("data-fit");
+      document.querySelectorAll("#fb-fit button").forEach(function (el) {
+        el.classList.toggle("on", el === btn);
+      });
+    };
+
+    function needSignIn(out) {
+      return Boolean(out && (out.unauthorized || out.error === "unauthorized"));
+    }
+    document.getElementById("ob-save").onclick = async function () {
       const out = await api("/api/studio/onboard", {
         method: "POST",
-        headers: { "content-type": "application/json" },
         body: JSON.stringify({
+          machine: state.machine,
           brand: document.getElementById("ob-brand").value,
           model: document.getElementById("ob-model").value,
           bed_w: document.getElementById("ob-bedw").value,
           bed_h: document.getElementById("ob-bedh").value,
-          material: document.getElementById("ob-mat").value,
+          material: state.material,
           thickness: document.getElementById("ob-th").value
         })
       });
-      document.getElementById("onboard-note").textContent = (out.look_again || []).join("\n") || ("sonraki: " + (out.next || ""));
+      if (needSignIn(out)) {
+        showNote("onboard-note", "Google ile gir, sonra makineyi kaydet.", "bad");
+        return;
+      }
+      showNote("onboard-note", (out.look_again || []).join(" ") || ("Sıradaki: " + (out.next || "kupon")), "ok");
       load();
     };
-    document.getElementById("act-go").onclick = async () => {
+    document.getElementById("act-go").onclick = async function () {
       const out = await api("/api/studio/activate", {
         method: "POST",
-        headers: { "content-type": "application/json" },
         body: JSON.stringify({ code: document.getElementById("act-code").value })
       });
-      document.getElementById("onboard-note").textContent = (out.look_again || [out.note || ""]).join("\n");
+      if (needSignIn(out)) {
+        showNote("onboard-note", "Google ile gir, sonra kodu kullan.", "bad");
+        return;
+      }
+      showNote("onboard-note", (out.look_again || [out.note || "Kod uygulandı."]).join(" "), out.machine ? "ok" : "bad");
       if (out.machine) {
-        await api("/api/studio/onboard", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ machine: out.machine.id })
-        });
+        state.machine = out.machine.id;
+        await api("/api/studio/onboard", { method: "POST", body: JSON.stringify({ machine: out.machine.id }) });
       }
       load();
     };
-    document.getElementById("fb-save").onclick = async () => {
-      await api("/api/studio/feedback", {
+    document.getElementById("fb-save").onclick = async function () {
+      const out = await api("/api/studio/feedback", {
         method: "POST",
-        headers: { "content-type": "application/json" },
         body: JSON.stringify({
           project_id: document.getElementById("fb-project").value,
-          fit: document.getElementById("fb-fit").value,
+          fit: state.fit,
           note: document.getElementById("fb-note").value
         })
       });
+      if (needSignIn(out)) {
+        showNote("onboard-note", "Google ile gir, sonra kesim sonucunu kaydet.", "bad");
+        return;
+      }
+      document.getElementById("fb-note").value = "";
       load();
     };
-    document.getElementById("pf-run").onclick = async () => {
-      const out = await api("/api/studio/preflight", { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
-      document.getElementById("preflight").textContent = (out.result || "") + "\n" + (out.note || "");
+    document.getElementById("pf-run").onclick = async function () {
+      const out = await api("/api/studio/preflight", { method: "POST", body: "{}" });
+      const box = document.getElementById("preflight");
+      if (needSignIn(out)) {
+        box.textContent = "Google ile gir — kontrol için hesap gerekir.";
+        box.className = "status warn";
+        return;
+      }
+      const result = out.result || "—";
+      box.textContent = result + (out.note ? " · " + out.note : "");
+      box.className = "status " + (result === "PASS" ? "pass" : result === "FAIL" ? "fail" : "warn");
     };
-    document.getElementById("make-key").onclick = async () => {
-      const name = document.getElementById("key-name").value || "workshop";
-      const created = await api("/api/studio/keys", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name }) });
-      document.getElementById("new-key").textContent = created.token ? ("bir kez: " + created.token) : (created.look_again || []).join("\n");
+    document.getElementById("ask-key").onclick = async function () {
+      const out = await api("/api/account/key-request", {
+        method: "POST",
+        body: JSON.stringify({ want: "org", note: document.getElementById("ask-note").value })
+      });
+      if (needSignIn(out)) {
+        showNote("new-key", "Önce Google ile gir, sonra talep aç.", "bad");
+        return;
+      }
+      showNote("new-key", (out.look_again || ["Talep alındı."]).join(" "), "ok");
+    };
+    document.getElementById("make-key").onclick = async function () {
+      const created = await api("/api/studio/keys", {
+        method: "POST",
+        body: JSON.stringify({ name: document.getElementById("key-name").value || "atölye" })
+      });
+      const el = document.getElementById("new-key");
+      if (needSignIn(created)) {
+        el.textContent = "Google ile gir. Anahtarı yalnız kurumsal hesap üretir.";
+        el.className = "note bad";
+        return;
+      }
+      if (created.token) {
+        el.textContent = "Bir kez gösterilir: " + created.token;
+        el.className = "note ok";
+      } else {
+        el.textContent = (created.look_again || ["Anahtar üretilemedi."]).join(" ");
+        el.className = "note bad";
+      }
       load();
     };
     load();
   </script>
+  <script src="/nav-auth.js?v=4"></script>
+<script src="/ui.js"></script>
 </body>
 </html>

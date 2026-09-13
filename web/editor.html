@@ -8,19 +8,20 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
   <style>
-    :root { --bg:#fafafa; --paper:#fff; --ink:#111; --mute:#5a5a5a; --line:#e4e4e4; --cut:#e10600; --pass:#0b7a4b; --mono:"IBM Plex Mono",monospace; --sans:"IBM Plex Sans","Segoe UI",sans-serif; }
-    * { box-sizing: border-box; }
-    body { margin: 0; color: var(--ink); font: 16px/1.5 var(--sans); background: var(--bg); }
-    a { color: inherit; }
-    nav { display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; border-bottom: 1px solid var(--line); background: var(--paper); }
-    .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; text-decoration: none; }
-    .mark { width: 18px; height: 18px; border: 1.5px solid var(--ink); position: relative; }
-    .mark::after { content: ""; position: absolute; left: 3px; right: 3px; top: 8px; height: 1.5px; background: var(--cut); }
+    
+    
+    
+    
+    
+    
+    
+    
     .nav-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-    .btn { display: inline-flex; align-items: center; justify-content: center; padding: 10px 14px; font-size: 13px; font-weight: 600; border: 1px solid var(--ink); background: var(--ink); color: #fff; cursor: pointer; text-decoration: none; }
-    .btn.ghost { background: transparent; color: var(--ink); }
-    .btn.cut { background: var(--cut); border-color: var(--cut); }
+    
+    
+    
     .btn:disabled { opacity: 0.45; cursor: not-allowed; }
     .wrap { display: grid; grid-template-columns: minmax(0, 1fr) 320px; min-height: calc(100vh - 57px); }
     .stage { padding: 20px; overflow: auto; }
@@ -262,5 +263,6 @@
     document.getElementById("part").onchange = function () { pick(this.value); };
     boot();
   </script>
+<script src="/ui.js"></script>
 </body>
 </html>

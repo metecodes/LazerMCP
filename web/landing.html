@@ -24,43 +24,28 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
   <style>
-    :root {
-      --bg: #fafafa;
-      --paper: #ffffff;
-      --ink: #111111;
-      --mute: #5a5a5a;
-      --line: #e4e4e4;
-      --cut: #e10600;
-      --pass: #0b7a4b;
-      --mono: "IBM Plex Mono", ui-monospace, monospace;
-      --sans: "IBM Plex Sans", "Segoe UI", sans-serif;
-    }
-    * { box-sizing: border-box; }
-    html { scroll-behavior: smooth; }
-    body { margin: 0; color: var(--ink); font: 16px/1.55 var(--sans); background: var(--bg); }
-    a { color: inherit; }
+    
+    
+    
+    
+    
     .wrap { width: min(1080px, calc(100% - 40px)); margin: 0 auto; }
-    nav {
-      position: sticky; top: 0; z-index: 20;
-      display: flex; justify-content: space-between; align-items: center; gap: 16px;
-      padding: 16px 0; border-bottom: 1px solid var(--line); background: var(--bg);
-    }
-    .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: -0.03em; text-decoration: none; }
-    .mark { width: 18px; height: 18px; border: 1.5px solid var(--ink); position: relative; }
-    .mark::after { content: ""; position: absolute; left: 3px; right: 3px; top: 8px; height: 1.5px; background: var(--cut); }
-    nav .links { display: flex; align-items: center; gap: 20px; font-size: 13px; color: var(--mute); }
-    nav .links a { text-decoration: none; }
+    
+    
+    
+    
+    
+    nav .links 
     .lang { display: flex; border: 1px solid var(--ink); }
     .lang button { border: 0; background: transparent; font: 11px var(--mono); padding: 6px 9px; cursor: pointer; }
     .lang button.on { background: var(--ink); color: #fff; }
-    .btn {
-      display: inline-flex; align-items: center; justify-content: center;
-      padding: 11px 16px; text-decoration: none; font-size: 13px; font-weight: 600;
-      border: 1px solid var(--ink); background: var(--ink); color: #fff;
-    }
-    .btn.ghost { background: transparent; color: var(--ink); }
-    .btn.cut { background: var(--cut); border-color: var(--cut); }
+    
+    
+    
+    
+    
     .kicker { font: 11px/1 var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--cut); margin: 0 0 12px; }
     h1, h2, h3 { letter-spacing: -0.03em; margin: 0; }
     h1 { font-size: clamp(36px, 5.4vw, 60px); line-height: 1.02; }
@@ -107,13 +92,13 @@
     }
     .pass-card .pass-name { font: 14px/1.3 var(--sans); color: var(--ink); }
     .human-list { margin: 0 0 16px; font: 15px/1.45 var(--sans); color: var(--mute); }
-    .beta { background: var(--paper); border: 1px solid var(--ink); padding: 24px; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 24px; }
+    .bet
     input { width: 100%; border: 1px solid var(--line); padding: 10px 12px; font: 14px var(--sans); }
     .picks { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin: 28px 0 18px; }
     .pick { text-align: left; cursor: pointer; background: var(--paper); border: 1px solid var(--line); padding: 0; }
     .pick.on { border-color: var(--cut); box-shadow: 0 0 0 2px var(--cut); }
     .pick img, .pick object { display: block; width: 100%; height: 168px; object-fit: contain; background: #f3eee6; }
-    .pick .meta { padding: 12px 14px; }
+    .pick .met
     .pick strong { display: block; }
     .pick small { color: var(--mute); font-size: 13px; }
     .stage { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; min-height: 340px; }
@@ -132,21 +117,22 @@
     .wow-status { margin-top: 12px; font: 12px var(--mono); letter-spacing: 0.08em; }
     .final .lede { margin: 16px auto 28px; }
     footer { border-top: 1px solid var(--line); padding: 22px 0 40px; display: flex; justify-content: space-between; gap: 12px; color: var(--mute); font: 12px var(--mono); }
-    .hide { display: none !important; }
+    
+    .signed-only { display: none !important; }
+    body.signed-in .guest-only { display: none !important; }
+    body.signed-in .signed-only { display: block !important; }
+    body.signed-in a.signed-only { display: inline-flex !important; }
     .profile {
       display: flex; align-items: center; gap: 8px;
       text-decoration: none; font: 13px var(--sans); color: var(--ink);
       border: 0; padding: 0; background: transparent;
     }
-    .profile .ava {
-      width: 22px; height: 22px; border: 1.5px solid var(--ink);
-      display: grid; place-items: center; font: 9px/1 var(--mono); flex: none;
-    }
+    .profile .av
     .profile .who { max-width: 22ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
     .profile .use { color: var(--mute); font: 11px var(--mono); }
     .profile .use:empty { display: none; }
     @media (max-width: 860px) {
-      .hero, .steps, .cap-row, .mcp-row, .use-row, .two, .beta, nav { flex-wrap: wrap; }
+      .hero, .steps, .cap-row, .mcp-row, .use-row, .two, .beta, 
       .hero, .steps, .cap-row, .mcp-row, .use-row, .two, .beta, .picks, .stage, .pass-row { grid-template-columns: 1fr; }
       .steps { grid-template-columns: 1fr; }
       nav .links a:not(.btn):not(.profile) { display: none; }
@@ -163,7 +149,7 @@
         <a href="#how" data-i="nav_how">Nasıl</a>
         <a href="#gate" data-i="nav_gate">Kontrol</a>
         <a href="#beta" data-i="nav_beta">Beta</a>
-        <a href="/app" data-i="nav_workshop">Atölye</a>
+        <a href="/dashboard" data-i="nav_workshop">Stüdyo</a>
         <a href="/account" id="nav-signin" data-i="nav_account">Giriş</a>
         <a class="profile hide" id="nav-profile" href="/account"><span class="ava" aria-hidden="true"></span><span class="who"></span><span class="use"></span></a>
         <div class="lang" role="group" aria-label="Language">
@@ -303,7 +289,7 @@ studio</pre>
         </div>
         <div class="card kv">
           <div><span data-i="mach_1">Payas atölye</span><b>1500 × 3000</b></div>
-          <div><span data-i="mach_2">LaserCAD 900</span><b>900 × 600</b></div>
+          <div><span data-i="mach_2">Orta tabla</span><b>900 × 600</b></div>
           <div><span data-i="mach_3">Masaüstü</span><b>400 × 400</b></div>
           <div><span data-i="mach_4">Nesting</span><b data-i="mach_4b">yalnız öteleme</b></div>
         </div>
@@ -360,7 +346,7 @@ studio</pre>
       <pre class="card" style="margin-top:20px;font:13px/1.5 var(--mono);overflow:auto">https://mcp.metehanavci.com/mcp</pre>
       <p style="margin-top:18px">
         <a class="btn cut" href="/connect" data-i="dev_steps">ChatGPT ve Claude adımları</a>
-        <a class="btn ghost" href="/account" id="mid-google" data-i="dev_google">Google ile gir</a>
+        <a class="btn-google guest-only" href="/account" id="mid-google"><svg viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg><span data-i="dev_google">Google ile gir</span></a>
       </p>
     </section>
 
@@ -368,9 +354,9 @@ studio</pre>
       <p class="kicker" data-i="who_kicker">Kim için</p>
       <h2 data-i="who_h2">Üç kişi. Aynı MCP.</h2>
       <div class="use-row">
-        <article class="card"><h3 data-i="u1h">Atölye</h3><p data-i="u1p">Her paneli elle çizmeden prototip.</p></article>
+        <article class="card"><h3 data-i="u1h">Maker</h3><p data-i="u1p">Asistana söyle; panelleri elle çizmeden prototip.</p></article>
         <article class="card"><h3 data-i="u2h">STEM</h3><p data-i="u2p">Sınıfta kit ve maket. Aynı gün kes.</p></article>
-        <article class="card"><h3 data-i="u3h">Geliştirici</h3><p data-i="u3p">Asistanına lazer CAD bağla.</p></article>
+        <article class="card"><h3 data-i="u3h">Geliştirici</h3><p data-i="u3p">ChatGPT veya Claude’a LaserMCP bağla.</p></article>
       </div>
     </section>
 
@@ -408,7 +394,7 @@ studio</pre>
   <script>
     const I = {
       tr: {
-        nav_wow: "Dene", nav_mcp: "MCP", nav_how: "Nasıl", nav_gate: "Kontrol", nav_beta: "Beta", nav_workshop: "Atölye", nav_account: "Giriş", nav_connect: "Bağla",
+        nav_wow: "Dene", nav_mcp: "MCP", nav_how: "Nasıl", nav_gate: "Kontrol", nav_beta: "Beta", nav_workshop: "Stüdyo", nav_account: "Giriş", nav_connect: "Bağla",
         cta_wow: "Birini kesime çevir",
         wow_kicker: "3 saniye", wow_h2: "Seç. Kesim SVG’si gelsin.",
         wow_lede: "Yükleme yok. Üç gerçek Payas işinden birini seç. Parçalar hemen gelir.",
@@ -422,7 +408,7 @@ studio</pre>
         hero_kicker: "ChatGPT · Claude · Cursor",
         hero_h1: "Tarif et. Kes. Kur.",
         hero_lede: "Asistanına ne istediğini söyle. LaserMCP parçaları üretir, montajı denetler, prototip SVG verir. Resim çizmez.",
-        cta_connect: "MCP’yi bağla", cta_workshop: "Yerel atölye",
+        cta_connect: "MCP’yi bağla", cta_workshop: "Stüdyo",
         cut_note: "#FF0000", etch_note: "#000000",
         flow_kicker: "Bağlantı", tools_kicker: "MCP araçları",
         flow_note: "Kök siteye değil, /mcp yoluna bağlan.",
@@ -445,7 +431,7 @@ studio</pre>
         photo_b_p: "Yalnız 2D iz veya yapboz kazıması. Duvar, çatı, mil için kullanılmaz.",
         mat_kicker: "Malzeme", mat_h2: "Levha değişince ölçü değişir.",
         mat_lede: "Kerf uydurulmaz. Profil seçilir. 100 mm çubuğu sen ölçersin.",
-        mach_1: "Payas atölye", mach_2: "LaserCAD 900", mach_3: "Masaüstü", mach_4: "Yerleşim", mach_4b: "yalnız kaydırma",
+        mach_1: "Payas atölye", mach_2: "Orta tabla", mach_3: "Masaüstü", mach_4: "Yerleşim", mach_4b: "yalnız kaydırma",
         gate_kicker: "Kontrol", gate_h2: "Fiziksel testi yazılım uydurmaz.",
         g1: "Dijital geometri", g2: "Bağlantılar",
         gate_soft: "Yazılım kontrolü",
@@ -467,16 +453,16 @@ studio</pre>
         dev_lede: "Bireysel Google. Kurumsal API anahtarı. Adres yalnız başına MCP açmaz.",
         dev_steps: "ChatGPT ve Claude adımları", dev_google: "Google ile gir",
         who_kicker: "Kim için", who_h2: "Üç kişi. Aynı MCP.",
-        u1h: "Atölye", u1p: "Her paneli elle çizmeden prototip.",
+        u1h: "Maker", u1p: "Asistana söyle; panelleri elle çizmeden prototip.",
         u2h: "STEM", u2p: "Sınıfta kit ve maket. Aynı gün kes.",
-        u3h: "Geliştirici", u3p: "Asistanına lazer CAD bağla.",
+        u3h: "Geliştirici", u3p: "ChatGPT veya Claude’a LaserMCP bağla.",
         beta_h2: "Beta açık. Ücret yok.",
         beta_lede: "Şimdi herkes keser. Kota sonra gelir. Fiyat bu sayfada yok.",
         inc: "var", beta_val: "Doğrulama", email: "E-posta", use: "Ne keseceksin?", beta_cta: "Listeye yazıl",
         final_h2: "Bir şey kes.", final_p: "Asistanını bağla. Çıktı prototip SVG.", final_cta: "MCP’yi bağla"
       },
       en: {
-        nav_wow: "Try it", nav_mcp: "MCP", nav_how: "How", nav_gate: "Check", nav_beta: "Beta", nav_workshop: "Workshop", nav_account: "Sign in", nav_connect: "Connect",
+        nav_wow: "Try it", nav_mcp: "MCP", nav_how: "How", nav_gate: "Check", nav_beta: "Beta", nav_workshop: "Studio", nav_account: "Sign in", nav_connect: "Connect",
         cta_wow: "Turn one into a cut",
         wow_kicker: "3 seconds", wow_h2: "Pick one. Get the cut SVG.",
         wow_lede: "No upload. Three real Payas jobs. Parts appear at once.",
@@ -490,7 +476,7 @@ studio</pre>
         hero_kicker: "ChatGPT · Claude · Cursor",
         hero_h1: "Describe it. Cut it. Build it.",
         hero_lede: "Tell your assistant what you want. LaserMCP makes the parts, checks the fit, and returns a prototype SVG. It does not draw a picture.",
-        cta_connect: "Connect MCP", cta_workshop: "Local workshop",
+        cta_connect: "Connect MCP", cta_workshop: "Studio",
         cut_note: "#FF0000", etch_note: "#000000",
         flow_kicker: "Connect", tools_kicker: "MCP tools",
         flow_note: "Connect to /mcp, not the site root.",
@@ -513,7 +499,7 @@ studio</pre>
         photo_b_p: "2D trace or jigsaw etch only. Not for walls, roofs, or shafts.",
         mat_kicker: "Material", mat_h2: "Change the sheet. The sizes change.",
         mat_lede: "Kerf is not invented. Pick a profile. You measure the 100 mm bar.",
-        mach_1: "Payas workshop", mach_2: "LaserCAD 900", mach_3: "Desktop", mach_4: "Nesting", mach_4b: "slide only",
+        mach_1: "Payas workshop", mach_2: "Mid bed", mach_3: "Desktop", mach_4: "Nesting", mach_4b: "slide only",
         gate_kicker: "Check", gate_h2: "Software does not fake a physical PASS.",
         g1: "Digital geometry", g2: "Connections",
         gate_soft: "Software check",
@@ -535,9 +521,9 @@ studio</pre>
         dev_lede: "Individuals use Google. Organizations mint an API key. The URL alone does not open MCP.",
         dev_steps: "ChatGPT and Claude steps", dev_google: "Sign in with Google",
         who_kicker: "Who", who_h2: "Three people. One MCP.",
-        u1h: "Workshop", u1p: "A prototype without drawing every panel.",
+        u1h: "Maker", u1p: "Tell the assistant. Prototype without drawing every panel.",
         u2h: "STEM", u2p: "Kits and models in class. Cut the same day.",
-        u3h: "Developers", u3p: "Attach laser CAD to an assistant.",
+        u3h: "Developers", u3p: "Connect LaserMCP to ChatGPT or Claude.",
         beta_h2: "Beta is open. No fee.",
         beta_lede: "Everyone can cut now. Quotas come later. No prices on this page.",
         inc: "yes", beta_val: "Checks", email: "Email", use: "What will you cut?", beta_cta: "Join the list",
@@ -666,6 +652,7 @@ studio</pre>
 
     applyLang();
   </script>
-  <script src="/nav-auth.js"></script>
+  <script src="/nav-auth.js?v=4"></script>
+<script src="/ui.js"></script>
 </body>
 </html>

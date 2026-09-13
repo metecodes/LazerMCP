@@ -52,6 +52,8 @@ BRAND_FILES = {
     "/og.png": ("og.png", "image/png"),
     "/site.webmanifest": ("site.webmanifest", "application/manifest+json"),
     "/nav-auth.js": ("nav-auth.js", "text/javascript; charset=utf-8"),
+    "/styles.css": ("styles.css", "text/css; charset=utf-8"),
+    "/ui.js": ("ui.js", "text/javascript; charset=utf-8"),
 }
 PUBLIC_PATHS = {
     "/",
@@ -71,6 +73,9 @@ PUBLIC_PATHS = {
     "/api/auth/session",
     "/api/auth/logout",
     "/api/account",
+    "/api/account/key-request",
+    "/api/catalog",
+    "/styles.css",
     *BRAND_FILES,
 }
 PUBLIC_PREFIXES = ("/demo/", "/oauth/", "/.well-known/", "/auth/", "/files/", "/out/")
@@ -213,7 +218,7 @@ def _missing_output(request: Request, *, signed_in: bool = False) -> Response:
     extra = (
         '<a class="btn ghost" href="/">Ana sayfa</a>'
         if signed_in
-        else '<a class="btn" href="/account?next=/app">Google ile gir</a>'
+        else '<a class="btn" href="/account?next=/dashboard">Google ile gir</a>'
     )
     html_page = f"""<!doctype html><html lang="tr"><head><meta charset="utf-8">
 <title>{title} — LaserMCP</title>
@@ -229,7 +234,7 @@ body{{margin:0;font:16px/1.5 'Segoe UI',sans-serif;background:#fafafa;color:#111
 <p style="letter-spacing:.14em;text-transform:uppercase;color:#e10600;font:11px monospace">LaserMCP</p>
 <h1>{title}</h1>
 <p class="lede">{body_tr}</p>
-<p>{extra}<a class="btn ghost" href="/app">Atölye</a></p>
+<p>{extra}<a class="btn ghost" href="/dashboard">Stüdyo</a></p>
 </div></body></html>"""
     return Response(content=html_page, status_code=404, media_type="text/html; charset=utf-8")
 
@@ -682,7 +687,11 @@ async def landing(request: Request) -> Response:
 
 @mcp.custom_route("/connect", methods=["GET"])
 async def connect_page(request: Request) -> Response:
-    return FileResponse(WEB_DIR / "connect.html", media_type="text/html; charset=utf-8")
+    return FileResponse(
+        WEB_DIR / "connect.html",
+        media_type="text/html; charset=utf-8",
+        headers={"Cache-Control": "private, no-store"},
+    )
 
 
 @mcp.custom_route("/account", methods=["GET"])
@@ -713,7 +722,7 @@ async def auth_google(request: Request) -> Response:
 @mcp.custom_route("/app", methods=["GET"])
 @mcp.custom_route("/workshop", methods=["GET"])
 async def ui(request: Request) -> Response:
-    return FileResponse(WEB_DIR / "index.html", media_type="text/html; charset=utf-8")
+    return _redirect("/dashboard")
 
 
 @mcp.custom_route("/dashboard", methods=["GET"])
@@ -729,6 +738,8 @@ async def dashboard(request: Request) -> Response:
 @mcp.custom_route("/og.png", methods=["GET"])
 @mcp.custom_route("/site.webmanifest", methods=["GET"])
 @mcp.custom_route("/nav-auth.js", methods=["GET"])
+@mcp.custom_route("/styles.css", methods=["GET"])
+@mcp.custom_route("/ui.js", methods=["GET"])
 async def brand_asset(request: Request) -> Response:
     spec = BRAND_FILES.get(request.url.path)
     if not spec:
@@ -737,7 +748,8 @@ async def brand_asset(request: Request) -> Response:
     path = WEB_DIR / name
     if not path.is_file():
         return Response(status_code=404)
-    return FileResponse(path, media_type=media)
+    headers = {"Cache-Control": "no-store"} if name == "nav-auth.js" else {}
+    return FileResponse(path, media_type=media, headers=headers)
 
 
 @mcp.custom_route("/api/demo", methods=["GET"])
@@ -769,7 +781,7 @@ async def api_status(request: Request) -> Response:
             "name": "LaserMCP",
             "status": health["status"],
             "mcp": "/mcp",
-            "ui": "/app",
+            "ui": "/dashboard",
             "landing": "/",
             "auth_required": _auth_on(),
             "dashboard": "/dashboard",
@@ -966,13 +978,16 @@ async def api_account(request: Request) -> Response:
         return JSONResponse({"success": True, "look_again": ["Sign in with Google."]}, status_code=401)
     stored = user_by_id(str(key.get("id") or "")) or {}
     uid = str(key.get("id") or "")
+    from access_requests import open_request_for
+
+    email = str(key.get("email") or stored.get("email") or "")
     return JSONResponse(
         {
             "success": True,
             "user": {
                 "id": key.get("id"),
                 "name": key.get("name") or stored.get("name"),
-                "email": key.get("email") or stored.get("email"),
+                "email": email,
                 "kind": stored.get("kind") or key.get("kind") or "individual",
                 "account_model": stored.get("account_model") or key.get("account_model") or "user",
             },
@@ -980,7 +995,35 @@ async def api_account(request: Request) -> Response:
             "admin": is_admin(stored) or is_admin(key),
             "keys": list_keys(owner=uid),
             "usage": _account_usage(uid),
+            "key_request": open_request_for(email),
         }
+    )
+
+
+@mcp.custom_route("/api/account/key-request", methods=["POST"])
+async def api_account_key_request(request: Request) -> Response:
+    from access_requests import submit_key_request
+    from keys import current_auth
+    from persist.rate_limit import check
+    from supabase_auth import session_user, user_by_id
+
+    key = current_auth.get() or session_user(request.cookies.get("lmcp_sid"))
+    if not key:
+        return JSONResponse({"success": True, "look_again": ["Google ile gir, sonra talep aç."]}, status_code=401)
+    stored = user_by_id(str(key.get("id") or "")) or key
+    ident = str(stored.get("email") or stored.get("id") or "user")
+    if not check("key-request", ident, limit=8, window_sec=3600):
+        return JSONResponse({"success": True, "look_again": ["Rate limit. Try again later."]}, status_code=429)
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    return JSONResponse(
+        submit_key_request(
+            {**stored, **key, "email": key.get("email") or stored.get("email")},
+            note=str((body or {}).get("note") or (body or {}).get("use") or ""),
+            want=str((body or {}).get("want") or (body or {}).get("model") or "org"),
+        )
     )
 
 
@@ -1056,12 +1099,16 @@ async def api_admin_overview(request: Request) -> Response:
     actor, deny = _admin_actor(request)
     if deny:
         return deny
+    from access_requests import list_key_requests
+
     stats = user_stats(active_days=30)
+    pending = list_key_requests(status="open")
     return JSONResponse(
         {
             "success": True,
             "admin": actor.get("email"),
             "session_ready": session_ready(),
+            "requests": pending,
             **stats,
         }
     )
@@ -1131,6 +1178,33 @@ async def api_admin_set_model(request: Request) -> Response:
             }
         )
     return JSONResponse({"success": True, "user": user})
+
+
+@mcp.custom_route("/api/admin/requests", methods=["POST"])
+async def api_admin_requests(request: Request) -> Response:
+    from access_requests import decide_key_request
+    from persist.rate_limit import check
+
+    actor, deny = _admin_actor(request)
+    if deny:
+        return deny
+    ident = str(actor.get("email") or actor.get("id") or "admin")
+    if not check("admin-request", ident, limit=40, window_sec=3600):
+        return JSONResponse({"success": True, "look_again": ["Rate limit. Try again later."]}, status_code=429)
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    decision = str((body or {}).get("decision") or "").strip().lower()
+    hit = decide_key_request(
+        str((body or {}).get("id") or (body or {}).get("email") or ""),
+        approve=decision in {"approve", "ok", "yes"},
+        by=str(actor.get("email") or ""),
+        model=str((body or {}).get("model") or "") or None,
+    )
+    if not hit:
+        return JSONResponse({"success": True, "look_again": ["Talep bulunamadı."]})
+    return JSONResponse({"success": True, **hit})
 
 
 @mcp.custom_route("/health", methods=["GET"])
@@ -1220,6 +1294,16 @@ async def api_beta(request: Request) -> Response:
         },
     )
     return JSONResponse({"success": True, "joined": True, "note": "You're on the LaserMCP beta list."})
+
+
+@mcp.custom_route("/api/catalog", methods=["GET"])
+async def api_catalog(request: Request) -> Response:
+    from catalog import public_catalog
+    from profiles import MATERIALS
+
+    payload = public_catalog()
+    payload["materials"] = list(MATERIALS.values())
+    return JSONResponse(payload)
 
 
 @mcp.custom_route("/api/studio", methods=["GET"])

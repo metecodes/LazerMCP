@@ -10,19 +10,20 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
   <style>
-    :root { --bg:#fafafa; --paper:#fff; --ink:#111; --mute:#5a5a5a; --line:#e4e4e4; --cut:#e10600; --pass:#0b7a4b; --mono:"IBM Plex Mono",monospace; --sans:"IBM Plex Sans","Segoe UI",sans-serif; }
-    * { box-sizing: border-box; }
-    body { margin: 0; color: var(--ink); font: 16px/1.55 var(--sans); background: var(--bg); }
-    a { color: inherit; }
+    
+    
+    
+    
     .wrap { width: min(720px, calc(100% - 40px)); margin: 0 auto; }
-    nav { display: flex; justify-content: space-between; align-items: center; padding: 16px 0; border-bottom: 1px solid var(--line); }
-    .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; text-decoration: none; }
-    .mark { width: 18px; height: 18px; border: 1.5px solid var(--ink); position: relative; }
-    .mark::after { content: ""; position: absolute; left: 3px; right: 3px; top: 8px; height: 1.5px; background: var(--cut); }
-    .btn { display: inline-flex; align-items: center; justify-content: center; padding: 11px 16px; font-size: 13px; font-weight: 600; border: 1px solid var(--ink); background: var(--ink); color: #fff; cursor: pointer; text-decoration: none; }
-    .btn.ghost { background: transparent; color: var(--ink); }
-    .btn.cut { background: var(--cut); border-color: var(--cut); }
+    
+    
+    
+    
+    
+    
+    
     .kicker { font: 11px/1 var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--cut); }
     h1 { font-size: 36px; letter-spacing: -0.03em; margin: 28px 0 10px; }
     .lede { color: var(--mute); }
@@ -32,7 +33,7 @@
     input { width: 100%; border: 1px solid var(--line); padding: 10px 12px; font: 14px var(--sans); margin: 10px 0; }
     .warn { color: var(--cut); font: 13px var(--mono); }
     .ok { color: var(--pass); font: 13px var(--mono); }
-    .hide { display: none; }
+    
     .actions { display: flex; gap: 8px; flex-wrap: wrap; }
   </style>
 </head>
@@ -60,6 +61,12 @@
       <div class="row"><span>Kurumsal</span><b id="orgs">—</b></div>
     </div>
 
+    <div class="card hide" id="requests-box">
+      <p class="kicker">Anahtar talepleri</p>
+      <p class="lede">Kullanıcı hesap içinden talep açar. Onaylarsan kurumsal veya bayi olur.</p>
+      <div id="requests"></div>
+    </div>
+
     <div class="card hide" id="search-box">
       <p class="kicker">Hesap modeli</p>
       <p class="lede">E-posta ile ara. Bireysel, bayi veya kurumsal olarak güncelle. Kullanıcı önce Google ile girmiş olmalı.</p>
@@ -82,6 +89,45 @@
       const el = document.getElementById("note");
       el.textContent = text || "";
       el.className = ok ? "ok" : "lede";
+    }
+
+    function renderRequests(rows) {
+      const box = document.getElementById("requests");
+      if (!rows || !rows.length) {
+        box.innerHTML = "<p class='lede'>Açık talep yok.</p>";
+        return;
+      }
+      box.innerHTML = rows.map(function (r) {
+        const email = r.email || "";
+        const want = r.want === "dealer" ? "bayi" : "kurumsal";
+        return "<div class='row'><span>" + email + "<br>" + want + (r.note ? " · " + r.note : "") +
+          "</span><div class='actions'>" +
+          "<button class='btn cut' type='button' data-id='" + (r.id || email) + "' data-decision='approve' data-model='org'>Kurumsal</button>" +
+          "<button class='btn ghost' type='button' data-id='" + (r.id || email) + "' data-decision='approve' data-model='dealer'>Bayi</button>" +
+          "<button class='btn ghost' type='button' data-id='" + (r.id || email) + "' data-decision='deny'>Reddet</button>" +
+          "</div></div>";
+      }).join("");
+      box.querySelectorAll("button[data-id]").forEach(function (btn) {
+        btn.onclick = function () {
+          decideRequest(btn.getAttribute("data-id"), btn.getAttribute("data-decision"), btn.getAttribute("data-model"));
+        };
+      });
+    }
+
+    async function decideRequest(id, decision, model) {
+      const { status, data } = await api("/api/admin/requests", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id: id, decision: decision, model: model || "" })
+      });
+      if (status === 401) { location.replace("/account?next=/admin"); return; }
+      if (status === 404) { document.getElementById("denied").classList.remove("hide"); return; }
+      if (data.request) {
+        showNote((data.user && data.user.email ? data.user.email + " → " + modelLabel(data.user) : "Talep işlendi."), true);
+        loadOverview();
+        return;
+      }
+      showNote((data.look_again || []).join(" ") || "Talep bulunamadı.");
     }
 
     function modelLabel(u) {
@@ -140,6 +186,8 @@
       }
       document.getElementById("panel").classList.remove("hide");
       document.getElementById("search-box").classList.remove("hide");
+      document.getElementById("requests-box").classList.remove("hide");
+      renderRequests(data.requests || []);
       document.getElementById("who").textContent = data.admin || "";
       document.getElementById("active").textContent = String(data.active_users ?? "—");
       document.getElementById("window").textContent = "Son " + (data.active_window_days || 30) + " günde görülen kullanıcı";
@@ -163,5 +211,6 @@
 
     loadOverview();
   </script>
+<script src="/ui.js"></script>
 </body>
 </html>

@@ -21,25 +21,28 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
   <style>
-    :root { --bg:#fafafa; --paper:#fff; --ink:#111; --mute:#5a5a5a; --line:#e4e4e4; --cut:#e10600; --mono:"IBM Plex Mono",monospace; --sans:"IBM Plex Sans","Segoe UI",sans-serif; }
-    * { box-sizing: border-box; }
-    html { scroll-behavior: smooth; }
-    body { margin: 0; color: var(--ink); font: 16px/1.55 var(--sans); background: var(--bg); }
-    a { color: inherit; }
+    
+    
+    
+    
+    
     .wrap { width: min(1080px, calc(100% - 40px)); margin: 0 auto; }
-    nav { position: sticky; top: 0; z-index: 20; display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 16px 0; border-bottom: 1px solid var(--line); background: var(--bg); }
-    .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: -0.03em; text-decoration: none; }
-    .mark { width: 18px; height: 18px; border: 1.5px solid var(--ink); position: relative; }
-    .mark::after { content: ""; position: absolute; left: 3px; right: 3px; top: 8px; height: 1.5px; background: var(--cut); }
-    nav .links { display: flex; align-items: center; gap: 20px; font-size: 13px; color: var(--mute); }
-    nav .links a { text-decoration: none; }
+    
+    
+    
+    
+    
+    nav .links 
     .lang { display: flex; border: 1px solid var(--ink); }
     .lang button { border: 0; background: transparent; font: 11px var(--mono); padding: 6px 9px; cursor: pointer; }
     .lang button.on { background: var(--ink); color: #fff; }
-    .btn { display: inline-flex; align-items: center; justify-content: center; padding: 11px 16px; text-decoration: none; font-size: 13px; font-weight: 600; border: 1px solid var(--ink); background: var(--ink); color: #fff; cursor: pointer; }
-    .btn.ghost { background: transparent; color: var(--ink); }
-    .btn.cut { background: var(--cut); border-color: var(--cut); }
+    
+    
+    
+    
+    
     .kicker { font: 11px/1 var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--cut); margin: 0 0 12px; }
     h1, h2, h3 { letter-spacing: -0.03em; margin: 0; }
     h1 { font-size: clamp(32px, 5vw, 52px); line-height: 1.05; }
@@ -58,16 +61,22 @@
     .guide { display: none; padding: 36px 0 72px; }
     .guide.on { display: block; }
     footer { border-top: 1px solid var(--line); padding: 22px 0 40px; color: var(--mute); font: 12px var(--mono); }
-    .hide { display: none !important; }
+    
+    .signed-only { display: none !important; }
+    body.signed-in .guest-only { display: none !important; }
+    body.signed-in .signed-only { display: block !important; }
+    body.signed-in .signed-only.btn,
+    body.signed-in a.signed-only { display: inline-flex !important; }
+    body.signed-in h1.signed-only, body.signed-in h3.signed-only { display: block !important; }
+    .stat { font: 48px/1 var(--sans); letter-spacing: -0.04em; margin: 8px 0 4px; }
+    .unit { color: var(--mute); font: 13px var(--mono); margin: 0 0 16px; }
+    .kv { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); font: 13px var(--mono); }
     .profile {
       display: flex; align-items: center; gap: 8px;
       text-decoration: none; font: 13px var(--sans); color: var(--ink);
       border: 0; padding: 0; background: transparent;
     }
-    .profile .ava {
-      width: 22px; height: 22px; border: 1.5px solid var(--ink);
-      display: grid; place-items: center; font: 9px/1 var(--mono); flex: none;
-    }
+    .profile .av
     .profile .who { max-width: 22ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
     .profile .use { color: var(--mute); font: 11px var(--mono); }
     .profile .use:empty { display: none; }
@@ -89,14 +98,16 @@
           <button type="button" id="lang-tr" class="on">TR</button>
           <button type="button" id="lang-en">EN</button>
         </div>
-        <a class="btn" href="/account" id="nav-google" data-i="nav_google">Google ile gir</a>
+        <a class="btn-google guest-only" href="/account" id="nav-google"><svg viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg><span data-i="nav_google">Google ile gir</span></a>
       </div>
     </nav>
 
     <header class="hero">
       <p class="kicker" data-i="kicker">BAĞLA</p>
-      <h1 data-i="h1">Link yetmez. Giriş gerekir.</h1>
-      <p class="lede" style="margin-top:14px" data-i="lede">Bireysel hesap Google ile girer. Kurumsal atölye API anahtarı üretir. Adres yalnız başına MCP açmaz.</p>
+      <h1 class="guest-only" data-i="h1">Link yetmez. Giriş gerekir.</h1>
+      <h1 class="signed-only" data-i="h1_in">Hesabın açık</h1>
+      <p class="lede guest-only" style="margin-top:14px" data-i="lede">Bireysel hesap Google ile girer. Kurumsal atölye API anahtarı üretir. Adres yalnız başına MCP açmaz.</p>
+      <p class="lede signed-only" style="margin-top:14px" data-i="lede_in">MCP adresini asistanına yapıştır. Kullanımın aşağıda.</p>
       <div class="pipe" aria-label="Hat">
         <div><span>01</span><b data-i="p1">AI</b></div>
         <div><span>02</span><b data-i="p2">Parametrik</b></div>
@@ -111,17 +122,32 @@
     </header>
 
     <div class="two">
-      <article class="card">
+      <article class="card guest-only">
         <p class="kicker" data-i="ind_k">BİREYSEL</p>
         <h3 data-i="ind_h">Google zorunlu</h3>
         <p class="note" data-i="ind_p">ChatGPT veya Claude bağlarken Google penceresi açılır. Önce bu sitede de Google ile gir.</p>
-        <p style="margin-top:16px"><a class="btn cut" href="/account" data-i="ind_cta">Google ile gir</a></p>
+        <p style="margin-top:16px"><a class="btn-google" href="/account"><svg viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg><span data-i="ind_cta">Google ile gir</span></a></p>
       </article>
-      <article class="card">
+      <article class="card guest-only">
         <p class="kicker" data-i="org_k">KURUMSAL</p>
         <h3 data-i="org_h">API anahtarı</h3>
-        <p class="note" data-i="org_p">Google ile gir, hesabı kurumsal yap, anahtar üret. Cursor ve otomasyon Bearer token kullanır. Çıplak URL kullanma.</p>
-        <p style="margin-top:16px"><a class="btn ghost" href="/account" data-i="org_cta">Anahtar üret</a></p>
+        <p class="note" data-i="org_p">Google ile gir, sonra hesap içinden anahtar talep et. Cursor ve otomasyon Bearer kullanır.</p>
+        <p style="margin-top:16px"><a class="btn ghost" href="/account" data-i="org_cta">Anahtar talep et</a></p>
+      </article>
+      <article class="card signed-only">
+        <p class="kicker" data-i="use_k">KULLANIM</p>
+        <h3 data-i="use_h">Bu ay</h3>
+        <p class="stat" id="use-month">0</p>
+        <p class="unit" data-i="use_unit">iş</p>
+        <div class="kv"><span data-i="use_total">Toplam</span><b id="use-total">0</b></div>
+        <div class="kv"><span data-i="use_kind">Hesap</span><b id="use-kind">—</b></div>
+        <p style="margin-top:16px"><a class="btn ghost" href="/dashboard" data-i="use_studio">Stüdyo</a></p>
+      </article>
+      <article class="card signed-only">
+        <p class="kicker" data-i="acc_k">HESAP</p>
+        <h3 id="acc-title" data-i="acc_h">Anahtar</h3>
+        <p class="note" id="acc-note" data-i="org_in">Anahtar istersen hesap içinden talep aç. Admin onaylayınca üretirsin.</p>
+        <p style="margin-top:16px"><a class="btn ghost" href="/account" id="acc-cta" data-i="org_cta">Anahtar talep et</a></p>
       </article>
     </div>
 
@@ -212,15 +238,23 @@
       tr: {
         nav_home: "Ana sayfa", nav_account: "Giriş", nav_google: "Google ile gir",
         kicker: "BAĞLA", h1: "Link yetmez. Giriş gerekir.",
+        h1_in: "Hesabın açık",
         lede: "Bireysel hesap Google ile girer. Kurumsal atölye API anahtarı üretir. Adres yalnız başına MCP açmaz.",
+        lede_in: "MCP adresini asistanına yapıştır. Kullanımın aşağıda.",
+        use_k: "KULLANIM", use_h: "Bu ay", use_unit: "iş", use_total: "Toplam", use_kind: "Hesap", use_studio: "Stüdyo",
+        acc_k: "HESAP", acc_h: "Anahtar", acc_yes: "Bu hesap anahtar üretebilir.",
+        acc_mint: "Anahtar üret", acc_open: "Talebin açık. Admin bakınca üretirsin.",
+        kind_user: "bireysel", kind_dealer: "bayi", kind_org: "kurumsal",
         p1: "AI", p2: "Parametrik", p3: "Mekanik", p4: "Üretim", p5: "Kesim SVG",
         copy: "Kopyala",
         ind_k: "BİREYSEL", ind_h: "Google zorunlu",
         ind_p: "ChatGPT veya Claude bağlarken Google penceresi açılır. Önce bu sitede de Google ile gir.",
+        ind_in: "Hesabın açık. ChatGPT veya Claude bağlarken aynı Google’ı kullan.",
         ind_cta: "Google ile gir",
         org_k: "KURUMSAL", org_h: "API anahtarı",
-        org_p: "Google ile gir. İzinli kurumsal e-posta anahtar üretir. Cursor ve otomasyon Bearer kullanır. Çıplak URL kullanma.",
-        org_cta: "Anahtar üret",
+        org_p: "Google ile gir, sonra hesap içinden anahtar talep et. Cursor ve otomasyon Bearer kullanır.",
+        org_in: "Anahtar istersen hesap içinden talep aç. Admin onaylayınca üretirsin.",
+        org_cta: "Anahtar talep et",
         cg_h: "ChatGPT", cg_n: "Plus, Pro, Business, Enterprise veya Education. Web. OpenAI Developer mode belgesi, 2026.",
         cg_i_h: "Bireysel — Google",
         cg1: "chatgpt.com aç.",
@@ -255,15 +289,23 @@
       en: {
         nav_home: "Home", nav_account: "Sign in", nav_google: "Sign in with Google",
         kicker: "CONNECT", h1: "A link is not enough. Sign in.",
+        h1_in: "You are signed in",
         lede: "Individuals must use Google. Organizations mint an API key. The URL alone does not open MCP.",
+        lede_in: "Paste the MCP URL into your assistant. Your usage is below.",
+        use_k: "USAGE", use_h: "This month", use_unit: "jobs", use_total: "Total", use_kind: "Account", use_studio: "Studio",
+        acc_k: "ACCOUNT", acc_h: "API key", acc_yes: "This account can mint API keys.",
+        acc_mint: "Mint a key", acc_open: "Request is open. Admin will review it.",
+        kind_user: "individual", kind_dealer: "dealer", kind_org: "organization",
         p1: "AI", p2: "Parametric", p3: "Mechanical", p4: "Production", p5: "Cut SVG",
         copy: "Copy",
         ind_k: "INDIVIDUAL", ind_h: "Google required",
         ind_p: "ChatGPT or Claude will open a Google window. Sign in here first.",
+        ind_in: "You are signed in. Use the same Google when connecting ChatGPT or Claude.",
         ind_cta: "Sign in with Google",
         org_k: "ORGANIZATION", org_h: "API key",
-        org_p: "Sign in with Google. An allowlisted organization email can mint a key. Cursor and automation use a Bearer token. Do not use a bare URL.",
-        org_cta: "Mint a key",
+        org_p: "Sign in, then request a key from your account. Cursor and automation use a Bearer token.",
+        org_in: "Need a key? Open a request in your account. Admin approves, then you mint it.",
+        org_cta: "Request a key",
         cg_h: "ChatGPT", cg_n: "Plus, Pro, Business, Enterprise, or Education. Web. OpenAI Developer mode docs, 2026.",
         cg_i_h: "Individual — Google",
         cg1: "Open chatgpt.com.",
@@ -297,6 +339,26 @@
       }
     };
     let lang = localStorage.getItem("lmcp_lang") || "tr";
+    let me = null;
+    function paintAccount() {
+      if (!me || !me.user) return;
+      const pack = I[lang] || I.tr;
+      const usage = me.usage || {};
+      document.getElementById("use-month").textContent = String(usage.month || 0);
+      document.getElementById("use-total").textContent = String(usage.total || 0);
+      const model = (me.user.account_model || me.user.kind || "user");
+      const kinds = { user: pack.kind_user, individual: pack.kind_user, dealer: pack.kind_dealer, org: pack.kind_org };
+      document.getElementById("use-kind").textContent = kinds[model] || pack.kind_user;
+      const note = document.getElementById("acc-note");
+      const cta = document.getElementById("acc-cta");
+      if (me.can_mint_keys) {
+        note.textContent = pack.acc_yes;
+        cta.textContent = pack.acc_mint;
+      } else if (me.key_request && me.key_request.status === "open") {
+        note.textContent = pack.acc_open;
+        cta.textContent = pack.org_cta;
+      }
+    }
     function apply() {
       document.documentElement.lang = lang;
       document.querySelectorAll("[data-i]").forEach((el) => {
@@ -305,6 +367,7 @@
       });
       document.getElementById("lang-tr").classList.toggle("on", lang === "tr");
       document.getElementById("lang-en").classList.toggle("on", lang === "en");
+      paintAccount();
     }
     document.getElementById("lang-tr").onclick = () => { lang = "tr"; localStorage.setItem("lmcp_lang", lang); apply(); };
     document.getElementById("lang-en").onclick = () => { lang = "en"; localStorage.setItem("lmcp_lang", lang); apply(); };
@@ -328,6 +391,15 @@
     }
     apply();
   </script>
-  <script src="/nav-auth.js"></script>
+  <script>
+    fetch("/api/account", { credentials: "same-origin" }).then(function (r) { return r.json(); }).then(function (d) {
+      if (!d || !d.user) return;
+      me = d;
+      document.body.classList.add("signed-in");
+      paintAccount();
+    }).catch(function () {});
+  </script>
+  <script src="/nav-auth.js?v=4"></script>
+<script src="/ui.js"></script>
 </body>
 </html>
