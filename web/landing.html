@@ -94,13 +94,30 @@
     .human-list { margin: 0 0 16px; font: 15px/1.45 var(--sans); color: var(--mute); }
     .bet
     input { width: 100%; border: 1px solid var(--line); padding: 10px 12px; font: 14px var(--sans); }
-    .picks { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin: 28px 0 18px; }
-    .pick { text-align: left; cursor: pointer; background: var(--paper); border: 1px solid var(--line); padding: 0; }
-    .pick.on { border-color: var(--cut); box-shadow: 0 0 0 2px var(--cut); }
-    .pick img, .pick object { display: block; width: 100%; height: 168px; object-fit: contain; background: var(--surface); }
-    .pick .met
-    .pick strong { display: block; }
-    .pick small { color: var(--mute); font-size: 13px; }
+    .picks { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin: 28px 0 20px; }
+    .pick {
+      display: grid; grid-template-rows: 188px minmax(112px, auto); min-width: 0; overflow: hidden;
+      text-align: left; cursor: pointer; background: var(--paper); border: 1px solid var(--line); padding: 0;
+      transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+    }
+    .pick:hover { border-color: var(--ink); transform: translateY(-2px); box-shadow: 0 10px 24px rgba(0,0,0,.08); }
+    .pick:focus-visible { outline: 3px solid var(--cut); outline-offset: 3px; }
+    .pick.on { border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink); }
+    .pick-media {
+      position: relative; display: flex; align-items: center; justify-content: center; overflow: hidden;
+      padding: 16px; background: linear-gradient(145deg, var(--surface-alt), var(--surface)); border-bottom: 1px solid var(--line);
+    }
+    .pick-media::after { content: ""; position: absolute; inset: 12px; border: 1px solid rgba(17,17,17,.08); pointer-events: none; }
+    .pick-media img { display: block; width: 100%; height: 100%; object-fit: contain; position: relative; z-index: 1; }
+    .pick-meta { display: grid; grid-template-columns: auto 1fr; gap: 11px; align-items: start; padding: 15px 16px 17px; }
+    .pick-number {
+      display: grid; place-items: center; width: 26px; height: 26px; border: 1px solid var(--line);
+      color: var(--mute); font: 11px var(--mono); line-height: 1;
+    }
+    .pick.on .pick-number { background: var(--ink); border-color: var(--ink); color: var(--bg); }
+    .pick-copy { min-width: 0; }
+    .pick strong { display: block; margin: 2px 0 5px; font-size: 15px; line-height: 1.2; }
+    .pick small { display: block; color: var(--mute); font-size: 13px; line-height: 1.42; }
     .stage { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; min-height: 340px; }
     .pane { background: #111; color: #fff; border: 1px solid #111; position: relative; overflow: hidden; }
     .pane.light { background: var(--surface-alt); color: var(--ink); border-color: var(--line); }
@@ -617,7 +634,8 @@ studio</pre>
         const el = document.createElement("button");
         el.type = "button";
         el.className = "pick" + (i === wowI ? " on" : "");
-        el.innerHTML = "<img alt=\"\" src=\"" + k.src + "\"><div class=\"meta\"><strong>" + I[lang][k.t] + "</strong><small>" + I[lang][k.b] + "</small></div>";
+        el.setAttribute("aria-pressed", String(i === wowI));
+        el.innerHTML = "<div class=\"pick-media\"><img alt=\"\" src=\"" + k.src + "\"></div><div class=\"pick-meta\"><span class=\"pick-number\">0" + (i + 1) + "</span><div class=\"pick-copy\"><strong>" + I[lang][k.t] + "</strong><small>" + I[lang][k.b] + "</small></div></div>";
         el.onclick = () => {
           wowI = i;
           document.getElementById("wow-svg").removeAttribute("data");
