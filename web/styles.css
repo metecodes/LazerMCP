@@ -93,6 +93,11 @@ a {
   color: inherit;
 }
 
+button {
+  color: inherit;
+  font-family: inherit;
+}
+
 input, select, textarea {
   font: 14px var(--sans);
   color: var(--ink);
