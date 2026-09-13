@@ -40,7 +40,7 @@
     nav .links 
     .lang { display: flex; border: 1px solid var(--ink); }
     .lang button { border: 0; background: transparent; font: 11px var(--mono); padding: 6px 9px; cursor: pointer; }
-    .lang button.on { background: var(--ink); color: #fff; }
+    .lang button.on { background: var(--ink); color: var(--bg); }
     
     
     
@@ -75,7 +75,7 @@
     .kv div { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); }
     .toggle { display: flex; border: 1px solid var(--ink); margin-bottom: 14px; }
     .toggle button { flex: 1; border: 0; background: transparent; padding: 9px; font: 12px var(--mono); cursor: pointer; }
-    .toggle button.on { background: var(--ink); color: #fff; }
+    .toggle button.on { background: var(--ink); color: var(--bg); }
     .review { max-width: 560px; background: var(--paper); border: 1px solid var(--line); padding: 20px; margin-top: 24px; }
     .row { display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--line); padding: 7px 0; font: 12.5px var(--mono); }
     .pass { color: var(--pass); }
@@ -84,7 +84,7 @@
     .review-lab.human { margin: 20px 0 8px; color: var(--cut); }
     .pass-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     .pass-card {
-      background: #eef7f2; border: 2px solid var(--pass); padding: 16px 14px;
+      background: var(--surface-ok); border: 2px solid var(--pass); padding: 16px 14px;
       display: flex; flex-direction: column; gap: 8px;
     }
     .pass-card .pass-mark {
@@ -97,13 +97,13 @@
     .picks { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin: 28px 0 18px; }
     .pick { text-align: left; cursor: pointer; background: var(--paper); border: 1px solid var(--line); padding: 0; }
     .pick.on { border-color: var(--cut); box-shadow: 0 0 0 2px var(--cut); }
-    .pick img, .pick object { display: block; width: 100%; height: 168px; object-fit: contain; background: #f3eee6; }
+    .pick img, .pick object { display: block; width: 100%; height: 168px; object-fit: contain; background: var(--surface); }
     .pick .met
     .pick strong { display: block; }
     .pick small { color: var(--mute); font-size: 13px; }
     .stage { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; min-height: 340px; }
     .pane { background: #111; color: #fff; border: 1px solid #111; position: relative; overflow: hidden; }
-    .pane.light { background: #f4efe6; color: var(--ink); border-color: var(--line); }
+    .pane.light { background: var(--surface-alt); color: var(--ink); border-color: var(--line); }
     .pane .lab { position: absolute; top: 10px; left: 12px; font: 11px var(--mono); letter-spacing: 0.12em; z-index: 2; }
     .pane img, .pane object { width: 100%; height: 340px; object-fit: contain; display: block; }
     .pane object { background: #111; }

@@ -61,7 +61,7 @@
     .chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
     .chip {
       border: 1px solid var(--line); padding: 6px 11px; color: var(--muted); font-size: 12px;
-      border-radius: 999px; background: #fff; box-shadow: 0 1px 0 rgba(255,255,255,0.8);
+      border-radius: 999px; background: var(--paper); box-shadow: 0 1px 0 rgba(255,255,255,0.8);
     }
     .chip strong { color: var(--ink); font-weight: 700; }
     main {
@@ -89,17 +89,17 @@
     }
     input:focus, select:focus, textarea:focus {
       outline: none; border-color: var(--laser-soft);
-      box-shadow: 0 0 0 4px rgba(225, 6, 0, 0.14); background: #fff;
+      box-shadow: 0 0 0 4px rgba(225, 6, 0, 0.14); background: var(--paper);
     }
     .groups { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; }
     .groups button {
       width: auto; padding: 5px 10px; font-size: 12px; cursor: pointer;
-      background: #fff; color: var(--muted);
+      background: var(--paper); color: var(--muted);
     }
     .groups button:hover { border-color: var(--laser-soft); color: var(--ink); }
     .groups button.active, button.primary {
       background: linear-gradient(180deg, var(--laser-soft), var(--laser));
-      border-color: transparent; color: #fff; font-weight: 700;
+      border-color: transparent; color: var(--bg); font-weight: 700;
       box-shadow: 0 8px 16px rgba(225, 6, 0, 0.28);
     }
     button.primary:hover { transform: translateY(-1px); }
@@ -107,7 +107,7 @@
     .list { height: calc(100vh - 400px); overflow: auto; display: flex; flex-direction: column; gap: 6px; padding-right: 4px; }
     .cad-list { height: auto; max-height: 320px; margin-bottom: 18px; }
     .gen {
-      text-align: left; cursor: pointer; background: #fff;
+      text-align: left; cursor: pointer; background: var(--paper);
       border-radius: 14px; padding: 10px 12px;
     }
     .gen:hover { border-color: #f0c9ae; background: var(--laser-wash); }
@@ -122,7 +122,7 @@
     .actions button, .actions a { cursor: pointer; width: auto; }
     .actions .primary { flex: 1; min-width: 0; }
     button.ghost, a.ghost-link {
-      background: #fff; color: var(--ink); text-decoration: none;
+      background: var(--paper); color: var(--ink); text-decoration: none;
       display: flex; align-items: center; justify-content: center; text-align: center;
       border-radius: 12px; min-width: 7.5rem; padding: 10px 18px;
       font-weight: 700;
@@ -151,7 +151,7 @@
       border-radius: 16px;
       display: flex; align-items: center; justify-content: center; overflow: auto;
     }
-    .preview-frame img, .preview-frame svg { max-width: 100%; max-height: 100%; background: #fff; border-radius: 8px; }
+    .preview-frame img, .preview-frame svg { max-width: 100%; max-height: 100%; background: var(--paper); border-radius: 8px; }
     .preview-frame svg { width: 100%; height: auto; display: block; }
     .preview-frame svg.laser-y { transform: scaleY(-1); transform-origin: center; }
     .preview-frame .status { margin: 0; }

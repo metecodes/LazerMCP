@@ -9,7 +9,7 @@ Bu sunucu bir **takım çantası**dır, ürün kataloğu değil. Gelen AI (ChatG
 | Canlı MCP | `https://mcp.metehanavci.com/mcp` |
 | Yerel MCP | `http://127.0.0.1:8000/mcp` |
 | Landing | `https://mcp.metehanavci.com` · yerel `http://127.0.0.1:8000` |
-| Atölye | `http://127.0.0.1:8000/app` |
+| Stüdyo | `http://127.0.0.1:8000/dashboard` |
 | Repo | [metecodes/LazerMCP](https://github.com/metecodes/LazerMCP) |
 
 Claude / ChatGPT connector adresi **kök `/` değil**, `/mcp` yoludur.
@@ -177,7 +177,7 @@ python -m venv .venv
 .\.venv\Scripts\python.exe server.py
 ```
 
-Tarayıcı landing: `http://127.0.0.1:8000` · atölye: `/app`  
+Tarayıcı landing: `http://127.0.0.1:8000` · stüdyo: `/dashboard`
 Cursor MCP: `http://127.0.0.1:8000/mcp`
 
 ---

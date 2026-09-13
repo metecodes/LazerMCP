@@ -16,7 +16,7 @@ Anything not proven in code is marked **NOT VERIFIED**.
 | Framework | None. Static HTML + CSS + page-local JavaScript under `web/`. |
 | Bundler / SPA | Not present. |
 | React / Next / Vue | Not present. |
-| Pages | `landing.html` (`/`), `connect.html` (`/connect`), `account.html` (`/account`, `/auth/callback`), `index.html` (`/app`, `/workshop`), `dashboard.html` (`/dashboard`). |
+| Pages | `landing.html` (`/`), `connect.html` (`/connect`), `account.html` (`/account`, `/auth/callback`), `dashboard.html` (`/dashboard`). Legacy `/app` and `/workshop` redirect to `/dashboard`. The old Boxes generator UI (`index.html`) is removed. |
 | Shared script | `web/nav-auth.js` — `GET /api/account` with `credentials: "same-origin"`. |
 | i18n | In-page TR/EN dictionaries (`localStorage.lmcp_lang`). |
 

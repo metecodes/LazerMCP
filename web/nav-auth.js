@@ -4,6 +4,7 @@
   const midGoogle = document.getElementById("mid-google");
   const connect = document.getElementById("nav-connect");
   const profile = document.getElementById("nav-profile");
+  const signinNote = document.getElementById("signin-note");
   let lang = "tr";
   try { lang = localStorage.getItem("lmcp_lang") || "tr"; } catch (_) {}
   let busy = null;
@@ -51,16 +52,24 @@
       resetSignin();
     } finally { clearTimeout(timer); }
   });
-  if (!profile) return;
   const jobs = lang === "en" ? "jobs" : "iş";
   fetch("/api/account", { credentials: "same-origin" })
     .then(function (r) { return r.json(); })
     .then(function (data) {
       if (!data || !data.user) return;
+      document.body.classList.add("signed-in");
       if (signin) signin.classList.add("hide");
       if (google) google.classList.add("hide");
       if (midGoogle) midGoogle.classList.add("hide");
       if (connect) connect.classList.add("hide");
+      if (signinNote) signinNote.classList.add("hide");
+      document.querySelectorAll(".guest-only, .btn-google, #google").forEach(function (el) {
+        el.classList.add("hide");
+      });
+      document.querySelectorAll(".signed-only").forEach(function (el) {
+        el.classList.remove("hide");
+      });
+      if (!profile) return;
       profile.classList.remove("hide");
       const email = data.user.email || "";
       const given = String(data.user.name || "").trim();

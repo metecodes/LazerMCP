@@ -86,6 +86,23 @@ class AdminGrantTests(unittest.TestCase):
         self.assertIsNone(set_account_model("yok@ornek.com", "dealer", by="admin"))
         self.assertIsNone(set_account_model("bayi@ornek.com", "vip", by="admin"))
 
+    def test_key_request_waits_for_admin(self):
+        from access_requests import decide_key_request, list_key_requests, submit_key_request
+        from supabase_auth import can_mint_keys, upsert_user
+
+        upsert_user({"id": "u4", "email": "atölye@ornek.com", "name": "A"})
+        first = submit_key_request({"id": "u4", "email": "atölye@ornek.com", "name": "A"}, note="Cursor", want="org")
+        self.assertEqual(first["request"]["status"], "open")
+        again = submit_key_request({"id": "u4", "email": "atölye@ornek.com", "name": "A"}, note="tekrar")
+        self.assertEqual(again["request"]["id"], first["request"]["id"])
+        self.assertEqual(len(list_key_requests()), 1)
+        self.assertFalse(can_mint_keys(upsert_user({"id": "u4", "email": "atölye@ornek.com", "name": "A"})))
+        decided = decide_key_request("atölye@ornek.com", approve=True, by="metehan1387@gmail.com", model="org")
+        self.assertEqual(decided["request"]["status"], "approved")
+        self.assertEqual(decided["user"]["account_model"], "org")
+        self.assertTrue(can_mint_keys(decided["user"]))
+        self.assertEqual(list_key_requests(), [])
+
     def test_search_needs_query(self):
         from supabase_auth import search_users, upsert_user
 

@@ -6,12 +6,16 @@
   --ink: #111111;
   --mute: #5a5a5a;
   --line: #e4e4e4;
-  
+
   /* Semantic Colors */
   --cut: #e10600;
   --pass: #0b7a4b;
   --warn: #8a5d00;
-  
+
+  --surface: #f3eee6;
+  --surface-alt: #f4efe6;
+  --surface-ok: #eef7f2;
+
   /* Fonts */
   --mono: "IBM Plex Mono", ui-monospace, monospace;
   --sans: "IBM Plex Sans", "Segoe UI", sans-serif;
@@ -25,10 +29,14 @@
     --ink: #ffffff;
     --mute: #a0a0a0;
     --line: #333333;
-    
+
     --cut: #ff4d4d;
     --pass: #32a852;
     --warn: #f5b041;
+
+    --surface: #222222;
+    --surface-alt: #2a2a2a;
+    --surface-ok: #153320;
   }
 }
 
@@ -41,9 +49,13 @@ body.dark-mode {
   --line: #333333;
   --cut: #ff4d4d;
   --pass: #32a852;
-  --warn: #f5b041;  color-scheme: dark;
-}
+  --warn: #f5b041;
 
+  --surface: #222222;
+  --surface-alt: #2a2a2a;
+  --surface-ok: #153320;
+  color-scheme: dark;
+}
 
 /* This must override the OS-level media query. Without it, an OS set to dark
    could keep dark tokens after the user explicitly chose the light theme. */
