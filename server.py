@@ -1410,19 +1410,28 @@ async def serve_file(request: Request) -> Response:
     return _file_payload(path.read_bytes(), path.name, _file_media(path.name), inline=inline)
 
 
-def create_asgi_app():
-    """ASGI app for local uvicorn and Vercel (`app` export)."""
+def mcp_http_kwargs() -> dict[str, Any]:
+    """Streamable HTTP settings. Vercel is stateless JSON so ChatGPT is not tied to /tmp sessions."""
+    vercel = os.environ.get("VERCEL") == "1"
     kwargs: dict[str, Any] = {
         "streamable_http_path": "/mcp",
-        "host": "0.0.0.0" if IS_VERCEL else HOST,
-        "stateless_http": IS_VERCEL,
+        "host": "0.0.0.0" if vercel else HOST,
+        "stateless_http": vercel,
+        "json_response": vercel,
         "max_request_body_size": 20 * 1024 * 1024,
+        "session_idle_timeout": None,
+        "retry_interval": 3000,
     }
-    if IS_VERCEL:
+    if vercel:
         kwargs["transport_security"] = TransportSecuritySettings(
             enable_dns_rebinding_protection=False,
         )
-    starlette_app = mcp.streamable_http_app(**kwargs)
+    return kwargs
+
+
+def create_asgi_app():
+    """ASGI app for local uvicorn and Vercel (`app` export)."""
+    starlette_app = mcp.streamable_http_app(**mcp_http_kwargs())
     return McpOriginAlias(BearerGate(starlette_app, AUTH_TOKEN))
 
 

@@ -8,7 +8,14 @@ class AuthTests(unittest.TestCase):
         self.tmp = tempfile.mkdtemp()
         self.old = os.environ.get("MCP_DATA_DIR")
         os.environ["MCP_DATA_DIR"] = self.tmp
-        for key in ("SUPABASE_URL", "SUPABASE_ANON_KEY", "LASERMCP_ORG_DOMAINS", "LASERMCP_OAUTH_REDIRECT_HOSTS"):
+        for key in (
+            "SUPABASE_URL",
+            "SUPABASE_ANON_KEY",
+            "LASERMCP_ORG_DOMAINS",
+            "LASERMCP_OAUTH_REDIRECT_HOSTS",
+            "MCP_AUTH_TOKEN",
+            "VERCEL",
+        ):
             os.environ.pop(key, None)
 
     def tearDown(self):
@@ -16,7 +23,14 @@ class AuthTests(unittest.TestCase):
             os.environ.pop("MCP_DATA_DIR", None)
         else:
             os.environ["MCP_DATA_DIR"] = self.old
-        for key in ("SUPABASE_URL", "SUPABASE_ANON_KEY", "LASERMCP_ORG_DOMAINS", "LASERMCP_OAUTH_REDIRECT_HOSTS"):
+        for key in (
+            "SUPABASE_URL",
+            "SUPABASE_ANON_KEY",
+            "LASERMCP_ORG_DOMAINS",
+            "LASERMCP_OAUTH_REDIRECT_HOSTS",
+            "MCP_AUTH_TOKEN",
+            "VERCEL",
+        ):
             os.environ.pop(key, None)
 
     def test_file_download_is_attachment(self):
@@ -68,12 +82,26 @@ class AuthTests(unittest.TestCase):
         self.assertEqual(browser.status_code, 200)
         self.assertIn("example.supabase.co", browser.body.decode())
 
+    def test_mcp_http_keeps_chatgpt_session(self):
+        from server import mcp_http_kwargs
+
+        kwargs = mcp_http_kwargs()
+        self.assertIsNone(kwargs["session_idle_timeout"])
+        self.assertEqual(kwargs["retry_interval"], 3000)
+        self.assertFalse(kwargs["stateless_http"])
+        self.assertFalse(kwargs["json_response"])
+        os.environ["VERCEL"] = "1"
+        hosted = mcp_http_kwargs()
+        self.assertTrue(hosted["stateless_http"])
+        self.assertTrue(hosted["json_response"])
+
     def test_oauth_metadata(self):
         from oauth_mcp import metadata, resource_metadata
 
         meta = metadata("https://mcp.metehanavci.com")
         self.assertEqual(meta["authorization_endpoint"], "https://mcp.metehanavci.com/oauth/authorize")
         self.assertIn("S256", meta["code_challenge_methods_supported"])
+        self.assertEqual(meta["grant_types_supported"], ["authorization_code", "refresh_token"])
         res = resource_metadata("https://mcp.metehanavci.com")
         self.assertEqual(res["resource"], "https://mcp.metehanavci.com/mcp")
 
@@ -101,9 +129,86 @@ class AuthTests(unittest.TestCase):
             }
         )
         self.assertTrue(tok["access_token"].startswith("mcp_"))
+        self.assertTrue(tok["refresh_token"].startswith("mcpr_"))
+        self.assertEqual(tok["expires_in"], 30 * 24 * 3600)
         prin = resolve_oauth_token(tok["access_token"])
         self.assertEqual(prin["email"], "a@b.com")
         self.assertEqual(prin["kind"], "individual")
+        self.assertIsNone(resolve_oauth_token(tok["refresh_token"]))
+
+    def test_oauth_refresh_rotates_tokens(self):
+        import base64
+        import hashlib
+
+        from oauth_mcp import exchange_token, issue_code, resolve_oauth_token
+
+        verifier = "b" * 43
+        challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b"=").decode()
+        code = issue_code(
+            client_id="cli_refresh",
+            redirect_uri="https://chatgpt.com/connector/oauth/callback",
+            state="s",
+            challenge=challenge,
+            user={"id": "u2", "email": "b@c.com", "name": "B", "kind": "org"},
+        )
+        first = exchange_token(
+            {
+                "grant_type": "authorization_code",
+                "code": code,
+                "code_verifier": verifier,
+                "redirect_uri": "https://chatgpt.com/connector/oauth/callback",
+            }
+        )
+        rotated = exchange_token(
+            {"grant_type": "refresh_token", "refresh_token": first["refresh_token"]}
+        )
+        self.assertNotEqual(rotated["access_token"], first["access_token"])
+        self.assertNotEqual(rotated["refresh_token"], first["refresh_token"])
+        self.assertEqual(resolve_oauth_token(rotated["access_token"])["email"], "b@c.com")
+        self.assertEqual(resolve_oauth_token(rotated["access_token"])["kind"], "org")
+        self.assertEqual(resolve_oauth_token(first["access_token"])["email"], "b@c.com")
+        again = exchange_token({"grant_type": "refresh_token", "refresh_token": first["refresh_token"]})
+        self.assertEqual(resolve_oauth_token(again["access_token"])["email"], "b@c.com")
+
+    def test_signed_oauth_survives_empty_store(self):
+        import base64
+        import hashlib
+        from pathlib import Path
+
+        from oauth_mcp import exchange_token, issue_code, resolve_oauth_token
+
+        verifier = "c" * 43
+        challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b"=").decode()
+        code = issue_code(
+            client_id="cli_stateless",
+            redirect_uri="https://chatgpt.com/connector/oauth/callback",
+            state="s",
+            challenge=challenge,
+            user={"id": "u3", "email": "d@e.com", "name": "D", "kind": "individual"},
+        )
+        for name in ("oauth_codes.json", "oauth_tokens.json", "oauth_clients.json"):
+            path = Path(self.tmp) / name
+            if path.is_file():
+                path.unlink()
+        tok = exchange_token(
+            {
+                "grant_type": "authorization_code",
+                "code": code,
+                "code_verifier": verifier,
+                "redirect_uri": "https://chatgpt.com/connector/oauth/callback",
+            }
+        )
+        self.assertEqual(resolve_oauth_token(tok["access_token"])["email"], "d@e.com")
+        self.assertTrue(tok["access_token"].startswith("mcp_"))
+        self.assertIn(".", tok["access_token"])
+
+    def test_oauth_refresh_rejects_access_token(self):
+        from oauth_mcp import exchange_token
+
+        with self.assertRaises(ValueError):
+            exchange_token({"grant_type": "refresh_token", "refresh_token": "mcp_not_a_refresh"})
+        with self.assertRaises(ValueError):
+            exchange_token({"grant_type": "client_credentials"})
 
     def test_org_key_and_auth_required(self):
         from keys import auth_required, create_key, resolve_key
