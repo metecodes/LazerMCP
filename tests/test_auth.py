@@ -49,6 +49,49 @@ class AuthTests(unittest.TestCase):
         scope = {"type": "http", "method": "GET", "path": "/files/box.svg", "query_string": b"view=1", "headers": []}
         self.assertTrue(_wants_inline_file(Request(scope)))
 
+    def test_browser_svg_wants_editor_not_raw_bytes(self):
+        from pathlib import Path
+
+        from boxes_adapter import _file_url
+        from server import _wants_svg_editor
+        from starlette.requests import Request
+
+        html = Request(
+            {
+                "type": "http",
+                "method": "GET",
+                "path": "/files/box.svg",
+                "query_string": b"",
+                "headers": [(b"accept", b"text/html,application/xhtml+xml")],
+            }
+        )
+        raw = Request(
+            {
+                "type": "http",
+                "method": "GET",
+                "path": "/files/box.svg",
+                "query_string": b"view=1",
+                "headers": [(b"accept", b"text/html")],
+            }
+        )
+        image = Request(
+            {
+                "type": "http",
+                "method": "GET",
+                "path": "/files/box.svg",
+                "query_string": b"",
+                "headers": [(b"accept", b"image/svg+xml")],
+            }
+        )
+        self.assertTrue(_wants_svg_editor(html))
+        self.assertFalse(_wants_svg_editor(raw))
+        self.assertFalse(_wants_svg_editor(image))
+        self.assertIn("/out/box.svg", _file_url("https://mcp.example", "box.svg"))
+        self.assertIn("/files/box.dxf", _file_url("https://mcp.example", "box.dxf"))
+        page = (Path(__file__).resolve().parents[1] / "web" / "editor.html").read_text(encoding="utf-8")
+        self.assertIn("id=\"canvas\"", page)
+        self.assertIn("/api/studio/revise", page)
+
     def test_missing_file_is_html_for_browsers(self):
         from server import _missing_output, _prefers_html
         from starlette.requests import Request

@@ -50,6 +50,41 @@ class AdminGrantTests(unittest.TestCase):
         self.assertEqual(stats["total_users"], 1)
         self.assertEqual(stats["active_users"], 1)
         self.assertEqual(stats["org_users"], 1)
+        self.assertEqual(stats["dealer_users"], 0)
+        self.assertEqual(stats["user_users"], 0)
+
+    def test_admin_can_set_three_models_and_upsert_keeps_dealer(self):
+        from supabase_auth import (
+            account_model_of,
+            can_mint_activation,
+            can_mint_keys,
+            set_account_model,
+            upsert_user,
+            user_stats,
+        )
+
+        upsert_user({"id": "u3", "email": "bayi@ornek.com", "name": "Bayi"})
+        dealer = set_account_model("bayi@ornek.com", "bayi", by="metehan1387@gmail.com")
+        self.assertEqual(dealer["account_model"], "dealer")
+        self.assertEqual(dealer["kind"], "dealer")
+        self.assertFalse(dealer["org_grant"])
+        self.assertFalse(can_mint_keys(dealer))
+        self.assertTrue(can_mint_activation(dealer))
+        again = upsert_user({"id": "u3", "email": "bayi@ornek.com", "name": "Bayi"})
+        self.assertEqual(account_model_of(again), "dealer")
+        self.assertEqual(again["kind"], "dealer")
+        self.assertFalse(can_mint_keys(again))
+        user = set_account_model("bayi@ornek.com", "user", by="metehan1387@gmail.com")
+        self.assertEqual(user["account_model"], "user")
+        self.assertFalse(can_mint_activation(user))
+        org = set_account_model("bayi@ornek.com", "kurumsal", by="metehan1387@gmail.com")
+        self.assertEqual(org["account_model"], "org")
+        self.assertTrue(can_mint_keys(org))
+        stats = user_stats()
+        self.assertEqual(stats["dealer_users"], 0)
+        self.assertEqual(stats["org_users"], 1)
+        self.assertIsNone(set_account_model("yok@ornek.com", "dealer", by="admin"))
+        self.assertIsNone(set_account_model("bayi@ornek.com", "vip", by="admin"))
 
     def test_search_needs_query(self):
         from supabase_auth import search_users, upsert_user

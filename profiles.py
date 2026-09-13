@@ -112,6 +112,23 @@ def resolve_material(parameters: dict[str, Any] | None = None) -> dict[str, Any]
     if mid not in MATERIALS and raw.endswith("4mm"):
         mid = "poplar_4mm"
     mat = dict(MATERIALS.get(mid) or MATERIALS["poplar_3mm"])
+    batch_id = str(params.get("batch_id") or "").strip()
+    if batch_id:
+        try:
+            from catalog import get_batch
+
+            batch = get_batch(batch_id)
+        except Exception:
+            batch = None
+        if batch:
+            mat["batch_id"] = batch.get("id")
+            mat["supplier"] = batch.get("supplier")
+            mat["lot"] = batch.get("lot")
+            if batch.get("measured_thickness"):
+                mat["thickness"] = batch["measured_thickness"]
+            if batch.get("kerf"):
+                mat["kerf"] = batch["kerf"]
+            mat["note"] = (mat.get("note") or "") + " Batch " + str(batch.get("id"))
     return mat
 
 
@@ -120,6 +137,14 @@ def resolve_machine(parameters: dict[str, Any] | None = None) -> dict[str, Any]:
     raw = _norm(params.get("machine") or params.get("machine_id") or "payas_workshop")
     aliases = {"default": "payas_workshop", "payas": "payas_workshop", "workshop": "payas_workshop"}
     mid = aliases.get(raw, raw)
+    try:
+        from catalog import get_machine
+
+        extra = get_machine(mid)
+    except Exception:
+        extra = None
+    if extra:
+        return extra
     return dict(MACHINES.get(mid) or MACHINES["payas_workshop"])
 
 
@@ -149,10 +174,17 @@ def apply_profiles(parameters: dict[str, Any] | None = None) -> dict[str, Any]:
 
 
 def list_profiles() -> dict[str, Any]:
+    machines = list(MACHINES.values())
+    try:
+        from catalog import all_machines
+
+        machines = all_machines()
+    except Exception:
+        pass
     return {
         "success": True,
         "defaults": dict(PAYAS_DEFAULTS),
         "materials": list(MATERIALS.values()),
-        "machines": list(MACHINES.values()),
+        "machines": machines,
         "note": "Pass parameters.material and parameters.machine to create_design. Do not invent kerf.",
     }

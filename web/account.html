@@ -187,7 +187,11 @@
       const lede = document.getElementById("lede");
       lede.textContent = user.email || "";
       lede.classList.toggle("mail", Boolean(user.email));
-      document.getElementById("kind").textContent = user.kind === "org" ? (lang === "en" ? "organization" : "kurumsal") : (lang === "en" ? "individual" : "bireysel");
+      const model = user.account_model || user.kind || "user";
+      const kinds = lang === "en"
+        ? { org: "organization", dealer: "dealer", user: "individual", individual: "individual" }
+        : { org: "kurumsal", dealer: "bayi", user: "bireysel", individual: "bireysel" };
+      document.getElementById("kind").textContent = kinds[model] || kinds.user;
       document.getElementById("org-note").textContent = data.can_mint_keys ? T.orgYes : T.orgNo;
       const used = (data.usage && (data.usage.month || 0)) || 0;
       const total = (data.usage && (data.usage.total || 0)) || 0;

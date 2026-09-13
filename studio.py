@@ -61,14 +61,16 @@ def attach(extra: dict[str, Any], svg_bytes: bytes | None = None, primitives: li
 
 
 def finish_result(result: dict[str, Any], extra: dict[str, Any] | None = None) -> dict[str, Any]:
-    from plans import apply_plan_to_result, entitled
+    from plans import apply_plan_to_result
 
     payload = extra or result
-    if entitled("project_history"):
-        project = save_version(payload.get("parameters") if isinstance(payload.get("parameters"), dict) else {}, result)
-        if project:
-            result["project"] = project
-            payload["project"] = project
+    params = payload.get("parameters") if isinstance(payload.get("parameters"), dict) else {}
+    if result.get("primitives") is None and isinstance(payload.get("primitives"), list):
+        result["primitives"] = payload.get("primitives")
+    project = save_version(params, result)
+    if project:
+        result["project"] = project
+        payload["project"] = project
     result = apply_plan_to_result(result, extra)
     key = _principal()
     record_usage(
@@ -98,8 +100,45 @@ def studio_action(
     project_id: str = "",
     role: str = "workshop",
     plan: str = "",
+    payload: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     verb = str(action or "profiles").strip().lower()
+    body = dict(payload or {})
+    if name and not body.get("name"):
+        body["name"] = name
+    if project_id and not body.get("project_id"):
+        body["project_id"] = project_id
+    workshop_verbs = {
+        "onboard",
+        "onboarding",
+        "catalog",
+        "library",
+        "machine",
+        "machines",
+        "batch",
+        "batches",
+        "feedback",
+        "fit",
+        "preflight",
+        "pre_flight",
+        "check",
+        "revise",
+        "edit",
+        "cost",
+        "quote",
+        "make",
+        "make_this",
+        "structure",
+        "approve",
+        "activate",
+        "redeem",
+        "mint",
+        "codes",
+    }
+    if verb in workshop_verbs:
+        from workshop import workshop_action
+
+        return workshop_action(verb, body, _principal())
     if verb in {"profiles", "profile"}:
         return list_profiles()
     if verb in {"calibrate", "calibration", "calibrations"}:
@@ -143,8 +182,25 @@ def studio_action(
         return {"success": True, "events": recent()}
     return {
         "success": True,
-        "look_again": ["action=profiles|calibrate|projects|usage|keys|telemetry"],
-        "actions": ["profiles", "calibrate", "projects", "usage", "keys", "telemetry"],
+        "look_again": [
+            "action=profiles|calibrate|projects|usage|keys|telemetry|onboard|catalog|feedback|preflight|revise|cost|make_this|activate"
+        ],
+        "actions": [
+            "profiles",
+            "calibrate",
+            "projects",
+            "usage",
+            "keys",
+            "telemetry",
+            "onboard",
+            "catalog",
+            "feedback",
+            "preflight",
+            "revise",
+            "cost",
+            "make_this",
+            "activate",
+        ],
     }
 
 
@@ -162,4 +218,6 @@ def overview() -> dict[str, Any]:
         "keys": keys_for_owner(owner=owner) if owner else [],
         "telemetry": recent(40),
         "plans": __import__("plans").public_plans(),
+        "workshop": __import__("workshop").get_onboarding(key),
+        "feedback": __import__("workshop").list_feedback(),
     }

@@ -55,12 +55,14 @@
       <p class="stat" id="active">—</p>
       <p class="lede" id="window">Son 30 günde last_seen</p>
       <div class="row"><span>Toplam kayıt</span><b id="total">—</b></div>
+      <div class="row"><span>Bireysel</span><b id="users">—</b></div>
+      <div class="row"><span>Bayi</span><b id="dealers">—</b></div>
       <div class="row"><span>Kurumsal</span><b id="orgs">—</b></div>
     </div>
 
     <div class="card hide" id="search-box">
-      <p class="kicker">Kurumsala geçir</p>
-      <p class="lede">E-posta ile ara. Kullanıcı önce Google ile girmiş olmalı.</p>
+      <p class="kicker">Hesap modeli</p>
+      <p class="lede">E-posta ile ara. Bireysel, bayi veya kurumsal olarak güncelle. Kullanıcı önce Google ile girmiş olmalı.</p>
       <input id="q" type="email" placeholder="kisi@ornek.com" autocomplete="off">
       <div class="actions">
         <button class="btn" type="button" id="find">Ara</button>
@@ -82,6 +84,13 @@
       el.className = ok ? "ok" : "lede";
     }
 
+    function modelLabel(u) {
+      const model = (u && (u.account_model || u.kind)) || "user";
+      if (model === "org") return "kurumsal";
+      if (model === "dealer") return "bayi";
+      return "bireysel";
+    }
+
     function renderHits(users) {
       const box = document.getElementById("hits");
       if (!users || !users.length) {
@@ -89,29 +98,32 @@
         return;
       }
       box.innerHTML = users.map(function (u) {
-        const kind = u.kind === "org" ? "kurumsal" : "bireysel";
-        const grant = u.org_grant ? " · grant" : "";
+        const model = u.account_model || (u.kind === "org" ? "org" : u.kind === "dealer" ? "dealer" : "user");
         const seen = u.last_seen || "—";
-        const disabled = u.kind === "org" ? " disabled" : "";
-        const label = u.kind === "org" ? "Zaten kurumsal" : "Kurumsala geçir";
-        return "<div class='row'><span>" + (u.email || "") + "<br>" + kind + grant + " · " + seen +
-          "</span><button class='btn cut' type='button' data-email='" + (u.email || "") + "'" + disabled + ">" + label + "</button></div>";
+        const email = u.email || "";
+        function btn(id, label) {
+          const on = model === id ? " cut" : " ghost";
+          const disabled = model === id ? " disabled" : "";
+          return "<button class='btn" + on + "' type='button' data-email='" + email + "' data-model='" + id + "'" + disabled + ">" + label + "</button>";
+        }
+        return "<div class='row'><span>" + email + "<br>" + modelLabel(u) + " · " + seen +
+          "</span><div class='actions'>" + btn("user", "Bireysel") + btn("dealer", "Bayi") + btn("org", "Kurumsal") + "</div></div>";
       }).join("");
       box.querySelectorAll("button[data-email]").forEach(function (btn) {
-        btn.onclick = function () { promote(btn.getAttribute("data-email")); };
+        btn.onclick = function () { setModel(btn.getAttribute("data-email"), btn.getAttribute("data-model")); };
       });
     }
 
-    async function promote(email) {
-      const { status, data } = await api("/api/admin/users/org", {
+    async function setModel(email, model) {
+      const { status, data } = await api("/api/admin/users/model", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email: email })
+        body: JSON.stringify({ email: email, model: model })
       });
       if (status === 401) { location.replace("/account?next=/admin"); return; }
       if (status === 404) { document.getElementById("denied").classList.remove("hide"); return; }
       if (data.user) {
-        showNote((data.user.email || email) + " kurumsal. API anahtarı üretebilir.", true);
+        showNote((data.user.email || email) + " → " + modelLabel(data.user), true);
         renderHits([data.user]);
         loadOverview();
         return;
@@ -132,6 +144,8 @@
       document.getElementById("active").textContent = String(data.active_users ?? "—");
       document.getElementById("window").textContent = "Son " + (data.active_window_days || 30) + " günde görülen kullanıcı";
       document.getElementById("total").textContent = String(data.total_users ?? "—");
+      document.getElementById("users").textContent = String(data.user_users ?? "—");
+      document.getElementById("dealers").textContent = String(data.dealer_users ?? "—");
       document.getElementById("orgs").textContent = String(data.org_users ?? "—");
       return true;
     }

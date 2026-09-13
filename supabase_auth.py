@@ -70,12 +70,54 @@ def is_admin(user: dict[str, Any] | None) -> bool:
     return bool(email) and email in admin_emails()
 
 
-def user_is_org(user: dict[str, Any] | None) -> bool:
+ACCOUNT_MODELS = ("user", "dealer", "org")
+_MODEL_ALIASES = {
+    "user": "user",
+    "individual": "user",
+    "normal": "user",
+    "bireysel": "user",
+    "dealer": "dealer",
+    "bayi": "dealer",
+    "org": "org",
+    "organization": "org",
+    "kurumsal": "org",
+}
+_KIND_FOR_MODEL = {"user": "individual", "dealer": "dealer", "org": "org"}
+
+
+def normalize_account_model(raw: str | None) -> str:
+    return _MODEL_ALIASES.get(str(raw or "").strip().lower(), "")
+
+
+def account_model_of(user: dict[str, Any] | None) -> str:
     if not user:
-        return False
+        return "user"
     if is_org_email(str(user.get("email") or "")):
-        return True
-    return bool(user.get("org_grant"))
+        return "org"
+    stored = normalize_account_model(user.get("account_model"))
+    if stored in ACCOUNT_MODELS:
+        return stored
+    if user.get("org_grant"):
+        return "org"
+    if str(user.get("kind") or "").strip().lower() == "dealer":
+        return "dealer"
+    return "user"
+
+
+def _apply_account_model(row: dict[str, Any], model: str) -> dict[str, Any]:
+    resolved = normalize_account_model(model) or "user"
+    row["account_model"] = resolved
+    row["kind"] = _KIND_FOR_MODEL[resolved]
+    row["org_grant"] = resolved == "org"
+    return row
+
+
+def user_is_org(user: dict[str, Any] | None) -> bool:
+    return account_model_of(user) == "org"
+
+
+def user_is_dealer(user: dict[str, Any] | None) -> bool:
+    return account_model_of(user) == "dealer"
 
 
 def safe_next_path(raw: str, *, origins: list[str] | None = None) -> str:
@@ -181,6 +223,7 @@ def upsert_user(identity: dict[str, Any], *, kind: str | None = None) -> dict[st
             "id": uid,
             "email": identity.get("email"),
             "name": identity.get("name"),
+            "account_model": "user",
             "kind": "individual",
             "created": now_iso(),
         }
@@ -188,7 +231,7 @@ def upsert_user(identity: dict[str, Any], *, kind: str | None = None) -> dict[st
     hit["email"] = identity.get("email") or hit.get("email")
     hit["name"] = identity.get("name") or hit.get("name")
     hit["last_seen"] = now_iso()
-    hit["kind"] = "org" if user_is_org(hit) else "individual"
+    _apply_account_model(hit, account_model_of(hit))
     try:
         write_json("users.json", rows)
     except Exception:
@@ -214,13 +257,19 @@ def can_mint_keys(user: dict[str, Any] | None) -> bool:
     return user_is_org(user)
 
 
+def can_mint_activation(user: dict[str, Any] | None) -> bool:
+    return user_is_org(user) or user_is_dealer(user) or is_admin(user)
+
+
 def public_user(row: dict[str, Any]) -> dict[str, Any]:
+    model = account_model_of(row)
     return {
         "id": row.get("id"),
         "email": row.get("email"),
         "name": row.get("name"),
-        "kind": "org" if user_is_org(row) else "individual",
-        "org_grant": bool(row.get("org_grant")),
+        "account_model": model,
+        "kind": _KIND_FOR_MODEL[model],
+        "org_grant": model == "org",
         "last_seen": row.get("last_seen"),
         "created": row.get("created"),
     }
@@ -249,9 +298,16 @@ def user_stats(*, active_days: int = 30) -> dict[str, Any]:
     window = timedelta(days=max(1, int(active_days)))
     active = 0
     org = 0
+    dealer = 0
+    users = 0
     for row in rows:
-        if user_is_org(row):
+        model = account_model_of(row)
+        if model == "org":
             org += 1
+        elif model == "dealer":
+            dealer += 1
+        else:
+            users += 1
         seen = _seen_at(str(row.get("last_seen") or ""))
         if seen and now - seen <= window:
             active += 1
@@ -260,6 +316,8 @@ def user_stats(*, active_days: int = 30) -> dict[str, Any]:
         "active_window_days": int(active_days),
         "total_users": len(rows),
         "org_users": org,
+        "dealer_users": dealer,
+        "user_users": users,
     }
 
 
@@ -289,10 +347,37 @@ def grant_org(email: str, *, by: str) -> dict[str, Any] | None:
             break
     if hit is None:
         return None
-    hit["org_grant"] = True
-    hit["kind"] = "org"
+    _apply_account_model(hit, "org")
     hit["org_granted_at"] = now_iso()
     hit["org_granted_by"] = str(by or "")[:120]
+    try:
+        write_json("users.json", rows)
+    except Exception:
+        return None
+    return public_user(hit)
+
+
+def set_account_model(email: str, model: str, *, by: str) -> dict[str, Any] | None:
+    resolved = normalize_account_model(model)
+    if resolved not in ACCOUNT_MODELS:
+        return None
+    needle = str(email or "").strip().lower()
+    if "@" not in needle:
+        return None
+    rows = _users()
+    hit: dict[str, Any] | None = None
+    for row in rows:
+        if str(row.get("email") or "").strip().lower() == needle:
+            hit = row
+            break
+    if hit is None:
+        return None
+    _apply_account_model(hit, resolved)
+    hit["model_set_at"] = now_iso()
+    hit["model_set_by"] = str(by or "")[:120]
+    if resolved == "org":
+        hit["org_granted_at"] = now_iso()
+        hit["org_granted_by"] = str(by or "")[:120]
     try:
         write_json("users.json", rows)
     except Exception:
@@ -339,7 +424,8 @@ def new_session(user: dict[str, Any]) -> str:
         "id": user.get("id"),
         "email": user.get("email"),
         "name": user.get("name"),
-        "kind": "org" if user_is_org(user) or is_org_email(str(user.get("email") or "")) else "individual",
+        "account_model": account_model_of(user),
+        "kind": _KIND_FOR_MODEL[account_model_of(user)],
         "organization_id": user.get("organization_id") or "",
         "exp": int(time.time()) + 30 * 24 * 3600,
     }
@@ -375,7 +461,8 @@ def _parse_signed_session(raw: str) -> dict[str, Any] | None:
     email = str(payload.get("email") or "")
     uid = str(payload.get("id"))
     stored = user_by_id(uid) if uid else None
-    kind = "org" if user_is_org(stored) or is_org_email(email) else "individual"
+    model = account_model_of(stored or {"email": email, "account_model": payload.get("account_model"), "kind": payload.get("kind")})
+    kind = _KIND_FOR_MODEL[model]
     org_id = str(payload.get("organization_id") or "")
     if uid and not org_id:
         try:
@@ -388,6 +475,7 @@ def _parse_signed_session(raw: str) -> dict[str, Any] | None:
         "id": uid,
         "email": email,
         "name": str(payload.get("name") or email or "user"),
+        "account_model": model,
         "kind": kind,
         "organization_id": org_id,
     }
@@ -410,7 +498,8 @@ def session_user(sid: str | None) -> dict[str, Any] | None:
 
 def principal_from_identity(identity: dict[str, Any], stored: dict[str, Any] | None = None) -> dict[str, Any]:
     row = stored or {}
-    kind = str(row.get("kind") or "individual")
+    model = account_model_of(row) if row else normalize_account_model(identity.get("account_model") or identity.get("kind")) or "user"
+    kind = _KIND_FOR_MODEL[model]
     uid = str(identity.get("id") or row.get("id") or "")
     org_id = str(row.get("organization_id") or "")
     if uid and not org_id:
@@ -424,8 +513,9 @@ def principal_from_identity(identity: dict[str, Any], stored: dict[str, Any] | N
         "id": identity.get("id") or row.get("id"),
         "name": identity.get("name") or row.get("name") or "user",
         "email": identity.get("email") or row.get("email"),
-        "role": "workshop" if kind == "org" else "individual",
-        "plan": "maker" if kind == "org" else "free",
+        "role": "workshop" if model == "org" else ("dealer" if model == "dealer" else "individual"),
+        "plan": "maker" if model == "org" else ("pro" if model == "dealer" else "free"),
+        "account_model": model,
         "kind": kind,
         "provider": "google",
         "organization_id": org_id,

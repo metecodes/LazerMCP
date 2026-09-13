@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LaserMCP — SVG düzenle</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root { --bg:#fafafa; --paper:#fff; --ink:#111; --mute:#5a5a5a; --line:#e4e4e4; --cut:#e10600; --pass:#0b7a4b; --mono:"IBM Plex Mono",monospace; --sans:"IBM Plex Sans","Segoe UI",sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin: 0; color: var(--ink); font: 16px/1.5 var(--sans); background: var(--bg); }
+    a { color: inherit; }
+    nav { display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; border-bottom: 1px solid var(--line); background: var(--paper); }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; text-decoration: none; }
+    .mark { width: 18px; height: 18px; border: 1.5px solid var(--ink); position: relative; }
+    .mark::after { content: ""; position: absolute; left: 3px; right: 3px; top: 8px; height: 1.5px; background: var(--cut); }
+    .nav-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; padding: 10px 14px; font-size: 13px; font-weight: 600; border: 1px solid var(--ink); background: var(--ink); color: #fff; cursor: pointer; text-decoration: none; }
+    .btn.ghost { background: transparent; color: var(--ink); }
+    .btn.cut { background: var(--cut); border-color: var(--cut); }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+    .wrap { display: grid; grid-template-columns: minmax(0, 1fr) 320px; min-height: calc(100vh - 57px); }
+    .stage { padding: 20px; overflow: auto; }
+    .canvas { background: var(--paper); border: 1px solid var(--line); min-height: 70vh; padding: 16px; }
+    .canvas svg { width: 100%; height: auto; max-height: 78vh; cursor: crosshair; }
+    .canvas svg [data-pick] { cursor: pointer; }
+    .canvas svg .is-on { outline: 2px solid var(--cut); outline-offset: 2px; }
+    aside { border-left: 1px solid var(--line); background: var(--paper); padding: 20px; }
+    .kicker { font: 11px/1 var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--cut); }
+    h1 { font-size: 22px; letter-spacing: -0.03em; margin: 8px 0 6px; }
+    .lede { color: var(--mute); font-size: 14px; }
+    label { display: block; font: 11px var(--mono); letter-spacing: 0.08em; text-transform: uppercase; margin: 14px 0 6px; }
+    select, input { width: 100%; border: 1px solid var(--line); padding: 10px 12px; font: 14px var(--sans); background: #fff; }
+    .ops { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 12px 0; }
+    .note { font: 13px var(--mono); margin-top: 12px; color: var(--mute); }
+    .note.ok { color: var(--pass); }
+    .note.bad { color: var(--cut); }
+    .part { display: flex; justify-content: space-between; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); font: 13px var(--mono); cursor: pointer; }
+    .part.on { color: var(--cut); }
+    @media (max-width: 900px) { .wrap { grid-template-columns: 1fr; } aside { border-left: 0; border-top: 1px solid var(--line); } }
+  </style>
+</head>
+<body>
+  <nav>
+    <a class="brand" href="/"><span class="mark"></span>LaserMCP</a>
+    <div class="nav-actions">
+      <a class="btn ghost" id="studio" href="/dashboard">Stüdyo</a>
+      <a class="btn cut" id="download" href="#">İndir</a>
+    </div>
+  </nav>
+  <div class="wrap">
+    <div class="stage">
+      <p class="kicker">SVG DÜZENLE</p>
+      <h1 id="title">Parçaya tıkla</h1>
+      <p class="lede" id="lede">Ürettiğin SVG’ye tıklayınca buraya gelirsin. Parçayı seç, milimetreyi yaz, uygula.</p>
+      <div class="canvas" id="canvas">Yükleniyor…</div>
+    </div>
+    <aside>
+      <p class="kicker">SEÇİM</p>
+      <p class="lede" id="meta">—</p>
+      <div id="parts"></div>
+      <label for="part">Parça</label>
+      <select id="part"></select>
+      <label for="op">İşlem</label>
+      <select id="op">
+        <option value="extend">Uzat / büyüt</option>
+        <option value="set_hole">Delik ekle</option>
+        <option value="add_window">Pencere ekle</option>
+        <option value="set_material">Malzeme değiştir</option>
+      </select>
+      <label for="dim">Eksen</label>
+      <select id="dim">
+        <option value="x">X / genişlik</option>
+        <option value="y">Y / yükseklik</option>
+      </select>
+      <label for="mm">mm</label>
+      <input id="mm" type="number" step="0.1" value="10">
+      <label for="material">Malzeme</label>
+      <input id="material" placeholder="mdf_3mm">
+      <div class="ops">
+        <button class="btn cut" type="button" id="apply">Uygula</button>
+        <button class="btn ghost" type="button" id="reload">Yenile</button>
+      </div>
+      <p class="note" id="note"></p>
+    </aside>
+  </div>
+  <script>
+    const state = { file: "", project_id: "", primitives: [], selected: "" };
+
+    function fileName() {
+      const path = decodeURIComponent((location.pathname || "").replace(/^\/(out|edit)\//, ""));
+      return path.split("/").pop() || "";
+    }
+
+    function showNote(text, kind) {
+      const el = document.getElementById("note");
+      el.textContent = text || "";
+      el.className = "note" + (kind ? " " + kind : "");
+    }
+
+    function partLabel(part, idx) {
+      return (part && (part.label || part.part_id || part.id || part.type)) || ("parça " + idx);
+    }
+
+    function fillParts(parts) {
+      const sel = document.getElementById("part");
+      const list = document.getElementById("parts");
+      sel.innerHTML = (parts || []).map(function (p, i) {
+        return "<option value='" + (p.label || p.part_id || String(i)) + "'>" + partLabel(p, i) + "</option>";
+      }).join("");
+      list.innerHTML = (parts || []).map(function (p, i) {
+        const key = p.label || p.part_id || String(i);
+        return "<div class='part' data-part='" + key + "'><span>" + partLabel(p, i) + "</span><span>" + (p.x || "—") + "×" + (p.y || "—") + "</span></div>";
+      }).join("");
+      list.querySelectorAll(".part").forEach(function (row) {
+        row.onclick = function () { pick(row.getAttribute("data-part")); };
+      });
+      if (state.selected) pick(state.selected);
+    }
+
+    function pick(key) {
+      state.selected = key || "";
+      const sel = document.getElementById("part");
+      if (key) sel.value = key;
+      document.querySelectorAll(".part").forEach(function (row) {
+        row.classList.toggle("on", row.getAttribute("data-part") === key);
+      });
+      document.querySelectorAll("#canvas [data-pick]").forEach(function (el) {
+        el.classList.toggle("is-on", (el.getAttribute("data-pick") || "") === key);
+      });
+    }
+
+    function matchKey(el) {
+      const raw = [
+        el.getAttribute("data-part-id"),
+        el.getAttribute("data-pick"),
+        el.getAttribute("data-part"),
+        el.id,
+        el.getAttribute("inkscape:label"),
+        el.getAttribute("aria-label")
+      ].filter(Boolean).join(" ");
+      const parts = state.primitives || [];
+      const lower = raw.toLowerCase();
+      for (let i = 0; i < parts.length; i++) {
+        const keys = [parts[i].label, parts[i].part_id, parts[i].id, parts[i].type].filter(Boolean);
+        if (keys.some(function (k) { return lower.indexOf(String(k).toLowerCase()) >= 0; })) {
+          return keys[0];
+        }
+      }
+      return raw.trim() || "";
+    }
+
+    function wireSvg(svg) {
+      svg.querySelectorAll("g, path, rect, polygon, polyline, circle, ellipse, line").forEach(function (el) {
+        if ((el.id || "").toUpperCase() === "CUT" || (el.id || "").toUpperCase() === "ENGRAVE") return;
+        const key = matchKey(el);
+        el.setAttribute("data-pick", key);
+        el.addEventListener("click", function (ev) {
+          ev.preventDefault();
+          ev.stopPropagation();
+          const hit = matchKey(el) || key;
+          if (hit) {
+            pick(hit);
+            showNote(hit + " seçildi. mm yazıp uygula.");
+          }
+        });
+      });
+    }
+
+    async function loadMeta() {
+      const res = await fetch("/api/editor/" + encodeURIComponent(state.file), { credentials: "same-origin" });
+      const data = await res.json().catch(function () { return {}; });
+      state.project_id = data.project_id || "";
+      state.primitives = data.primitives || [];
+      document.getElementById("title").textContent = data.name || state.file;
+      document.getElementById("meta").textContent = data.editable
+        ? ((data.parts || []).length + " parça · v" + (data.version || "—"))
+        : "Parametrik parça yok — yine de SVG’yi görebilirsin.";
+      if (data.material) document.getElementById("material").value = data.material;
+      fillParts(data.parts || []);
+      if ((data.look_again || []).length) showNote(data.look_again.join(" "));
+      return data;
+    }
+
+    async function loadSvg() {
+      const res = await fetch("/files/" + encodeURIComponent(state.file) + "?view=1", { credentials: "same-origin" });
+      const text = await res.text();
+      const box = document.getElementById("canvas");
+      if (!res.ok || text.indexOf("<svg") < 0) {
+        box.textContent = "SVG açılamadı.";
+        return;
+      }
+      box.innerHTML = text;
+      const svg = box.querySelector("svg");
+      if (svg) wireSvg(svg);
+    }
+
+    async function apply() {
+      const btn = document.getElementById("apply");
+      btn.disabled = true;
+      showNote("Uygulanıyor…");
+      try {
+        const body = {
+          file_id: state.file,
+          project_id: state.project_id,
+          part: document.getElementById("part").value || state.selected || "0",
+          op: document.getElementById("op").value,
+          mm: document.getElementById("mm").value,
+          dim: document.getElementById("dim").value,
+          material: document.getElementById("material").value
+        };
+        const revise = await fetch("/api/studio/revise", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(body)
+        });
+        const edited = await revise.json();
+        if (!edited.success || !edited.primitives) {
+          showNote((edited.look_again || []).join(" ") || "Düzenlenemedi.", "bad");
+          return;
+        }
+        const made = await fetch("/api/cad/design", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            primitives: edited.primitives,
+            parameters: {
+              project_id: (edited.project && edited.project.project_id) || state.project_id,
+              material: body.material
+            }
+          })
+        });
+        const next = await made.json();
+        if (!next.file_id) {
+          showNote((next.look_again || []).join(" ") || "Yeni SVG üretilemedi.", "bad");
+          return;
+        }
+        location.replace(next.svg_url || ("/out/" + encodeURIComponent(next.file_id)));
+      } catch (err) {
+        showNote(String(err), "bad");
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    async function boot() {
+      state.file = fileName();
+      document.getElementById("download").href = "/files/" + encodeURIComponent(state.file);
+      document.getElementById("download").setAttribute("download", state.file);
+      document.title = state.file + " — LaserMCP";
+      await loadMeta();
+      await loadSvg();
+    }
+
+    document.getElementById("apply").onclick = apply;
+    document.getElementById("reload").onclick = boot;
+    document.getElementById("part").onchange = function () { pick(this.value); };
+    boot();
+  </script>
+</body>
+</html>

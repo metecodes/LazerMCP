@@ -191,6 +191,15 @@ def _prefers_html(request: Request) -> bool:
     return True
 
 
+def _wants_svg_editor(request: Request) -> bool:
+    if _wants_inline_file(request):
+        return False
+    accept = (request.headers.get("accept") or "").lower()
+    if "image/svg" in accept:
+        return False
+    return "text/html" in accept
+
+
 def _missing_output(request: Request, *, signed_in: bool = False) -> Response:
     if not _prefers_html(request):
         note = "Dosya yok veya bu hesaba ait değil." if signed_in else "Dosyayı görmek için Google ile gir."
@@ -585,6 +594,7 @@ def render_preview(file_id: str) -> dict[str, Any]:
 @mcp.tool(
     description=(
         "Workshop studio — not a kit. action=profiles|calibrate|projects|usage|keys|telemetry. "
+        "HTTP /api/studio/{onboard|catalog|feedback|preflight|revise|cost|make_this|activate} is the loop. "
         "profiles lists materials/machines. projects lists design versions. "
         "keys with name= creates a token (shown once). Do not invent kerf or hardware."
     )
@@ -964,6 +974,7 @@ async def api_account(request: Request) -> Response:
                 "name": key.get("name") or stored.get("name"),
                 "email": key.get("email") or stored.get("email"),
                 "kind": stored.get("kind") or key.get("kind") or "individual",
+                "account_model": stored.get("account_model") or key.get("account_model") or "user",
             },
             "can_mint_keys": can_mint_keys(stored or key),
             "admin": is_admin(stored) or is_admin(key),
@@ -1092,6 +1103,36 @@ async def api_admin_grant_org(request: Request) -> Response:
     return JSONResponse({"success": True, "user": user, "note": "Organization mint is on. They can create lzr_ keys."})
 
 
+@mcp.custom_route("/api/admin/users/model", methods=["POST"])
+async def api_admin_set_model(request: Request) -> Response:
+    from persist.rate_limit import check
+    from supabase_auth import ACCOUNT_MODELS, set_account_model
+
+    actor, deny = _admin_actor(request)
+    if deny:
+        return deny
+    ident = str(actor.get("email") or actor.get("id") or "admin")
+    if not check("admin-model", ident, limit=30, window_sec=3600):
+        return JSONResponse({"success": True, "look_again": ["Rate limit. Try again later."]}, status_code=429)
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    model = str((body or {}).get("model") or (body or {}).get("account_model") or "")
+    user = set_account_model(str((body or {}).get("email") or ""), model, by=str(actor.get("email") or ""))
+    if not user:
+        return JSONResponse(
+            {
+                "success": True,
+                "look_again": [
+                    "No user with that email, or model must be user|dealer|org. They must sign in with Google first."
+                ],
+                "models": list(ACCOUNT_MODELS),
+            }
+        )
+    return JSONResponse({"success": True, "user": user})
+
+
 @mcp.custom_route("/health", methods=["GET"])
 async def health(request: Request) -> Response:
     payload = boxespy.health_status()
@@ -1188,12 +1229,14 @@ async def api_studio(request: Request) -> Response:
     action = (request.query_params.get("action") or "overview").strip().lower()
     if action in {"", "overview"}:
         return JSONResponse(overview())
+    payload = {k: request.query_params.get(k) for k in request.query_params}
     return JSONResponse(
         studio_action(
             action,
             name=request.query_params.get("name") or "",
             project_id=request.query_params.get("project_id") or "",
             role=request.query_params.get("role") or "workshop",
+            payload=payload,
         )
     )
 
@@ -1217,6 +1260,7 @@ async def api_studio_action(request: Request) -> Response:
             name=str(body.get("name") or request.query_params.get("name") or ""),
             project_id=str(body.get("project_id") or request.query_params.get("project_id") or ""),
             role=str(body.get("role") or request.query_params.get("role") or "workshop"),
+            payload=body,
         )
     )
 
@@ -1356,12 +1400,28 @@ def _authorize_output_file(request: Request, filename: str):
     return authorize_customer_file(filename, principal, auth_on=auth_required()), principal
 
 
+@mcp.custom_route("/api/editor/{filename}", methods=["GET"])
+async def api_editor(request: Request) -> Response:
+    from workshop import editor_context
+
+    filename = _safe_download_name(request.path_params["filename"])
+    decision, principal = _authorize_output_file(request, filename)
+    if not decision.get("allow"):
+        return JSONResponse({"success": True, "look_again": ["SVG bulunamadı."]}, status_code=404)
+    return JSONResponse(editor_context(filename))
+
+
 @mcp.custom_route("/out/{filename}", methods=["GET"])
+@mcp.custom_route("/edit/{filename}", methods=["GET"])
 async def file_open_page(request: Request) -> Response:
     filename = _safe_download_name(request.path_params["filename"])
     decision, principal = _authorize_output_file(request, filename)
     if not decision.get("allow"):
         return _missing_output(request, signed_in=bool(principal))
+    if Path(filename).suffix.lower() == ".svg":
+        page = WEB_DIR / "editor.html"
+        if page.is_file():
+            return FileResponse(page, media_type="text/html; charset=utf-8", headers={"Cache-Control": "private, no-store"})
     safe = html.escape(filename, quote=True)
     body = f"""<!doctype html><html lang="tr"><head><meta charset="utf-8">
 <title>{safe} — LaserMCP</title>
@@ -1389,6 +1449,8 @@ async def serve_file(request: Request) -> Response:
 
     filename = request.path_params["filename"]
     inline = _wants_inline_file(request)
+    if Path(filename).suffix.lower() == ".svg" and _wants_svg_editor(request):
+        return _redirect("/out/" + quote(_safe_download_name(filename)))
     decision, principal = _authorize_output_file(request, filename)
     if not decision.get("allow"):
         return _missing_output(request, signed_in=bool(principal))

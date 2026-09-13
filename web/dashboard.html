@@ -48,14 +48,58 @@
   <header>
     <div>
       <h1>LaserMCP <span>studio</span></h1>
-      <p class="muted" style="margin:4px 0 0">Profiller, kerf, projeler, kullanım. Malzeme listesini MCP yazar.</p>
+      <p class="muted" style="margin:4px 0 0">Makine onboarding, kesim geri bildirimi, sürümler. Kerf uydurulmaz.</p>
     </div>
     <div><a href="/">Landing</a> · <a href="/app">Atölye</a></div>
   </header>
   <main>
     <section>
+      <h2>Onboarding</h2>
+      <p class="muted">Makine → tabla → malzeme → kalınlık → kupon</p>
+      <div id="onboard-step" class="row">adım: machine</div>
+      <p>
+        <input id="ob-brand" placeholder="marka">
+        <input id="ob-model" placeholder="model">
+        <input id="ob-bedw" placeholder="tabla en mm" style="width:7em">
+        <input id="ob-bedh" placeholder="boy mm" style="width:7em">
+      </p>
+      <p>
+        <input id="ob-mat" placeholder="malzeme id (mdf_3mm)">
+        <input id="ob-th" placeholder="kalınlık mm" style="width:7em">
+        <button id="ob-save" type="button">Kaydet</button>
+      </p>
+      <p>
+        <input id="act-code" placeholder="bayi aktivasyon kodu">
+        <button id="act-go" type="button">Kodu kullan</button>
+      </p>
+      <pre id="onboard-note" class="muted"></pre>
+    </section>
+    <section>
       <h2>Malzeme / makine</h2>
       <div id="profiles">yükleniyor…</div>
+    </section>
+    <section>
+      <h2>Kesim geri bildirimi</h2>
+      <p class="muted">Yazılım PASS yazmaz. İnsan sonucu kaydeder.</p>
+      <p>
+        <input id="fb-project" placeholder="project_id">
+        <select id="fb-fit">
+          <option value="seated">tam oturdu</option>
+          <option value="loose">gevşek</option>
+          <option value="tight">sıkı</option>
+          <option value="collision">parça çarpıyor</option>
+          <option value="hole_small">delik küçük</option>
+          <option value="hole_large">delik büyük</option>
+        </select>
+        <input id="fb-note" placeholder="not">
+        <button id="fb-save" type="button">Kaydet</button>
+      </p>
+      <div id="feedback">kayıt yok</div>
+    </section>
+    <section>
+      <h2>Pre-flight</h2>
+      <button id="pf-run" type="button">Kontrol et</button>
+      <pre id="preflight" class="row"></pre>
     </section>
     <section>
       <h2>Kerf kalibrasyonu</h2>
@@ -134,7 +178,61 @@
       document.getElementById("tel").innerHTML = rows(data.telemetry, e =>
         "<div class='row'>" + (e.at || "") + " · " + e.level + " · " + e.event + " · " + (e.detail || "") + "</div>"
       );
+      const onb = ((data.workshop || {}).onboarding) || {};
+      document.getElementById("onboard-step").textContent = "adım: " + (onb.step || "machine") +
+        (onb.machine ? " · " + onb.machine : "") + (onb.material ? " · " + onb.material : "");
+      document.getElementById("feedback").innerHTML = rows(data.feedback, r =>
+        "<div class='row'>" + (r.at || "") + " · " + (r.fit || "") + " · " + (r.project_id || "") + " · " + (r.note || "") + "</div>"
+      );
     }
+    document.getElementById("ob-save").onclick = async () => {
+      const out = await api("/api/studio/onboard", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          brand: document.getElementById("ob-brand").value,
+          model: document.getElementById("ob-model").value,
+          bed_w: document.getElementById("ob-bedw").value,
+          bed_h: document.getElementById("ob-bedh").value,
+          material: document.getElementById("ob-mat").value,
+          thickness: document.getElementById("ob-th").value
+        })
+      });
+      document.getElementById("onboard-note").textContent = (out.look_again || []).join("\n") || ("sonraki: " + (out.next || ""));
+      load();
+    };
+    document.getElementById("act-go").onclick = async () => {
+      const out = await api("/api/studio/activate", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ code: document.getElementById("act-code").value })
+      });
+      document.getElementById("onboard-note").textContent = (out.look_again || [out.note || ""]).join("\n");
+      if (out.machine) {
+        await api("/api/studio/onboard", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ machine: out.machine.id })
+        });
+      }
+      load();
+    };
+    document.getElementById("fb-save").onclick = async () => {
+      await api("/api/studio/feedback", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          project_id: document.getElementById("fb-project").value,
+          fit: document.getElementById("fb-fit").value,
+          note: document.getElementById("fb-note").value
+        })
+      });
+      load();
+    };
+    document.getElementById("pf-run").onclick = async () => {
+      const out = await api("/api/studio/preflight", { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
+      document.getElementById("preflight").textContent = (out.result || "") + "\n" + (out.note || "");
+    };
     document.getElementById("make-key").onclick = async () => {
       const name = document.getElementById("key-name").value || "workshop";
       const created = await api("/api/studio/keys", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name }) });
