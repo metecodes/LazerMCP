@@ -27,6 +27,14 @@ def prepare_parameters(parameters: dict[str, Any] | None) -> dict[str, Any]:
         incoming["material"] = "poplar_3mm"
     if not entitled("machine_profiles"):
         incoming["machine"] = "payas_workshop"
+    if "joint_clearance_mm" in incoming and incoming["joint_clearance_mm"] not in (None, ""):
+        try:
+            clearance = float(incoming["joint_clearance_mm"])
+        except (TypeError, ValueError) as exc:
+            raise ValueError("joint_clearance_mm must be a number") from exc
+        if not -0.15 <= clearance <= 0.40:
+            raise ValueError("joint_clearance_mm must be between -0.15 and 0.40 mm")
+        incoming["joint_clearance_mm"] = round(clearance, 3)
     return apply_stored_burn(apply_profiles(incoming))
 
 

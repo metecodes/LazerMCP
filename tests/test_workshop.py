@@ -97,6 +97,22 @@ class WorkshopLoopTests(unittest.TestCase):
         out = apply_revision({"file_id": "cut-aa.svg", "part": "P01", "op": "extend", "mm": 5, "dim": "x"})
         self.assertEqual(out["primitives"][0]["x"], 55)
 
+    def test_joint_clearance_revision_is_global_and_versioned(self):
+        from projects import project_history, save_version
+        from workshop import apply_revision, editor_context
+
+        save_version(
+            {"project": "fit", "project_id": "fit-aa", "joint_clearance_mm": 0.05},
+            {"file_id": "fit.svg", "primitives": [{"type": "panel", "label": "front", "x": 80, "y": 40}]},
+        )
+        self.assertEqual(editor_context("fit.svg")["parameters"]["joint_clearance_mm"], 0.05)
+        out = apply_revision({"file_id": "fit.svg", "op": "set_joint_clearance", "mm": 0.12})
+        self.assertEqual(out["parameters"]["joint_clearance_mm"], 0.12)
+        history = project_history("fit-aa")
+        self.assertEqual(history["versions"][-1]["parameters"]["joint_clearance_mm"], 0.12)
+        with self.assertRaises(ValueError):
+            apply_revision({"file_id": "fit.svg", "op": "set_joint_clearance", "mm": 0.8})
+
     def test_activation_binds_machine(self):
         from catalog import mint_activation, redeem_activation, upsert_machine
 

@@ -39,6 +39,7 @@
     .note { font: 13px var(--mono); margin-top: 12px; color: var(--mute); }
     .note.ok { color: var(--pass); }
     .note.bad { color: var(--cut); }
+    .tolerance-note { margin: 8px 0 0; color: var(--mute); font-size: 12px; line-height: 1.45; }
     .part { display: flex; justify-content: space-between; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); font: 13px var(--mono); cursor: pointer; }
     .part.on { color: var(--cut); }
     @media (max-width: 900px) { .wrap { grid-template-columns: 1fr; } aside { border-left: 0; border-top: 1px solid var(--line); } }
@@ -70,6 +71,7 @@
         <option value="extend">Uzat / büyüt</option>
         <option value="set_hole">Delik ekle</option>
         <option value="add_window">Pencere ekle</option>
+        <option value="set_joint_clearance">Geçme boşluğunu ayarla</option>
         <option value="set_material">Malzeme değiştir</option>
       </select>
       <label for="dim">Eksen</label>
@@ -77,8 +79,9 @@
         <option value="x">X / genişlik</option>
         <option value="y">Y / yükseklik</option>
       </select>
-      <label for="mm">mm</label>
+      <label for="mm" id="mm-label">mm</label>
       <input id="mm" type="number" step="0.1" value="10">
+      <p class="tolerance-note hide" id="tolerance-note">Pozitif değer geçme ve oyukları gevşetir; negatif değer sıkılaştırır. Bu ayar sonraki Boxes.py üretiminde tüm parametrik geçmelere uygulanır.</p>
       <label for="material">Malzeme</label>
       <input id="material" placeholder="mdf_3mm">
       <div class="ops">
@@ -89,7 +92,7 @@
     </aside>
   </div>
   <script>
-    const state = { file: "", project_id: "", primitives: [], selected: "" };
+    const state = { file: "", project_id: "", primitives: [], parameters: {}, selected: "" };
 
     function fileName() {
       const path = decodeURIComponent((location.pathname || "").replace(/^\/(out|edit)\//, ""));
@@ -176,11 +179,15 @@
       const data = await res.json().catch(function () { return {}; });
       state.project_id = data.project_id || "";
       state.primitives = data.primitives || [];
+      state.parameters = data.parameters || {};
       document.getElementById("title").textContent = data.name || state.file;
       document.getElementById("meta").textContent = data.editable
         ? ((data.parts || []).length + " parça · v" + (data.version || "—"))
         : "Parametrik parça yok — yine de SVG’yi görebilirsin.";
       if (data.material) document.getElementById("material").value = data.material;
+      if (Object.prototype.hasOwnProperty.call(state.parameters, "joint_clearance_mm")) {
+        document.getElementById("mm").value = state.parameters.joint_clearance_mm;
+      }
       fillParts(data.parts || []);
       if ((data.look_again || []).length) showNote(data.look_again.join(" "));
       return data;
@@ -211,7 +218,8 @@
           op: document.getElementById("op").value,
           mm: document.getElementById("mm").value,
           dim: document.getElementById("dim").value,
-          material: document.getElementById("material").value
+          material: document.getElementById("material").value,
+          parameters: state.parameters
         };
         const revise = await fetch("/api/studio/revise", {
           method: "POST",
@@ -224,16 +232,16 @@
           showNote((edited.look_again || []).join(" ") || "Düzenlenemedi.", "bad");
           return;
         }
+        const parameters = Object.assign({}, state.parameters, edited.parameters || {});
+        parameters.project_id = (edited.project && edited.project.project_id) || state.project_id;
+        parameters.material = body.material || parameters.material;
         const made = await fetch("/api/cad/design", {
           method: "POST",
           credentials: "same-origin",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
             primitives: edited.primitives,
-            parameters: {
-              project_id: (edited.project && edited.project.project_id) || state.project_id,
-              material: body.material
-            }
+            parameters: parameters
           })
         });
         const next = await made.json();
@@ -261,6 +269,16 @@
     document.getElementById("apply").onclick = apply;
     document.getElementById("reload").onclick = boot;
     document.getElementById("part").onchange = function () { pick(this.value); };
+    document.getElementById("op").onchange = function () {
+      const tolerance = this.value === "set_joint_clearance";
+      const input = document.getElementById("mm");
+      document.getElementById("mm-label").textContent = tolerance ? "Geçme toleransı (mm)" : "mm";
+      document.getElementById("tolerance-note").classList.toggle("hide", !tolerance);
+      input.step = tolerance ? "0.01" : "0.1";
+      input.min = tolerance ? "-0.15" : "";
+      input.max = tolerance ? "0.40" : "";
+      if (tolerance && !Object.prototype.hasOwnProperty.call(state.parameters, "joint_clearance_mm")) input.value = "0";
+    };
     boot();
   </script>
 <script src="/ui.js"></script>

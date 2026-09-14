@@ -810,11 +810,15 @@ def render_toolbox(primitives: list[Any], parameters: dict[str, Any] | None = No
     moving = any(_kind(p) in {"propeller", "pervane", "blades", "fan"} for p in parts if isinstance(p, dict))
     thickness = float(params.get("thickness") or PAYAS_DEFAULTS["thickness"])
     burn, physical = resolve_burn(params, moving=moving)
+    clearance = float(params.get("joint_clearance_mm") or 0.0)
+    effective_burn = round(burn + clearance, 3)
+    if not 0.05 <= effective_burn <= 0.60:
+        raise ValueError("kerf plus joint_clearance_mm must be between 0.05 and 0.60 mm")
     box = PayasToolbox()
     box.parseArgs(
         [
             f"--thickness={thickness}",
-            f"--burn={burn}",
+            f"--burn={effective_burn}",
             "--format=svg",
             "--labels=0",
             "--reference=0",
@@ -830,7 +834,7 @@ def render_toolbox(primitives: list[Any], parameters: dict[str, Any] | None = No
     from nesting import nest_svg
     from topology import inspect_topology
 
-    assembly = check_assembly(parts, thickness=thickness, burn=burn)
+    assembly = check_assembly(parts, thickness=thickness, burn=effective_burn)
     if roof_lock:
         assembly["roof_lock"] = assembly.get("roof_lock") or roof_lock
     machine = params.get("_machine") or {}
@@ -888,7 +892,13 @@ def render_toolbox(primitives: list[Any], parameters: dict[str, Any] | None = No
         "manufacturing": manufacturing,
         "scale": scale_info,
         "primitives": parts,
-        "parameters": {**params, "burn": burn, "thickness": thickness},
+        "parameters": {
+            **params,
+            "burn": burn,
+            "thickness": thickness,
+            "joint_clearance_mm": clearance,
+            "effective_burn": effective_burn,
+        },
         "physical": physical,
         "note": (
             "This SVG is the parts you passed, compiled with Boxes.py. "

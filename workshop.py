@@ -245,6 +245,7 @@ def editor_context(file_id: str) -> dict[str, Any]:
         "version": hit.get("version"),
         "material": hit.get("material") or "",
         "machine": hit.get("machine") or "",
+        "parameters": dict(hit.get("parameters") or {}),
         "primitives": primitives,
         "parts": parts,
         "editable": bool(primitives),
@@ -258,11 +259,13 @@ def editor_context(file_id: str) -> dict[str, Any]:
 
 def apply_revision(body: dict[str, Any]) -> dict[str, Any]:
     primitives = [dict(p) for p in (body.get("primitives") or []) if isinstance(p, dict)]
+    parameters = dict(body.get("parameters") or {}) if isinstance(body.get("parameters"), dict) else {}
     if not primitives and body.get("file_id"):
         hit = project_by_file(str(body.get("file_id") or ""))
         if hit:
             primitives = [dict(p) for p in (hit.get("primitives") or []) if isinstance(p, dict)]
             body.setdefault("project_id", hit.get("project_id"))
+            parameters = {**dict(hit.get("parameters") or {}), **parameters}
             if hit.get("material") and not body.get("material"):
                 body["material"] = hit.get("material")
     if not primitives:
@@ -274,17 +277,45 @@ def apply_revision(body: dict[str, Any]) -> dict[str, Any]:
                 break
     if not primitives:
         raise ValueError("no primitives on this project version — generate first")
+    if body.get("material"):
+        parameters["material"] = str(body["material"])
     op = str(body.get("op") or body.get("edit") or "").strip().lower()
     mm = body.get("mm")
     try:
         delta = float(mm) if mm not in (None, "") else 0.0
     except (TypeError, ValueError) as exc:
         raise ValueError("mm must be a number") from exc
-    if op == "set_material":
+    if op in {"set_joint_clearance", "set_clearance", "clearance"}:
+        if not -0.15 <= delta <= 0.40:
+            raise ValueError("joint clearance must be between -0.15 and 0.40 mm")
+        parameters["joint_clearance_mm"] = round(delta, 3)
+        draft = save_version(
+            {
+                **parameters,
+                "project_id": str(body.get("project_id") or ""),
+                "project": str(body.get("project") or "revision"),
+                "machine": body.get("machine"),
+            },
+            {
+                "primitives": primitives,
+                "final_status": "DRAFT",
+                "speak": f"revision joint clearance {delta:.3f} mm",
+            },
+        )
         return {
             "success": True,
             "primitives": primitives,
-            "parameters": {"material": str(body.get("material") or "")},
+            "parameters": parameters,
+            "project": draft,
+            "next_tool": "create_design",
+            "look_again": ["Joint clearance is applied at the next Boxes.py compile. Previous version is kept."],
+        }
+    if op == "set_material":
+        parameters["material"] = str(body.get("material") or "")
+        return {
+            "success": True,
+            "primitives": primitives,
+            "parameters": parameters,
             "next_tool": "create_design",
             "look_again": ["Call create_design with these primitives and the new material. Old version stays."],
         }
@@ -308,6 +339,7 @@ def apply_revision(body: dict[str, Any]) -> dict[str, Any]:
     primitives[idx] = part
     draft = save_version(
         {
+            **parameters,
             "project_id": str(body.get("project_id") or ""),
             "project": str(body.get("project") or "revision"),
             "machine": body.get("machine"),
@@ -322,6 +354,7 @@ def apply_revision(body: dict[str, Any]) -> dict[str, Any]:
     return {
         "success": True,
         "primitives": primitives,
+        "parameters": parameters,
         "project": draft,
         "next_tool": "create_design",
         "next_arguments": {"primitives": primitives, "parameters": {"project_id": (draft or {}).get("project_id")}},

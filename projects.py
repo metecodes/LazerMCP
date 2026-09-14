@@ -50,6 +50,7 @@ def save_version(parameters: dict[str, Any] | None, result: dict[str, Any] | Non
         ),
         "material": params.get("material"),
         "batch_id": params.get("batch_id"),
+        "parameters": {k: v for k, v in params.items() if not str(k).startswith("_")},
         "primitives": data.get("primitives") if isinstance(data.get("primitives"), list) else None,
         "preflight": data.get("preflight") if isinstance(data.get("preflight"), dict) else None,
         "feedback": data.get("feedback") if isinstance(data.get("feedback"), dict) else None,
@@ -117,5 +118,6 @@ def project_by_file(file_id: str) -> dict[str, Any] | None:
                 "primitives": [dict(p) for p in primitives if isinstance(p, dict)],
                 "material": ver.get("material"),
                 "machine": ver.get("machine"),
+                "parameters": dict(ver.get("parameters") or {}),
             }
     return None
