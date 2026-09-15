@@ -10,60 +10,70 @@
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/styles.css">
   <style>
-    
-    
-    
-    
-    
-    
-    
-    
-    .nav-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-    
-    
-    
-    .btn:disabled { opacity: 0.45; cursor: not-allowed; }
-    .wrap { display: grid; grid-template-columns: minmax(0, 1fr) 320px; min-height: calc(100vh - 57px); }
-    .stage { padding: 20px; overflow: auto; }
-    .canvas { background: var(--paper); border: 1px solid var(--line); min-height: 70vh; padding: 16px; }
-    .canvas svg { width: 100%; height: auto; max-height: 78vh; cursor: crosshair; }
-    .canvas svg [data-pick] { cursor: pointer; }
-    .canvas svg .is-on { outline: 2px solid var(--cut); outline-offset: 2px; }
-    aside { border-left: 1px solid var(--line); background: var(--paper); padding: 20px; }
-    .kicker { font: 11px/1 var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--cut); }
-    h1 { font-size: 22px; letter-spacing: -0.03em; margin: 8px 0 6px; }
-    .lede { color: var(--mute); font-size: 14px; }
-    label { display: block; font: 11px var(--mono); letter-spacing: 0.08em; text-transform: uppercase; margin: 14px 0 6px; }
-    select, input { width: 100%; border: 1px solid var(--line); padding: 10px 12px; font: 14px var(--sans); background: var(--paper); }
-    .ops { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 12px 0; }
-    .note { font: 13px var(--mono); margin-top: 12px; color: var(--mute); }
-    .note.ok { color: var(--pass); }
-    .note.bad { color: var(--cut); }
-    .tolerance-note { margin: 8px 0 0; color: var(--mute); font-size: 12px; line-height: 1.45; }
-    .part { display: flex; justify-content: space-between; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); font: 13px var(--mono); cursor: pointer; }
-    .part.on { color: var(--cut); }
-    @media (max-width: 900px) { .wrap { grid-template-columns: 1fr; } aside { border-left: 0; border-top: 1px solid var(--line); } }
+    .editor { --selection:#1677ff; }
+    .editor nav { min-height:64px; padding:10px 24px; gap:20px; display:flex; align-items:center; border-bottom:1px solid var(--line); background:var(--paper); }
+    .editor .brand { white-space:nowrap; font-size:24px; font-weight:700; text-decoration:none; letter-spacing:-1px; }
+    .brand em { color:var(--cut); font-style:normal; }
+    .breadcrumb { display:flex; align-items:center; gap:12px; min-width:0; flex:1; color:var(--mute); font-size:13px; }
+    #title { font-size:14px; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin:0; }
+    .nav-actions { display:flex; gap:8px; }
+    .editor .btn { border-radius:5px; font-size:13px; padding:10px 16px; }
+    .btn:disabled { opacity:.45; cursor:not-allowed; }
+    .wrap { display:grid; grid-template-columns:250px minmax(0,1fr) 280px; min-height:calc(100vh - 210px); }
+    .parts-panel, .properties { background:var(--paper); padding:20px 16px; }
+    .parts-panel { border-right:1px solid var(--line); }
+    .properties { border-left:1px solid var(--line); }
+    .panel-title { font-size:13px; font-weight:700; margin:0 0 20px; letter-spacing:.02em; }
+    .properties .panel-title { color:var(--cut); border-bottom:2px solid var(--cut); padding-bottom:18px; }
+    .stage { min-width:0; overflow:auto; position:relative; padding:24px; background:var(--bg); }
+    .stage-head { display:flex; justify-content:space-between; gap:16px; margin-bottom:16px; color:var(--mute); font-size:11px; }
+    .canvas { display:flex; align-items:center; min-height:calc(100vh - 305px); padding:32px; border:1px solid var(--line); background-color:var(--paper); background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px); background-size:20px 20px; }
+    .canvas svg { display:block; width:100%; height:auto; max-height:70vh; }
+    .canvas svg [data-pick] { cursor:pointer; }
+    .canvas svg .is-on { outline:2px solid var(--selection); outline-offset:3px; }
+    .lede { color:var(--mute); font-size:12px; line-height:1.6; }
+    .editor label { display:block; font:12px var(--sans); margin:16px 0 6px; }
+    .editor select,.editor input { width:100%; border:1px solid var(--line); padding:9px 10px; border-radius:4px; font:13px var(--sans); background:var(--paper); }
+    .ops { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:24px; }
+    .note { margin:0; color:var(--mute); font-size:13px; }
+    .note.ok { color:var(--pass); } .note.bad { color:var(--cut); }
+    .tolerance-note { color:var(--mute); font-size:12px; line-height:1.5; }
+    .part { width:100%; text-align:left; background:var(--paper); color:var(--ink); display:flex; align-items:center; gap:12px; padding:16px 12px; margin:8px 0; border:1px solid var(--line); border-radius:7px; font:13px var(--sans); cursor:pointer; }
+    .part::before { content:''; flex:0 0 38px; height:30px; border:1px dashed var(--cut); border-radius:2px; }
+    .part span:first-child { flex:1; overflow-wrap:anywhere; font-weight:600; }
+    .part span:last-child { color:var(--mute); font-size:11px; }
+    .part.on { border-color:var(--selection); background:color-mix(in srgb,var(--selection) 7%,var(--paper)); }
+    .editor :focus-visible { outline:2px solid var(--selection); outline-offset:3px; }
+    .feedback { border:1px solid var(--line); border-radius:10px 10px 0 0; padding:18px 24px; background:var(--paper); }
+    .feedback-head { display:flex; align-items:center; gap:16px; margin-bottom:14px; }
+    .feedback-head h2 { margin:0; font-size:14px; }
+    .status-tag { padding:4px 10px; border:1px solid var(--line); border-radius:20px; font-size:11px; color:var(--mute); }
+    .feedback-content { border:1px solid var(--line); border-radius:5px; padding:14px 16px; }
+    @media(max-width:1100px) { .wrap { grid-template-columns:200px minmax(0,1fr) 245px; } .stage { padding:16px; } .canvas { padding:16px; } }
+    @media(max-width:800px) { .editor nav { flex-wrap:wrap; padding:12px 16px; gap:12px; } .breadcrumb { order:3; flex-basis:100%; } .nav-actions { margin-left:auto; } .wrap { grid-template-columns:180px minmax(0,1fr); } .properties { grid-column:1/-1; border-top:1px solid var(--line); border-left:0; } .canvas { min-height:380px; } }
+    @media(max-width:480px) { .wrap { grid-template-columns:1fr; } .parts-panel { border-right:0; border-bottom:1px solid var(--line); } #parts { max-height:180px; overflow:auto; } .canvas { min-height:280px; } .stage-head { flex-wrap:wrap; } }
   </style>
 </head>
-<body>
-  <nav>
-    <a class="brand" href="/"><span class="mark"></span>LaserMCP</a>
-    <div class="nav-actions">
-      <a class="btn ghost" id="studio" href="/dashboard">Stüdyo</a>
-      <a class="btn cut" id="download" href="#">İndir</a>
-    </div>
+<body class="editor">
+  <nav aria-label="Editör gezinme">
+    <a class="brand" href="/">Laser<em>MCP</em></a>
+    <div class="breadcrumb"><a id="studio" href="/dashboard">Stüdyo</a><span>/</span><h1 id="title">SVG editörü</h1></div>
+    <div class="nav-actions"><a class="btn cut" id="download" href="#">SVG indir</a></div>
   </nav>
-  <div class="wrap">
-    <div class="stage">
-      <p class="kicker">SVG DÜZENLE</p>
-      <h1 id="title">Parçaya tıkla</h1>
-      <p class="lede" id="lede">Ürettiğin SVG’ye tıklayınca buraya gelirsin. Parçayı seç, milimetreyi yaz, uygula.</p>
-      <div class="canvas" id="canvas">Yükleniyor…</div>
-    </div>
-    <aside>
-      <p class="kicker">SEÇİM</p>
-      <p class="lede" id="meta">—</p>
+  <main class="wrap">
+    <section class="parts-panel" aria-labelledby="parts-heading">
+      <h2 class="panel-title" id="parts-heading">PARÇALAR</h2>
+      <p class="lede" id="meta">Parçalar yükleniyor…</p>
       <div id="parts"></div>
+    </section>
+    <section class="stage" aria-label="SVG çalışma alanı">
+      <div class="stage-head"><span>ÇALIŞMA ALANI</span><span>Parçaya tıklayarak seç · Ölçüler mm</span></div>
+      <div class="canvas" id="canvas">Yükleniyor…</div>
+      <p class="lede" id="lede">Izgara görsel kılavuzdur; ölçüm ölçeği değildir.</p>
+    </section>
+    <aside class="properties" aria-labelledby="properties-heading">
+      <h2 class="panel-title" id="properties-heading">ÖZELLİKLER</h2>
+      <p class="lede">Seçili parçanın parametrelerini düzenle.</p>
       <label for="part">Parça</label>
       <select id="part"></select>
       <label for="op">İşlem</label>
@@ -88,9 +98,12 @@
         <button class="btn cut" type="button" id="apply">Uygula</button>
         <button class="btn ghost" type="button" id="reload">Yenile</button>
       </div>
-      <p class="note" id="note"></p>
     </aside>
-  </div>
+  </main>
+  <section class="feedback" aria-labelledby="feedback-heading">
+    <div class="feedback-head"><h2 id="feedback-heading">DÜZENLEME DURUMU</h2><span class="status-tag">SVG editörü</span></div>
+    <div class="feedback-content"><p class="note" id="note" role="status" aria-live="polite">Bir parça seçip özelliklerini düzenleyebilirsiniz.</p></div>
+  </section>
   <script>
     const state = { file: "", project_id: "", primitives: [], parameters: {}, selected: "" };
 
@@ -117,7 +130,7 @@
       }).join("");
       list.innerHTML = (parts || []).map(function (p, i) {
         const key = p.label || p.part_id || String(i);
-        return "<div class='part' data-part='" + key + "'><span>" + partLabel(p, i) + "</span><span>" + (p.x || "—") + "×" + (p.y || "—") + "</span></div>";
+        return "<button type='button' class='part' data-part='" + key + "'><span>" + partLabel(p, i) + "</span><span>" + (p.x || "—") + "×" + (p.y || "—") + "</span></button>";
       }).join("");
       list.querySelectorAll(".part").forEach(function (row) {
         row.onclick = function () { pick(row.getAttribute("data-part")); };
@@ -259,7 +272,7 @@
 
     async function boot() {
       state.file = fileName();
-      document.getElementById("download").href = "/files/" + encodeURIComponent(state.file);
+      document.getElementById("download").href = "/files/" + encodeURIComponent(state.file) + "?download=1";
       document.getElementById("download").setAttribute("download", state.file);
       document.title = state.file + " — LaserMCP";
       await loadMeta();

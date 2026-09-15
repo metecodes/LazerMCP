@@ -198,6 +198,8 @@ def _prefers_html(request: Request) -> bool:
 
 
 def _wants_svg_editor(request: Request) -> bool:
+    if request.query_params.get("download") in {"1", "true", "yes"}:
+        return False
     if _wants_inline_file(request):
         return False
     accept = (request.headers.get("accept") or "").lower()
@@ -1515,6 +1517,26 @@ async def api_editor(request: Request) -> Response:
     if not decision.get("allow"):
         return JSONResponse({"success": True, "look_again": ["SVG bulunamadı."]}, status_code=404)
     return JSONResponse(editor_context(filename))
+
+
+@mcp.custom_route("/api/editor/{filename}/{action}", methods=["POST"])
+async def api_editor_action(request: Request) -> Response:
+    from workshop import editor_context
+    from editor_service import editor_action
+    filename = _safe_download_name(request.path_params["filename"])
+    decision, principal = _authorize_output_file(request, filename)
+    if not decision.get("allow"):
+        return JSONResponse({"success": False, "look_again": ["SVG bulunamadı."]}, status_code=404)
+    try:
+        body = await request.json()
+        if not isinstance(body, dict):
+            raise ValueError("Geçersiz istek.")
+        context = editor_context(filename)
+        if not context.get("editable"):
+            raise ValueError("Bu dosyada parametrik proje bulunamadı.")
+        return JSONResponse(editor_action(request.path_params["action"], body, context, _public_base(request)))
+    except (ValueError, TypeError, KeyError) as exc:
+        return JSONResponse({"success": False, "look_again": [str(exc)]}, status_code=400)
 
 
 @mcp.custom_route("/out/{filename}", methods=["GET"])
