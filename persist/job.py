@@ -60,7 +60,7 @@ def persist_bytes(
         expires = None
     else:
         path = store.tmp_path(organization_id, ext)
-        expires = expires_in_hours(24)
+        expires = expires_in_hours(30 * 24)  # 30 days
     store.put(path, data, mime_type)
     meta = repo.insert(
         {
