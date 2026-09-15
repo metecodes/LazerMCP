@@ -52,248 +52,71 @@
     @media(max-width:1100px) { .wrap { grid-template-columns:200px minmax(0,1fr) 245px; } .stage { padding:16px; } .canvas { padding:16px; } }
     @media(max-width:800px) { .editor nav { flex-wrap:wrap; padding:12px 16px; gap:12px; } .breadcrumb { order:3; flex-basis:100%; } .nav-actions { margin-left:auto; } .wrap { grid-template-columns:180px minmax(0,1fr); } .properties { grid-column:1/-1; border-top:1px solid var(--line); border-left:0; } .canvas { min-height:380px; } }
     @media(max-width:480px) { .wrap { grid-template-columns:1fr; } .parts-panel { border-right:0; border-bottom:1px solid var(--line); } #parts { max-height:180px; overflow:auto; } .canvas { min-height:280px; } .stage-head { flex-wrap:wrap; } }
+    .nav-actions { align-items:center; flex-wrap:wrap; } .editor nav { flex-wrap:wrap; }
+    .canvas { display:block; position:relative; height:560px; min-height:360px; padding:0; overflow:hidden; touch-action:none; background-image:none; }
+    .canvas svg { width:100%; height:100%; max-height:none; } .canvas-tools { display:flex; align-items:center; flex-wrap:wrap; gap:6px; margin-bottom:12px; }
+    .part { padding:10px; } .part::before { display:none; } .part .pick { flex:1; border:0; background:none; text-align:left; color:inherit; cursor:pointer; min-width:0; overflow-wrap:anywhere; }
+    .part .mini { border:0; background:none; cursor:pointer; padding:5px; color:var(--mute); } .part button[aria-pressed=true] { color:var(--selection); }
+    .field-pair { display:grid; grid-template-columns:1fr 1fr; gap:8px; } .tabs { display:flex; gap:4px; } .properties h3 { font-size:15px; }
+    #apply,#connect { width:100%; margin-top:16px; } details { margin-top:22px; font-size:13px; } .history-row,.connection-row,.check-row { padding:10px; border:1px solid var(--line); border-radius:5px; margin:6px 0; font-size:12px; overflow-wrap:anywhere; }
+    .check-row.FAIL { border-left:3px solid var(--cut); } .check-row.PASS { border-left:3px solid var(--pass); } .check-row.WARNING,.check-row.NOT_VERIFIED { border-left:3px solid #d88c00; }
+    #report { display:grid; grid-template-columns:1fr 1fr; gap:12px; max-height:360px; overflow:auto; } [hidden] { display:none!important; }
+    dialog { border:1px solid var(--line); border-radius:10px; background:var(--paper); color:var(--ink); width:min(440px,95vw); } dialog::backdrop { background:#0006; }
+    #features button { margin-top:8px; } .editor hr { border:0; border-top:1px solid var(--line); margin:24px 0; }
+    @media(max-width:800px) { #report { grid-template-columns:1fr; } .breadcrumb { order:0; } .nav-actions { margin-left:0; } }
+    .canvas svg .is-on { outline:none; }
+    .editor .ghost { border:1px solid var(--line); background:var(--paper); }
+    .editor h3 { margin:16px 0 8px; } .editor .lede { max-width:none; }
+    @media(min-width:801px) { .wrap { height:calc(100vh - 250px); min-height:520px; } .parts-panel,.properties { overflow-y:auto; } .stage { display:flex; flex-direction:column; } .canvas { height:auto; flex:1; min-height:260px; } .feedback { min-height:160px; } }
   </style>
 </head>
 <body class="editor">
   <nav aria-label="Editör gezinme">
     <a class="brand" href="/">Laser<em>MCP</em></a>
     <div class="breadcrumb"><a id="studio" href="/dashboard">Stüdyo</a><span>/</span><h1 id="title">SVG editörü</h1></div>
-    <div class="nav-actions"><a class="btn cut" id="download" href="#">SVG indir</a></div>
+    <div class="nav-actions"><button class="btn ghost" id="undo" title="Ctrl+Z">↶</button><button class="btn ghost" id="redo" title="Ctrl+Shift+Z">↷</button><span id="save-state" class="status-tag">Kayıtlı</span><button class="btn ghost" id="save">Kaydet</button><button class="btn ghost" id="validate">MCP ile doğrula</button><a class="btn cut" id="download" href="#">SVG indir</a></div>
   </nav>
   <main class="wrap">
     <section class="parts-panel" aria-labelledby="parts-heading">
       <h2 class="panel-title" id="parts-heading">PARÇALAR</h2>
       <p class="lede" id="meta">Parçalar yükleniyor…</p>
-      <div id="parts"></div>
+      <input id="search" type="search" placeholder="Parça ara" aria-label="Parça ara"><div id="parts"></div><button class="btn ghost" id="add-part">+ Parça ekle</button><details><summary>Sürüm geçmişi</summary><button class="btn ghost" id="history-load">Geçmişi getir</button><div id="history"></div></details>
     </section>
     <section class="stage" aria-label="SVG çalışma alanı">
       <div class="stage-head"><span>ÇALIŞMA ALANI</span><span>Parçaya tıklayarak seç · Ölçüler mm</span></div>
-      <div class="canvas" id="canvas">Yükleniyor…</div>
-      <p class="lede" id="lede">Izgara görsel kılavuzdur; ölçüm ölçeği değildir.</p>
+      <div class="canvas-tools"><button id="select-tool" class="btn ghost" aria-pressed="true">↖ Seç</button><button id="pan-tool" class="btn ghost" aria-pressed="false">✋ Kaydır</button><button class="btn ghost" id="zoom-out" aria-label="Uzaklaştır">−</button><output id="zoom">100%</output><button class="btn ghost" id="zoom-in" aria-label="Yakınlaştır">+</button><button class="btn ghost" id="fit">Sığdır</button></div><div class="canvas" id="canvas">Yükleniyor…</div>
+      <p class="lede" id="lede">Cetvel: mm · Delik X/Y: parçanın sol alt köşesinden merkezine.</p>
     </section>
     <aside class="properties" aria-labelledby="properties-heading">
       <h2 class="panel-title" id="properties-heading">ÖZELLİKLER</h2>
-      <p class="lede">Seçili parçanın parametrelerini düzenle.</p>
-      <label for="part">Parça</label>
-      <select id="part"></select>
-      <label for="op">İşlem</label>
-      <select id="op">
-        <option value="extend">Uzat / büyüt</option>
-        <option value="set_hole">Delik ekle</option>
-        <option value="add_window">Pencere ekle</option>
-        <option value="set_joint_clearance">Geçme boşluğunu ayarla</option>
-        <option value="set_material">Malzeme değiştir</option>
-      </select>
-      <label for="dim">Eksen</label>
-      <select id="dim">
-        <option value="x">X / genişlik</option>
-        <option value="y">Y / yükseklik</option>
-      </select>
-      <label for="mm" id="mm-label">mm</label>
-      <input id="mm" type="number" step="0.1" value="10">
-      <p class="tolerance-note hide" id="tolerance-note">Pozitif değer geçme ve oyukları gevşetir; negatif değer sıkılaştırır. Bu ayar sonraki Boxes.py üretiminde tüm parametrik geçmelere uygulanır.</p>
-      <label for="material">Malzeme</label>
-      <input id="material" placeholder="mdf_3mm">
-      <div class="ops">
-        <button class="btn cut" type="button" id="apply">Uygula</button>
-        <button class="btn ghost" type="button" id="reload">Yenile</button>
-      </div>
+      <div class="tabs"><button class="btn ghost" id="properties-tab">Özellikler</button><button class="btn ghost" id="connections-tab">Bağlantılar</button></div>
+      <section id="property-fields">
+        <h3 id="selection-name">Parça seçin</h3><p id="selection-size" class="lede"></p>
+        <label for="part-name">Parça adı</label><input id="part-name" maxlength="80"><label for="part">Parça</label><select id="part"></select>
+        <label for="width">Genişlik (mm)</label><input id="width" type="number" min="1" max="2000" step="0.1">
+        <label for="height">Yükseklik (mm)</label><input id="height" type="number" min="1" max="2000" step="0.1">
+        <label for="depth">Kutu derinliği (mm)</label><input id="depth" type="number" min="1" max="2000" step="0.1">
+        <label for="edges">Kenarlar (alt, sağ, üst, sol)</label><input id="edges" placeholder="eeee" maxlength="4">
+        <label for="material">Malzeme</label><input id="material" placeholder="poplar_3mm">
+        <label for="clearance">Geçme boşluğu (mm)</label><input id="clearance" type="number" min="-0.15" max="0.4" step="0.01" value="0">
+        <button class="btn cut" id="apply">Ölçüleri uygula</button>
+        <hr><h3>Yeni delik</h3>
+        <label for="face">Kutu yüzü</label><select id="face"><option>front</option><option>back</option><option>left</option><option>right</option><option>bottom</option><option value="top">Kapak</option></select>
+        <label for="purpose">Amaç</label><select id="purpose"><option>Kablo geçişi</option><option>Montaj</option><option>Pencere</option></select>
+        <label for="shape">Şekil</label><select id="shape"><option value="rect">Dikdörtgen</option><option value="circle">Daire</option></select>
+        <div class="field-pair"><div><label for="hole-w">Genişlik / çap</label><input id="hole-w" type="number" min="0.1" step="0.1" value="8"></div><div><label for="hole-h">Yükseklik</label><input id="hole-h" type="number" min="0.1" step="0.1" value="3"></div></div>
+        <div class="field-pair"><div><label for="hole-x">X (mm)</label><input id="hole-x" type="number" step="0.1" value="10"></div><div><label for="hole-y">Y (mm)</label><input id="hole-y" type="number" step="0.1" value="20"></div></div>
+        <div class="ops"><button class="btn ghost" id="place-hole">Tuvalde konum seç</button><button class="btn cut" id="add-hole">Deliği ekle</button></div><div id="features"></div>
+      </section>
+      <section id="connection-fields" hidden><h3>Bağlantılar</h3><p class="lede">Panel kenarlarını eşleştirin. f çıkıntı, F yuva; e düz kenardır.</p><div id="connection-list"></div><label for="connection-a">İlk panel</label><select id="connection-a"></select><label for="edge-a">Kenar</label><select id="edge-a"><option value="0">Alt</option><option value="1">Sağ</option><option value="2">Üst</option><option value="3">Sol</option></select><label for="connection-b">İkinci panel</label><select id="connection-b"></select><label for="edge-b">Kenar</label><select id="edge-b"><option value="0">Alt</option><option value="1">Sağ</option><option value="2">Üst</option><option value="3">Sol</option></select><button class="btn cut" id="connect">Bağlantıyı uygula</button><button class="btn ghost" id="cancel-connection" hidden>Düzenlemeyi iptal et</button></section>
     </aside>
   </main>
   <section class="feedback" aria-labelledby="feedback-heading">
     <div class="feedback-head"><h2 id="feedback-heading">DÜZENLEME DURUMU</h2><span class="status-tag">SVG editörü</span></div>
-    <div class="feedback-content"><p class="note" id="note" role="status" aria-live="polite">Bir parça seçip özelliklerini düzenleyebilirsiniz.</p></div>
+    <div id="report"></div><div class="feedback-content"><p class="note" id="note" role="status" aria-live="polite">Bir parça seçip özelliklerini düzenleyebilirsiniz.</p></div>
   </section>
-  <script>
-    const state = { file: "", project_id: "", primitives: [], parameters: {}, selected: "" };
-
-    function fileName() {
-      const path = decodeURIComponent((location.pathname || "").replace(/^\/(out|edit)\//, ""));
-      return path.split("/").pop() || "";
-    }
-
-    function showNote(text, kind) {
-      const el = document.getElementById("note");
-      el.textContent = text || "";
-      el.className = "note" + (kind ? " " + kind : "");
-    }
-
-    function partLabel(part, idx) {
-      return (part && (part.label || part.part_id || part.id || part.type)) || ("parça " + idx);
-    }
-
-    function fillParts(parts) {
-      const sel = document.getElementById("part");
-      const list = document.getElementById("parts");
-      sel.innerHTML = (parts || []).map(function (p, i) {
-        return "<option value='" + (p.label || p.part_id || String(i)) + "'>" + partLabel(p, i) + "</option>";
-      }).join("");
-      list.innerHTML = (parts || []).map(function (p, i) {
-        const key = p.label || p.part_id || String(i);
-        return "<button type='button' class='part' data-part='" + key + "'><span>" + partLabel(p, i) + "</span><span>" + (p.x || "—") + "×" + (p.y || "—") + "</span></button>";
-      }).join("");
-      list.querySelectorAll(".part").forEach(function (row) {
-        row.onclick = function () { pick(row.getAttribute("data-part")); };
-      });
-      if (state.selected) pick(state.selected);
-    }
-
-    function pick(key) {
-      state.selected = key || "";
-      const sel = document.getElementById("part");
-      if (key) sel.value = key;
-      document.querySelectorAll(".part").forEach(function (row) {
-        row.classList.toggle("on", row.getAttribute("data-part") === key);
-      });
-      document.querySelectorAll("#canvas [data-pick]").forEach(function (el) {
-        el.classList.toggle("is-on", (el.getAttribute("data-pick") || "") === key);
-      });
-    }
-
-    function matchKey(el) {
-      const raw = [
-        el.getAttribute("data-part-id"),
-        el.getAttribute("data-pick"),
-        el.getAttribute("data-part"),
-        el.id,
-        el.getAttribute("inkscape:label"),
-        el.getAttribute("aria-label")
-      ].filter(Boolean).join(" ");
-      const parts = state.primitives || [];
-      const lower = raw.toLowerCase();
-      for (let i = 0; i < parts.length; i++) {
-        const keys = [parts[i].label, parts[i].part_id, parts[i].id, parts[i].type].filter(Boolean);
-        if (keys.some(function (k) { return lower.indexOf(String(k).toLowerCase()) >= 0; })) {
-          return keys[0];
-        }
-      }
-      return raw.trim() || "";
-    }
-
-    function wireSvg(svg) {
-      svg.querySelectorAll("g, path, rect, polygon, polyline, circle, ellipse, line").forEach(function (el) {
-        if ((el.id || "").toUpperCase() === "CUT" || (el.id || "").toUpperCase() === "ENGRAVE") return;
-        const key = matchKey(el);
-        el.setAttribute("data-pick", key);
-        el.addEventListener("click", function (ev) {
-          ev.preventDefault();
-          ev.stopPropagation();
-          const hit = matchKey(el) || key;
-          if (hit) {
-            pick(hit);
-            showNote(hit + " seçildi. mm yazıp uygula.");
-          }
-        });
-      });
-    }
-
-    async function loadMeta() {
-      const res = await fetch("/api/editor/" + encodeURIComponent(state.file), { credentials: "same-origin" });
-      const data = await res.json().catch(function () { return {}; });
-      state.project_id = data.project_id || "";
-      state.primitives = data.primitives || [];
-      state.parameters = data.parameters || {};
-      document.getElementById("title").textContent = data.name || state.file;
-      document.getElementById("meta").textContent = data.editable
-        ? ((data.parts || []).length + " parça · v" + (data.version || "—"))
-        : "Parametrik parça yok — yine de SVG’yi görebilirsin.";
-      if (data.material) document.getElementById("material").value = data.material;
-      if (Object.prototype.hasOwnProperty.call(state.parameters, "joint_clearance_mm")) {
-        document.getElementById("mm").value = state.parameters.joint_clearance_mm;
-      }
-      fillParts(data.parts || []);
-      if ((data.look_again || []).length) showNote(data.look_again.join(" "));
-      return data;
-    }
-
-    async function loadSvg() {
-      const res = await fetch("/files/" + encodeURIComponent(state.file) + "?view=1", { credentials: "same-origin" });
-      const text = await res.text();
-      const box = document.getElementById("canvas");
-      if (!res.ok || text.indexOf("<svg") < 0) {
-        box.textContent = "SVG açılamadı.";
-        return;
-      }
-      box.innerHTML = text;
-      const svg = box.querySelector("svg");
-      if (svg) wireSvg(svg);
-    }
-
-    async function apply() {
-      const btn = document.getElementById("apply");
-      btn.disabled = true;
-      showNote("Uygulanıyor…");
-      try {
-        const body = {
-          file_id: state.file,
-          project_id: state.project_id,
-          part: document.getElementById("part").value || state.selected || "0",
-          op: document.getElementById("op").value,
-          mm: document.getElementById("mm").value,
-          dim: document.getElementById("dim").value,
-          material: document.getElementById("material").value,
-          parameters: state.parameters
-        };
-        const revise = await fetch("/api/studio/revise", {
-          method: "POST",
-          credentials: "same-origin",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify(body)
-        });
-        const edited = await revise.json();
-        if (!edited.success || !edited.primitives) {
-          showNote((edited.look_again || []).join(" ") || "Düzenlenemedi.", "bad");
-          return;
-        }
-        const parameters = Object.assign({}, state.parameters, edited.parameters || {});
-        parameters.project_id = (edited.project && edited.project.project_id) || state.project_id;
-        parameters.material = body.material || parameters.material;
-        const made = await fetch("/api/cad/design", {
-          method: "POST",
-          credentials: "same-origin",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            primitives: edited.primitives,
-            parameters: parameters
-          })
-        });
-        const next = await made.json();
-        if (!next.file_id) {
-          showNote((next.look_again || []).join(" ") || "Yeni SVG üretilemedi.", "bad");
-          return;
-        }
-        location.replace(next.svg_url || ("/out/" + encodeURIComponent(next.file_id)));
-      } catch (err) {
-        showNote(String(err), "bad");
-      } finally {
-        btn.disabled = false;
-      }
-    }
-
-    async function boot() {
-      state.file = fileName();
-      document.getElementById("download").href = "/files/" + encodeURIComponent(state.file) + "?download=1";
-      document.getElementById("download").setAttribute("download", state.file);
-      document.title = state.file + " — LaserMCP";
-      await loadMeta();
-      await loadSvg();
-    }
-
-    document.getElementById("apply").onclick = apply;
-    document.getElementById("reload").onclick = boot;
-    document.getElementById("part").onchange = function () { pick(this.value); };
-    document.getElementById("op").onchange = function () {
-      const tolerance = this.value === "set_joint_clearance";
-      const input = document.getElementById("mm");
-      document.getElementById("mm-label").textContent = tolerance ? "Geçme toleransı (mm)" : "mm";
-      document.getElementById("tolerance-note").classList.toggle("hide", !tolerance);
-      input.step = tolerance ? "0.01" : "0.1";
-      input.min = tolerance ? "-0.15" : "";
-      input.max = tolerance ? "0.40" : "";
-      if (tolerance && !Object.prototype.hasOwnProperty.call(state.parameters, "joint_clearance_mm")) input.value = "0";
-    };
-    boot();
-  </script>
+  <dialog id="new-part"><form id="new-part-form"><h2>Parça ekle</h2><label for="new-name">Parça adı</label><input id="new-name" required maxlength="80"><label for="new-type">Tür</label><select id="new-type"><option value="panel">Panel</option><option value="box">Kutu</option><option value="disc">Disk</option><option value="triangle">Üçgen</option></select><label for="new-w">Genişlik / çap (mm)</label><input id="new-w" type="number" min="1" max="2000" value="80" required><label for="new-h">Yükseklik (mm)</label><input id="new-h" type="number" min="1" max="2000" value="60" required><label for="new-d">Kutu derinliği (mm)</label><input id="new-d" type="number" min="1" max="2000" value="50" required><div class="ops"><button class="btn ghost" type="button" id="cancel-new">Vazgeç</button><button class="btn cut">Ekle</button></div></form></dialog>
+  <script src="/editor.js"></script>
 <script src="/ui.js"></script>
 </body>
 </html>

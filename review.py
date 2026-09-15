@@ -248,6 +248,9 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
         "structure": [],
     }
     connections = connection_graph(assembly, dmap.get("parts") or [])
+    from editor_service import connection_checks
+
+    connections.extend(connection_checks(primitives, built.get("parameters") or {}))
     moving = _moving(faces, primitives)
     required = list(_COMPOSED_CRITICAL if job == "composed" else _FLAT_CRITICAL)
     if job == "composed" and moving:

@@ -90,7 +90,7 @@ class AuthTests(unittest.TestCase):
         self.assertIn("/files/box.dxf", _file_url("https://mcp.example", "box.dxf"))
         page = (Path(__file__).resolve().parents[1] / "web" / "editor.html").read_text(encoding="utf-8")
         self.assertIn("id=\"canvas\"", page)
-        self.assertIn("/api/studio/revise", page)
+        self.assertIn('src="/editor.js"', page)
 
     def test_missing_file_is_html_for_browsers(self):
         from server import _missing_output, _prefers_html

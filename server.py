@@ -54,6 +54,7 @@ BRAND_FILES = {
     "/nav-auth.js": ("nav-auth.js", "text/javascript; charset=utf-8"),
     "/styles.css": ("styles.css", "text/css; charset=utf-8"),
     "/ui.js": ("ui.js", "text/javascript; charset=utf-8"),
+    "/editor.js": ("editor.js", "text/javascript; charset=utf-8"),
 }
 PUBLIC_PATHS = {
     "/",
@@ -416,12 +417,12 @@ class BearerGate:
             await send({"type": "http.response.body", "body": body})
             return
         if (scope.get("method") or "GET").upper() in {"POST", "PUT"} and (
-            path.startswith("/mcp") or path.startswith("/api/generate") or path.startswith("/api/cad/")
+            path.startswith("/mcp") or path.startswith("/api/generate") or path.startswith("/api/cad/") or (path.startswith("/api/editor/") and path.endswith(("/preview", "/save")))
         ):
             from persist.rate_limit import check
 
             ident = str(key.get("organization_id") or key.get("id") or "anon")
-            expensive = path.startswith("/api/generate") or path.startswith("/api/cad/")
+            expensive = path.startswith("/api/generate") or path.startswith("/api/cad/") or path.startswith("/api/editor/")
             if not check("http", ident, limit=30 if expensive else 60, window_sec=3600 if expensive else 60):
                 limited = b'{"success":true,"look_again":["Rate limit. Try again later."]}'
                 headers = [
@@ -763,6 +764,7 @@ async def dashboard(request: Request) -> Response:
 @mcp.custom_route("/site.webmanifest", methods=["GET"])
 @mcp.custom_route("/nav-auth.js", methods=["GET"])
 @mcp.custom_route("/styles.css", methods=["GET"])
+@mcp.custom_route("/editor.js", methods=["GET"])
 @mcp.custom_route("/ui.js", methods=["GET"])
 async def brand_asset(request: Request) -> Response:
     spec = BRAND_FILES.get(request.url.path)
