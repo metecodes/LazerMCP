@@ -452,27 +452,6 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
         else:
             mfg_c.append({"status": PASS, "note": "CUT loops close (nicks allowed)"})
 
-    # NEW CHECKS
-    # Electrical Logic
-    if job == "composed" and any(str(p.get("kind") or "").lower() in {"motor", "switch", "battery"} for p in primitives):
-        electrical_c.append({"status": NOT_VERIFIED, "note": "Electrical circuit graph not fully verified by backend."})
-    else:
-        electrical_c.append({"status": NA, "note": "No electronics detected."})
-
-    # Safety
-    if job == "composed" and moving:
-        safety_c.append({"status": WARNING, "note": "Moving parts require physical safety inspection (pinch points, reach)."})
-    else:
-        safety_c.append({"status": PASS, "note": "Static assembly."})
-        
-    # BOM
-    if built.get("bom"):
-        bom_c.append({"status": PASS, "note": "BOM exists."})
-    else:
-        bom_c.append({"status": NOT_VERIFIED, "note": "No BOM generated."})
-        
-    # Report Consistency
-    report_c.append({"status": PASS, "note": "Internal reports match."})
         mfg_ops = built.get("manufacturing") if isinstance(built.get("manufacturing"), dict) else None
         if mfg_ops is None:
             try:
@@ -526,6 +505,27 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
     if moving:
         safety_c.append({"status": WARNING, "note": "rotating rotor — keep fingers clear; not a toy without supervision"})
 
+    # NEW CHECKS
+    # Electrical Logic
+    if job == "composed" and any(str(p.get("kind") or "").lower() in {"motor", "switch", "battery"} for p in primitives):
+        electrical_c.append({"status": NOT_VERIFIED, "note": "Electrical circuit graph not fully verified by backend."})
+    else:
+        electrical_c.append({"status": NA, "note": "No electronics detected."})
+
+    # Safety
+    if job == "composed" and moving:
+        safety_c.append({"status": WARNING, "note": "Moving parts require physical safety inspection (pinch points, reach)."})
+    else:
+        safety_c.append({"status": PASS, "note": "Static assembly."})
+        
+    # BOM
+    if built.get("bom"):
+        bom_c.append({"status": PASS, "note": "BOM exists."})
+    else:
+        bom_c.append({"status": NOT_VERIFIED, "note": "No BOM generated."})
+        
+    # Report Consistency
+    report_c.append({"status": PASS, "note": "Internal reports match."})
     cats = [
         _cat("PART_COMPLETENESS", completeness, "PART_COMPLETENESS" in required),
         _cat("CONNECTIONS", connections_c, "CONNECTIONS" in required),
