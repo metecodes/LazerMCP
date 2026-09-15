@@ -186,6 +186,24 @@ def connection_graph(assembly: dict[str, Any] | None, parts: list[dict[str, Any]
     def add(a: str, b: str, kind: str, result: str, extra: dict[str, Any] | None = None) -> None:
         nonlocal n
         n += 1
+        
+        status = "PASS" if result in {"MATCH", "LOCK", "PASS"} else ("FAIL" if result == "FAIL" else WARNING)
+        reason = ""
+
+        # 1. SELF-CONNECTION PROHIBITION
+        if a == b and a not in {"?", "slot", "roof", "wall", "shaft"}:
+            status = "FAIL"
+            reason = "Self-connection prohibited"
+        
+        # 3. EXPECTED BOX TOPOLOGY (Forbidden relationships)
+        a_lower, b_lower = a.lower(), b.lower()
+        if {"top", "bottom"}.issubset({a_lower, b_lower}) or {"lid", "bottom"}.issubset({a_lower, b_lower}):
+            status = "FAIL"
+            reason = "Top panel cannot connect directly to bottom"
+        if a_lower == b_lower and a_lower in {"front", "back", "left", "right"}:
+            status = "FAIL"
+            reason = f"Forbidden topology: {a_lower} to {b_lower}"
+            
         rec = {
             "id": f"C{n:02d}",
             "a": name_to_id.get(a, a),
@@ -193,8 +211,10 @@ def connection_graph(assembly: dict[str, Any] | None, parts: list[dict[str, Any]
             "a_name": a,
             "b_name": b,
             "type": kind,
-            "status": "PASS" if result in {"MATCH", "LOCK", "PASS"} else ("FAIL" if result == "FAIL" else WARNING),
+            "status": status,
         }
+        if reason:
+            rec["reason"] = reason
         if extra:
             rec.update(extra)
         graph.append(rec)
@@ -303,10 +323,13 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
         for msg in looks:
             connections_c.append({"status": FAIL, "note": str(msg)})
         for rec in connections:
+            note = f"{rec['id']} {rec.get('type')} {rec.get('a_name')} ↔ {rec.get('b_name')}"
+            if rec.get("reason"):
+                note += f" — {rec['reason']}"
             connections_c.append(
                 {
                     "status": rec.get("status") or PASS,
-                    "note": f"{rec['id']} {rec.get('type')} {rec.get('a_name')} ↔ {rec.get('b_name')}",
+                    "note": note,
                 }
             )
         if connections and not looks:
