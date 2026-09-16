@@ -747,6 +747,12 @@ def save_generated_svg(
     generator: str = "cad",
     dxf_bytes: bytes | None = None,
 ) -> dict[str, Any]:
+    try:
+        from persist.cleanup import cleanup_expired
+        cleanup_expired()
+    except Exception:
+        pass
+        
     name = (extra or {}).get("generator") or (extra or {}).get("product") or generator
     extra = dict(extra or {})
     started_at = extra.pop("_started_at", None)

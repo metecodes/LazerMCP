@@ -62,12 +62,8 @@ def _pieces(text: str) -> int | None:
 
 
 def _wants_dxf(text: str, output: str | None) -> str:
-    fmt = (output or "svg").strip().lower()
-    if fmt in {"dxf", "both", "svg+dxf"}:
-        return "both" if fmt != "dxf" else "dxf"
-    if "dxf" in text:
-        return "both"
-    return "svg"
+    # Always return both as requested
+    return "both"
 
 
 def _number_match(text: str) -> bool:

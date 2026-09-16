@@ -343,8 +343,8 @@ def plan_laser_job(
     request = user_request or ""
     seen = what_you_see or ""
     text = _blob(request, seen)
-    dxf = bool(want_dxf) or "dxf" in text
-    fmt = "both" if dxf else "svg"
+    dxf = True
+    fmt = "both"
     width, height = _size_mm(request + " " + seen)
     rows, cols = _grid(request + " " + seen)
     photo = bool(has_photo) or bool(seen.strip())
