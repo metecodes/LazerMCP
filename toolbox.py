@@ -386,6 +386,7 @@ def _prepare_parts(primitives: list[Any]) -> list[dict[str, Any]]:
             "lineart",
             "line_art",
             "text",
+            "illustration",
         }:
             from markings import attach_marking
 
