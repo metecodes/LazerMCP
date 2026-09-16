@@ -26,7 +26,7 @@ def supabase_service_role() -> str:
 
 
 def storage_bucket() -> str:
-    return (os.environ.get("LASERMCP_STORAGE_BUCKET") or "lasermcp-artifacts").strip()
+    return (os.environ.get("LASERMCP_STORAGE_BUCKET") or "cikti").strip()
 
 
 def uses_supabase_app_db() -> bool:

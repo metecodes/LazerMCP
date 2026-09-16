@@ -18,7 +18,19 @@ def _headers(json_body: bool = True) -> dict[str, str]:
     return headers
 
 
+
+def storage_create_bucket(bucket: str, public: bool = True) -> None:
+    url = f"{supabase_url()}/storage/v1/bucket"
+    body = json.dumps({"id": bucket, "name": bucket, "public": public}).encode("utf-8")
+    req = urllib.request.Request(url, data=body, method="POST", headers=_headers())
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            resp.read()
+    except urllib.error.HTTPError:
+        pass
+
 def storage_upload(bucket: str, path: str, data: bytes, mime: str) -> None:
+
     url = f"{supabase_url()}/storage/v1/object/{bucket}/{path}"
     req = urllib.request.Request(url, data=data, method="POST", headers={**_headers(False), "Content-Type": mime})
     with urllib.request.urlopen(req, timeout=30) as resp:

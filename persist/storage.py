@@ -12,7 +12,7 @@ from typing import Any
 from persist.env import storage_bucket, uses_supabase_app_db
 from studio_store import data_dir, now_iso
 
-SIGNED_TTL_SEC = 30 * 24 * 60 * 60  # 30 days
+SIGNED_TTL_SEC = 1 * 24 * 60 * 60  # 30 days
 
 
 def sha256_hex(data: bytes) -> str:
@@ -49,8 +49,9 @@ class StorageService:
 
     def put(self, storage_path: str, data: bytes, mime_type: str) -> None:
         if uses_supabase_app_db():
-            from persist.supabase_rest import storage_upload
+            from persist.supabase_rest import storage_upload, storage_create_bucket
 
+            storage_create_bucket(storage_bucket(), public=True)
             storage_upload(storage_bucket(), storage_path, data, mime_type)
             return
         dest = (self.root() / storage_path).resolve()
