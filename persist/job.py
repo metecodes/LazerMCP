@@ -60,7 +60,7 @@ def persist_bytes(
         expires = None
     else:
         path = store.tmp_path(organization_id, ext)
-        expires = expires_in_hours(30 * 24)  # 30 days
+        expires = expires_in_hours(24)  # 1 day
     store.put(path, data, mime_type)
     meta = repo.insert(
         {
@@ -91,12 +91,10 @@ def attach_durable_artifacts(result: dict[str, Any], extra: dict[str, Any] | Non
         except Exception:
             pass
     principal = _principal()
-    org = _org_id(principal)
+    org = _org_id(principal) or "public"
     result["design_generation"] = "DESIGN_GENERATION_SUCCESS"
     result["durable_persistence"] = False
-    if not org:
-        result["persistence_note"] = "no organization boundary; local file only"
-        return result
+    
     status = str(result.get("final_status") or extra.get("final_status") or "")
     durable = status in DURABLE_STATUSES
     from boxes_adapter import OUTPUT_DIR, _safe_output_file
