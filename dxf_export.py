@@ -159,6 +159,15 @@ def svg_bytes_to_dxf(svg_bytes: bytes, step_mm: float = 0.6) -> bytes:
         root = ET.fromstring(svg_bytes)
     except ET.ParseError:
         return geoms_to_dxf([], [])
+        
+    try:
+        height_str = root.attrib.get("height", "0")
+        import re
+        height_str = re.sub(r"[a-zA-Z]+", "", height_str).strip()
+        doc_height = float(height_str)
+    except Exception:
+        doc_height = 0.0
+
     cuts: list = []
     etches: list = []
     for el in root.iter():
@@ -178,7 +187,11 @@ def svg_bytes_to_dxf(svg_bytes: bytes, step_mm: float = 0.6) -> bytes:
         pts = []
         for i in range(n + 1):
             pt = path.point(i / n)
-            pts.append((float(pt.real), float(pt.imag)))
+            # Transform SVG (Y-down) to DXF (Y-up) without mirroring the geometry itself.
+            # Y_dxf = doc_height - Y_svg
+            y_svg = float(pt.imag)
+            y_dxf = (doc_height - y_svg) if doc_height > 0 else -y_svg
+            pts.append((float(pt.real), y_dxf))
         if len(pts) < 2:
             continue
         geom = LineString(pts)
