@@ -55,6 +55,14 @@ def authorize_customer_file(filename: str, principal: dict[str, Any] | None, *, 
     artifact = resolve_artifact_ref(name)
     if artifact:
         if can_access_org(principal, str(artifact.get("organization_id") or "")):
+            # Mark as opened by clearing expiration
+            try:
+                from persist.db import connect
+                with connect() as conn:
+                    conn.execute("UPDATE artifacts SET expires_at = NULL WHERE id = ?", (artifact["id"],))
+                    conn.commit()
+            except Exception:
+                pass
             return {"allow": True, "reason": "owner", "artifact": artifact}
         return {"allow": False, "reason": "forbidden", "artifact": artifact}
     if not auth_on:
