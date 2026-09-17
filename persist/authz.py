@@ -17,6 +17,8 @@ def principal_org_id(principal: dict[str, Any] | None) -> str:
 
 
 def can_access_org(principal: dict[str, Any] | None, organization_id: str) -> bool:
+    if organization_id == "public":
+        return True
     if not principal or not organization_id:
         return False
     if str(principal.get("id") or "") == "admin" and str(principal.get("role") or "") == "admin":
