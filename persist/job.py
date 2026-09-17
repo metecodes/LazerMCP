@@ -16,6 +16,8 @@ from persist.storage import StorageService, expires_in_hours, ext_for, maybe_web
 _last_gc = 0.0
 
 from keys import current_auth
+from persist.env import uses_supabase_app_db
+from persist.authz import PUBLIC_ORG_ID
 
 DURABLE_STATUSES = {"PROTOTYPE READY", "PRODUCTION READY"}
 
@@ -92,6 +94,8 @@ def attach_durable_artifacts(result: dict[str, Any], extra: dict[str, Any] | Non
             pass
     principal = _principal()
     org = _org_id(principal) or "public"
+    if org == "public" and uses_supabase_app_db():
+        org = PUBLIC_ORG_ID
     result["design_generation"] = "DESIGN_GENERATION_SUCCESS"
     result["durable_persistence"] = False
     

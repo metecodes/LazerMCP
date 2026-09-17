@@ -8,7 +8,8 @@ from editor_service import editor_action, connection_checks, validate_draft
 class EditorTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
-        self.env = patch.dict(os.environ, {'MCP_DATA_DIR': self.temp.name})
+        self.env = patch.dict(os.environ, {'MCP_DATA_DIR': self.temp.name,
+            'SUPABASE_URL': '', 'SUPABASE_SERVICE_ROLE_KEY': ''})
         self.env.start()
         self.context = {'project_id': 'editor-tests', 'name': 'Editör testi'}
         self.parts = [{'type': 'panel', 'label': 'Kapak', 'w': 120, 'h': 80, 'edges': 'eeee', 'holes': [{'x': 20, 'y': 30, 'd': 4}], 'slots': [{'x': 60, 'y': 40, 'w': 8, 'h': 3}]}]

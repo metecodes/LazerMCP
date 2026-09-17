@@ -1,6 +1,7 @@
 import os
 import tempfile
 import unittest
+from unittest.mock import patch
 
 
 class WorkshopLoopTests(unittest.TestCase):
@@ -8,8 +9,11 @@ class WorkshopLoopTests(unittest.TestCase):
         self.tmp = tempfile.mkdtemp()
         self.old = os.environ.get("MCP_DATA_DIR")
         os.environ["MCP_DATA_DIR"] = self.tmp
+        self.remote_env = patch.dict(os.environ, {"SUPABASE_URL": "", "SUPABASE_SERVICE_ROLE_KEY": ""})
+        self.remote_env.start()
 
     def tearDown(self):
+        self.remote_env.stop()
         if self.old is None:
             os.environ.pop("MCP_DATA_DIR", None)
         else:

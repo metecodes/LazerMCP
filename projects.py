@@ -7,6 +7,8 @@ import secrets
 from typing import Any
 
 from studio_store import now_iso, read_json, write_json
+from persist.env import uses_supabase_app_db
+from persist.supabase_rest import rest, rows, upsert
 
 
 def _slug(name: str) -> str:
@@ -15,6 +17,8 @@ def _slug(name: str) -> str:
 
 
 def _load() -> dict[str, Any]:
+    if uses_supabase_app_db():
+        return {row["id"]: row["payload"] for row in rows("lasermcp_projects")}
     raw = read_json("projects.json", {})
     return raw if isinstance(raw, dict) else {}
 
@@ -26,7 +30,8 @@ def save_version(parameters: dict[str, Any] | None, result: dict[str, Any] | Non
     pid = str(params.get("project_id") or "").strip() or None
     if not name and not pid and not data.get("file_id"):
         return None
-    store = _load()
+    remote = uses_supabase_app_db()
+    store = {} if remote else _load()
     if not pid:
         pid = _slug(name or str(data.get("product") or "design")) + "-" + secrets.token_hex(2)
     project = store.get(pid) or {"id": pid, "name": name or pid, "created": now_iso(), "versions": []}
@@ -56,6 +61,10 @@ def save_version(parameters: dict[str, Any] | None, result: dict[str, Any] | Non
         "feedback": data.get("feedback") if isinstance(data.get("feedback"), dict) else None,
         "approved": bool(data.get("approved")),
     }
+    if remote:
+        return rest("rpc/append_lasermcp_version", method="POST", body={
+            "p_id": pid, "p_name": name, "p_version": version,
+        })
     project.setdefault("versions", []).append(version)
     project["updated"] = now_iso()
     store[pid] = project
@@ -64,7 +73,26 @@ def save_version(parameters: dict[str, Any] | None, result: dict[str, Any] | Non
 
 
 def _save_store(store: dict[str, Any]) -> None:
+    if uses_supabase_app_db():
+        for pid, payload in store.items():
+            upsert("lasermcp_projects", {"id": pid, "payload": payload})
+        return
     write_json("projects.json", store)
+
+
+def approve_latest(project_id: str) -> dict[str, Any]:
+    if uses_supabase_app_db():
+        return rest("rpc/approve_lasermcp_version", method="POST", body={"p_id": project_id})
+    store = _load()
+    project = store.get(project_id)
+    if not project:
+        raise ValueError("unknown project")
+    versions = project.get("versions") or []
+    if not versions:
+        raise ValueError("no versions to approve")
+    versions[-1].update(approved=True, approved_at=now_iso())
+    _save_store(store)
+    return {"project_id": project_id, "version": versions[-1].get("n")}
 
 
 def list_projects() -> list[dict[str, Any]]:
@@ -86,6 +114,9 @@ def list_projects() -> list[dict[str, Any]]:
 
 
 def project_history(project_id: str) -> dict[str, Any] | None:
+    if uses_supabase_app_db():
+        found = rows("lasermcp_projects", id=f"eq.{project_id}", limit=1)
+        return found[0]["payload"] if found else None
     store = _load()
     return store.get(project_id)
 

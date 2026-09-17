@@ -921,13 +921,18 @@ def save_generated_svg(
             payload["project"] = extra.get("project")
             (OUTPUT_DIR / side).write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     except Exception:
-        pass
+        result["project_persistence"] = "PROJECT_PERSISTENCE_FAILED"
+        looks = result.get("look_again")
+        if not isinstance(looks, list):
+            looks = [str(looks)] if looks else []
+        result["look_again"] = looks + ["Project history could not be saved. Do not treat this as a stored project."]
     try:
         from persist.job import attach_durable_artifacts
 
         result = attach_durable_artifacts(result, extra)
     except Exception:
         result["durable_persistence"] = False
+        result["artifact_persistence"] = "ARTIFACT_PERSISTENCE_FAILED"
         result["artifact_persistence"] = "ARTIFACT_PERSISTENCE_FAILED"
     return attach_elapsed(result, started_at)
 

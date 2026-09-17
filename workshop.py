@@ -441,23 +441,12 @@ def approve_prototype(body: dict[str, Any]) -> dict[str, Any]:
     pid = str(body.get("project_id") or "")
     if not pid:
         raise ValueError("project_id required")
-    history = project_history(pid)
-    if not history:
-        raise ValueError("unknown project")
-    versions = history.get("versions") or []
-    if not versions:
-        raise ValueError("no versions to approve")
-    versions[-1]["approved"] = True
-    versions[-1]["approved_at"] = now_iso()
-    from projects import _load, _save_store
-
-    store = _load()
-    store[pid] = history
-    _save_store(store)
+    from projects import approve_latest
+    approved = approve_latest(pid)
     return {
         "success": True,
         "project_id": pid,
-        "version": versions[-1].get("n"),
+        "version": approved.get("version"),
         "status": "approved prototype",
         "look_again": ["Approved prototype only. Production still needs human physical tests."],
     }

@@ -5,9 +5,43 @@ from __future__ import annotations
 import json
 import urllib.error
 import urllib.request
+from urllib.parse import urlencode
 from typing import Any
 
 from persist.env import supabase_service_role, supabase_url
+
+
+def rest(path: str, *, method: str = "GET", params: dict | None = None,
+         body: Any = None, prefer: str = "") -> Any:
+    """Service-role metadata requests. Fail closed; never fall back to /tmp."""
+    url = f"{supabase_url()}/rest/v1/{path}"
+    if params:
+        url += "?" + urlencode(params)
+    headers = _headers()
+    if prefer:
+        headers["Prefer"] = prefer
+    data = json.dumps(body).encode("utf-8") if body is not None else None
+    request = urllib.request.Request(url, data=data, method=method, headers=headers)
+    with urllib.request.urlopen(request, timeout=30) as response:
+        raw = response.read()
+    return json.loads(raw) if raw else None
+
+
+def rows(table: str, **filters) -> list[dict]:
+    if "limit" in filters:
+        return rest(table, params={"select": "*", **filters}) or []
+    found = []
+    while True:
+        page = rest(table, params={"select": "*", **filters, "limit": 1000, "offset": len(found)}) or []
+        found.extend(page)
+        if len(page) < 1000:
+            return found
+
+
+def upsert(table: str, payload: Any, conflict: str = "id", *, ignore: bool = False):
+    resolution = "ignore-duplicates" if ignore else "merge-duplicates"
+    return rest(table, method="POST", params={"on_conflict": conflict}, body=payload,
+                prefer=f"resolution={resolution},return=representation")
 
 
 def _headers(json_body: bool = True) -> dict[str, str]:
@@ -32,7 +66,7 @@ def storage_create_bucket(bucket: str, public: bool = True) -> None:
 def storage_upload(bucket: str, path: str, data: bytes, mime: str) -> None:
 
     url = f"{supabase_url()}/storage/v1/object/{bucket}/{path}"
-    req = urllib.request.Request(url, data=data, method="POST", headers={**_headers(False), "Content-Type": mime})
+    req = urllib.request.Request(url, data=data, method="POST", headers={**_headers(False), "Content-Type": mime, "x-upsert": "true"})
     with urllib.request.urlopen(req, timeout=30) as resp:
         resp.read()
 

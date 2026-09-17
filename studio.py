@@ -79,6 +79,7 @@ def finish_result(result: dict[str, Any], extra: dict[str, Any] | None = None) -
     if project:
         result["project"] = project
         payload["project"] = project
+        result["project_persistence"] = "PROJECT_PERSISTENCE_SUCCESS"
     result = apply_plan_to_result(result, extra)
     key = _principal()
     record_usage(

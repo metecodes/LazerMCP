@@ -8,6 +8,7 @@ from persist.artifacts import ArtifactRepository
 from persist.orgs import OrganizationRepository
 
 BLOCKED_GLOBAL = {"latest.svg", "latest.dxf"}
+PUBLIC_ORG_ID = "00000000-0000-0000-0000-000000000001"
 
 
 def principal_org_id(principal: dict[str, Any] | None) -> str:
@@ -17,7 +18,7 @@ def principal_org_id(principal: dict[str, Any] | None) -> str:
 
 
 def can_access_org(principal: dict[str, Any] | None, organization_id: str) -> bool:
-    if organization_id == "public":
+    if organization_id in {"public", PUBLIC_ORG_ID}:
         return True
     if not principal or not organization_id:
         return False
@@ -57,10 +58,7 @@ def authorize_customer_file(filename: str, principal: dict[str, Any] | None, *, 
         if can_access_org(principal, str(artifact.get("organization_id") or "")):
             # Mark as opened by clearing expiration
             try:
-                from persist.db import connect
-                with connect() as conn:
-                    conn.execute("UPDATE artifacts SET expires_at = NULL WHERE id = ?", (artifact["id"],))
-                    conn.commit()
+                ArtifactRepository().retain(artifact["id"])
             except Exception:
                 pass
             return {"allow": True, "reason": "owner", "artifact": artifact}
