@@ -34,6 +34,8 @@ _SKIP_KEYS = {
     "d",
     "closed",
     "rotation",
+    "u",
+    "v",
     "angle",
     "what_you_see",
     "measured_bar_mm",

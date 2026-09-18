@@ -74,18 +74,31 @@ def storage_upload(bucket: str, path: str, data: bytes, mime: str) -> None:
 def storage_download(bucket: str, path: str) -> bytes:
     url = f"{supabase_url()}/storage/v1/object/{bucket}/{path}"
     req = urllib.request.Request(url, method="GET", headers=_headers(False))
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        return resp.read()
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            return resp.read()
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:
+            raise FileNotFoundError(path) from exc
+        if exc.code == 400:
+            try:
+                error = json.loads(exc.read())
+            except (ValueError, TypeError):
+                error = {}
+            if str(error.get("statusCode")) == "404" or error.get("error") == "not_found" or error.get("message") == "Object not found":
+                raise FileNotFoundError(path) from exc
+        raise
 
 
 def storage_delete(bucket: str, path: str) -> None:
-    url = f"{supabase_url()}/storage/v1/object/{bucket}/{path}"
-    req = urllib.request.Request(url, method="DELETE", headers=_headers(False))
+    url = f"{supabase_url()}/storage/v1/object/{bucket}"
+    req = urllib.request.Request(url, data=json.dumps({"prefixes": [path]}).encode("utf-8"), method="DELETE", headers=_headers())
     try:
         with urllib.request.urlopen(req, timeout=20) as resp:
             resp.read()
-    except urllib.error.HTTPError:
-        pass
+    except urllib.error.HTTPError as exc:
+        if exc.code != 404:
+            raise
 
 
 def storage_signed_url(bucket: str, path: str, ttl: int) -> str | None:

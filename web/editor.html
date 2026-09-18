@@ -74,7 +74,7 @@
   <nav aria-label="Editör gezinme">
     <a class="brand" href="/">Laser<em>MCP</em></a>
     <div class="breadcrumb"><a id="studio" href="/dashboard">Stüdyo</a><span>/</span><h1 id="title">SVG editörü</h1></div>
-    <div class="nav-actions"><button class="btn ghost" id="undo" title="Ctrl+Z">↶</button><button class="btn ghost" id="redo" title="Ctrl+Shift+Z">↷</button><span id="save-state" class="status-tag">Kayıtlı</span><button class="btn ghost" id="save">Kaydet</button><button class="btn ghost" id="validate">MCP ile doğrula</button><a class="btn cut" id="download" href="#">SVG indir</a></div>
+    <div class="nav-actions"><button class="btn ghost" id="undo" title="Ctrl+Z">↶</button><button class="btn ghost" id="redo" title="Ctrl+Shift+Z">↷</button><span id="save-state" class="status-tag">Kayıtlı</span><button class="btn ghost" id="import-plt">PLT içe aktar</button><input type="file" id="plt-file" accept=".plt,.hpgl,.hpg" hidden><button class="btn ghost" id="save">Kaydet</button><button class="btn ghost" id="validate">MCP ile doğrula</button><a class="btn cut" id="download" href="#">SVG indir</a></div>
   </nav>
   <main class="wrap">
     <section class="parts-panel" aria-labelledby="parts-heading">
@@ -84,7 +84,7 @@
     </section>
     <section class="stage" aria-label="SVG çalışma alanı">
       <div class="stage-head"><span>ÇALIŞMA ALANI</span><span>Parçaya tıklayarak seç · Ölçüler mm</span></div>
-      <div class="canvas-tools"><button id="select-tool" class="btn ghost" aria-pressed="true">↖ Seç</button><button id="pan-tool" class="btn ghost" aria-pressed="false">✋ Kaydır</button><button class="btn ghost" id="zoom-out" aria-label="Uzaklaştır">−</button><output id="zoom">100%</output><button class="btn ghost" id="zoom-in" aria-label="Yakınlaştır">+</button><button class="btn ghost" id="fit">Sığdır</button></div><div class="canvas" id="canvas">Yükleniyor…</div>
+      <div class="canvas-tools"><button class="btn ghost" id="cut-view" aria-pressed="true">Kesim yerleşimi</button><button class="btn ghost" id="assembled-view" aria-pressed="false" disabled>Monte görünüm</button><button id="select-tool" class="btn ghost" aria-pressed="true">↖ Seç</button><button id="pan-tool" class="btn ghost" aria-pressed="false">✋ Kaydır</button><button class="btn ghost" id="zoom-out" aria-label="Uzaklaştır">−</button><output id="zoom">100%</output><button class="btn ghost" id="zoom-in" aria-label="Yakınlaştır">+</button><button class="btn ghost" id="fit">Sığdır</button></div><div class="canvas" id="canvas">Yükleniyor…</div>
       <p class="lede" id="lede">Cetvel: mm · Delik X/Y: parçanın sol alt köşesinden merkezine.</p>
     </section>
     <aside class="properties" aria-labelledby="properties-heading">

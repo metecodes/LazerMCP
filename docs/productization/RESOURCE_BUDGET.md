@@ -5,6 +5,44 @@ Estimates for the **planned** SaaS features, grounded in **current write behavio
 Official Supabase Free Plan numeric limits: **LIMIT NOT VERIFIED**.  
 This file is an architecture budget, not a pricing sheet.
 
+## Approved artifact retention — 2026-09-17
+
+**USER DECISION:** Every generated/saved file is retained for **24 hours from
+creation**, then deleted from Storage. This applies to SVG, DXF, previews and
+generated file attachments, including drafts, prototype checkpoints and
+production-validated exports. Opening, downloading, approving or saving an
+existing file does not extend its lifetime. A newly generated file/version gets
+its own 24-hour lifetime. There is no permanent-file exception.
+
+This decision supersedes the longer artifact retention assumptions below.
+Project history metadata may remain, but must show expired files as unavailable;
+it must not claim that deleted files can still be downloaded.
+
+**IMPLEMENTED / LIVE DATABASE VERIFIED (2026-09-17):** All generated artifact
+records receive a creation-based 24-hour expiry. The Supabase trigger also prevents
+older code from clearing expiry or resetting creation time. A database cron job
+runs every 15 minutes, deletes up to 100 expired objects through the Storage API,
+then deletes their metadata only on success. Cleanup credentials are encrypted in
+Vault. Live tests verified expired object bytes were deleted while an active
+object remained readable. The updated MCP/editor code was deployed to
+`mcp.metehanavci.com` and its bundled file-loading API verified on 2026-09-17.
+A signed URL lifetime alone does **not** delete its underlying object.
+
+Implementation requirements and remaining rollout checks:
+
+- Set `expires_at = created_at + 24 hours` on every generated artifact, regardless
+  of design status, and give existing generated files the same creation-based TTL.
+- Stop clearing/extending expiry on file access; deny downloads after expiry.
+- Run scheduled cleanup independently of new MCP requests. Target: every 15
+  minutes. Physical deletion occurs on the next successful cleanup run after
+  expiry; this delay must be included in the capacity estimate.
+- Delete actual Storage object bytes through the Storage API, then delete the
+  artifact record. If object deletion fails, preserve the record for retry.
+- Apply this to every generated storage backend; a Vercel Blob copy must not
+  remain after its corresponding Supabase file expires.
+- Verify expiry, deletion and retry behavior after deployment. Static gallery
+  assets and account/profile records are outside this generated-file policy.
+
 Labels:
 
 - **VERIFIED** — observed in code.
@@ -29,7 +67,7 @@ One successful `create_design` / named kit persist typically creates:
 | `{stem}.dxf` + `latest.dxf` | DXF | If DXF entitled / produced |
 | 1 `usage.jsonl` line | JSONL | `finish_result` |
 | 1–2 `telemetry.jsonl` lines | JSONL | job_saved / look_again |
-| 1 project version | JSON rewrite | If `entitled("project_history")` (beta default **on**) and `file_id` exists |
+| 1 project version | Supabase JSONB update, or local JSON rewrite | Supabase transition applied 2026-09-17; updated MCP server deployment pending |
 | 1 `api_keys.json` rewrite | JSON | If request used a hashed key (`touch_key`) |
 
 Failed generations that never persist a `file_id` do not call `save_version` (it returns `None` without name/pid/`file_id`). **Failed in-memory reviews that still persist SVG: NOT VERIFIED per all call sites** — persist happens after pipeline in the adapter; BLOCKED jobs can still write files if the adapter persist path runs. Treat “failed = no version” as a **requirement**, not current law.
@@ -54,7 +92,8 @@ Used only for scale math. Not production telemetry.
 | usage/telemetry line | 200 B |
 | project version record (current, with speak) | 2–20 KB |
 
-WebP target for **future** persistent previews: **ASSUMPTION** 40–80 KB (not implemented).
+WebP preview size target: **ASSUMPTION** 40–80 KB. Conversion is implemented by
+`persist.storage.maybe_webp`; achieved production size is not measured.
 
 ---
 
@@ -77,7 +116,9 @@ For each feature below: rows, writes, reads, storage, file types, retention, cle
 | Cleanup | Soft-delete then GC artifacts. |
 | Free Plan impact | Low row count if metadata-only. **LIMIT NOT VERIFIED**. |
 
-Current `projects.json` is global, unowned, and embeds speak — **do not clone that into Postgres**.
+Current Supabase `lasermcp_projects.payload` preserves the legacy JSON history,
+including speak; six available histories were migrated on 2026-09-17. This is
+the compatibility implementation, not the normalized metadata target above.
 
 ### 2. Project version history
 
@@ -88,8 +129,8 @@ Current `projects.json` is global, unowned, and embeds speak — **do not clone 
 | Reads / action | History list: 1 query. Restore: 1 version + artifact metadata. |
 | Storage | Pointers + hash + status. Not SVG. |
 | Files | Object store: SVG, optional DXF, WebP preview. |
-| Retention | Keep last N (ASSUMPTION 20) or 90 days for drafts; longer for `PROTOTYPE_VALIDATED`+. |
-| Cleanup | Drop failed/tmp versions; expire draft blobs. |
+| Retention | Generated file bytes: **24 hours (USER DECISION)** for all statuses. History metadata retention is separate. |
+| Cleanup | Delete expired file bytes and artifact records; mark retained history references expired. |
 | Free Plan impact | Row count grows with AI retries if you version everything — **do not**. |
 
 ### 3. Machine profiles
@@ -201,21 +242,27 @@ Current `projects.json` is global, unowned, and embeds speak — **do not clone 
 ## Scale snapshots
 
 **ASSUMPTION** mix: 40% users generate 2 jobs/month, 40% generate 8, 20% generate 25. Mean **≈ 8.8 jobs / user / month**.  
-**ASSUMPTION** 0.8 MB stored artifacts / job if you keep everything forever (current habit).  
+**ASSUMPTION** 0.8 MB stored artifacts / job. Approved retention: **24 hours**.
 Daily usage rows = users × active-days; use **1 row / user / active day**, **ASSUMPTION** 10 active days / month.
 
-| Users | Jobs / month | Artifact GB / month if retained | `usage_daily` rows / month | Project rows (15/user) |
-| ---: | ---: | ---: | ---: | ---: |
-| 10 | ~90 | ~0.07 | ~100 | 150 |
-| 100 | ~880 | ~0.7 | ~1,000 | 1,500 |
-| 500 | ~4,400 | ~3.5 | ~5,000 | 7,500 |
-| 1,000 | ~8,800 | ~7 | ~10,000 | 15,000 |
+| Users | Jobs / month | Artifact GB written / month | Mean active artifact GB with 24 h TTL | `usage_daily` rows / month | Project rows (15/user) |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 10 | ~90 | ~0.07 | ~0.0024 | ~100 | 150 |
+| 100 | ~880 | ~0.7 | ~0.023 | ~1,000 | 1,500 |
+| 500 | ~4,400 | ~3.5 | ~0.117 | ~5,000 | 7,500 |
+| 1,000 | ~8,800 | ~7 | ~0.235 | ~10,000 | 15,000 |
+
+Active storage estimate = jobs/month ÷ 30 × 0.8 MB (decimal GB), assuming
+uniform traffic and successful cleanup. Allow roughly 1.04% extra for a 15-minute
+cleanup delay and additional headroom for bursts or failed deletions. TTL reduces
+stored capacity; it does not reduce upload volume or download egress by itself.
 
 If every job also writes a 15 KB sidecar **into Postgres**: +~0.13 GB/month at 1k users of **database** bloat — avoid.
 
 If every MCP tool call writes a fact row (**do not**): 1k users × **ASSUMPTION** 40 calls/job × 8.8 jobs ≈ **350k rows/month**. That is the anti-pattern.
 
-Official whether 7 GB Storage or 15k rows fits Free Plan: **LIMIT NOT VERIFIED**.
+Official whether the estimated active Storage or 15k rows fits Free Plan:
+**LIMIT NOT VERIFIED**.
 
 ---
 
@@ -223,10 +270,10 @@ Official whether 7 GB Storage or 15k rows fits Free Plan: **LIMIT NOT VERIFIED**
 
 | Class | TTL | Action |
 | --- | --- | --- |
-| `tmp/` render, failed gen, health/preview | 24 h **ASSUMPTION** | Delete objects; no version row |
-| Draft versions without checkpoint | 14–30 days | Delete blobs; keep or drop metadata |
-| Prototype checkpoint | 1 year or until archive | Keep SVG + WebP |
-| Production-validated | Until customer delete | Keep |
+| `tmp/` render, failed gen, health/preview | 24 h **USER DECISION** | Delete generated objects and artifact records |
+| Draft/generated/saved files | 24 h **USER DECISION** | Delete SVG/DXF/previews/attachments; mark history references expired |
+| Prototype checkpoint files | 24 h **USER DECISION** | Same deletion policy; approval does not extend TTL |
+| Production-validated files | 24 h **USER DECISION** | Same deletion policy; no permanent-file exception |
 | Raw usage events | 7–14 days | Delete after rollup |
 | `usage_daily` | 13–25 months | Then compact or export |
 | OAuth codes | 5 min (already `exp` +300s — VERIFIED) | Already dropped on exchange |

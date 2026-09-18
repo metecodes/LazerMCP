@@ -12,7 +12,8 @@ from typing import Any
 from persist.env import storage_bucket, uses_supabase_app_db
 from studio_store import data_dir, now_iso
 
-SIGNED_TTL_SEC = 1 * 24 * 60 * 60  # 30 days
+ARTIFACT_TTL_HOURS = 24
+SIGNED_TTL_SEC = ARTIFACT_TTL_HOURS * 60 * 60
 
 
 def sha256_hex(data: bytes) -> str:

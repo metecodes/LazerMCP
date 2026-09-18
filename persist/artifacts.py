@@ -89,10 +89,3 @@ class ArtifactRepository:
         with connect() as conn:
             conn.execute("DELETE FROM artifacts WHERE id = ?", (artifact_id,))
             conn.commit()
-
-    def retain(self, artifact_id: str) -> None:
-        if uses_supabase_app_db():
-            rest("lasermcp_artifacts", method="PATCH", params={"id": f"eq.{artifact_id}"}, body={"expires_at": None})
-            return
-        with connect() as conn:
-            conn.execute("UPDATE artifacts SET expires_at = NULL WHERE id = ?", (artifact_id,))

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Any
+from datetime import datetime, timedelta, timezone
 
 from persist.artifacts import ArtifactRepository
 from persist.orgs import OrganizationRepository
@@ -56,13 +57,21 @@ def authorize_customer_file(filename: str, principal: dict[str, Any] | None, *, 
     artifact = resolve_artifact_ref(name)
     if artifact:
         if can_access_org(principal, str(artifact.get("organization_id") or "")):
-            # Mark as opened by clearing expiration
-            try:
-                ArtifactRepository().retain(artifact["id"])
-            except Exception:
-                pass
+            expires = artifact.get("expires_at")
+            if not expires and artifact.get("created_at"):
+                expires = (datetime.fromisoformat(str(artifact["created_at"]).replace("Z", "+00:00")) + timedelta(hours=24)).isoformat()
+            if expires and datetime.fromisoformat(str(expires).replace("Z", "+00:00")) <= datetime.now(timezone.utc):
+                return {"allow": False, "reason": "expired", "artifact": artifact}
             return {"allow": True, "reason": "owner", "artifact": artifact}
         return {"allow": False, "reason": "forbidden", "artifact": artifact}
     if not auth_on:
+        # Local output copies must not resurrect a cleaned-up artifact.
+        from boxes_adapter import _safe_output_file
+        try:
+            source = _safe_output_file(name)
+        except (FileNotFoundError, ValueError):
+            return {"allow": False, "reason": "unknown"}
+        if datetime.fromtimestamp(source.stat().st_mtime, timezone.utc) + timedelta(hours=24) <= datetime.now(timezone.utc):
+            return {"allow": False, "reason": "expired"}
         return {"allow": True, "reason": "workshop", "workshop": True}
     return {"allow": False, "reason": "unknown"}

@@ -79,6 +79,7 @@ GRAMMAR = {
             }
         },
     },
+    "assembled_panel_contract": {"placement": {"origin": "[x,y,z] mm", "u": "unit local X axis", "v": "unit local Y axis"}, "tabs": "[{id,x,y,w,h}] rectangles contained in the cut outline", "slots": "[{x,y,w,h,mate:{part:label,tab:id}}] centered receiving slots; partners must align in assembled coordinates", "preview": "render_preview(file_id,view=assembled); missing placements never get a guessed model"},
     "panel": {
         "type": "panel",
         "w": 80,
@@ -588,7 +589,7 @@ class PayasToolbox(Boxes):
         if hole_d and hole_d > 0:
             self.hole((minx + maxx) / 2 + ox, (miny + maxy) / 2 + oy, d=float(hole_d))
         if feats and self._has_draw_feats(feats):
-            self._callback(feats, origin=(pad, pad))()
+            self._callback(feats, origin=(ox, oy))()
         x0, y0 = shifted[0]
         self.moveTo(x0, y0)
         heading = 0.0

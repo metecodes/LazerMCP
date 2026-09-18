@@ -63,6 +63,48 @@ class EditorTests(unittest.TestCase):
         self.assertEqual(result['primitives'][0]['w'],120)
 
 class EditorRouteTests(unittest.IsolatedAsyncioTestCase):
+    async def test_editor_get_reaches_file_authorization_without_bearer_header(self):
+        from server import BearerGate
+        from unittest.mock import AsyncMock
+        app = AsyncMock()
+        scope = {'type':'http', 'method':'GET', 'path':'/api/editor/design.svg', 'headers':[]}
+        with patch('keys.auth_required', return_value=True):
+            await BearerGate(app)(scope, AsyncMock(), AsyncMock())
+        app.assert_awaited_once()
+
+    async def test_editor_returns_svg_without_local_file(self):
+        from server import api_editor
+        from starlette.requests import Request
+        import json
+        request = Request({'type':'http', 'method':'GET', 'path':'/api/editor/design.svg',
+                           'headers':[], 'path_params':{'filename':'design.svg'}})
+        decision = {'allow': True, 'artifact': {'source_file_id': 'design.svg', 'storage_path': 'objects/design.svg', 'expires_at': '2099-01-01T00:00:00Z'}}
+        with patch('server._authorize_output_file', return_value=(decision, {'id': 'owner'})), \
+             patch('workshop.editor_context', return_value={'success': True, 'primitives': []}), \
+             patch('persist.storage.StorageService.get', return_value=b'<svg/>'), \
+             patch('server.boxespy._safe_output_file', side_effect=AssertionError('temporary disk used')):
+            response = await api_editor(request)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(json.loads(response.body)['svg'], '<svg/>')
+        self.assertIn('no-store', response.headers['cache-control'])
+
+    async def test_editor_classifies_signin_expiry_and_remote_failure(self):
+        from server import api_editor
+        from starlette.requests import Request
+        import json
+        request = Request({'type':'http', 'method':'GET', 'path':'/api/editor/design.svg',
+                           'headers':[], 'path_params':{'filename':'design.svg'}})
+        for decision, principal, expected in (({'allow':False,'reason':'forbidden'}, None, 401),
+                    ({'allow':False,'reason':'expired'}, {'id':'owner'}, 410)):
+            with patch('server._authorize_output_file', return_value=(decision, principal)):
+                response = await api_editor(request)
+            self.assertEqual(response.status_code, expected)
+            if expected == 401:
+                self.assertIn('/account?next=', json.loads(response.body)['signin_url'])
+        with patch('server._authorize_output_file', side_effect=OSError('temporary remote failure')):
+            response = await api_editor(request)
+        self.assertEqual(response.status_code, 503)
+
     async def test_denied_file_cannot_read_history_or_compile(self):
         from server import api_editor_action
         from starlette.requests import Request

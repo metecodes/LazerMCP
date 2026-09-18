@@ -37,7 +37,7 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
  await page.click('#save');await page.waitForURL('**/edit/saved.svg');await page.waitForFunction(()=>document.querySelector('#save-state').textContent==='Kayıtlı');assert.equal(submitted.parameters.editor_connections.length,1);
  await page.locator('summary').click();await page.click('#history-load');await page.locator('.history-row button').click();
  for(const width of [1600,768,390]){await page.setViewportSize({width,height:1000});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,`overflow ${width}`);}
- await page.setViewportSize({width:1600,height:1000});await page.click('#properties-tab');await page.screenshot({path:'editor-preview.png',fullPage:true});
+ await page.setViewportSize({width:1600,height:1000});await page.click('#properties-tab');await page.screenshot({path:process.env.EDITOR_SCREENSHOT||'editor-preview.png',fullPage:true});
  assert.deepEqual(errors,[]);await browser.close();console.log('PASS: search, lock, dimensions, undo/redo, hole validation, position picker, zoom, new part, connections, save, history, responsive layout');
 })().catch(e=>{console.error(e);process.exit(1);});
 

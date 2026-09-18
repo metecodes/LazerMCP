@@ -237,6 +237,8 @@ def editor_context(file_id: str) -> dict[str, Any]:
                 "y": part.get("y") or part.get("h"),
             }
         )
+    from assembly import check_assembly
+    assembly = check_assembly(primitives, thickness=float((hit.get("parameters") or {}).get("thickness") or 3)) if primitives else {}
     return {
         "success": True,
         "file_id": str(file_id or ""),
@@ -249,6 +251,7 @@ def editor_context(file_id: str) -> dict[str, Any]:
         "primitives": primitives,
         "parts": parts,
         "editable": bool(primitives),
+        "assembled_preview_svg": assembly.get("assembled_preview_svg"),
         "look_again": (
             []
             if primitives

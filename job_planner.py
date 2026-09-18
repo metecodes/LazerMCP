@@ -38,6 +38,9 @@ _MATCH_CARD = (
 )
 
 _ASSEMBLY = (
+    "kalemlik",
+    "pencil holder",
+    "pencil-holder",
     "finger",
     "tab-slot",
     "tab slot",
@@ -201,12 +204,16 @@ def _rules() -> list[str]:
         "physical_assembly=verified and movement_test=verified only after a real dry-fit / spin. Production export stays BLOCKED until those human tests exist.",
         "create_from_reference only traces 2D artwork (logo, photo, jigsaw etch). Assembly = create_design primitives.",
         "generate_svg only if the plan names a Boxes.py class. Named create_* kits only when the plan names an existing Payas product.",
+        "For assemblies, consult joint_library and search_joint_templates before changing joint geometry. Reuse Boxes.py edges with shared settings for both mating parts; indexed source is not proof of physical fit. Supplied SVG takes precedence over a loosely matching template.",
         "First uncalibrated laser: add {type:coupon} once. Do not bolt a coupon onto every mill.",
         "number_match_puzzle is only for number-to-dot matching cards.",
     ]
 
 
 def _assembly_recipe(text: str, width: float | None, height: float | None) -> list[dict[str, Any]]:
+    if any(k in text for k in ("kalemlik", "pencil holder", "pencil-holder")) and any(k in text for k in ("ev", "house")):
+        from house_holder import recipe
+        return recipe(width=max(100.0, float(width or 130)))
     millish = any(
         k in text
         for k in (
@@ -305,11 +312,15 @@ def _compose_plan(
     what_you_see: str = "",
 ) -> dict[str, Any]:
     recipe = _assembly_recipe(text, width, height)
+    from joint_library import plan_references
+    references = plan_references(text)
     if _wants_coupon(text):
         recipe = [{"type": "coupon", "x": 40, "label": "kerf-coupon"}] + recipe
     params: dict[str, Any] = {"format": fmt, "material": "poplar_3mm", "machine": "payas_workshop"}
     if str(what_you_see or "").strip():
         params["what_you_see"] = str(what_you_see).strip()
+    if recipe and recipe[0].get("placement"):
+        look = "Use these six structural panels as the body and the separate star as an adhesive ornament; do not add a box behind the house faces. Keep explicit slot.mate, tabs and placement together. Dimensions are nominal, not recovered exactly from a photo. Call render_preview(view=assembled) after create_design; physical dry-fit remains NOT VERIFIED."
     box = next((p for p in recipe if isinstance(p, dict) and p.get("type") == "box"), None)
     if width and box:
         params["reference"] = {
@@ -321,6 +332,7 @@ def _compose_plan(
     return {
         "success": True,
         "method": "compose_primitives",
+        "joint_library": references,
         "summary": summary,
         "next_tool": "create_design",
         "next_arguments": {"primitives": recipe, "parameters": params},
@@ -349,6 +361,20 @@ def plan_laser_job(
     rows, cols = _grid(request + " " + seen)
     photo = bool(has_photo) or bool(seen.strip())
     rules = _rules()
+
+    # A requested Boxes.py template should execute its own geometry code.
+    if "boxes" in text and not photo:
+        from joint_library import search_joint_templates
+        library = search_joint_templates(request, 1)
+        if library["matches"]:
+            match = library["matches"][0]
+            valid = {p["name"] for p in match["parameters"]}
+            params = {key: value for key, value in {"x": width, "y": height}.items()
+                      if key in valid and value is not None}
+            return {"success": True, "method": "boxes_template", "summary": match["description"],
+                    "next_tool": "generate_svg", "next_arguments": {"generator": match["name"], "parameters": params},
+                    "joint_library": library, "rules": rules, "defaults": dict(PAYAS_DEFAULTS),
+                    "look_again": "Use the supplied real schema to set material thickness, height and edge choices. This is a retrieved source template, not an exact reconstruction of a photo. Physical fit remains NOT VERIFIED."}
 
     if photo and _wants_match_cards(text):
         photo = False
@@ -462,7 +488,7 @@ def plan_laser_job(
         }
 
     if _wants_assembly(text) and not _wants_trace_only(text):
-        width = width or 80.0
+        width = width or (130.0 if any(k in text for k in ("kalemlik", "pencil holder", "pencil-holder")) else 80.0)
         height = height or width
         look = (
             "LOOK at the photo again. Read millimetres from what you see "

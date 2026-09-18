@@ -142,7 +142,11 @@ def expand_faces(primitives: list[Any]) -> list[dict[str, Any]]:
                     }
                 )
             elif kind in {"polygon", "contour", "outline", "polyline"}:
-                faces.append({"name": name, "kind": "contour", "features": _features(part), "hole": _num(part.get("hole"), 0)})
+                from assembled_view import outline
+                pts = outline(part)
+                faces.append({"name": name, "kind": "contour", "features": _features(part), "hole": _num(part.get("hole"), 0),
+                              "w": max((x for x,y in pts), default=0)-min((x for x,y in pts), default=0),
+                              "h": max((y for x,y in pts), default=0)-min((y for x,y in pts), default=0)})
             elif kind in {"coupon", "kerf_test", "burn_test", "kerf"}:
                 faces.append({"name": name, "kind": "coupon", "w": _num(part.get("x") or part.get("w"), 40), "h": 12, "edges": "", "features": _features(part)})
     return faces
@@ -377,16 +381,9 @@ def check_assembly(
                         f"tab-slot on {face['name']} is {thin:.2f} mm thick; 3 mm plywood + kerf {kerf} needs ~{t:.1f} mm"
                     )
                 else:
-                    joints.append(
-                        {
-                            "female": face["name"],
-                            "kind": "tab-slot",
-                            "size_mm": [sw, sh],
-                            "result": "MATCH",
-                            "via": "slot ≈ material thickness",
-                        }
-                    )
-            if not _inside(x, y, w, h, max(sw, sh) / 2 + 1.0):
+                    warnings.append(f"slot on {face['name']}: thickness fits; matching tab is not verified")
+                    errors.append(f"slot on {face['name']} has no verified tab partner")
+            if not (x-sw/2 >= 1 and x+sw/2 <= w-1 and y-sh/2 >= 1 and y+sh/2 <= h-1):
                 errors.append(f"slot on {face['name']} at {x},{y} {sw}×{sh} leaves the wall")
         for hole in face["features"]["holes"]:
             hx = _num(hole.get("x") or hole.get("cx"), 0)
@@ -477,15 +474,22 @@ def check_assembly(
     if not sequence:
         sequence.append("Dry-fit every f/F pair and every hole/shaft before glue.")
 
+    from assembled_view import validate, preview
+    contour_parts = [p for p in (primitives or []) if isinstance(p, dict) and _kind(p) in {"polygon", "contour", "outline", "polyline"}]
+    explicit_errors, explicit_joints = validate(contour_parts, t)
+    errors.extend(explicit_errors)
+    joints.extend(explicit_joints)
     ok = not errors
     graph = assembly_graph(faces, joints, shaft_pairs, roof_lock)
     return {
         "ok": ok,
+        "assembled_preview_svg": preview(primitives or [], t) if ok else None,
         "warnings": warnings,
         "look_again": errors,
         "joints": joints,
         "roof_lock": roof_lock,
-        "finger_pairs": len(joints),
+        "finger_pairs": sum(1 for joint in joints if not joint.get("kind")),
+        "tab_slot_pairs": sum(1 for joint in joints if joint.get("kind") == "tab-slot"),
         "shaft_pairs": shaft_pairs,
         "assembled_mm": assembled,
         "sequence": sequence,

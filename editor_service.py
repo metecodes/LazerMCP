@@ -92,4 +92,4 @@ def editor_action(action, body, context, public_base_url=''):
     from toolbox import render_toolbox
     from pipeline import review_only
     built = review_only(render_toolbox(parts, params))
-    return {'success': True, 'svg': built['svg_bytes'].decode('utf-8'), 'review': built['review'], 'editor_connections': checks, 'primitives': built['primitives']}
+    return {'success': True, 'svg': built['svg_bytes'].decode('utf-8'), 'assembled_preview_svg': (built.get('assembly') or {}).get('assembled_preview_svg'), 'review': built['review'], 'editor_connections': checks, 'primitives': built['primitives']}

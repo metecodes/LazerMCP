@@ -105,6 +105,10 @@ def _file_url(public_base_url: str, file_id: str) -> str:
 
 
 def _blob_url(file_id: str, data: bytes, content_type: str = "image/svg+xml") -> str | None:
+    # Generated files use one managed backend so copies cannot outlive the TTL.
+    from persist.env import uses_supabase_app_db
+    if uses_supabase_app_db():
+        return None
     token = (
         os.environ.get("BLOB_READ_WRITE_TOKEN")
         or os.environ.get("VERCEL_BLOB_READ_WRITE_TOKEN")
@@ -156,6 +160,7 @@ def _write_svg(
     svg_bytes: bytes,
     generator: str,
     primitives: list[Any] | None = None,
+    preserve_source_geometry: bool = False,
 ) -> tuple[str, bytes, dict[str, Any] | None]:
     original = svg_bytes
     manufacturing = None
@@ -178,7 +183,7 @@ def _write_svg(
     try:
         from holding_nicks import NICK_MM, nick_cut_svg
 
-        nicked = nick_cut_svg(svg_bytes, float(PAYAS_DEFAULTS.get("holding_nick_mm") or NICK_MM))
+        nicked = None if preserve_source_geometry else nick_cut_svg(svg_bytes, float(PAYAS_DEFAULTS.get("holding_nick_mm") or NICK_MM))
         if nicked:
             svg_bytes = nicked
     except Exception:
@@ -760,6 +765,7 @@ def save_generated_svg(
         svg_bytes,
         str(name),
         extra.get("primitives") if isinstance(extra.get("primitives"), list) else None,
+        preserve_source_geometry=bool(extra.get("preserve_source_geometry")),
     )
     if manufacturing:
         extra["manufacturing"] = manufacturing

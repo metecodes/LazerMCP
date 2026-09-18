@@ -29,7 +29,7 @@ def _mcp(data: dict[str, Any]) -> dict[str, Any]:
         return obj
 
     out = clean(data)
-    out["success"] = True
+    out["success"] = data.get("success", True)
     existing = out.get("look_again")
     if look:
         if isinstance(existing, list):
@@ -381,6 +381,7 @@ def create_from_reference(
     except Exception as exc:
         return _mcp(
             {
+                "success": False,
                 "ready_to_cut": False,
                 "hint": (
                     "Pass a compressed JPEG around 1200px as image_base64. "
@@ -429,6 +430,8 @@ def create_design(
     parameters: dict[str, Any] | None = None,
     svg: str | None = None,
     public_base_url: str = "http://127.0.0.1:8000",
+    plt: str | None = None,
+    plt_base64: str | None = None,
 ) -> dict[str, Any]:
     import time
 
@@ -442,8 +445,18 @@ def create_design(
         return _mcp({"ready_to_cut": False, "plan": gate.get("plan"), "look_again": gate.get("look_again") or []})
 
     try:
-        if svg:
-            built = import_svg_document(svg)
+        if sum(bool(x) for x in (svg, primitives, preset, plt, plt_base64)) > 1:
+            raise ValueError("Pass exactly one source: primitives, preset, svg, plt or plt_base64.")
+        if plt or plt_base64:
+            from plt_import import import_plt_document, MAX_BYTES
+            if plt_base64:
+                import base64
+                if len(plt_base64) > MAX_BYTES * 4 // 3 + 4:
+                    raise ValueError("PLT base64 exceeds 5 MB decoded size.")
+                plt = base64.b64decode(plt_base64, validate=True).decode("ascii")
+            built = import_plt_document(plt, parameters)
+        elif svg:
+            built = import_svg_document(svg, parameters)
         else:
             built = compile_design(preset=preset, primitives=primitives, parameters=parameters)
     except Exception as exc:
@@ -451,6 +464,7 @@ def create_design(
 
         return _mcp(
             {
+                "success": False,
                 "ready_to_cut": False,
                 "hint": HINT,
                 "grammar": GRAMMAR,
@@ -458,7 +472,7 @@ def create_design(
             }
         )
     name = str(built.get("preset") or preset or "design")
-    title = "İçe aktarılan SVG" if built.get("imported") else "Bestelenmiş kesim"
+    title = "İçe aktarılan PLT" if built.get("plt_import") else "İçe aktarılan SVG" if built.get("imported") else "Bestelenmiş kesim"
     if name in {"number_match_puzzle", "number_match"}:
         title = "Sayı eşleme kartları"
     if name in {"jigsaw_puzzle", "classic_jigsaw"}:
@@ -483,6 +497,8 @@ def create_design(
         ),
         "count": built.get("count"),
         "imported": bool(built.get("imported")),
+        "preserve_source_geometry": bool(built.get("preserve_source_geometry")),
+        "plt_import": built.get("plt_import"),
         "assembly": built.get("assembly"),
         "nesting": built.get("nesting"),
         "topology": built.get("topology"),
@@ -497,6 +513,8 @@ def create_design(
         "final_status": built.get("final_status"),
         "speak": built.get("speak"),
         "scorecard": built.get("scorecard"),
+        "blocking_checks": built.get("blocking_checks") or [],
+        "look_again": built.get("look_again") or [],
         "authorized_output": built.get("authorized_output"),
         "production_export": built.get("production_export") or "BLOCKED",
         "production_summary": built.get("production_summary"),
@@ -532,6 +550,7 @@ def create_design(
         extra["production_export"] = gated.get("production_export") or "BLOCKED"
         extra["production_summary"] = gated.get("production_summary")
         extra["look_again"] = gated.get("look_again") or extra.get("look_again")
+        extra["blocking_checks"] = gated.get("blocking_checks") or []
         extra["physical"] = gated.get("physical")
         extra["assembly_sheet"] = gated.get("assembly_sheet")
     extra["_started_at"] = started_at
@@ -543,7 +562,10 @@ def create_design(
         if extra.get("final_status") == "PRODUCTION READY"
         else ("Prototype SVG" if extra.get("final_status") == "PROTOTYPE READY" else "None"),
     )
-    return _mcp(_save_build(built["svg_bytes"], name, title, public_base_url, extra, dxf_bytes=_dxf_from_built(built, fmt)))
+    result = _save_build(built["svg_bytes"], name, title, public_base_url, extra, dxf_bytes=_dxf_from_built(built, fmt))
+    if (built.get("assembly") or {}).get("assembled_preview_svg") and result.get("file_id"):
+        result["assembled_preview_url"] = public_base_url.rstrip("/") + "/out/" + result["file_id"] + "?view=assembled"
+    return _mcp(result)
 
 
 def validate_assembly(

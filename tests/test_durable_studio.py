@@ -23,7 +23,7 @@ class DurableStudioTests(unittest.TestCase):
             decision = authorize_customer_file('design.svg', None, auth_on=True)
             self.assertTrue(decision['allow'])
             query.assert_called_once_with('lasermcp_artifacts', source_file_id='eq.design.svg', order='created_at.desc', limit=1)
-            self.assertEqual(request.call_args.kwargs['body'], {'expires_at': None})
+            request.assert_not_called()
 
     def test_project_save_uses_atomic_remote_append(self):
         from projects import save_version

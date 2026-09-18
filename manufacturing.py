@@ -628,6 +628,18 @@ def apply_manufacturing_svg(svg_bytes: bytes, primitives: list[Any] | None = Non
         return svg_bytes
     parents = _parents(root)
     groups = _ensure_groups(root)
+    parents.update({group: root for group in groups.values()})
+    def matrix(node):
+        import numpy as np
+        from svgpathtools.parser import parse_transform
+        chain = []
+        while node is not None:
+            chain.append(node)
+            node = parents.get(node)
+        result = np.eye(3)
+        for ancestor in reversed(chain):
+            result = result @ parse_transform(ancestor.get("transform") or "")
+        return result
     buckets: dict[tuple[str, str, str], ET.Element] = {}
     for el in list(root.iter()):
         if _local(el.tag) not in _DRAW:
@@ -647,6 +659,13 @@ def apply_manufacturing_svg(svg_bytes: bytes, primitives: list[Any] | None = Non
         dest = _panel_bucket(groups[op], *_panel_context(el, parents), buckets)
         if parent is dest or parent is None:
             continue
+        if dest not in parents:
+            parents[dest] = groups[op]
+        import numpy as np
+        relative = np.linalg.inv(matrix(dest)) @ matrix(el)
+        el.set("transform", "matrix(" + " ".join(format(float(v), ".15g") for v in (
+            relative[0, 0], relative[1, 0], relative[0, 1], relative[1, 1], relative[0, 2], relative[1, 2]
+        )) + ")")
         try:
             parent.remove(el)
         except ValueError:

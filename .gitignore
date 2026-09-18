@@ -5,3 +5,5 @@ __pycache__/
 check_*.py
 output/*
 !output/.gitkeep
+.vercel
+.env*

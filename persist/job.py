@@ -11,7 +11,7 @@ from persist.artifacts import ArtifactRepository
 from persist.authz import principal_org_id
 from persist.cleanup import cleanup_expired
 from persist.orgs import ensure_personal_org
-from persist.storage import StorageService, expires_in_hours, ext_for, maybe_webp, sha256_hex
+from persist.storage import StorageService, expires_in_hours, ext_for, maybe_webp, sha256_hex, ARTIFACT_TTL_HOURS
 
 _last_gc = 0.0
 
@@ -59,10 +59,9 @@ def persist_bytes(
     artifact_id = str(uuid.uuid4())
     if durable:
         path = store.durable_path(organization_id, artifact_id, digest, ext)
-        expires = None
     else:
         path = store.tmp_path(organization_id, ext)
-        expires = expires_in_hours(24)  # 1 day
+    expires = expires_in_hours(ARTIFACT_TTL_HOURS)
     store.put(path, data, mime_type)
     meta = repo.insert(
         {
@@ -149,6 +148,17 @@ def attach_durable_artifacts(result: dict[str, Any], extra: dict[str, Any] | Non
                     name=dxf_id,
                 )
             )
+        additional = [(str(sid), "svg", "image/svg+xml") for sid in (result.get("sheet_ids") or [])[1:]]
+        for key, kind, mime in (("report_id", "report", "application/json"),
+                                ("production_report_id", "production_report", "text/markdown"),
+                                ("assembly_sheet_id", "assembly_sheet", "text/plain"),
+                                ("bom_id", "bom", "text/plain")):
+            if result.get(key):
+                additional.append((str(result[key]), kind, mime))
+        for source_id, kind, mime in additional:
+            saved.append(persist_bytes(organization_id=org, kind=kind,
+                data=_safe_output_file(source_id).read_bytes(), mime_type=mime,
+                source_file_id=source_id, durable=durable, name=source_id))
     except Exception:
         result["artifact_persistence"] = "ARTIFACT_PERSISTENCE_FAILED"
         looks = result.get("look_again")

@@ -248,8 +248,8 @@ def connection_graph(assembly: dict[str, Any] | None, parts: list[dict[str, Any]
 
 def review_built(built: dict[str, Any]) -> dict[str, Any]:
     """Review a compiled job. Unrun tests are NOT_VERIFIED, never PASS."""
-    t = float(PAYAS_DEFAULTS["thickness"])
-    burn = float(PAYAS_DEFAULTS["burn"])
+    t = float((built.get("parameters") or {}).get("thickness", PAYAS_DEFAULTS["thickness"]))
+    burn = float((built.get("parameters") or {}).get("burn", PAYAS_DEFAULTS["burn"]))
     primitives = [p for p in (built.get("primitives") or []) if isinstance(p, dict)]
     assembly = built.get("assembly") if isinstance(built.get("assembly"), dict) else {}
     nesting = built.get("nesting") if isinstance(built.get("nesting"), dict) else {}
@@ -300,7 +300,12 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
 
         completeness.extend(check_what_you_see(primitives, (built.get("parameters") or {}).get("what_you_see")))
         names = {f.get("name") for f in faces}
-        roofs = [f for f in faces if "roof" in str(f.get("name") or "").lower()]
+        # A house-shaped contour (or "roof-support" label) is not a roof panel.
+        roof_labels = {str(p.get("label")) for p in primitives if _kind(p) in {"roof", "roof_panel"} or
+                       (_kind(p) in {"panel", "wall", "rect"} and str(p.get("semantic_role") or "") == "roof")}
+        roofs = [f for f in faces if f.get("name") in roof_labels or
+                 (f.get("kind") == "panel" and "roof" in str(f.get("name") or "").lower() and not
+                  any(k in str(f.get("name") or "").lower() for k in ("support", "brace", "mount")))]
         gables = [f for f in faces if f.get("kind") == "gable"]
         props = [f for f in faces if f.get("kind") == "propeller"]
         box = next((p for p in primitives if _kind(p) == "box"), None)
@@ -650,6 +655,11 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
         production_export = "BLOCKED"
         ready = False
     card = format_gate_card(scorecard, final, authorized, production_export)
+    blocking_checks = [{"category": c["id"], "status": check["status"], "note": check["note"]}
+                       for c in fail + unverified for check in c.get("checks", [])
+                       if check.get("status") in {FAIL, NOT_VERIFIED} and check.get("note")]
+    if final == BLOCKED and looks:
+        card += "\n\nBLOCKING REASONS (MCP):\n" + "\n".join("- " + reason for reason in dict.fromkeys(looks))
     from assembly_sheet import assembly_sheet as _sheet
 
     product = str(built.get("product") or built.get("preset") or built.get("generator") or "")
@@ -670,6 +680,7 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
             "not_verified": len(unverified),
         },
         "look_again": looks,
+        "blocking_checks": blocking_checks,
         "warnings": [n for c in warn for n in (c.get("notes") or [])],
         "final_status": final,
         "authorized_output": authorized,

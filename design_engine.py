@@ -332,7 +332,7 @@ def _mm_size(value: str | None) -> float | None:
         return None
 
 
-def import_svg_document(svg_text: str) -> dict[str, Any]:
+def import_svg_document(svg_text: str, parameters: dict[str, Any] | None = None) -> dict[str, Any]:
     """Keep incoming SVG, stamp Payas size if missing; do not invent geometry."""
     raw = (svg_text or "").strip()
     if not raw:
@@ -343,6 +343,25 @@ def import_svg_document(svg_text: str) -> dict[str, Any]:
         root = ET.fromstring(raw)
     except ET.ParseError as exc:
         raise ValueError(f"Invalid SVG: {exc}") from exc
+    if root.tag.split("}")[-1] != "svg":
+        raise ValueError("SVG root required")
+    if len(raw.encode("utf-8")) > 5 * 1024 * 1024:
+        raise ValueError("SVG exceeds 5 MB")
+    params = dict(parameters or {})
+    operation = str(params.get("svg_default_operation") or "").upper()
+    if operation and operation not in {"CUT", "ENGRAVE", "SCORE", "GUIDE"}:
+        raise ValueError("svg_default_operation must be CUT, ENGRAVE, SCORE or GUIDE")
+    from manufacturing import classify_element, finish_manufacturing_svg
+    parents = {child: parent for parent in root.iter() for child in parent}
+    for el in root.iter():
+        if el.tag.split("}")[-1] in {"script", "foreignObject", "image", "use"}:
+            raise ValueError("Import requires self-contained vector SVG without active or external content")
+        if any(key.lower().startswith("on") for key in el.attrib):
+            raise ValueError("SVG event handlers are unsupported")
+        if operation and el.tag.split("}")[-1] in {"path", "rect", "circle", "ellipse", "line", "polyline", "polygon"}:
+            if classify_element(el, parents)[0] == "UNKNOWN":
+                el.set("data-operation", operation)
+                el.set("data-operation-origin", "USER")
     width = _mm_size(root.attrib.get("width"))
     height = _mm_size(root.attrib.get("height"))
     if width is None or height is None:
@@ -353,8 +372,13 @@ def import_svg_document(svg_text: str) -> dict[str, Any]:
             root.set("width", f"{width:.2f}mm")
             root.set("height", f"{height:.2f}mm")
             raw = ET.tostring(root, encoding="unicode")
+    raw = ET.tostring(root, encoding="unicode")
+    svg_bytes, manufacturing = finish_manufacturing_svg(raw.encode("utf-8"))
     return {
-        "svg_bytes": raw.encode("utf-8"),
+        "svg_bytes": svg_bytes,
+        "manufacturing": manufacturing,
+        "parameters": params,
+        "preserve_source_geometry": True,
         "width_mm": width,
         "height_mm": height,
         "count": None,

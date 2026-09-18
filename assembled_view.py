@@ -1,0 +1,122 @@
+"""Explicit panel placements, tab partners and a nominal assembled SVG preview."""
+from __future__ import annotations
+import math
+from xml.sax.saxutils import quoteattr
+from shapely.geometry import Polygon, box
+
+
+def outline(p):
+    pts = p.get('points') or p.get('vertices') or p.get('coords') or p.get('contour')
+    if pts:
+        return [(float(x), float(y)) for x,y in pts]
+    w,h = float(p.get('w') or 0),float(p.get('h') or 0)
+    return [(0,0),(w,0),(w,h),(0,h)] if w and h else []
+
+
+def world(p,x,y,z=0):
+    pose=p['placement']; o=pose['origin']; u=pose['u']; v=pose['v']
+    n=[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]]
+    return [o[i]+x*u[i]+y*v[i]+z*n[i] for i in range(3)]
+
+
+def validate(parts,t):
+    errors=[]; joints=[]
+    lookup={p.get('label'):p for p in parts if isinstance(p,dict)}
+    if len(lookup)!=len(parts):
+        errors.append('assembly panel labels must be unique')
+    for p in lookup.values():
+        pose=p.get('placement')
+        if pose:
+            try:
+                o,u,v=[pose[k] for k in ('origin','u','v')]
+                if any(len(a)!=3 or any(not math.isfinite(float(b)) for b in a) for a in (o,u,v)) or any(abs(sum(float(b)**2 for b in a)-1)>.0001 for a in (u,v)) or abs(sum(float(a)*float(b) for a,b in zip(u,v)))>.0001:
+                    raise ValueError()
+            except (KeyError,TypeError,ValueError):
+                errors.append(f"invalid orthonormal placement on {p.get('label')}")
+    if errors: return errors,joints
+    for p in lookup.values():
+        pts=outline(p)
+        if not pts: continue
+        poly=Polygon(pts)
+        if not poly.is_valid or poly.area<=0:
+            errors.append(f"invalid outline on {p.get('label')}"); continue
+        from shapely.geometry import Point
+        for hole in p.get('holes') or []:
+            if not poly.contains(Point(float(hole['x']),float(hole['y'])).buffer(float(hole.get('d',0))/2)):
+                errors.append(f"hole on {p.get('label')} leaves its actual outline")
+        for s in p.get('slots') or []:
+            x,y,w,h=[float(s.get(k) or 0) for k in ('x','y','w','h')]
+            if w<=0 or h<=0 or not poly.contains(box(x-w/2,y-h/2,x+w/2,y+h/2)):
+                errors.append(f"slot on {p.get('label')} leaves its actual outline")
+            if min(w,h)>t+.6: continue
+            mate=s.get('mate') or {}; other=lookup.get(mate.get('part'))
+            tab=next((a for a in (other or {}).get('tabs',[]) if a.get('id')==mate.get('tab')),None)
+            if not tab:
+                errors.append(f"slot on {p.get('label')} has no explicit matching tab"); continue
+            tx,ty,tw,th=[float(tab.get(k) or 0) for k in ('x','y','w','h')]
+            op=Polygon(outline(other))
+            if not op.is_valid or not op.covers(box(tx-tw/2,ty-th/2,tx+tw/2,ty+th/2)):
+                errors.append(f"tab {mate.get('tab')} is missing from {mate.get('part')} outline"); continue
+            if not p.get('placement') or not other.get('placement'):
+                errors.append(f"tab-slot {p.get('label')} needs explicit assembled placements"); continue
+            try:
+                corners=[world(other,a,b,c) for a in (tx-tw/2,tx+tw/2) for b in (ty-th/2,ty+th/2) for c in (0,t)]
+                pose=p['placement']; local=[[sum((a[i]-pose['origin'][i])*pose[k][i] for i in range(3)) for k in ('u','v')] for a in corners]
+                bounds=[min(a[0] for a in local),min(a[1] for a in local),max(a[0] for a in local),max(a[1] for a in local)]
+                expected=[x-w/2,y-h/2,x+w/2,y+h/2]
+                origin=world(p,0,0); u=pose['u']; v=pose['v']; n=[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]]
+                depths=[sum((a[i]-origin[i])*n[i] for i in range(3)) for a in corners]
+                if max(abs(a-b) for a,b in zip(bounds,expected))>.05 or min(depths)>.05 or max(depths)<t-.05:
+                    errors.append(f"tab {mate.get('part')}.{mate.get('tab')} does not align with {p.get('label')} slot"); continue
+                joints.append({'male':mate['part'],'female':p['label'],'kind':'tab-slot','result':'MATCH','via':'explicit tab geometry and assembled alignment'})
+            except (KeyError,TypeError,ValueError):
+                errors.append(f"invalid placement on {p.get('label')}")
+    for p in lookup.values():
+        attachment=p.get('attachment') or {}
+        if not attachment: continue
+        other=lookup.get(attachment.get('to'))
+        if attachment.get('kind')!='glue' or not other or not p.get('placement') or not other.get('placement'):
+            errors.append(f"unsupported attachment on {p.get('label')}"); continue
+        pose=other['placement']; u,v=pose['u'],pose['v']; n=[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]]
+        local=[]; depths=[]
+        for x,y in outline(p):
+            a=world(p,x,y); diff=[a[i]-pose['origin'][i] for i in range(3)]
+            local.append([sum(diff[i]*pose[k][i] for i in range(3)) for k in ('u','v')]); depths.append(sum(diff[i]*n[i] for i in range(3)))
+        target=Polygon(outline(other))
+        for s in other.get('slots') or []:
+            x,y,w,h=[float(s[k]) for k in ('x','y','w','h')];target=target.difference(box(x-w/2,y-h/2,x+w/2,y+h/2))
+        if not target.covers(Polygon(local)) or any(abs(a-t)>.05 for a in depths):
+            errors.append(f"glued ornament {p.get('label')} does not contact {other['label']}")
+        else:
+            joints.append({'male':p['label'],'female':other['label'],'kind':'glue','result':'PLANNED','via':'nominal adhesive contact; physical glue test not verified'})
+    return errors,joints
+
+
+def preview(parts,t=3):
+    panels=[p for p in parts if isinstance(p,dict) and outline(p) and p.get('placement')]
+    if not panels or len(panels)!=len(parts): return None
+    def project(a): return (a[0]+.45*a[1],-a[2]-.24*a[1])
+    allpts=[project(world(p,x,y,z)) for p in panels for x,y in outline(p) for z in (0,t)]
+    xs,ys=zip(*allpts); lo,hi=min(xs)-20,min(ys)-20; w,h=max(xs)-lo+20,max(ys)-hi+20
+    def path(p,pts,z=0):
+        return 'M'+' L'.join(f'{a:.3f},{b:.3f}' for a,b in [project(world(p,x,y,z)) for x,y in pts])+' Z'
+    chunks=[]
+    for p in sorted(panels,key=lambda p:sum(world(p,x,y)[1] for x,y in outline(p))/len(outline(p)),reverse=True):
+        pts=outline(p)
+        for a,b in zip(pts,pts[1:]+pts[:1]):
+            ring=[project(world(p,*a)),project(world(p,*b)),project(world(p,*b,t)),project(world(p,*a,t))]
+            chunks.append('<polygon points="'+' '.join(f'{x:.3f},{y:.3f}' for x,y in ring)+'" fill="#9c754b" stroke="#775b3e" stroke-width=".25"/>')
+        d=path(p,pts)
+        for s in p.get('slots') or []:
+            x,y,sw,sh=[float(s[k]) for k in ('x','y','w','h')]
+            d+=' '+path(p,[(x-sw/2,y-sh/2),(x+sw/2,y-sh/2),(x+sw/2,y+sh/2),(x-sw/2,y+sh/2)])
+        for hole in p.get('holes') or []:
+            x,y,r=float(hole['x']),float(hole['y']),float(hole.get('d',0))/2
+            d+=' '+path(p,[(x+r*math.cos(i*math.pi/24),y+r*math.sin(i*math.pi/24)) for i in range(48)])
+        chunks.append(f'<path data-panel={quoteattr(p["label"])} d="{d}" fill="#c6a274" fill-rule="evenodd" stroke="#775b3e" stroke-width=".4"/>')
+        for mark in p.get('markings') or []:
+            if mark.get('icon')=='star':
+                x,y,r=float(mark['x']),float(mark['y']),float(mark.get('width',24))/2
+                star=[(x+r*(1 if i%2==0 else .45)*math.cos(math.pi/2+i*math.pi/5),y+r*(1 if i%2==0 else .45)*math.sin(math.pi/2+i*math.pi/5)) for i in range(10)]
+                chunks.append(f'<path d="{path(p,star)}" fill="none" stroke="#775b3e" stroke-width=".7"/>')
+    return f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{lo} {hi} {w} {h}" role="img" aria-label="Nominal assembled panel preview"><rect x="{lo}" y="{hi}" width="{w}" height="{h}" fill="#f6f3ed"/>'+''.join(chunks)+'</svg>'

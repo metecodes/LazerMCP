@@ -80,7 +80,7 @@ PUBLIC_PATHS = {
     "/styles.css",
     *BRAND_FILES,
 }
-PUBLIC_PREFIXES = ("/demo/", "/oauth/", "/.well-known/", "/auth/", "/files/", "/out/")
+PUBLIC_PREFIXES = ("/demo/", "/oauth/", "/.well-known/", "/auth/", "/files/", "/out/", "/edit/")
 MCP_TOOLS = [
     "plan_laser_job",
     "create_from_reference",
@@ -105,7 +105,8 @@ mcp = MCPServer(
     "LaserMCP",
     instructions=(
         "You are Payas STEM laser CAD at https://mcp.metehanavci.com/mcp. "
-        "This server is a toolbox, not a catalog. Never ask for a new kit or MCP tool. "
+        "This server is a toolbox with a searchable Boxes.py joint library. Never ask for a new kit or MCP tool. "
+        "For interlocking assemblies consult plan_laser_job joint_library or search_joint_templates before inventing joints. Reuse source geometry and paired edge settings; source indexing does not prove physical fit. "
         "Never write SVG or DXF yourself and never flip, rotate, or mirror geometry. "
         "Never offer to prepare a file outside this server. "
         "Pipeline (runs inside create_design — do not skip, do not add extra tools): "
@@ -209,7 +210,11 @@ def _wants_svg_editor(request: Request) -> bool:
     return "text/html" in accept
 
 
-def _missing_output(request: Request, *, signed_in: bool = False) -> Response:
+def _missing_output(request: Request, *, signed_in: bool = False, expired: bool = False) -> Response:
+    if expired:
+        if not _prefers_html(request):
+            return JSONResponse({"success": False, "code": "expired", "look_again": ["Dosyanın 24 saatlik saklama süresi doldu."]}, status_code=410)
+        return Response('<!doctype html><html lang="tr"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Saklama süresi doldu — LaserMCP</title><main style="max-width:560px;margin:48px auto;padding:20px;font:16px/1.6 sans-serif"><h1>Dosyanın saklama süresi doldu</h1><p>Oluşturulan dosyalar 24 saat saklanır. Stüdyodan yeni bir dosya oluşturabilirsiniz.</p><a href="/dashboard">Stüdyoyu aç</a></main></html>', status_code=410, media_type="text/html", headers={"Cache-Control": "no-store"})
     if not _prefers_html(request):
         note = "Dosya yok veya bu hesaba ait değil." if signed_in else "Dosyayı görmek için Google ile gir."
         return JSONResponse({"success": True, "look_again": [note]}, status_code=404)
@@ -222,7 +227,7 @@ def _missing_output(request: Request, *, signed_in: bool = False) -> Response:
     extra = (
         '<a class="btn ghost" href="/">Ana sayfa</a>'
         if signed_in
-        else '<a class="btn" href="/account?next=/dashboard">Google ile gir</a>'
+        else '<a class="btn" href="/account?next=' + html.escape(quote(request.url.path, safe=""), quote=True) + '">Google ile gir</a>'
     )
     html_page = f"""<!doctype html><html lang="tr"><head><meta charset="utf-8">
 <title>{title} — LaserMCP</title>
@@ -367,7 +372,7 @@ class BearerGate:
             return
         path = scope.get("path") or ""
         method = scope.get("method") or "GET"
-        if method == "OPTIONS" or path in PUBLIC_PATHS or path.startswith(PUBLIC_PREFIXES):
+        if method == "OPTIONS" or path in PUBLIC_PATHS or path.startswith(PUBLIC_PREFIXES) or (method == "GET" and path.startswith("/api/editor/")):
             await self.app(scope, receive, send)
             return
         from keys import auth_required, current_auth, resolve_bearer
@@ -476,6 +481,10 @@ def plan_laser_job(
         "preset=jigsaw_puzzle or number_match_puzzle only when the plan says so. "
         "Paste speak as the gate card. BLOCKED = no authorized SVG. "
         "PROTOTYPE READY = Prototype SVG only; PRODUCTION EXPORT BLOCKED. "
+        "PLT/HP-GL files: pass plt text or plt_base64 to this tool; do not trace a screenshot. "
+        "Existing SVG: pass its complete XML in svg, with parameters.svg_default_operation='CUT' only when the user identifies untagged vectors as cut lines. "
+        "SVG import preserves narrow tabs, vertices and existing gaps; do not replace supplied SVG with a generic box or holder preset. "
+        "plt_units_per_mm defaults to 40; plt_pen_operations explicitly selects CUT/ENGRAVE. "
         "Never say LAZER KESİME HAZIR. Never request a new tool. Never hand-write SVG."
     )
 )
@@ -484,12 +493,16 @@ def create_design(
     primitives: list[Any] | None = None,
     parameters: dict[str, Any] | None = None,
     svg: str | None = None,
+    plt: str | None = None,
+    plt_base64: str | None = None,
 ) -> dict[str, Any]:
     return payas_cad.create_design(
         preset=preset,
         primitives=primitives,
         parameters=parameters,
         svg=svg,
+        plt=plt,
+        plt_base64=plt_base64,
         public_base_url=_tool_public_base(),
     )
 
@@ -562,6 +575,12 @@ def get_generator_schema(generator: str) -> dict[str, Any]:
         return payas_cad._mcp({"look_again": [str(exc)]})
 
 
+@mcp.tool(description="Search installed Boxes.py templates, joint settings and literal edge sequences before designing interlocking parts. Includes real parameter schemas and source hashes. Source indexed does not mean assembly/physical PASS.")
+def search_joint_templates(query: str, limit: int = 5) -> dict[str, Any]:
+    from joint_library import search_joint_templates as search
+    return search(query, limit)
+
+
 @mcp.tool(description="Boxes.py class SVG only (ABox, TypeTray, …). Use only if plan_laser_job next_tool is generate_svg. Photos of things to build: plan_laser_job then create_design primitives.")
 def generate_svg(generator: str, parameters: dict[str, Any] | None = None) -> dict[str, Any]:
     try:
@@ -607,8 +626,14 @@ def validate_assembly(
     return payas_cad.validate_assembly(file_id=file_id, primitives=primitives)
 
 
-@mcp.tool(description="Return a preview URL for a previously generated SVG.")
-def render_preview(file_id: str) -> dict[str, Any]:
+@mcp.tool(description="Return a preview URL. view='cut' shows the laser sheet; view='assembled' shows upright panels only when explicit placements and tab partners were verified.")
+def render_preview(file_id: str, view: str = "cut") -> dict[str, Any]:
+    if view == "assembled":
+        from workshop import editor_context
+        data = editor_context(file_id)
+        if not data.get("assembled_preview_svg"):
+            return {"success": False, "look_again": ["Monte görünüm için doğrulanmış parça konumları ve geçme eşleri gerekli."]}
+        return {"success": True, "preview_kind": "assembled", "preview_url": _tool_public_base().rstrip("/") + "/out/" + quote(file_id, safe="") + "?view=assembled", "note": "Nominal digital assembly; physical dry-fit is not verified."}
     try:
         return payas_cad._mcp(boxespy.render_preview(file_id, public_base_url=_tool_public_base()))
     except Exception as exc:
@@ -1413,6 +1438,8 @@ async def api_cad_design(request: Request) -> Response:
                 primitives=payload.get("primitives") or params.get("primitives"),
                 parameters=params,
                 svg=payload.get("svg") or params.get("svg"),
+                plt=payload.get("plt"),
+                plt_base64=payload.get("plt_base64"),
                 public_base_url=_public_base(request),
             )
         )
@@ -1525,15 +1552,40 @@ def _authorize_output_file(request: Request, filename: str):
     return authorize_customer_file(filename, principal, auth_on=auth_required()), principal
 
 
+def _editor_denied(decision: dict, principal, filename: str) -> Response:
+    reason = decision.get("reason")
+    if reason == "expired":
+        code, message, status = "expired", "Bu dosyanın 24 saatlik saklama süresi doldu. Yeni bir dosya oluşturabilirsiniz.", 410
+    elif not principal and reason in {"forbidden", "unknown"}:
+        code, message, status = "signin_required", "Bu dosyayı açmak için dosyayı oluşturduğunuz hesapla giriş yapın.", 401
+    else:
+        code, message, status = "unavailable", "Dosya bulunamadı veya bu hesaba ait değil.", 404
+    payload = {"success": False, "code": code, "look_again": [message]}
+    if status == 401:
+        payload["signin_url"] = "/account?next=" + quote("/out/" + quote(filename, safe=""), safe="")
+    return JSONResponse(payload, status_code=status, headers={"Cache-Control": "private, no-store"})
+
+
 @mcp.custom_route("/api/editor/{filename}", methods=["GET"])
 async def api_editor(request: Request) -> Response:
     from workshop import editor_context
-
+    from persist.storage import StorageService
     filename = _safe_download_name(request.path_params["filename"])
-    decision, principal = _authorize_output_file(request, filename)
-    if not decision.get("allow"):
-        return JSONResponse({"success": True, "look_again": ["SVG bulunamadı."]}, status_code=404)
-    return JSONResponse(editor_context(filename))
+    try:
+        decision, principal = _authorize_output_file(request, filename)
+        if not decision.get("allow"):
+            return _editor_denied(decision, principal, filename)
+        artifact = decision.get("artifact")
+        source = str(artifact.get("source_file_id") or filename) if artifact else filename
+        data = editor_context(source)
+        raw = StorageService().get(str(artifact["storage_path"])) if artifact else boxespy._safe_output_file(source).read_bytes()
+        data["svg"] = raw.decode("utf-8")
+        data["expires_at"] = artifact.get("expires_at") if artifact else None
+        return JSONResponse(data, headers={"Cache-Control": "private, no-store"})
+    except FileNotFoundError:
+        return _editor_denied({"reason": "unknown"}, True, filename)
+    except (OSError, ValueError):
+        return JSONResponse({"success": False, "code": "temporarily_unavailable", "look_again": ["Dosyaya şu anda ulaşılamıyor. Biraz sonra tekrar deneyin."]}, status_code=503, headers={"Retry-After": "3", "Cache-Control": "no-store"})
 
 
 @mcp.custom_route("/api/editor/{filename}/{action}", methods=["POST"])
@@ -1543,15 +1595,22 @@ async def api_editor_action(request: Request) -> Response:
     filename = _safe_download_name(request.path_params["filename"])
     decision, principal = _authorize_output_file(request, filename)
     if not decision.get("allow"):
-        return JSONResponse({"success": False, "look_again": ["SVG bulunamadı."]}, status_code=404)
+        return _editor_denied(decision, principal, filename)
     try:
         body = await request.json()
         if not isinstance(body, dict):
             raise ValueError("Geçersiz istek.")
-        context = editor_context(filename)
+        artifact = decision.get("artifact")
+        source = str(artifact.get("source_file_id") or filename) if artifact else filename
+        context = editor_context(source)
         if not context.get("editable"):
             raise ValueError("Bu dosyada parametrik proje bulunamadı.")
-        return JSONResponse(editor_action(request.path_params["action"], body, context, _public_base(request)))
+        from keys import current_auth
+        token = current_auth.set(principal)
+        try:
+            return JSONResponse(editor_action(request.path_params["action"], body, context, _public_base(request)))
+        finally:
+            current_auth.reset(token)
     except (ValueError, TypeError, KeyError) as exc:
         return JSONResponse({"success": False, "look_again": [str(exc)]}, status_code=400)
 
@@ -1562,7 +1621,7 @@ async def file_open_page(request: Request) -> Response:
     filename = _safe_download_name(request.path_params["filename"])
     decision, principal = _authorize_output_file(request, filename)
     if not decision.get("allow"):
-        return _missing_output(request, signed_in=bool(principal))
+        return _missing_output(request, signed_in=bool(principal), expired=decision.get("reason") == "expired")
     if Path(filename).suffix.lower() == ".svg":
         page = WEB_DIR / "editor.html"
         if page.is_file():
@@ -1598,22 +1657,22 @@ async def serve_file(request: Request) -> Response:
         return _redirect("/out/" + quote(_safe_download_name(filename)))
     decision, principal = _authorize_output_file(request, filename)
     if not decision.get("allow"):
-        return _missing_output(request, signed_in=bool(principal))
+        return _missing_output(request, signed_in=bool(principal), expired=decision.get("reason") == "expired")
     artifact = decision.get("artifact")
     if artifact:
         store = StorageService()
         try:
             data = store.get(str(artifact["storage_path"]))
         except FileNotFoundError:
-            return _missing_output(request, signed_in=bool(principal))
+            return _missing_output(request, signed_in=bool(principal), expired=decision.get("reason") == "expired")
         media = str(artifact.get("mime_type") or _file_media(filename))
         return _file_payload(data, str(artifact.get("source_file_id") or filename), media, inline=inline)
     try:
         path = boxespy._safe_output_file(filename)
     except FileNotFoundError:
-        return _missing_output(request, signed_in=bool(principal))
+        return _missing_output(request, signed_in=bool(principal), expired=decision.get("reason") == "expired")
     except ValueError:
-        return _missing_output(request, signed_in=bool(principal))
+        return _missing_output(request, signed_in=bool(principal), expired=decision.get("reason") == "expired")
     return _file_payload(path.read_bytes(), path.name, _file_media(path.name), inline=inline)
 
 

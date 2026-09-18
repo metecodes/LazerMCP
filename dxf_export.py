@@ -147,61 +147,61 @@ def _stroke_is_etch(stroke: str) -> bool:
 
 
 def svg_bytes_to_dxf(svg_bytes: bytes, step_mm: float = 0.6) -> bytes:
-    """Best-effort path dump for toolbox SVG. Cut = red, etch = black/green."""
+    """Preserve line vertices and disconnected subpaths; flatten curves per segment."""
+    import math
+    import re
+    import numpy as np
     from xml.etree import ElementTree as ET
-
     from shapely.geometry import LineString
-    from svgpathtools import parse_path
-
+    from svgpathtools import parse_path, Line
+    from svgpathtools.parser import parse_transform
+    from svgpathtools.path import transform
     if not svg_bytes:
         return geoms_to_dxf([], [])
-    try:
-        root = ET.fromstring(svg_bytes)
-    except ET.ParseError:
-        return geoms_to_dxf([], [])
-        
-    try:
-        height_str = root.attrib.get("height", "0")
-        import re
-        height_str = re.sub(r"[a-zA-Z]+", "", height_str).strip()
-        doc_height = float(height_str)
-    except Exception:
-        doc_height = 0.0
-
-    cuts: list = []
-    etches: list = []
+    root = ET.fromstring(svg_bytes)
+    parents = {child: parent for parent in root.iter() for child in parent}
+    def mm(value):
+        match = re.fullmatch(r"\s*([0-9.eE+\-]+)\s*(mm|cm|in|px|pt)?\s*", value or "")
+        if not match:
+            return None
+        return float(match[1]) * {None: 25.4/96, "px": 25.4/96, "mm": 1, "cm": 10, "in": 25.4, "pt": 25.4/72}[match[2]]
+    vb = [float(v) for v in (root.get("viewBox") or "").replace(",", " ").split()]
+    width, height = mm(root.get("width")), mm(root.get("height"))
+    viewport = np.eye(3)
+    if len(vb) == 4 and vb[2] > 0 and vb[3] > 0:
+        sx, sy = (width or vb[2])/vb[2], (height or vb[3])/vb[3]
+        if (root.get("preserveAspectRatio") or "xMidYMid meet") != "none":
+            sx = sy = max(sx, sy) if "slice" in (root.get("preserveAspectRatio") or "") else min(sx, sy)
+        viewport[0, 0], viewport[1, 1] = sx, sy
+        align = root.get("preserveAspectRatio") or "xMidYMid meet"
+        viewport[0, 2] = -vb[0]*sx + (0 if "xMin" in align or align == "none" else (width or vb[2])-vb[2]*sx) / (1 if "xMax" in align else 2)
+        viewport[1, 2] = -vb[1]*sy + (0 if "YMin" in align or align == "none" else (height or vb[3])-vb[3]*sy) / (1 if "YMax" in align else 2)
+    else:
+        viewport[0, 0] = viewport[1, 1] = 25.4/96
+    cuts, etches = [], []
+    from manufacturing import classify_element
     for el in root.iter():
-        if el.tag.split("}")[-1].lower() != "path":
+        if el.tag.split("}")[-1].lower() != "path" or not (el.get("d") or "").strip():
             continue
-        d = el.get("d") or ""
-        if not d.strip():
+        op = classify_element(el, parents)[0]
+        if op not in {"CUT", "ENGRAVE", "SCORE", "LABEL"}:
             continue
-        try:
-            path = parse_path(d)
-            length = float(path.length())
-        except Exception:
-            continue
-        if length < 0.4:
-            continue
-        n = max(8, min(240, int(length / max(step_mm, 0.2)) + 1))
-        pts = []
-        for i in range(n + 1):
-            pt = path.point(i / n)
-            # Transform SVG (Y-down) to DXF (Y-up) without mirroring the geometry itself.
-            # Y_dxf = doc_height - Y_svg
-            y_svg = float(pt.imag)
-            y_dxf = (doc_height - y_svg) if doc_height > 0 else -y_svg
-            pts.append((float(pt.real), y_dxf))
-        if len(pts) < 2:
-            continue
-        geom = LineString(pts)
-        op = (el.get("data-operation") or "").upper()
-        if op in {"GUIDE", "UNKNOWN"}:
-            continue
-        stroke = f"{el.get('stroke') or ''} {el.get('style') or ''}"
-        ident = (el.get("id") or "").upper()
-        if op in {"ENGRAVE", "SCORE", "LABEL"} or _stroke_is_etch(stroke) or ident in {"ENGRAVE", "ETCH"}:
-            etches.append(geom)
-        elif op == "CUT":
-            cuts.append(geom)
+        chain, node = [], el
+        while node is not None:
+            chain.append(node)
+            node = parents.get(node)
+        matrix = viewport.copy()
+        for node in reversed(chain):
+            matrix = matrix @ parse_transform(node.get("transform") or "")
+        path = transform(parse_path(el.get("d")), matrix)
+        for subpath in path.continuous_subpaths():
+            pts = []
+            for segment in subpath:
+                count = 1 if isinstance(segment, Line) else max(2, math.ceil(segment.length()/max(step_mm, .02)))
+                if not pts:
+                    pts.append(segment.start)
+                pts.extend(segment.point(i/count) for i in range(1, count+1))
+            if len(pts) >= 2:
+                geom = LineString([(float(pt.real), (height or 0)-float(pt.imag)) for pt in pts])
+                (cuts if op == "CUT" else etches).append(geom)
     return geoms_to_dxf(cuts, etches)

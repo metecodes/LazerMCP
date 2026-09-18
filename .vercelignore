@@ -3,4 +3,10 @@ output
 __pycache__
 *.pyc
 .env
+.env*
 check_*.py
+scratch
+tests
+docs
+migrations
+.cursorrules.bak

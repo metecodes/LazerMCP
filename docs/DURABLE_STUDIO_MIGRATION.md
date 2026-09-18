@@ -48,4 +48,36 @@ fresh Python process, an unrelated user was denied file access, eight concurrent
 version appends received consecutive unique numbers, and latest-version approval
 was retained. Only isolated smoke-test records were deleted afterwards.
 
-The updated server has not been deployed to Vercel from this workspace.
+The updated server was deployed to `https://mcp.metehanavci.com` on 2026-09-17.
+Production deployment: `dpl_GxZU32H3y63mUc7t5x55LFc2RExY`.
+
+## 24-hour retention and editor load fix
+
+`0003_artifact_retention.sql` has been applied. It enforces a creation-based
+24-hour lifetime and schedules Storage cleanup every 15 minutes, in batches of
+100 objects. The cleanup function uses Vault-held credentials and deletes
+metadata only after a successful Storage API response. Active files remain.
+Live tests verified real expired object deletion and that older code cannot
+clear the expiry. Only isolated test records were removed by the smoke tests.
+
+The updated editor API returns project context and SVG together with no-cache
+headers. The browser retries transient failures, returns to the file after
+sign-in, distinguishes expiry from missing files, and disables controls if
+loading fails. Additional generated sheets and attachments use the same managed
+storage and retention. New Vercel Blob duplicates are disabled when Supabase is
+configured; previously untracked legacy Blob objects cannot be cleaned through
+the new metadata table.
+
+The MCP server/editor changes are deployed and the public file URL has been
+verified end to end. Previously lost temporary files still require regeneration.
+
+Latest checks: 71 Python tests passed across retention, editor, workshop,
+durable studio, Sprint 0.5 and auth suites. Browser tests passed for editor
+interactions and load failure/retry/sign-in scenarios. A real compiled design,
+its attachments and editable metadata were verified together through the editor
+API against live Supabase. The scheduled cleanup job also recorded a successful
+automatic run. Production was missing `SUPABASE_SERVICE_ROLE_KEY`; the existing
+project credential was added as a Sensitive production variable before deployment.
+The deployed editor asset matches the local source byte for byte. A real isolated
+design loaded through the production domain's editor API with SVG, editable parts
+and expiry, and its `/out/` page returned successfully. Test records were removed.

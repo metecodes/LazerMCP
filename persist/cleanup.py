@@ -1,4 +1,4 @@
-"""Expire tmp artifacts. Call occasionally; not a high-frequency cron."""
+"""Delete expired artifact bytes before metadata; failed deletes remain retryable."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ def cleanup_expired(now: str | None = None) -> int:
         try:
             store.delete(str(row.get("storage_path") or ""))
         except Exception:
-            pass
+            continue
         repo.delete(str(row["id"]))
         n += 1
     return n
