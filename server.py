@@ -479,7 +479,7 @@ def plan_laser_job(
         "Optional marks: part.markings or {type:marking, target_part} "
         "(kind=text|path|icon|line, x,y,width or height, rotation, align, operation=engrave|cut). "
         "Scale with parameters.scale or parameters.reference={feature, mm, drawn_mm}. "
-        "parameters.material / parameters.machine pick profiles. Optional parameters.operation_settings overrides CUT/ENGRAVE speed_scale, power_scale, speed_mm_s, power_percent and passes; ENGRAVE must stay lower-power, one-pass and non-through. MCP writes bom. "
+        "parameters.material / parameters.machine pick profiles. Optional parameters.operation_settings overrides CUT/ENGRAVE speed_scale, power_scale, speed_mm_s, power_percent and passes; ENGRAVE must stay lower-power, one-pass and non-through. For a final user assembly request copy it to parameters.assembly_request; use parameters.assembly_order with every explicit placed part label exactly once and parameters.assembly_notes for step text. Successful explicit assemblies return progressive assembly_steps SVG drawings. MCP writes bom. "
         "preset=jigsaw_puzzle or number_match_puzzle only when the plan says so. "
         "Paste speak as the gate card. BLOCKED = no authorized SVG. "
         "PROTOTYPE READY = Prototype SVG only; PRODUCTION EXPORT BLOCKED. "

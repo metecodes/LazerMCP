@@ -883,6 +883,21 @@ def save_generated_svg(
             sheet_ids.append(sid)
         result["sheet_ids"] = sheet_ids
         result["sheets"] = len(extra_sheets)
+    try:
+        from assembly_steps import build_assembly_steps
+        assembly_plan=build_assembly_steps(extra.get("primitives"),extra.get("assembly"),extra.get("parameters"))
+    except Exception as exc:
+        assembly_plan={"status":"BLOCKED","reason":str(exc),"steps":[]}
+    step_rows=[]
+    for row in assembly_plan.pop("steps",[]):
+        step_id=f"{stem}-assembly-step-{int(row['step']):02d}.svg"
+        raw=row.pop("svg_bytes")
+        (OUTPUT_DIR / step_id).write_bytes(raw)
+        step_rows.append({**row,"file_id":step_id,"url":_blob_url(step_id,raw,"image/svg+xml") or _file_url(public_base_url,step_id)})
+    assembly_plan["steps"]=step_rows
+    extra["assembly_steps"]=assembly_plan
+    result["assembly_steps"]=assembly_plan
+    result["assembly_step_ids"]=[row["file_id"] for row in step_rows]
     side = f"{stem}.json"
     payload = {
         "file_id": file_id,
@@ -891,6 +906,7 @@ def save_generated_svg(
         "ready_to_cut": extra.get("ready_to_cut"),
         "physical": extra.get("physical"),
         "assembly_sheet": extra.get("assembly_sheet"),
+        "assembly_steps": extra.get("assembly_steps"),
         "speak": extra.get("speak"),
         "scorecard": extra.get("scorecard"),
         "authorized_output": extra.get("authorized_output"),

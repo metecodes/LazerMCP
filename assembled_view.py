@@ -1,7 +1,7 @@
 """Explicit panel placements, tab partners and a nominal assembled SVG preview."""
 from __future__ import annotations
 import math
-from xml.sax.saxutils import quoteattr
+from xml.sax.saxutils import quoteattr, escape
 from shapely.geometry import Polygon, box
 
 
@@ -92,20 +92,24 @@ def validate(parts,t):
     return errors,joints
 
 
-def preview(parts,t=3):
+def preview(parts,t=3,visible_labels=None,highlight_labels=None,caption=None):
     panels=[p for p in parts if isinstance(p,dict) and outline(p) and p.get('placement')]
     if not panels or len(panels)!=len(parts): return None
+    visible=set(visible_labels or [p.get('label') for p in panels])
+    highlight=set(highlight_labels or [])
     def project(a): return (a[0]+.45*a[1],-a[2]-.24*a[1])
     allpts=[project(world(p,x,y,z)) for p in panels for x,y in outline(p) for z in (0,t)]
     xs,ys=zip(*allpts); lo,hi=min(xs)-20,min(ys)-20; w,h=max(xs)-lo+20,max(ys)-hi+20
     def path(p,pts,z=0):
         return 'M'+' L'.join(f'{a:.3f},{b:.3f}' for a,b in [project(world(p,x,y,z)) for x,y in pts])+' Z'
     chunks=[]
-    for p in sorted(panels,key=lambda p:sum(world(p,x,y)[1] for x,y in outline(p))/len(outline(p)),reverse=True):
+    for p in sorted((p for p in panels if p.get('label') in visible),key=lambda p:sum(world(p,x,y)[1] for x,y in outline(p))/len(outline(p)),reverse=True):
         pts=outline(p)
+        active=p.get('label') in highlight
+        face_fill='#f2a65a' if active else '#c6a274'; edge_fill='#c8792c' if active else '#9c754b'; stroke='#9a4f0b' if active else '#775b3e'
         for a,b in zip(pts,pts[1:]+pts[:1]):
             ring=[project(world(p,*a)),project(world(p,*b)),project(world(p,*b,t)),project(world(p,*a,t))]
-            chunks.append('<polygon points="'+' '.join(f'{x:.3f},{y:.3f}' for x,y in ring)+'" fill="#9c754b" stroke="#775b3e" stroke-width=".25"/>')
+            chunks.append('<polygon points="'+' '.join(f'{x:.3f},{y:.3f}' for x,y in ring)+f'" fill="{edge_fill}" stroke="{stroke}" stroke-width=".25"/>')
         d=path(p,pts)
         for s in p.get('slots') or []:
             x,y,sw,sh=[float(s[k]) for k in ('x','y','w','h')]
@@ -113,10 +117,11 @@ def preview(parts,t=3):
         for hole in p.get('holes') or []:
             x,y,r=float(hole['x']),float(hole['y']),float(hole.get('d',0))/2
             d+=' '+path(p,[(x+r*math.cos(i*math.pi/24),y+r*math.sin(i*math.pi/24)) for i in range(48)])
-        chunks.append(f'<path data-panel={quoteattr(p["label"])} d="{d}" fill="#c6a274" fill-rule="evenodd" stroke="#775b3e" stroke-width=".4"/>')
+        chunks.append(f'<path data-panel={quoteattr(p["label"])} d="{d}" fill="{face_fill}" fill-rule="evenodd" stroke="{stroke}" stroke-width=".4"/>')
         for mark in p.get('markings') or []:
             if mark.get('icon')=='star':
                 x,y,r=float(mark['x']),float(mark['y']),float(mark.get('width',24))/2
                 star=[(x+r*(1 if i%2==0 else .45)*math.cos(math.pi/2+i*math.pi/5),y+r*(1 if i%2==0 else .45)*math.sin(math.pi/2+i*math.pi/5)) for i in range(10)]
                 chunks.append(f'<path d="{path(p,star)}" fill="none" stroke="#775b3e" stroke-width=".7"/>')
-    return f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{lo} {hi} {w} {h}" role="img" aria-label="Nominal assembled panel preview"><rect x="{lo}" y="{hi}" width="{w}" height="{h}" fill="#f6f3ed"/>'+''.join(chunks)+'</svg>'
+    title=str(caption or 'Nominal assembled panel preview')
+    return f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{lo} {hi} {w} {h}" role="img" aria-label={quoteattr(title)}><title>{escape(title)}</title><rect x="{lo}" y="{hi}" width="{w}" height="{h}" fill="#f6f3ed"/>'+''.join(chunks)+'</svg>'

@@ -25,3 +25,4 @@ class LaserSettingsTests(unittest.TestCase):
    self.assertEqual(report['operation_settings']['operations']['ENGRAVE']['speed_scale'],.5)
    self.assertNotEqual((Path(tmp)/result['dxf_id']).read_bytes(),b'stale')
    self.assertIn(b'ENGRAVE',(Path(tmp)/result['dxf_id']).read_bytes())
+   self.assertEqual(result['assembly_steps']['status'],'NOT_AVAILABLE')

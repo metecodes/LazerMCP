@@ -149,6 +149,7 @@ def attach_durable_artifacts(result: dict[str, Any], extra: dict[str, Any] | Non
                 )
             )
         additional = [(str(sid), "svg", "image/svg+xml") for sid in (result.get("sheet_ids") or [])[1:]]
+        additional.extend((str(sid), "assembly_step", "image/svg+xml") for sid in (result.get("assembly_step_ids") or []))
         for key, kind, mime in (("report_id", "report", "application/json"),
                                 ("production_report_id", "production_report", "text/markdown"),
                                 ("assembly_sheet_id", "assembly_sheet", "text/plain"),
