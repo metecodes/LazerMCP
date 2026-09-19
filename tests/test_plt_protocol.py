@@ -15,7 +15,7 @@ class PLTProtocolTests(unittest.TestCase):
    self.assertIn('result',init.json())
    schema=client.post('/mcp',headers=headers,json={'jsonrpc':'2.0','id':2,'method':'tools/list'}).json()
    design=next(t for t in schema['result']['tools'] if t['name']=='create_design')
-   self.assertTrue({'create_text','create_vector_graphic','create_image_reference','inspect_design','compute_safe_design_area','compose_design','compose_source_sheet','validate_composition','repair_composition','export_composed_dxf'}.issubset({t['name'] for t in schema['result']['tools']}))
+   self.assertTrue({'start_reference_upload','upload_reference_chunk','discard_reference_upload','create_text','create_vector_graphic','create_image_reference','inspect_design','compute_safe_design_area','compose_design','compose_source_sheet','validate_composition','repair_composition','export_composed_dxf'}.issubset({t['name'] for t in schema['result']['tools']}))
    response=client.post('/mcp',headers=headers,json={'jsonrpc':'2.0','id':9,'method':'tools/call','params':{'name':'create_from_reference','arguments':{}}})
    import json
    missing=json.loads(response.json()['result']['content'][0]['text']);self.assertEqual(missing['error_code'],'REFERENCE_IMAGE_MISSING');self.assertTrue(missing['retryable'])

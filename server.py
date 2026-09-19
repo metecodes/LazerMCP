@@ -137,7 +137,7 @@ mcp = MCPServer(
         "(payas_workshop|desktop_400|lasercad_900). Do not invent kerf. "
         "MCP writes the kit material list (bom / MATERIALS (MCP)). Never invent hardware. "
         "Optional parameters.project names the job for version history. "
-        "create_from_reference traces flat artwork by itself; with explicit primitives and reference_markings it engraves the supplied artwork on named mechanical panels in the same SVG+DXF sheet. Never infer joints from pixels. "
+        "For large chat images call start_reference_upload, upload_reference_chunk repeatedly, then create_from_reference(reference_upload_id=...). create_from_reference traces flat artwork by itself; with explicit primitives and reference_markings it engraves the supplied artwork on named mechanical panels in the same SVG+DXF sheet. Never infer joints from pixels. "
         "Do not skip the plan. Do not use number_match_puzzle unless the plan says so. "
         "If final_status is BLOCKED, read look_again, fix primitives, call create_design again. "
         "Do not invent a PASS. Working SVG is not a cuttable product until the gate says so. "
@@ -512,7 +512,7 @@ def create_design(
 @mcp.tool(
     description=(
         "Vectorize 2D artwork, or combine an explicit mechanical recipe and reference artwork in one sheet. "
-        "Pass compressed JPEG image_base64 plus next_arguments from the plan. "
+        "Pass compressed JPEG image_base64, a public HTTPS image_url, or upload large base64 through start_reference_upload + upload_reference_chunk and pass reference_upload_id. "
         "For a mechanical single-sheet output pass primitives plus reference_markings:[{target_part:'named-panel',kind:'image',crop:[left,top,right,bottom],ink_color:'yellow',x:50,y:50,width:30}]. Crop uses normalized image coordinates. parameters controls material/project. Text/path marks may also be included. format='both' yields SVG+DXF from the same recipe. Never infer mechanical joints from pixel outlines alone. "
         "layout=jigsaw or trace. format=svg or both. Then validate_svg."
     )
@@ -520,6 +520,8 @@ def create_design(
 def create_from_reference(
     image_base64: str | None = None,
     image_chunks: list[str] | None = None,
+    reference_upload_id: str | None = None,
+    image_url: str | None = None,
     width_mm: float = 200.0,
     height_mm: float | None = None,
     style: str = "cut_and_etch",
@@ -535,6 +537,12 @@ def create_from_reference(
     parameters: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     try:
+        if reference_upload_id:
+            from reference_upload import read_reference_upload
+            image_base64=read_reference_upload(reference_upload_id)
+        if not image_base64 and image_url:
+            from reference_upload import fetch_public_image
+            image_base64=fetch_public_image(image_url)
         if not image_base64 and image_chunks:
             if not all(isinstance(chunk,str) for chunk in image_chunks):raise ValueError('image_chunks must contain base64 strings')
             image_base64=''.join(image_chunks)
@@ -574,6 +582,27 @@ def create_from_reference(
                 "look_again": [str(exc)],
             }
         )
+
+
+@mcp.tool(description="Begin a short-lived chunked upload for a chat image that is too large for one MCP argument. Returns a secret reference_upload_id valid for one hour.")
+def start_reference_upload(expected_chunks: int | None = None, mime_type: str = "image/png") -> dict[str, Any]:
+    from reference_upload import start_reference_upload as start
+    try:return start(expected_chunks,mime_type)
+    except Exception as exc:return {'success':False,'retryable':True,'error_code':'REFERENCE_UPLOAD_START_FAILED','look_again':[str(exc)]}
+
+
+@mcp.tool(description="Upload one base64 segment (maximum 500,000 characters) for a reference_upload_id. Send sequential indices starting at zero in separate MCP calls.")
+def upload_reference_chunk(reference_upload_id: str, index: int, chunk: str) -> dict[str, Any]:
+    from reference_upload import upload_reference_chunk as upload
+    try:return upload(reference_upload_id,index,chunk)
+    except Exception as exc:return {'success':False,'retryable':True,'error_code':'REFERENCE_CHUNK_REJECTED','look_again':[str(exc)]}
+
+
+@mcp.tool(description="Delete a short-lived chunked reference upload after use or cancellation.")
+def discard_reference_upload(reference_upload_id: str) -> dict[str, Any]:
+    from reference_upload import discard_reference_upload as discard
+    try:return discard(reference_upload_id)
+    except Exception as exc:return {'success':False,'error_code':'REFERENCE_UPLOAD_NOT_FOUND','look_again':[str(exc)]}
 
 
 @mcp.tool(description="Payas STEM defaults: 3mm kavak, kerf 0.15, 1500x3000, SVG.")
@@ -1202,6 +1231,8 @@ async def oauth_authorize(request: Request) -> Response:
             challenge=str(q.get("code_challenge") or ""),
             user=user,
         )
+
+
         return _redirect(authorize_redirect(str(q.get("redirect_uri") or ""), code, str(q.get("state") or "")))
     except ValueError as exc:
         return _cors({"error": "invalid_request", "error_description": str(exc)}, 400)
