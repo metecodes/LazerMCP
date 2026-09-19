@@ -6,9 +6,18 @@ from shapely.geometry import Polygon, box
 
 
 def outline(p):
-    pts = p.get('points') or p.get('vertices') or p.get('coords') or p.get('contour')
+    cut=p.get('_cut_geometry') if isinstance(p.get('_cut_geometry'),dict) else {}
+    outer=cut.get('outer_cut') if isinstance(cut.get('outer_cut'),dict) else {}
+    pts = outer.get('points') or p.get('points') or p.get('vertices') or p.get('coords') or p.get('contour')
     if pts:
         return [(float(x), float(y)) for x,y in pts]
+    kind=str(p.get('type') or p.get('kind') or '').lower()
+    if kind in {'propeller','pervane','blades','fan'}:
+        from toolbox import propeller_points
+        return propeller_points(int(p.get('blades') or 4),float(p.get('d') or p.get('diameter') or 80),float(p.get('blade_w') or p.get('blade_width') or 12))
+    if kind in {'disc','disk','circle'}:
+        r=float(p.get('d') or p.get('diameter') or 0)/2
+        if r:return [(r*math.cos(i*math.pi/24),r*math.sin(i*math.pi/24)) for i in range(48)]
     w,h = float(p.get('w') or 0),float(p.get('h') or 0)
     return [(0,0),(w,0),(w,h),(0,h)] if w and h else []
 
@@ -28,7 +37,7 @@ def _tab_on_outer_cut(poly, tab_box, w, h, tolerance=.02):
 
 
 def validate(parts,t):
-    errors=[]; joints=[]
+    errors=[]; joints=[];debug=[]
     lookup={p.get('label'):p for p in parts if isinstance(p,dict)}
     if len(lookup)!=len(parts):
         errors.append('assembly panel labels must be unique')
@@ -41,7 +50,7 @@ def validate(parts,t):
                     raise ValueError()
             except (KeyError,TypeError,ValueError):
                 errors.append(f"invalid orthonormal placement on {p.get('label')}")
-    if errors: return errors,joints
+    if errors: return errors,joints,debug
     for p in lookup.values():
         pts=outline(p)
         if not pts: continue
@@ -53,20 +62,31 @@ def validate(parts,t):
             if not poly.contains(Point(float(hole['x']),float(hole['y'])).buffer(float(hole.get('d',0))/2)):
                 errors.append(f"hole on {p.get('label')} leaves its actual outline")
         for s in p.get('slots') or []:
+            rec={'connection':f'C{len(debug)+1:02d}','tab_part':None,'tab_id':None,'slot_part':p.get('label'),'result':'FAIL'}
             x,y,w,h=[float(s.get(k) or 0) for k in ('x','y','w','h')]
+            rec['slot_local_bbox']=[x-w/2,y-h/2,x+w/2,y+h/2]
             if w<=0 or h<=0 or not poly.contains(box(x-w/2,y-h/2,x+w/2,y+h/2)):
-                errors.append(f"slot on {p.get('label')} leaves its actual outline")
+                rec['reason']='slot leaves its actual outline';debug.append(rec);errors.append(f"slot on {p.get('label')} leaves its actual outline");continue
+            edge_clearance=float(s.get('edge_clearance_mm') or 1.0)
+            if box(x-w/2,y-h/2,x+w/2,y+h/2).distance(poly.boundary)<edge_clearance:
+                rec['reason']=f'slot edge clearance is below {edge_clearance:g} mm';debug.append(rec);errors.append(f"slot on {p.get('label')} violates minimum edge clearance {edge_clearance:g} mm");continue
+            actual=(p.get('_cut_geometry') or {}).get('inner_cuts') or []
+            if not any(row.get('role')=='SLOT' and row.get('operation')=='CUT' and row.get('points')==[[x-w/2,y-h/2],[x+w/2,y-h/2],[x+w/2,y+h/2],[x-w/2,y+h/2]] for row in actual if isinstance(row,dict)):
+                rec['reason']='slot is metadata only; no closed INNER_CUT geometry';debug.append(rec);errors.append(f"slot on {p.get('label')} is missing from actual INNER_CUT geometry");continue
             if min(w,h)>t+.6: continue
             mate=s.get('mate') or {}; other=lookup.get(mate.get('part'))
             tab=next((a for a in (other or {}).get('tabs',[]) if a.get('id')==mate.get('tab')),None)
+            rec.update({'tab_part':mate.get('part'),'tab_id':mate.get('tab')})
             if not tab:
-                errors.append(f"slot on {p.get('label')} has no explicit matching tab"); continue
+                rec['reason']='no explicit matching tab';debug.append(rec);errors.append(f"slot on {p.get('label')} has no explicit matching tab"); continue
             tx,ty,tw,th=[float(tab.get(k) or 0) for k in ('x','y','w','h')]
+            rec['tab_local_bbox']=[tx-tw/2,ty-th/2,tx+tw/2,ty+th/2]
             op=Polygon(outline(other)); tab_box=box(tx-tw/2,ty-th/2,tx+tw/2,ty+th/2)
-            if str(other.get('operation') or 'CUT').upper() != 'CUT' or not op.is_valid or not _tab_on_outer_cut(op,tab_box,tw,th):
-                errors.append(f"tab {mate.get('tab')} is metadata only; it is missing from {mate.get('part')} actual outer CUT geometry"); continue
+            compiled_tab=next((row for row in (other.get('_cut_geometry') or {}).get('tabs') or [] if str(row.get('id') or '')==str(mate.get('tab') or '')),None)
+            if str(other.get('operation') or 'CUT').upper() != 'CUT' or not compiled_tab or not compiled_tab.get('materialized') or not op.is_valid or not _tab_on_outer_cut(op,tab_box,tw,th):
+                rec['reason']='tab is metadata only; missing from actual outer CUT geometry';debug.append(rec);errors.append(f"tab {mate.get('tab')} is metadata only; it is missing from {mate.get('part')} actual outer CUT geometry"); continue
             if not p.get('placement') or not other.get('placement'):
-                errors.append(f"tab-slot {p.get('label')} needs explicit assembled placements"); continue
+                rec['reason']='explicit assembled placements required';debug.append(rec);errors.append(f"tab-slot {p.get('label')} needs explicit assembled placements"); continue
             try:
                 corners=[world(other,a,b,c) for a in (tx-tw/2,tx+tw/2) for b in (ty-th/2,ty+th/2) for c in (0,t)]
                 pose=p['placement']; local=[[sum((a[i]-pose['origin'][i])*pose[k][i] for i in range(3)) for k in ('u','v')] for a in corners]
@@ -80,11 +100,17 @@ def validate(parts,t):
                 sizes=[bounds[2]-bounds[0],bounds[3]-bounds[1]]; expected_sizes=[w,h]
                 perpendicular=abs(sum(float(a)*float(b) for a,b in zip(n,other_n))) <= .001
                 fitted=all(abs(a-b)<=fit for a,b in zip(centers,expected_centers)) and all(-.05 <= slot-tab <= fit for slot,tab in zip(expected_sizes,sizes))
+                world_tab=[world(other,a,b,0) for a in (tx-tw/2,tx+tw/2) for b in (ty-th/2,ty+th/2)]
+                world_slot=[world(p,a,b,0) for a in (x-w/2,x+w/2) for b in (y-h/2,y+h/2)]
+                bbox=lambda pts:[min(q[i] for q in pts) for i in range(3)]+[max(q[i] for q in pts) for i in range(3)]
+                angular=math.degrees(math.asin(min(1,abs(sum(float(a)*float(b) for a,b in zip(n,other_n))))))
+                rec.update({'tab_world_bbox':bbox(world_tab),'slot_world_bbox':bbox(world_slot),'center_distance_mm':math.hypot(centers[0]-x,centers[1]-y),'angular_error_deg':angular,'thickness_clearance_mm':min(expected_sizes[i]-sizes[i] for i in range(2)),'insertion_depth_mm':max(depths)-min(depths)})
                 if not perpendicular or not fitted or min(depths)>.05 or max(depths)<t-.05:
-                    errors.append(f"tab {mate.get('part')}.{mate.get('tab')} does not align with {p.get('label')} slot"); continue
+                    rec['reason']='orientation, position, thickness clearance or insertion depth mismatch';debug.append(rec);errors.append(f"tab {mate.get('part')}.{mate.get('tab')} does not align with {p.get('label')} slot"); continue
+                rec.update({'result':'PASS','reason':'actual CUT polygons align after shared 3D transform'});debug.append(rec)
                 joints.append({'male':mate['part'],'female':p['label'],'kind':'tab-slot','result':'MATCH','via':'actual outer CUT tab geometry transformed into the receiving panel 3D frame'})
             except (KeyError,TypeError,ValueError):
-                errors.append(f"invalid placement on {p.get('label')}")
+                rec['reason']='invalid placement transform';debug.append(rec);errors.append(f"invalid placement on {p.get('label')}")
     for p in lookup.values():
         attachment=p.get('attachment') or {}
         if not attachment: continue
@@ -103,7 +129,7 @@ def validate(parts,t):
             errors.append(f"glued ornament {p.get('label')} does not contact {other['label']}")
         else:
             joints.append({'male':p['label'],'female':other['label'],'kind':'glue','result':'PLANNED','via':'nominal adhesive contact; physical glue test not verified'})
-    return errors,joints
+    return errors,joints,debug
 
 
 def preview(parts,t=3,visible_labels=None,highlight_labels=None,caption=None):

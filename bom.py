@@ -75,12 +75,14 @@ def _area_m2(primitives: list[dict[str, Any]], thickness: float) -> float:
     return round(mm2 / 1_000_000.0, 4)
 
 
-def _hardware(primitives: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _hardware(primitives: list[dict[str, Any]], parameters: dict[str, Any] | None = None) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     holes: list[float] = []
     has_prop = False
     has_solar = False
     has_motor = False
+    from motion_clearance import resolve_motion
+    motion=resolve_motion(parameters or {},primitives);direct=motion.get('drive_type')=='direct_motor_shaft'
     for part in primitives:
         if _kind(part) in {"propeller", "pervane", "blades", "fan"}:
             has_prop = True
@@ -99,9 +101,9 @@ def _hardware(primitives: list[dict[str, Any]]) -> list[dict[str, Any]]:
             for hole in face.get("holes") or []:
                 if isinstance(hole, dict) and (hole.get("d") or hole.get("diameter")):
                     holes.append(float(hole.get("d") or hole.get("diameter")))
-    if has_prop or has_motor:
+    if has_prop or has_motor or direct:
         shaft = holes[0] if holes else 4.0
-        out.append({"item": f"Ø{shaft:.0f} mm mil / dowel", "qty": 1, "unit": "pcs", "note": "koaksiyel deliklerle aynı çap"})
+        if not direct:out.append({"item": f"Ø{shaft:.0f} mm mil / dowel", "qty": 1, "unit": "pcs", "note": "koaksiyel deliklerle aynı çap"})
         out.append({"item": "DC motor (fotoğraftaki gövde, ölçüyü uydurma)", "qty": 1, "unit": "pcs"})
         out.append({"item": "Motor vida (motor plakası deliklerine göre)", "qty": 2, "unit": "pcs"})
     if has_solar:
@@ -118,6 +120,7 @@ def build_bom(
     material: dict[str, Any] | None = None,
     nesting: dict[str, Any] | None = None,
     machine: dict[str, Any] | None = None,
+    parameters: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     parts = [p for p in (primitives or []) if isinstance(p, dict)]
     mat = material or {"id": "poplar_3mm", "name": "3 mm kavak kontrplak", "thickness": 3.0, "sheet_w": 1500, "sheet_h": 3000}
@@ -143,7 +146,7 @@ def build_bom(
             }
         )
         lines.append({"item": "Ahşap tutkalı", "qty": 1, "unit": "job", "note": "kuru geçme sonrası"})
-        lines.extend(_hardware(parts))
+        lines.extend(_hardware(parts,parameters))
 
     speak = ["MATERIALS (MCP):"]
     for row in lines:

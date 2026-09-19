@@ -10,10 +10,12 @@ def _unit(v):
 def _cross(a,b):return [a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]]
 def _dot(a,b):return sum(x*y for x,y in zip(a,b))
 
-def resolve_motion(parameters):
+def resolve_motion(parameters,primitives=None):
     """Resolve motion from an explicit connection; retain the old motion object as input compatibility."""
     parameters=parameters if isinstance(parameters,dict) else {}
     motion=dict(parameters.get('motion') or {})
+    primitives=[p for p in (primitives or []) if isinstance(p,dict)]
+    hardware={str(h.get('id')):h for h in parameters.get('hardware') or [] if isinstance(h,dict) and h.get('id')}
     direct=None
     for row in parameters.get('connections') or []:
         if isinstance(row,dict) and str(row.get('type') or row.get('kind') or '').lower()=='direct_motor_shaft':
@@ -33,6 +35,22 @@ def resolve_motion(parameters):
         motion['drive_type']='direct_motor_shaft';motion['connection_source']='parameters.connections'
     elif str(parameters.get('drive_type') or '').lower()=='direct_motor_shaft':
         motion['drive_type']='direct_motor_shaft'
+    moving_name=str(motion.get('moving_part') or '')
+    driven=next((p for p in primitives if moving_name and str(p.get('label') or '')==moving_name),None)
+    if not direct:
+        direct_driven=next((p for p in primitives if str(p.get('drive_type') or (p.get('drive') or {}).get('type') or '').lower()=='direct_motor_shaft'),None)
+        if direct_driven:
+            driven=direct_driven
+            drive=driven.get('drive') or {};motion.setdefault('drive_type','direct_motor_shaft');motion.setdefault('moving_part',str(driven.get('label') or ''));motion.setdefault('motor_part',drive.get('hardware') or driven.get('motor_part'))
+    if driven:
+        pose=driven.get('placement') or {};motion.setdefault('propeller_center',pose.get('origin'))
+        motion.setdefault('radius_mm',float(driven.get('d') or driven.get('diameter') or 0)/2)
+        if not motion.get('motor_axis'):
+            hw=hardware.get(str(motion.get('motor_part') or '')) or {}
+            direction=hw.get('shaft_axis');origin=hw.get('shaft_origin') or motion.get('propeller_center')
+            if isinstance(direction,list):motion['motor_axis']={'origin':origin,'direction':direction}
+    axis=motion.get('motor_axis')
+    if isinstance(axis,list) and len(axis)==3:motion['motor_axis']={'origin':motion.get('propeller_center'),'direction':axis}
     return motion
 
 def check_motion_clearance(primitives,motion,thickness=3.0):

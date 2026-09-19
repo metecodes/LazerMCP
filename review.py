@@ -182,7 +182,7 @@ def design_map(primitives: list[Any] | None, thickness: float, burn: float) -> d
     }
 
 
-def connection_graph(assembly: dict[str, Any] | None, parts: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def connection_graph(assembly: dict[str, Any] | None, parts: list[dict[str, Any]], parameters: dict[str, Any] | None = None) -> list[dict[str, Any]]:
     name_to_id = {str(p.get("name")): p["id"] for p in parts}
     graph: list[dict[str, Any]] = []
     n = 0
@@ -240,13 +240,18 @@ def connection_graph(assembly: dict[str, Any] | None, parts: list[dict[str, Any]
             {"via": lock.get("via"), "length_mm": lock.get("length_mm")},
         )
     for shaft in (assembly or {}).get("shaft_pairs") or []:
+        a=str(shaft.get("axis") or shaft.get("part") or "shaft");b=str(shaft.get("part") or "wall")
+        if a==b:continue
         add(
-            str(shaft.get("axis") or shaft.get("part") or "shaft"),
-            str(shaft.get("part") or "wall"),
+            a,b,
             "shaft_pivot",
             str(shaft.get("result") or "MATCH"),
             {"d": shaft.get("d"), "y": shaft.get("y")},
         )
+    from motion_clearance import resolve_motion
+    motion=resolve_motion(parameters or [])
+    if motion.get('drive_type')=='direct_motor_shaft' and motion.get('motor_part') and motion.get('moving_part'):
+        add('hardware:'+str(motion['motor_part']),str(motion['moving_part']),'direct_motor_shaft','MATCH',{'via':'explicit hardware drive connection; no dowel inferred'})
     return graph
 
 
@@ -272,7 +277,7 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
         "moving_parts": [],
         "structure": [],
     }
-    connections = connection_graph(assembly, dmap.get("parts") or [])
+    connections = connection_graph(assembly, dmap.get("parts") or [],parameters)
     from editor_service import connection_checks
 
     connections.extend(connection_checks(primitives, built.get("parameters") or {}))
@@ -339,7 +344,7 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
         elif roofs:
             completeness.append({"status": PASS, "note": "two gables present for the roof"})
         from motion_clearance import resolve_motion
-        resolved_motion=resolve_motion(parameters)
+        resolved_motion=resolve_motion(parameters,primitives)
         drive_type=str(resolved_motion.get("drive_type") or "")
         if props:
             completeness.append({"status": PASS, "note": "rotor part present"} if props else {"status": FAIL, "note": "rotor missing"})
@@ -408,7 +413,25 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
         else:tab_slot_c.append({'status':NA,'note':'no explicit tab-slot pairs'})
 
         hardware=parameters.get('hardware_fits')
-        if moving or hardware:
+        if drive_type=='direct_motor_shaft':
+            hw_id=str(resolved_motion.get('motor_part') or '')
+            hw=next((h for h in parameters.get('hardware') or [] if isinstance(h,dict) and str(h.get('id') or '')==hw_id),None)
+            driven=next((p for p in primitives if str(p.get('label') or '')==str(resolved_motion.get('moving_part') or '')),None)
+            if not hw or not driven:
+                hardware_c.append({'status':NOT_VERIFIED,'note':'direct_motor_shaft requires a hardware motor entity and generated driven part'})
+            else:
+                shaft=float(hw.get('shaft_diameter') or 0);hole=float(driven.get('hole') or driven.get('d_hole') or 0);tol=float(hw.get('fit_tolerance_mm') or .15)
+                pose=driven.get('placement') or {};axis=(resolved_motion.get('motor_axis') or {}).get('direction') or []
+                try:
+                    import math
+                    n=[pose['u'][1]*pose['v'][2]-pose['u'][2]*pose['v'][1],pose['u'][2]*pose['v'][0]-pose['u'][0]*pose['v'][2],pose['u'][0]*pose['v'][1]-pose['u'][1]*pose['v'][0]]
+                    nm=math.sqrt(sum(float(v)*float(v) for v in n));am=math.sqrt(sum(float(v)*float(v) for v in axis));cosine=abs(sum(float(a)*float(b) for a,b in zip(n,axis))/(nm*am));angle=math.degrees(math.acos(min(1,cosine)))
+                except (KeyError,TypeError,ValueError,ZeroDivisionError):angle=180
+                if shaft<=0 or hole<=0:hardware_c.append({'status':FAIL,'note':'motor shaft_diameter and propeller center hole are required'})
+                elif abs(shaft-hole)>tol:hardware_c.append({'status':FAIL,'note':f'motor shaft Ø{shaft:g} does not fit propeller hole Ø{hole:g} within ±{tol:g} mm'})
+                elif angle>1:hardware_c.append({'status':FAIL,'note':f'motor axis and propeller normal differ by {angle:.3f}°'})
+                else:hardware_c.append({'status':PASS,'note':f'direct motor shaft Ø{shaft:g} fits propeller hole Ø{hole:g}; axis-normal error {angle:.3f}°'})
+        elif moving or hardware:
             if isinstance(hardware,list) and hardware:
                 by_label={str(p.get('label')):p for p in primitives};verified=0
                 for fit in hardware:

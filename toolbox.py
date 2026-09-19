@@ -79,7 +79,7 @@ GRAMMAR = {
             }
         },
     },
-    "assembled_panel_contract": {"placement": {"origin": "[x,y,z] mm", "u": "unit local X axis", "v": "unit local Y axis"}, "tabs": "[{id,x,y,w,h}] rectangles contained in the cut outline", "slots": "[{x,y,w,h,mate:{part:label,tab:id}}] centered receiving slots; partners must align in assembled coordinates", "preview": "render_preview(file_id,view=assembled); missing placements never get a guessed model"},
+    "assembled_panel_contract": {"placement": {"origin": "[x,y,z] mm", "u": "unit local X axis", "v": "unit local Y axis; n=normalize(cross(u,v))"}, "tabs": "[{id,x,y,w,h}] centered rectangles compiled into the actual OUTER_CUT polygon", "slots": "[{x,y,w,h,mate:{part:label,tab:id}}] centered closed INNER_CUT polygons; partners are transformed and compared in assembled coordinates", "hardware": "parameters.hardware:[{id,type,shaft_diameter,shaft_axis,shaft_origin}]", "direct_drive": "parameters.connections:[{type:direct_motor_shaft,motor_part,driven_part,shaft_axis,driven_center,radius_mm}]", "preview": "render_preview(file_id,view=assembled); missing placements never get a guessed model"},
     "panel": {
         "type": "panel",
         "w": 80,
@@ -400,7 +400,49 @@ def _prepare_parts(primitives: list[Any]) -> list[dict[str, Any]]:
                     "d": extra.get("d") or extra.get("diameter") or extra.get("hole") or 4,
                 }
             )
-    return parts
+    return [_materialize_cut_geometry(part) for part in parts]
+
+
+def _materialize_cut_geometry(part: dict[str, Any]) -> dict[str, Any]:
+    """Build the outer CUT and slot INNER_CUT polygons used by both renderer and reviewer."""
+    from shapely.geometry import Polygon, box
+    from shapely.ops import unary_union
+
+    item=dict(part);kind=_TYPE_ALIAS.get(_kind(item),_kind(item))
+    raw=item.get('points') or item.get('vertices') or item.get('coords') or item.get('contour')
+    if raw:
+        base=Polygon(_as_points(raw))
+    elif kind in {'panel','wall','rect','roof','roof_panel'}:
+        w=_num(item.get('w') or item.get('x') or item.get('width'),80)
+        h=_num(item.get('h') or item.get('y') or item.get('height') or item.get('length'),80)
+        base=box(0,0,w,h)
+    else:
+        return item
+    if not base.is_valid or base.area<=0:return item
+    tabs=[];tab_geometry=[]
+    for tab in item.get('tabs') or []:
+        if not isinstance(tab,dict):continue
+        x,y,w,h=[_num(tab.get(k),0) for k in ('x','y','w','h')]
+        if w>0 and h>0:
+            shape=box(x-w/2,y-h/2,x+w/2,y+h/2);outside=shape.difference(base).area;touches=shape.buffer(.02).intersects(base.boundary)
+            shared=base.boundary.buffer(.02).intersection(shape.boundary).length
+            already=base.buffer(.02).covers(shape) and shared >= max(w,h)+1.5*min(w,h)
+            if outside>.001 and touches:tabs.append(shape)
+            tab_geometry.append({'id':str(tab.get('id') or ''),'role':'TAB','operation':'CUT','points':[[float(a),float(b)] for a,b in list(shape.exterior.coords)[:-1]],'materialized':bool(already or (outside>.001 and touches)),'outside_area_mm2':float(outside)})
+    merged=unary_union([base,*tabs]) if tabs else base
+    if merged.geom_type!='Polygon':return item
+    points=[[float(x),float(y)] for x,y in list(merged.exterior.coords)[:-1]]
+    slots=[]
+    for slot in item.get('slots') or item.get('rect_holes') or []:
+        if not isinstance(slot,dict):continue
+        x,y,w,h=[_num(slot.get(k) or slot.get({'x':'cx','y':'cy','w':'width','h':'height'}[k]),0) for k in ('x','y','w','h')]
+        if w<=0 or h<=0:continue
+        ring=[[x-w/2,y-h/2],[x+w/2,y-h/2],[x+w/2,y+h/2],[x-w/2,y+h/2]]
+        slots.append({'id':str(slot.get('id') or ''),'role':'SLOT','operation':'CUT','points':ring,'mate':slot.get('mate')})
+    item['points']=points
+    item['_cut_geometry']={'outer_cut':{'role':'OUTER_CUT','operation':'CUT','points':points},'inner_cuts':slots,'tabs':tab_geometry}
+    if kind in {'panel','wall','rect','roof','roof_panel'} and tabs:item['_render_outer_cut_points']=points
+    return item
 
 
 def _edges4(raw: Any, default: str = "eeee") -> str:
@@ -641,7 +683,10 @@ class PayasToolbox(Boxes):
             cb = self._wall_cb(_features(part))
             for i in range(count):
                 name = label if count == 1 else f"{label}-{i + 1}"
-                self.rectangularWall(w, h, edge, callback=cb, move="up", label=name)
+                if part.get('_render_outer_cut_points'):
+                    self._closed_contour(_as_points(part['_render_outer_cut_points']),0,name,feats=_features(part))
+                else:
+                    self.rectangularWall(w, h, edge, callback=cb, move="up", label=name)
                 self._note_part(name)
             return count
         if kind in {"disc", "disk", "circle", "washer", "spacer"}:

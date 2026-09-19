@@ -287,6 +287,8 @@ def check_assembly(
     burn: float | None = None,
 ) -> dict[str, Any]:
     """Return mechanical pairs, shaft/slot fit, and a nominal assembly sequence."""
+    from toolbox import _materialize_cut_geometry
+    primitives=[_materialize_cut_geometry(p) if isinstance(p,dict) else p for p in (primitives or [])]
     t = float(thickness if thickness is not None else PAYAS_DEFAULTS["thickness"])
     kerf = float(burn if burn is not None else PAYAS_DEFAULTS["burn"])
     errors: list[str] = []
@@ -475,8 +477,8 @@ def check_assembly(
         sequence.append("Dry-fit every f/F pair and every hole/shaft before glue.")
 
     from assembled_view import validate, preview
-    contour_parts = [p for p in (primitives or []) if isinstance(p, dict) and _kind(p) in {"polygon", "contour", "outline", "polyline"}]
-    explicit_errors, explicit_joints = validate(contour_parts, t)
+    contour_parts = [p for p in (primitives or []) if isinstance(p, dict) and (_kind(p) in {"polygon", "contour", "outline", "polyline"} or p.get('_cut_geometry') or p.get('tabs') or p.get('placement'))]
+    explicit_errors, explicit_joints, joint_debug = validate(contour_parts, t)
     errors.extend(explicit_errors)
     joints.extend(explicit_joints)
     ok = not errors
@@ -490,6 +492,7 @@ def check_assembly(
         "roof_lock": roof_lock,
         "finger_pairs": sum(1 for joint in joints if not joint.get("kind")),
         "tab_slot_pairs": sum(1 for joint in joints if joint.get("kind") == "tab-slot"),
+        "tab_slot_debug": joint_debug,
         "shaft_pairs": shaft_pairs,
         "assembled_mm": assembled,
         "sequence": sequence,

@@ -1,0 +1,63 @@
+{
+  "final_status": "PROTOTYPE READY",
+  "production_export": "BLOCKED",
+  "tab_slot_pairs": 8,
+  "tab_slot_total": 8,
+  "self_connections": [],
+  "direct_motor": [
+    {
+      "id": "C09",
+      "a": "hardware:motor-1",
+      "b": "P09",
+      "a_name": "hardware:motor-1",
+      "b_name": "ust-pervane",
+      "type": "direct_motor_shaft",
+      "status": "PASS",
+      "via": "explicit hardware drive connection; no dowel inferred"
+    }
+  ],
+  "categories": {
+    "PART_COMPLETENESS": "PASS",
+    "CONNECTIONS": "PASS",
+    "MATERIAL_COMPATIBILITY": "PASS",
+    "ASSEMBLY": "PASS",
+    "3D_ASSEMBLY": "PASS",
+    "ASSEMBLY_ORDER": "PASS",
+    "TAB_SLOT_GEOMETRY": "PASS",
+    "HARDWARE_FIT": "PASS",
+    "COLLISIONS": "WARNING",
+    "KINEMATICS": "PASS",
+    "MOTION_CLEARANCE": "PASS",
+    "FUNCTION": "PASS",
+    "SVG_GEOMETRY": "PASS",
+    "MANUFACTURING": "WARNING",
+    "SEMANTIC_CUT": "PASS",
+    "REFERENCE_FIDELITY": "PASS",
+    "OUTER_CUT_FIDELITY": "PASS",
+    "PART_MAPPING": "PASS",
+    "NESTING": "PASS",
+    "SAFETY": "WARNING"
+  },
+  "physical": {
+    "kerf": "NOT_VERIFIED",
+    "assembly": "NOT_VERIFIED",
+    "movement": "NOT_VERIFIED",
+    "use": "N/A",
+    "notes": {
+      "kerf": "cut the 100 mm coupon bar and pass measured_bar_mm",
+      "assembly": "dry-fit the prototype; pass physical_assembly=verified",
+      "movement": "spin/slide the moving part; pass movement_test=verified",
+      "use": "no powered function — use test not applicable"
+    },
+    "measured_bar_mm": null,
+    "nominal_bar_mm": 100.0,
+    "suggested_burn": 0.15,
+    "production_ok": false
+  },
+  "gate_levels": {
+    "GEOMETRY VALID": "PASS",
+    "ASSEMBLY VALID": "PASS",
+    "REFERENCE MATCH": "N/A",
+    "FUNCTION VALID": "PASS"
+  }
+}

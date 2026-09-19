@@ -59,6 +59,7 @@ def attach(extra: dict[str, Any], svg_bytes: bytes | None = None, primitives: li
             material=material,
             nesting=data.get("nesting") if isinstance(data.get("nesting"), dict) else None,
             machine=machine,
+            parameters=data.get("parameters") if isinstance(data.get("parameters"),dict) else None,
         )
         data["bom"] = bom
         data["materials_speak"] = bom["speak"]

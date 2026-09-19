@@ -26,9 +26,9 @@ class HouseHolderTests(unittest.TestCase):
  def test_wrong_mating_position_detected(self):
   parts=recipe();parts[2]['placement']['origin'][0]+=1
   self.assertFalse(check_assembly(parts)['ok'])
- def test_tab_must_exist_in_cut_outline(self):
+ def test_compiler_materializes_touching_tab_into_cut_outline(self):
   parts=recipe();parts[2]['points']=[[0,0],[84,0],[84,130],[0,130]]
-  self.assertFalse(check_assembly(parts)['ok'])
+  self.assertTrue(check_assembly(parts)['ok'])
  def test_tab_metadata_inside_plain_rectangle_is_not_outer_cut_geometry(self):
   parts=recipe()
   parts[2]['points']=[[0,0],[84,0],[84,130],[0,130]]
