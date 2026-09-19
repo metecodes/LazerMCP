@@ -416,6 +416,7 @@ def create_from_reference(
             "burn": boxespy.PAYAS_DEFAULTS["burn"],
         },
         "parameters": {
+            **(parameters or {}),
             "width_mm": width_mm,
             "height_mm": height_mm,
             "style": style,

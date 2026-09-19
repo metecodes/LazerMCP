@@ -778,7 +778,10 @@ def save_generated_svg(
         preserve_source_geometry=bool(extra.get("preserve_source_geometry")),
         operation_settings=laser_profile,
     )
-    if dxf_bytes is not None and (extra.get('parameters') or {}).get('reference_single_sheet'):
+    # Rebuild every requested DXF from the finalized SVG. Manufacturing normalization,
+    # holding nicks and operation repair happen in _write_svg and must not leave the
+    # companion DXF describing an older geometry revision.
+    if dxf_bytes is not None:
         from dxf_export import svg_bytes_to_dxf
         dxf_bytes = svg_bytes_to_dxf(svg_bytes)
     if manufacturing:
@@ -906,6 +909,7 @@ def save_generated_svg(
         "profiles": extra.get("profiles"),
         "preview_url": result.get("preview_url"),
         "calibration": extra.get("calibration"),
+        "operation_settings": extra.get("operation_settings"),
     }
     (OUTPUT_DIR / side).write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     result["report_id"] = side

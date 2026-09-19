@@ -1,4 +1,8 @@
 import unittest
+import json
+import tempfile
+from pathlib import Path
+from unittest.mock import patch
 from laser_settings import resolve_operation_settings,stamp_operation_settings
 
 class LaserSettingsTests(unittest.TestCase):
@@ -11,3 +15,13 @@ class LaserSettingsTests(unittest.TestCase):
   with self.assertRaises(ValueError):resolve_operation_settings({'operation_settings':{'ENGRAVE':{'power_scale':1}}})
   with self.assertRaises(ValueError):resolve_operation_settings({'operation_settings':{'ENGRAVE':{'passes':2}}})
   with self.assertRaisesRegex(ValueError,'power_percent'):resolve_operation_settings({'operation_settings':{'CUT':{'power_percent':55},'ENGRAVE':{'power_percent':55}}})
+
+ def test_saved_report_keeps_profile_and_dxf_uses_final_svg(self):
+  import boxes_adapter
+  raw=b'<svg xmlns="http://www.w3.org/2000/svg" width="20mm" height="20mm" viewBox="0 0 20 20"><g data-operation="CUT"><path data-operation="CUT" data-semantic-role="outer_contour" data-operation-origin="EXPLICIT" d="M1 1L19 1L19 19L1 19Z"/></g><g data-operation="ENGRAVE"><path data-operation="ENGRAVE" data-semantic-role="text" data-operation-origin="EXPLICIT" d="M5 5L15 5"/></g></svg>'
+  with tempfile.TemporaryDirectory() as tmp,patch.object(boxes_adapter,'OUTPUT_DIR',Path(tmp)),patch('plans.entitled',return_value=True),patch('studio.attach',side_effect=lambda extra,*a:extra),patch('studio.finish_result',side_effect=lambda result,*a:result),patch('persist.job.attach_durable_artifacts',side_effect=lambda result,*a:result):
+   result=boxes_adapter.save_generated_svg(raw,extra={'generator':'profile-test','parameters':{'operation_settings':{'ENGRAVE':{'speed_scale':.5,'power_scale':.2}}}},dxf_bytes=b'stale')
+   report=json.loads((Path(tmp)/result['report_id']).read_text(encoding='utf-8'))
+   self.assertEqual(report['operation_settings']['operations']['ENGRAVE']['speed_scale'],.5)
+   self.assertNotEqual((Path(tmp)/result['dxf_id']).read_bytes(),b'stale')
+   self.assertIn(b'ENGRAVE',(Path(tmp)/result['dxf_id']).read_bytes())

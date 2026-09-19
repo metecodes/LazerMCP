@@ -38,6 +38,17 @@ class ReferenceAssemblyTests(unittest.TestCase):
         self.assertFalse(result['success'])
         self.assertEqual(result['error_code'],'REFERENCE_EXPORT_FAILED')
 
+    def test_flat_reference_preserves_operation_settings(self):
+        captured={}
+        def save(svg,*args,**kwargs):
+            captured.update(extra=args[3])
+            return {'success':True,**args[3]}
+        settings={'ENGRAVE':{'speed_scale':0.5,'power_scale':0.2}}
+        with patch('plans.gate_job',return_value={'ok':True}),patch('payas_cad._save_build',side_effect=save):
+            result=create_from_reference(image_base64=sample('white','black'),style='etch',parameters={'operation_settings':settings})
+        self.assertTrue(result['success'])
+        self.assertEqual(captured['extra']['parameters']['operation_settings'],settings)
+
     def test_equal_mask_scores_do_not_compare_arrays(self):
         with patch('image_trace._score_mask',return_value=0):
             _binary_mask(_decode_image(image_base64=sample('white','black')),None,0)
