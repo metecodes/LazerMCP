@@ -161,6 +161,7 @@ def _write_svg(
     generator: str,
     primitives: list[Any] | None = None,
     preserve_source_geometry: bool = False,
+    operation_settings: dict[str, Any] | None = None,
 ) -> tuple[str, bytes, dict[str, Any] | None]:
     original = svg_bytes
     manufacturing = None
@@ -180,6 +181,9 @@ def _write_svg(
             svg_bytes = stamped
     except Exception:
         manufacturing = None
+    if operation_settings:
+        from laser_settings import stamp_operation_settings
+        svg_bytes=stamp_operation_settings(svg_bytes,operation_settings)
     try:
         from holding_nicks import NICK_MM, nick_cut_svg
 
@@ -764,11 +768,15 @@ def save_generated_svg(
     name = (extra or {}).get("generator") or (extra or {}).get("product") or generator
     extra = dict(extra or {})
     started_at = extra.pop("_started_at", None)
+    from laser_settings import resolve_operation_settings
+    laser_profile=resolve_operation_settings(extra.get('parameters') or {})
+    extra['operation_settings']=laser_profile
     file_id, svg_bytes, manufacturing = _write_svg(
         svg_bytes,
         str(name),
         extra.get("primitives") if isinstance(extra.get("primitives"), list) else None,
         preserve_source_geometry=bool(extra.get("preserve_source_geometry")),
+        operation_settings=laser_profile,
     )
     if dxf_bytes is not None and (extra.get('parameters') or {}).get('reference_single_sheet'):
         from dxf_export import svg_bytes_to_dxf

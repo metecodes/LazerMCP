@@ -86,6 +86,7 @@ MCP_TOOLS = [
     "create_from_reference",
     "create_design",
     "payas_defaults",
+    "get_operation_settings",
     "list_cad_tools",
     "get_generator_schema",
     "generate_svg",
@@ -142,7 +143,8 @@ mcp = MCPServer(
         "If final_status is BLOCKED, read look_again, fix primitives, call create_design again. "
         "Do not invent a PASS. Working SVG is not a cuttable product until the gate says so. "
         "Defaults: 3 mm poplar, kerf 0.15 mm, 1500×3000 mm bed, SVG + DXF, "
-        "cut #FF0000, text/logo engraving #FFFF00, LaserCAD Y-up. "
+        "cut #FF0000, text/logo/decor engraving #FFFF00, LaserCAD Y-up. Yellow is always ENGRAVE, not CUT. "
+        "The default ENGRAVE intent is 0.65 CUT speed and 0.25 CUT power, one non-through pass; calibrate absolute values with a material coupon. "
         "Notches and closed cuts keep ~1 mm holding nicks so pieces do not fall; do not omit them."
     ),
 )
@@ -477,7 +479,7 @@ def plan_laser_job(
         "Optional marks: part.markings or {type:marking, target_part} "
         "(kind=text|path|icon|line, x,y,width or height, rotation, align, operation=engrave|cut). "
         "Scale with parameters.scale or parameters.reference={feature, mm, drawn_mm}. "
-        "parameters.material / parameters.machine pick profiles. MCP writes bom. "
+        "parameters.material / parameters.machine pick profiles. Optional parameters.operation_settings overrides CUT/ENGRAVE speed_scale, power_scale, speed_mm_s, power_percent and passes; ENGRAVE must stay lower-power, one-pass and non-through. MCP writes bom. "
         "preset=jigsaw_puzzle or number_match_puzzle only when the plan says so. "
         "Paste speak as the gate card. BLOCKED = no authorized SVG. "
         "PROTOTYPE READY = Prototype SVG only; PRODUCTION EXPORT BLOCKED. "
@@ -513,7 +515,7 @@ def create_design(
     description=(
         "Vectorize 2D artwork, or combine an explicit mechanical recipe and reference artwork in one sheet. "
         "Pass compressed JPEG image_base64, a public HTTPS image_url, or upload large base64 through start_reference_upload + upload_reference_chunk and pass reference_upload_id. "
-        "For a mechanical single-sheet output pass primitives plus reference_markings:[{target_part:'named-panel',kind:'image',crop:[left,top,right,bottom],ink_color:'yellow',x:50,y:50,width:30}]. Crop uses normalized image coordinates. parameters controls material/project. Text/path marks may also be included. format='both' yields SVG+DXF from the same recipe. Never infer mechanical joints from pixel outlines alone. "
+        "For a mechanical single-sheet output pass primitives plus reference_markings:[{target_part:'named-panel',kind:'image',crop:[left,top,right,bottom],ink_color:'yellow',x:50,y:50,width:30}]. Crop uses normalized image coordinates. parameters controls material/project and optional operation_settings. Text/path marks stay yellow ENGRAVE and are never through-cut. format='both' yields SVG+DXF from the same recipe. Never infer mechanical joints from pixel outlines alone. "
         "layout=jigsaw or trace. format=svg or both. Then validate_svg."
     )
 )
@@ -607,7 +609,17 @@ def discard_reference_upload(reference_upload_id: str) -> dict[str, Any]:
 
 @mcp.tool(description="Payas STEM defaults: 3mm kavak, kerf 0.15, 1500x3000, SVG.")
 def payas_defaults() -> dict[str, Any]:
-    return boxespy.payas_defaults()
+    result=boxespy.payas_defaults()
+    from laser_settings import resolve_operation_settings
+    result["operation_settings"]=resolve_operation_settings()
+    return result
+
+
+@mcp.tool(description="Return and validate CUT/ENGRAVE/SCORE/GUIDE speed, power and pass intent. Pass the same parameters.operation_settings object to create_design or create_from_reference. Yellow ENGRAVE remains a one-pass non-through surface operation; absolute values require a material coupon.")
+def get_operation_settings(parameters: dict[str, Any] | None = None) -> dict[str, Any]:
+    from laser_settings import resolve_operation_settings
+    try:return {"success":True,**resolve_operation_settings(parameters)}
+    except Exception as exc:return {"success":False,"look_again":[str(exc)]}
 
 
 @mcp.tool(description="List the toolbox. Look, plan_laser_job, then create_design primitives. Do not request new tools.")

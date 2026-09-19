@@ -93,22 +93,22 @@ class PrimitiveIntentTests(unittest.TestCase):
         self.assertEqual(mark["operation"], "ENGRAVE")
         self.assertEqual(mark["operation_origin"], "SEMANTIC_DEFAULT")
 
-    def test_explicit_text_cut_is_auditable_warning(self):
+    def test_explicit_text_cut_is_blocked(self):
         part = annotate_primitive(
             {"type": "text", "value": "CUTOUT", "operation": "CUT", "semantic_role": "text"}
         )
         self.assertEqual(part["operation"], "CUT")
         self.assertEqual(part["operation_origin"], "EXPLICIT")
         report = validate_primitives([part])
-        self.assertTrue(report["ok"])
-        self.assertTrue(any("explicit and auditable" in w for w in report["warnings"]))
+        self.assertTrue(report["critical_fail"])
+        self.assertTrue(any("cannot be CUT" in n for n in report["fail"]))
 
     def test_implicit_text_cut_fails(self):
         report = validate_primitives(
             [{"type": "text", "value": "X", "semantic_role": "text", "operation": "CUT", "operation_source": "default"}]
         )
         self.assertTrue(report["critical_fail"])
-        self.assertTrue(any("text marked CUT" in n for n in report["fail"]))
+        self.assertTrue(any("must remain ENGRAVE" in n for n in report["fail"]))
 
     def test_missing_and_unknown_operation_fail(self):
         missing = validate_primitives([{"type": "panel", "semantic_role": "outer_contour"}])
@@ -130,12 +130,12 @@ class PrimitiveIntentTests(unittest.TestCase):
         self.assertTrue(outer["critical_fail"])
         self.assertTrue(hole["critical_fail"])
 
-    def test_decorative_cut_is_warning(self):
+    def test_decorative_cut_is_blocked(self):
         report = validate_primitives(
             [{"semantic_role": "texture", "operation": "CUT", "operation_source": "explicit"}]
         )
-        self.assertTrue(report["ok"])
-        self.assertTrue(report["warnings"])
+        self.assertTrue(report["critical_fail"])
+        self.assertTrue(any("cannot be CUT" in n for n in report["fail"]))
 
     def test_unknown_type_is_not_cut(self):
         part = annotate_primitive({"type": "scribble", "d": "M 0 0 L 1 1"})
@@ -149,13 +149,13 @@ class PrimitiveIntentTests(unittest.TestCase):
         self.assertEqual(intent["operation"], "UNKNOWN")
         self.assertNotEqual(intent["operation"], "CUT")
 
-    def test_ornament_explicit_cut_is_auditable(self):
+    def test_ornament_explicit_cut_is_blocked(self):
         cutout = add_cutout(d="M 0 0 L 4 0 L 2 4 Z", semantic_role="ornament", operation="CUT")
         self.assertEqual(cutout["operation"], "CUT")
         self.assertEqual(cutout["operation_origin"], "EXPLICIT")
         report = validate_primitives([cutout])
-        self.assertTrue(report["ok"])
-        self.assertTrue(report["warnings"])
+        self.assertTrue(report["critical_fail"])
+        self.assertTrue(any("must remain ENGRAVE" in n for n in report["fail"]))
 
     def test_feature_helpers(self):
         self.assertEqual(add_outer_contour()["operation"], "CUT")

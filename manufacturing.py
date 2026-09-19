@@ -785,17 +785,9 @@ def _validate_node(node: dict[str, Any], *, path: str) -> list[dict[str, Any]]:
         checks.append({"status": CRITICAL_FAIL, "note": f"{path}: malformed operation {op}", "critical": True})
         return checks
     if role in {"text", "label"} and op == "CUT":
-        if explicit:
-            checks.append({"status": WARNING, "note": f"{path}: {role} CUT is explicit and auditable", "critical": False})
-        else:
-            checks.append(
-                {"status": CRITICAL_FAIL, "note": f"{path}: {role} marked CUT without explicit operation", "critical": True}
-            )
+        checks.append({"status": CRITICAL_FAIL, "note": f"{path}: {role} must remain ENGRAVE and cannot be CUT", "critical": True})
     if role in SURFACE_ROLES - {"text", "label"} and op == "CUT":
-        if origin == "INFERRED":
-            checks.append({"status": WARNING, "note": f"{path}: decorative-looking path marked CUT through inference", "critical": False})
-        else:
-            checks.append({"status": WARNING, "note": f"{path}: {role} marked CUT", "critical": False})
+        checks.append({"status": CRITICAL_FAIL, "note": f"{path}: {role} must remain ENGRAVE and cannot be CUT", "critical": True})
     if role in GUIDE_ROLES and op == "CUT":
         checks.append({"status": CRITICAL_FAIL, "note": f"{path}: guide marked CUT", "critical": True})
     if role in CUT_ROLES and op != "CUT":
