@@ -417,6 +417,8 @@ def create_from_reference(
         },
         "parameters": {
             **(parameters or {}),
+            "reference_job": True,
+            "reference_mode": str((parameters or {}).get("reference_mode") or "artwork"),
             "width_mm": width_mm,
             "height_mm": height_mm,
             "style": style,
@@ -526,6 +528,8 @@ def create_design(
         "final_status": built.get("final_status"),
         "speak": built.get("speak"),
         "scorecard": built.get("scorecard"),
+        "gate_levels": built.get("gate_levels"),
+        "reference_comparison": built.get("reference_comparison"),
         "blocking_checks": built.get("blocking_checks") or [],
         "look_again": built.get("look_again") or [],
         "authorized_output": built.get("authorized_output"),
@@ -559,6 +563,8 @@ def create_design(
         extra["final_status"] = gated.get("final_status")
         extra["speak"] = gated.get("speak")
         extra["scorecard"] = gated.get("scorecard")
+        extra["gate_levels"] = gated.get("gate_levels")
+        extra["reference_comparison"] = gated.get("reference_comparison")
         extra["authorized_output"] = gated.get("authorized_output")
         extra["production_export"] = gated.get("production_export") or "BLOCKED"
         extra["production_summary"] = gated.get("production_summary")

@@ -37,4 +37,6 @@ def compose_reference(primitives, markings, encoded, image_bytes, parameters, ou
     params=dict(parameters or {})
     params['format']=output_format
     params['reference_single_sheet']=True
+    params['reference_job']=True
+    params['reference_mode']='structural'
     return recipe,params

@@ -72,7 +72,8 @@ class SimpleDesignTests(unittest.TestCase):
             public_base_url="http://127.0.0.1:8000",
         )
         self.assertTrue(result.get("success"))
-        self.assertEqual(result.get("final_status"), "PROTOTYPE READY")
+        self.assertEqual(result.get("final_status"), "BLOCKED")
+        self.assertEqual(result["review"]["categories"]["3D_ASSEMBLY"]["status"], "NOT_VERIFIED")
         self.assertNotEqual(result.get("final_status"), "PRODUCTION READY")
         self.assertTrue(result.get("file_id"))
 

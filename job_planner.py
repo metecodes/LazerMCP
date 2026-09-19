@@ -310,6 +310,7 @@ def _compose_plan(
     look: str,
     text: str,
     what_you_see: str = "",
+    reference_job: bool = False,
 ) -> dict[str, Any]:
     recipe = _assembly_recipe(text, width, height)
     from joint_library import plan_references
@@ -319,6 +320,10 @@ def _compose_plan(
     params: dict[str, Any] = {"format": fmt, "material": "poplar_3mm", "machine": "payas_workshop"}
     if str(what_you_see or "").strip():
         params["what_you_see"] = str(what_you_see).strip()
+    if reference_job:
+        params["reference_job"] = True
+        params["reference_mode"] = "structural"
+        params["reference_parts"] = []
     if recipe and recipe[0].get("placement"):
         look = "Use these six structural panels as the body and the separate star as an adhesive ornament; do not add a box behind the house faces. Keep explicit slot.mate, tabs and placement together. Dimensions are nominal, not recovered exactly from a photo. Call render_preview(view=assembled) after create_design; physical dry-fit remains NOT VERIFIED."
     box = next((p for p in recipe if isinstance(p, dict) and p.get("type") == "box"), None)
@@ -517,6 +522,7 @@ def plan_laser_job(
             look,
             text,
             seen,
+            photo,
         )
 
     if photo and not _wants_trace_only(text):
@@ -545,6 +551,7 @@ def plan_laser_job(
             look,
             text,
             seen,
+            True,
         )
 
     if photo:

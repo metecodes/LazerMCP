@@ -817,6 +817,8 @@ def save_generated_svg(
         extra["final_status"] = gated.get("final_status")
         extra["speak"] = gated.get("speak")
         extra["scorecard"] = gated.get("scorecard")
+        extra["gate_levels"] = gated.get("gate_levels")
+        extra["reference_comparison"] = gated.get("reference_comparison")
         extra["authorized_output"] = gated.get("authorized_output")
         extra["production_export"] = gated.get("production_export") or "BLOCKED"
         extra["production_summary"] = gated.get("production_summary")
@@ -909,6 +911,8 @@ def save_generated_svg(
         "assembly_steps": extra.get("assembly_steps"),
         "speak": extra.get("speak"),
         "scorecard": extra.get("scorecard"),
+        "gate_levels": extra.get("gate_levels"),
+        "reference_comparison": extra.get("reference_comparison"),
         "authorized_output": extra.get("authorized_output"),
         "production_export": extra.get("production_export") or "BLOCKED",
         "assembly": extra.get("assembly"),

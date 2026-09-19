@@ -274,7 +274,7 @@ class RegressionTests(_Iso):
         self.assertIn("render_preview", MCP_TOOLS)
         self.assertIn("plan_laser_job", MCP_TOOLS)
 
-    def test_create_design_still_prototypes(self):
+    def test_create_design_without_assembled_preview_is_blocked(self):
         os.environ["MCP_DATA_DIR"] = self.tmp
         from payas_cad import create_design
 
@@ -284,7 +284,8 @@ class RegressionTests(_Iso):
             public_base_url="http://127.0.0.1:8000",
         )
         self.assertTrue(result.get("success"))
-        self.assertEqual(result.get("final_status"), "PROTOTYPE READY")
+        self.assertEqual(result.get("final_status"), "BLOCKED")
+        self.assertEqual(result["review"]["categories"]["3D_ASSEMBLY"]["status"], "NOT_VERIFIED")
         self.assertEqual(result.get("design_generation"), "DESIGN_GENERATION_SUCCESS")
         from boxes_adapter import render_preview, validate_svg
 

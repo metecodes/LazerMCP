@@ -23,14 +23,18 @@ _COMPOSED_CRITICAL = (
     "CONNECTIONS",
     "MATERIAL_COMPATIBILITY",
     "ASSEMBLY",
+    "3D_ASSEMBLY",
     "ASSEMBLY_ORDER",
+    "TAB_SLOT_GEOMETRY",
+    "HARDWARE_FIT",
     "COLLISIONS",
     "FUNCTION",
     "SVG_GEOMETRY",
     "MANUFACTURING",
+    "SEMANTIC_CUT",
     "NESTING",
 )
-_FLAT_CRITICAL = ("SVG_GEOMETRY", "MANUFACTURING", "NESTING")
+_FLAT_CRITICAL = ("SVG_GEOMETRY", "MANUFACTURING", "SEMANTIC_CUT", "NESTING")
 _NAMED_KITS = {
     "traffic_light",
     "robot_bank",
@@ -250,6 +254,7 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
     """Review a compiled job. Unrun tests are NOT_VERIFIED, never PASS."""
     t = float((built.get("parameters") or {}).get("thickness", PAYAS_DEFAULTS["thickness"]))
     burn = float((built.get("parameters") or {}).get("burn", PAYAS_DEFAULTS["burn"]))
+    parameters=built.get("parameters") or {}
     primitives = [p for p in (built.get("primitives") or []) if isinstance(p, dict)]
     assembly = built.get("assembly") if isinstance(built.get("assembly"), dict) else {}
     nesting = built.get("nesting") if isinstance(built.get("nesting"), dict) else {}
@@ -275,17 +280,27 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
     required = list(_COMPOSED_CRITICAL if job == "composed" else _FLAT_CRITICAL)
     if job == "composed" and moving:
         required.append("KINEMATICS")
+        required.append("MOTION_CLEARANCE")
+    from reference_fidelity import check_reference_fidelity
+    reference=check_reference_fidelity(parameters,primitives)
+    if reference.get("active"):
+        required.extend(["REFERENCE_FIDELITY","OUTER_CUT_FIDELITY","PART_MAPPING"])
 
     completeness: list[dict[str, Any]] = []
     connections_c: list[dict[str, Any]] = []
     material: list[dict[str, Any]] = []
     assembly_c: list[dict[str, Any]] = []
+    assembly3d_c: list[dict[str, Any]] = []
+    tab_slot_c: list[dict[str, Any]] = []
+    hardware_c: list[dict[str, Any]] = []
     order_c: list[dict[str, Any]] = []
     collision_c: list[dict[str, Any]] = []
     kinematics_c: list[dict[str, Any]] = []
+    motion_c: list[dict[str, Any]] = []
     function_c: list[dict[str, Any]] = []
     svg_c: list[dict[str, Any]] = []
     mfg_c: list[dict[str, Any]] = []
+    semantic_cut_c: list[dict[str, Any]] = []
     nest_c: list[dict[str, Any]] = []
     safety_c: list[dict[str, Any]] = []
     bom_c: list[dict[str, Any]] = []
@@ -323,11 +338,12 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
             completeness.append({"status": FAIL, "note": "pitched roof needs two gables locked to the wall tops"})
         elif roofs:
             completeness.append({"status": PASS, "note": "two gables present for the roof"})
+        drive_type=str(parameters.get("drive_type") or (parameters.get("motion") or {}).get("drive_type") or "")
         if props:
             completeness.append({"status": PASS, "note": "rotor part present"} if props else {"status": FAIL, "note": "rotor missing"})
             walls = [f for f in faces if f.get("kind") == "wall"]
             shaft_holes = sum(len((f.get("features") or {}).get("holes") or []) for f in walls)
-            if shaft_holes < 2:
+            if drive_type != "direct_motor_shaft" and shaft_holes < 2:
                 completeness.append({"status": FAIL, "note": "rotor needs coaxial shaft holes on opposite walls"})
 
         looks = list(assembly.get("look_again") or assembly.get("errors") or [])
@@ -367,13 +383,45 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
                 if 0 < d < 2.0:
                     material.append({"status": WARNING, "note": f"hole d={d} mm on {face.get('name')} is small for 3 mm plywood"})
 
-        if assembly.get("ok") is True and not looks:
-            assembly_c.append({"status": PASS, "note": "finger, shaft, and roof lock checks passed"})
+        assembled_preview=assembly.get("assembled_preview_svg")
+        if assembly.get("ok") is True and not looks and assembled_preview:
+            assembly_c.append({"status": PASS, "note": "verified geometric connections produced an assembled preview"})
+            assembly3d_c.append({"status":PASS,"note":"assembled_preview.svg produced from explicit placements"})
+        elif assembly.get("ok") is True and not looks:
+            assembly_c.append({"status": NOT_VERIFIED, "note": "assembly checker ran but assembled_preview.svg could not be produced"})
+            assembly3d_c.append({"status":NOT_VERIFIED,"note":"Assembled Preview: REQUIRED"})
         elif looks:
             for msg in looks:
                 assembly_c.append({"status": FAIL, "note": str(msg)})
+            assembly3d_c.append({"status":FAIL,"note":"assembled preview rejected because geometric assembly checks failed"})
         else:
             assembly_c.append({"status": NOT_VERIFIED, "note": "assembly checker did not run"})
+            assembly3d_c.append({"status":NOT_VERIFIED,"note":"Assembled Preview: REQUIRED"})
+
+        explicit_slots=sum(1 for p in primitives for s in (p.get('slots') or []) if isinstance(s,dict) and s.get('mate'))
+        verified_slots=int(assembly.get('tab_slot_pairs') or 0)
+        if explicit_slots:
+            status=PASS if assembly.get('ok') is True and verified_slots==explicit_slots else FAIL
+            tab_slot_c.append({'status':status,'note':f'geometric tab-slot matches {verified_slots}/{explicit_slots}; names alone are not evidence'})
+        else:tab_slot_c.append({'status':NA,'note':'no explicit tab-slot pairs'})
+
+        hardware=parameters.get('hardware_fits')
+        if moving or hardware:
+            if isinstance(hardware,list) and hardware:
+                by_label={str(p.get('label')):p for p in primitives};verified=0
+                for fit in hardware:
+                    if not isinstance(fit,dict) or not fit.get('part') or float(fit.get('diameter_mm') or 0)<=0:
+                        hardware_c.append({'status':FAIL,'note':'hardware fit entry needs part and diameter_mm'});continue
+                    part=by_label.get(str(fit['part']));target=float(fit['diameter_mm']);tol=float(fit.get('tolerance_mm') or .2)
+                    sizes=[]
+                    if part:
+                        sizes.extend(float(h.get('d') or h.get('diameter') or 0) for h in (part.get('holes') or []) if isinstance(h,dict))
+                        if part.get('hole'):sizes.append(float(part['hole']))
+                    if any(abs(size-target)<=tol for size in sizes):verified+=1;hardware_c.append({'status':PASS,'note':f'{fit["part"]}: hole matches hardware diameter {target:g}±{tol:g} mm'})
+                    else:hardware_c.append({'status':FAIL,'note':f'{fit["part"]}: no hole matches hardware diameter {target:g}±{tol:g} mm'})
+                if verified==len(hardware):hardware_c.append({'status':PASS,'note':f'{verified} hardware interfaces geometrically verified'})
+            else:hardware_c.append({'status':NOT_VERIFIED,'note':'hardware_fits with part and diameter_mm is required'})
+        else:hardware_c.append({'status':NA,'note':'no hardware interface required'})
 
         sequence = list(assembly.get("sequence") or [])
         if sequence:
@@ -394,21 +442,34 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
             )
 
         if moving:
+            from motion_clearance import check_motion_clearance
+            motion_report=check_motion_clearance(primitives,parameters.get('motion'),t)
+            motion_c.append({'status':motion_report['status'],'note':motion_report['note']})
             shafts = assembly.get("shaft_pairs") or []
             ok_shafts = [s for s in shafts if str(s.get("result")) in {"MATCH", "PASS"}]
-            if ok_shafts:
+            drive_verified=False
+            if drive_type=='direct_motor_shaft':
+                motion=parameters.get('motion') or {};axis=motion.get('motor_axis');center=motion.get('propeller_center')
+                if isinstance(axis,dict) and isinstance(center,list) and len(center)==3 and len(axis.get('origin') or [])==3 and len(axis.get('direction') or [])==3:
+                    import math
+                    o=[float(v) for v in axis['origin']];d=[float(v) for v in axis['direction']];c=[float(v) for v in center]
+                    mag=math.sqrt(sum(v*v for v in d));d=[v/mag for v in d] if mag else d
+                    q=[c[i]-o[i] for i in range(3)];cross=[q[1]*d[2]-q[2]*d[1],q[2]*d[0]-q[0]*d[2],q[0]*d[1]-q[1]*d[0]];dist=math.sqrt(sum(v*v for v in cross)) if mag else 1e9
+                    if dist<=float(motion.get('axis_tolerance_mm',.15)):kinematics_c.append({'status':PASS,'note':f'direct motor shaft and propeller center are coaxial ({dist:.3f} mm)'});drive_verified=True
+                    else:kinematics_c.append({'status':FAIL,'note':f'motor shaft axis misses propeller center by {dist:.3f} mm'})
+                else:kinematics_c.append({'status':NOT_VERIFIED,'note':'direct_motor_shaft requires explicit motor_axis and propeller_center'})
+                ok_shafts=[]
+            elif ok_shafts:
                 kinematics_c.append({"status": PASS, "note": "shaft axis is coaxial on opposite walls"})
+                drive_verified=True
             else:
                 kinematics_c.append({"status": FAIL, "note": "rotor has no verified coaxial shaft"})
             if any("hit the floor" in str(m).lower() for m in looks):
                 kinematics_c.append({"status": FAIL, "note": "rotor collides with the floor in rotation"})
             else:
                 kinematics_c.append({"status": PASS, "note": "rotor radius clears the floor at the shaft height"})
-            kinematics_c.append(
-                {"status": WARNING, "note": "stepped 0–360° body sweep is not simulated — prototype the rotor swing"}
-            )
             function_c.append(
-                {"status": PASS if ok_shafts and not any("hit the floor" in str(m).lower() for m in looks) else FAIL,
+                {"status": PASS if drive_verified and not any("hit the floor" in str(m).lower() for m in looks) else FAIL,
                  "note": "mill function: rotor must spin on a coaxial shaft without hitting the floor"}
             )
         else:
@@ -425,6 +486,10 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
         connections_c.append({"status": NA, "note": "no 3D connections on a flat sheet"})
         material.append({"status": PASS, "note": f"thickness {t} mm, kerf {burn} mm"})
         assembly_c.append({"status": NA, "note": "flat sheet"})
+        assembly3d_c.append({"status":NA,"note":"flat sheet"})
+        tab_slot_c.append({"status":NA,"note":"flat sheet"})
+        hardware_c.append({"status":NA,"note":"flat sheet"})
+        motion_c.append({"status":NA,"note":"flat sheet"})
         order_c.append({"status": NA, "note": "flat sheet"})
         collision_c.append({"status": NA, "note": "flat sheet"})
         function_c.append({"status": PASS, "note": str(built.get("title") or "sheet can be cut")})
@@ -492,6 +557,23 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
                 mfg_c.append({"status": FAIL, "note": "manufacturing-operation validation has critical FAIL"})
             elif mfg_ops.get("ok"):
                 mfg_c.append({"status": PASS, "note": "every drawable has a resolved manufacturing operation"})
+        try:
+            from manufacturing import iter_drawables, CUT_ROLES, SURFACE_ROLES
+            rows=iter_drawables(built.get('svg_bytes') or b'')
+            classes={'OUTER_CUT':0,'INNER_CUT':0,'SLOT':0,'TAB':0,'ENGRAVE':0}
+            bad=[]
+            for row in rows:
+                role=str(row.get('semantic_role') or '');op=str(row.get('operation') or '')
+                if op=='ENGRAVE':classes['ENGRAVE']+=1
+                elif role=='outer_contour' and op=='CUT':classes['OUTER_CUT']+=1
+                elif role=='slot' and op=='CUT':classes['SLOT']+=1
+                elif role in {'tab','finger_joint'} and op=='CUT':classes['TAB']+=1
+                elif op=='CUT':classes['INNER_CUT']+=1
+                if role in SURFACE_ROLES and op=='CUT':bad.append(row)
+            if bad:semantic_cut_c.append({'status':FAIL,'note':f'{len(bad)} reference/decorative surface paths are CUT'})
+            elif not rows:semantic_cut_c.append({'status':NOT_VERIFIED,'note':'no drawable operation evidence'})
+            else:semantic_cut_c.append({'status':PASS,'note':'semantic operations '+', '.join(f'{k}={v}' for k,v in classes.items())})
+        except Exception as exc:semantic_cut_c.append({'status':NOT_VERIFIED,'note':f'semantic CUT classification failed: {exc}'})
 
     nest_looks = list(nesting.get("errors") or nesting.get("look_again") or [])
     if not nesting:
@@ -609,12 +691,20 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
         _cat("CONNECTIONS", connections_c, "CONNECTIONS" in required),
         _cat("MATERIAL_COMPATIBILITY", material, "MATERIAL_COMPATIBILITY" in required),
         _cat("ASSEMBLY", assembly_c, "ASSEMBLY" in required),
+        _cat("3D_ASSEMBLY", assembly3d_c, "3D_ASSEMBLY" in required),
         _cat("ASSEMBLY_ORDER", order_c, "ASSEMBLY_ORDER" in required),
+        _cat("TAB_SLOT_GEOMETRY", tab_slot_c, "TAB_SLOT_GEOMETRY" in required),
+        _cat("HARDWARE_FIT", hardware_c, "HARDWARE_FIT" in required),
         _cat("COLLISIONS", collision_c, "COLLISIONS" in required),
         _cat("KINEMATICS", kinematics_c, "KINEMATICS" in required),
+        _cat("MOTION_CLEARANCE", motion_c, "MOTION_CLEARANCE" in required),
         _cat("FUNCTION", function_c, "FUNCTION" in required),
         _cat("SVG_GEOMETRY", svg_c, "SVG_GEOMETRY" in required),
         _cat("MANUFACTURING", mfg_c, "MANUFACTURING" in required),
+        _cat("SEMANTIC_CUT",semantic_cut_c,"SEMANTIC_CUT" in required),
+        _cat("REFERENCE_FIDELITY",reference.get('fidelity') or [{'status':NA,'note':'no structural reference'}],"REFERENCE_FIDELITY" in required),
+        _cat("OUTER_CUT_FIDELITY",reference.get('outer_cut') or [{'status':NA,'note':'no structural reference'}],"OUTER_CUT_FIDELITY" in required),
+        _cat("PART_MAPPING",reference.get('part_mapping') or [{'status':NA,'note':'no structural reference'}],"PART_MAPPING" in required),
         _cat("NESTING", nest_c, True),
         _cat("SAFETY", safety_c, False),
     ]
@@ -637,6 +727,12 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
     if physical.get("kerf") == FAIL:
         looks.append(str((physical.get("notes") or {}).get("kerf") or "measured_bar_mm is out of range"))
     scorecard = build_scorecard(cats, physical)
+    gate_levels={
+        'GEOMETRY VALID':_card_status(cats,'SVG_GEOMETRY','MANUFACTURING','NESTING'),
+        'ASSEMBLY VALID':_card_status(cats,'ASSEMBLY','3D_ASSEMBLY','TAB_SLOT_GEOMETRY'),
+        'REFERENCE MATCH':_card_status(cats,'REFERENCE_FIDELITY','OUTER_CUT_FIDELITY','PART_MAPPING') if reference.get('active') else NA,
+        'FUNCTION VALID':_card_status(cats,'FUNCTION','KINEMATICS','MOTION_CLEARANCE','HARDWARE_FIT'),
+    }
     digital_ok = not fail and not unverified
     production_ok = bool(digital_ok and physical.get("production_ok"))
     if not digital_ok:
@@ -671,6 +767,8 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
         "connections": connections,
         "categories": {c["id"]: {k: c[k] for k in ("status", "required", "notes")} for c in cats},
         "scorecard": scorecard,
+        "gate_levels":gate_levels,
+        "reference_comparison":reference,
         "physical": physical,
         "assembly_sheet": sheet,
         "counts": {
@@ -725,6 +823,13 @@ def build_scorecard(cats: list[dict[str, Any]], physical: dict[str, Any] | None 
         "Report Consistency": _card_status(cats, "REPORT_CONSISTENCY"),
         "SVG Geometry": _card_status(cats, "SVG_GEOMETRY"),
         "Manufacturing Geometry": _card_status(cats, "MANUFACTURING"),
+        "Reference Fidelity": _card_status(cats,"REFERENCE_FIDELITY"),
+        "Outer Cut Fidelity": _card_status(cats,"OUTER_CUT_FIDELITY"),
+        "Part Mapping": _card_status(cats,"PART_MAPPING"),
+        "Tab-Slot Geometry": _card_status(cats,"TAB_SLOT_GEOMETRY"),
+        "3D Assembly": _card_status(cats,"3D_ASSEMBLY"),
+        "Hardware Fit": _card_status(cats,"HARDWARE_FIT"),
+        "Motion Clearance": _card_status(cats,"MOTION_CLEARANCE"),
     }
     phys = physical or {}
     return {
@@ -761,6 +866,15 @@ def format_gate_card(
         f"{'Kinematics':<24}{_card_label(digital.get('Kinematics', PASS))}",
         f"{'SVG Geometry':<24}{_card_label(digital.get('SVG Geometry', PASS))}",
         f"{'Manufacturing Geometry':<24}{_card_label(digital.get('Manufacturing Geometry', PASS))}",
+        f"{'Reference Fidelity':<24}{_card_label(digital.get('Reference Fidelity', PASS))}",
+        f"{'Outer Cut Fidelity':<24}{_card_label(digital.get('Outer Cut Fidelity', PASS))}",
+        f"{'Part Mapping':<24}{_card_label(digital.get('Part Mapping', PASS))}",
+        f"{'Tab-Slot Geometry':<24}{_card_label(digital.get('Tab-Slot Geometry', PASS))}",
+        f"{'3D Assembly':<24}{_card_label(digital.get('3D Assembly', PASS))}",
+        f"{'Hardware Fit':<24}{_card_label(digital.get('Hardware Fit', PASS))}",
+        f"{'Motion Clearance':<24}{_card_label(digital.get('Motion Clearance', PASS))}",
+        f"{'Assembled Preview:':<24}{'REQUIRED'}",
+        f"{'Reference Comparison:':<24}{'REQUIRED' if digital.get('Reference Fidelity') not in {PASS,NA} or digital.get('Part Mapping') not in {PASS,NA} else 'PASS'}",
         "",
         f"{'Physical Kerf Test':<24}{_card_label(physical.get('Physical Kerf Test', NOT_VERIFIED))}",
         f"{'Physical Assembly':<24}{_card_label(physical.get('Physical Assembly', NOT_VERIFIED))}",
