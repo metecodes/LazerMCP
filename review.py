@@ -338,7 +338,9 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
             completeness.append({"status": FAIL, "note": "pitched roof needs two gables locked to the wall tops"})
         elif roofs:
             completeness.append({"status": PASS, "note": "two gables present for the roof"})
-        drive_type=str(parameters.get("drive_type") or (parameters.get("motion") or {}).get("drive_type") or "")
+        from motion_clearance import resolve_motion
+        resolved_motion=resolve_motion(parameters)
+        drive_type=str(resolved_motion.get("drive_type") or "")
         if props:
             completeness.append({"status": PASS, "note": "rotor part present"} if props else {"status": FAIL, "note": "rotor missing"})
             walls = [f for f in faces if f.get("kind") == "wall"]
@@ -443,13 +445,13 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
 
         if moving:
             from motion_clearance import check_motion_clearance
-            motion_report=check_motion_clearance(primitives,parameters.get('motion'),t)
+            motion_report=check_motion_clearance(primitives,resolved_motion,t)
             motion_c.append({'status':motion_report['status'],'note':motion_report['note']})
             shafts = assembly.get("shaft_pairs") or []
             ok_shafts = [s for s in shafts if str(s.get("result")) in {"MATCH", "PASS"}]
             drive_verified=False
             if drive_type=='direct_motor_shaft':
-                motion=parameters.get('motion') or {};axis=motion.get('motor_axis');center=motion.get('propeller_center')
+                motion=resolved_motion;axis=motion.get('motor_axis');center=motion.get('propeller_center')
                 if isinstance(axis,dict) and isinstance(center,list) and len(center)==3 and len(axis.get('origin') or [])==3 and len(axis.get('direction') or [])==3:
                     import math
                     o=[float(v) for v in axis['origin']];d=[float(v) for v in axis['direction']];c=[float(v) for v in center]

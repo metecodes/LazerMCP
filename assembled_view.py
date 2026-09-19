@@ -19,6 +19,14 @@ def world(p,x,y,z=0):
     return [o[i]+x*u[i]+y*v[i]+z*n[i] for i in range(3)]
 
 
+def _tab_on_outer_cut(poly, tab_box, w, h, tolerance=.02):
+    """A tab is evidence only when its rectangle is part of the outer CUT boundary."""
+    if not poly.buffer(tolerance).covers(tab_box):
+        return False
+    shared = poly.boundary.buffer(tolerance).intersection(tab_box.boundary).length
+    return shared >= max(min(abs(w), abs(h)) * .8, tolerance * 2)
+
+
 def validate(parts,t):
     errors=[]; joints=[]
     lookup={p.get('label'):p for p in parts if isinstance(p,dict)}
@@ -54,9 +62,9 @@ def validate(parts,t):
             if not tab:
                 errors.append(f"slot on {p.get('label')} has no explicit matching tab"); continue
             tx,ty,tw,th=[float(tab.get(k) or 0) for k in ('x','y','w','h')]
-            op=Polygon(outline(other))
-            if not op.is_valid or not op.covers(box(tx-tw/2,ty-th/2,tx+tw/2,ty+th/2)):
-                errors.append(f"tab {mate.get('tab')} is missing from {mate.get('part')} outline"); continue
+            op=Polygon(outline(other)); tab_box=box(tx-tw/2,ty-th/2,tx+tw/2,ty+th/2)
+            if str(other.get('operation') or 'CUT').upper() != 'CUT' or not op.is_valid or not _tab_on_outer_cut(op,tab_box,tw,th):
+                errors.append(f"tab {mate.get('tab')} is metadata only; it is missing from {mate.get('part')} actual outer CUT geometry"); continue
             if not p.get('placement') or not other.get('placement'):
                 errors.append(f"tab-slot {p.get('label')} needs explicit assembled placements"); continue
             try:
@@ -65,10 +73,16 @@ def validate(parts,t):
                 bounds=[min(a[0] for a in local),min(a[1] for a in local),max(a[0] for a in local),max(a[1] for a in local)]
                 expected=[x-w/2,y-h/2,x+w/2,y+h/2]
                 origin=world(p,0,0); u=pose['u']; v=pose['v']; n=[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]]
+                other_pose=other['placement']; other_n=[other_pose['u'][1]*other_pose['v'][2]-other_pose['u'][2]*other_pose['v'][1],other_pose['u'][2]*other_pose['v'][0]-other_pose['u'][0]*other_pose['v'][2],other_pose['u'][0]*other_pose['v'][1]-other_pose['u'][1]*other_pose['v'][0]]
                 depths=[sum((a[i]-origin[i])*n[i] for i in range(3)) for a in corners]
-                if max(abs(a-b) for a,b in zip(bounds,expected))>.05 or min(depths)>.05 or max(depths)<t-.05:
+                fit=float(s.get('fit_tolerance_mm') or .15)
+                centers=[(bounds[0]+bounds[2])/2,(bounds[1]+bounds[3])/2]; expected_centers=[x,y]
+                sizes=[bounds[2]-bounds[0],bounds[3]-bounds[1]]; expected_sizes=[w,h]
+                perpendicular=abs(sum(float(a)*float(b) for a,b in zip(n,other_n))) <= .001
+                fitted=all(abs(a-b)<=fit for a,b in zip(centers,expected_centers)) and all(-.05 <= slot-tab <= fit for slot,tab in zip(expected_sizes,sizes))
+                if not perpendicular or not fitted or min(depths)>.05 or max(depths)<t-.05:
                     errors.append(f"tab {mate.get('part')}.{mate.get('tab')} does not align with {p.get('label')} slot"); continue
-                joints.append({'male':mate['part'],'female':p['label'],'kind':'tab-slot','result':'MATCH','via':'explicit tab geometry and assembled alignment'})
+                joints.append({'male':mate['part'],'female':p['label'],'kind':'tab-slot','result':'MATCH','via':'actual outer CUT tab geometry transformed into the receiving panel 3D frame'})
             except (KeyError,TypeError,ValueError):
                 errors.append(f"invalid placement on {p.get('label')}")
     for p in lookup.values():

@@ -29,6 +29,13 @@ class HouseHolderTests(unittest.TestCase):
  def test_tab_must_exist_in_cut_outline(self):
   parts=recipe();parts[2]['points']=[[0,0],[84,0],[84,130],[0,130]]
   self.assertFalse(check_assembly(parts)['ok'])
+ def test_tab_metadata_inside_plain_rectangle_is_not_outer_cut_geometry(self):
+  parts=recipe()
+  parts[2]['points']=[[0,0],[84,0],[84,130],[0,130]]
+  parts[2]['tabs'][0]={'id':'front','x':1.5,'y':65,'w':3,'h':90}
+  report=check_assembly(parts)
+  self.assertFalse(report['ok'])
+  self.assertTrue(any('metadata only' in issue for issue in report['look_again']),report['look_again'])
  def test_pose_basis_is_not_scaled(self):
   from scale import scale_obj
   p=scale_obj(recipe()[0],2)
