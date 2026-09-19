@@ -29,6 +29,8 @@ MARKING_TYPES = frozenset(
 )
 
 _KIND_ALIAS = {
+    "image": "image",
+    "bitmap": "image",
     "text": "text",
     "label": "text",
     "caption": "text",
@@ -417,6 +419,14 @@ def marking_geom(mark: dict[str, Any]):
     align = mark.get("align") or "center"
     closed = bool(mark.get("closed"))
 
+    if kind == "image":
+        if str(mark.get('operation','engrave')).lower() not in {'engrave','etch'}:
+            raise ValueError('Uploaded image markings are engraving only')
+        if not width and not height:
+            raise ValueError('Image marking requires width or height in mm')
+        from image_engraving import image_geometry
+        return _place(image_geometry(mark),x,y,width,height,rotation,align)
+
     if kind == "text":
         value = str(mark.get("value") or mark.get("text") or mark.get("label") or "").strip()
         if not value:
@@ -427,14 +437,16 @@ def marking_geom(mark: dict[str, Any]):
 
     if kind == "icon":
         name = str(mark.get("icon") or mark.get("name") or mark.get("value") or "plus").strip().lower()
-        strokes = ICONS.get(name) or ICONS["plus"]
+        if name not in ICONS:
+            raise ValueError(f"Unknown icon '{name}': supply the actual vector logo path instead of a placeholder")
+        strokes = ICONS[name]
         geom = _geom_from_lines(strokes, closed=name in {"circle", "square", "triangle", "star", "heart"})
         return _place(geom, x, y, width or height or 10.0, height or width or 10.0, rotation, align)
 
     lines = _as_polylines(mark.get("d") or mark.get("path") or mark.get("points") or mark.get("lines") or mark.get("line"))
     if not lines:
         return None
-    geom = _geom_from_lines(lines, closed=closed or kind == "path")
+    geom = _geom_from_lines(lines, closed=closed)
     if width or height:
         return _place(geom, x, y, width, height, rotation, align)
     if rotation:

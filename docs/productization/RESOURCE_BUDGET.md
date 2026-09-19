@@ -299,3 +299,10 @@ Expensive / fatal if done wrong:
 - No TTL on `/tmp` copies that you later “sync” into SQL
 
 **LIMIT NOT VERIFIED** for: Auth MAU, DB size, Storage GB, egress, file count, Edge invocations.
+
+## CAD latency maintenance — 2026-09-19
+
+- Hosted artifact deletion runs in the existing 15-minute scheduled cleanup, outside CAD save requests. Access expiry remains 24 hours and failed cleanup remains retryable.
+- The 185-template joint index is bundled as about 61 KB of metadata, not an artifact in Storage/Postgres. Runtime reads the prepared index instead of parsing every generator source on a cold request. Rebuild when Boxes.py changes.
+- Marching contours skip empty/interior cells using NumPy; segment order and coordinates remain identical to the previous algorithm (regression-tested).
+- Local sample: cold prepared-index search 0.049 s; sparse 1400×1400 contour extraction 0.028 s. These are component measurements, not live end-to-end latency guarantees. Source scan timing varied substantially across runs.

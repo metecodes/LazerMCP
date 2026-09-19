@@ -353,6 +353,9 @@ def create_from_reference(
     format: str = "svg",
     image_bytes: bytes | None = None,
     public_base_url: str = "http://127.0.0.1:8000",
+    primitives: list[Any] | None = None,
+    reference_markings: list[dict[str, Any]] | None = None,
+    parameters: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     import time
 
@@ -360,6 +363,13 @@ def create_from_reference(
     from plans import gate_job
 
     started_at = time.perf_counter()
+    if primitives is not None:
+        try:
+            from reference_assembly import compose_reference
+            recipe, params = compose_reference(primitives, reference_markings, image_base64, image_bytes, parameters, format)
+            return create_design(primitives=recipe, parameters=params, public_base_url=public_base_url)
+        except Exception as exc:
+            return _mcp({'success':False,'ready_to_cut':False,'error_code':'REFERENCE_ASSEMBLY_INVALID','look_again':[str(exc)]})
     gate = gate_job("photo")
     if not gate.get("ok"):
         return _mcp({"ready_to_cut": False, "plan": gate.get("plan"), "look_again": gate.get("look_again") or []})
@@ -414,14 +424,16 @@ def create_from_reference(
         },
         "_started_at": started_at,
     }
-    return _save_build(
-        built["svg_bytes"],
-        extra["product"],
-        extra["title"],
-        public_base_url,
-        extra,
-        dxf_bytes=_dxf_from_built(built, format),
-    )
+    try:
+        return _save_build(
+            built["svg_bytes"], extra["product"], extra["title"], public_base_url, extra,
+            dxf_bytes=_dxf_from_built(built, format),
+        )
+    except Exception:
+        import logging
+        logging.getLogger(__name__).exception('Reference export/persistence failed')
+        return _mcp({'success':False,'ready_to_cut':False,'error_code':'REFERENCE_EXPORT_FAILED',
+                     'look_again':['Reference processing completed but export or storage failed. Retry or inspect server logs; no final file is confirmed.']})
 
 
 def create_design(
@@ -676,6 +688,7 @@ CREATE_KEYS = {
     "from_reference": (
         "image_base64", "width_mm", "height_mm", "style", "invert", "threshold",
         "layout", "rows", "cols", "seed", "format",
+        "primitives", "reference_markings", "parameters",
     ),
     "jigsaw_puzzle": ("width_mm", "height_mm", "rows", "cols", "seed", "format", "size_mm"),
     "number_match_puzzle": ("count", "card_w", "card_h", "columns"),

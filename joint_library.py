@@ -4,6 +4,8 @@ import ast
 import hashlib
 import inspect
 import re
+import json
+from pathlib import Path
 from functools import lru_cache
 from boxes_adapter import _generators_by_name, _schema_for_class
 
@@ -16,6 +18,14 @@ def _tokens(text):
 
 @lru_cache(maxsize=1)
 def library_index():
+    snapshot = Path(__file__).with_name('data') / 'joint_templates.json'
+    if snapshot.is_file():
+        payload = json.loads(snapshot.read_text(encoding='utf-8'))
+        if payload.get('format_version') == 1 and payload.get('templates'):
+            return payload
+    return scan_sources()
+
+def scan_sources():
     rows, failures = [], []
     for name, cls in sorted(_generators_by_name().items()):
         try:
@@ -31,7 +41,7 @@ def library_index():
             rows.append({"name": name, "group": getattr(cls, "ui_group", "Misc"), "description": (cls.__doc__ or "").strip(), "settings_declared": settings, "edge_sequences_in_source": sequences, "source_sha256": hashlib.sha256(source.encode()).hexdigest(), "verification": "SOURCE_INDEXED; physical fit NOT VERIFIED"})
         except Exception as exc:
             failures.append({"name": name, "reason": str(exc)})
-    return {"templates": rows, "failures": failures}
+    return {"format_version": 1, "templates": rows, "failures": failures}
 
 def search_joint_templates(query: str, limit: int = 5, *, include_parameters: bool = True):
     index = library_index()

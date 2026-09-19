@@ -22,6 +22,10 @@ from number_match_puzzle import (
 from text_path import svg_document, to_lasercad_y
 
 PRESETS = {
+    "engraving_layout": {
+        "title": "Metin ve logo yerleşimi",
+        "hint": "Yellow ENGRAVE artwork. parameters: width_mm, height_mm, items with kind=text|path|icon|line, value/d, x,y,width,height,align. Coordinates mm bottom-left. Real vector logos required.",
+    },
     "jigsaw_puzzle": {
         "title": "Klasik yapboz",
         "hint": "Interlocking picture-puzzle grid. parameters: width_mm, height_mm, rows, cols, seed. Not number-dot cards.",
@@ -172,6 +176,9 @@ def _fit_sheet(sheet_w: float, sheet_h: float) -> float:
 def _preset(name: str, params: dict[str, Any]) -> dict[str, Any]:
     key = (name or "").strip().lower().replace(" ", "_")
     key = _PRESET_ALIASES.get(key, key)
+    if key == "engraving_layout":
+        from engraving_layout import build_layout
+        return build_layout(params)
     if key == "jigsaw_puzzle":
         from jigsaw_puzzle import build_jigsaw_puzzle
 

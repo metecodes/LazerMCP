@@ -170,6 +170,8 @@ def layout_text(
     y_up: bool = False,
     anchor: str = "center",
     baseline: str = "center",
+    letter_spacing_mm: float = 0.0,
+    font_weight: str = "normal",
 ):
     """Place Arial outlines at (cx, cy). height_mm is approximate cap height.
 
@@ -188,7 +190,8 @@ def layout_text(
     scale_mm = float(height_mm) / cap
     x = 0.0
     parts = []
-    for ch in raw:
+    spacing_units = float(letter_spacing_mm) / max(scale_mm, 1e-9)
+    for index, ch in enumerate(raw):
         name = cmap.get(ord(ch))
         if not name:
             x += upem * 0.4
@@ -200,11 +203,16 @@ def layout_text(
         if geom is not None and not geom.is_empty:
             parts.append(shp_translate(geom, xoff=x, yoff=0.0))
         x += float(glyph.width)
+        if index < len(raw) - 1:
+            x += spacing_units
     if not parts:
         return None
     blob = unary_union(parts)
     yfact = scale_mm if y_up else -scale_mm
     blob = shp_scale(blob, xfact=scale_mm, yfact=yfact, origin=(0, 0))
+    if str(font_weight).lower() in {"bold", "600", "700", "800", "900"}:
+        # Laser-safe synthetic bold when a separate bold face is unavailable.
+        blob = blob.buffer(max(float(height_mm) * 0.025, 0.03), join_style=2)
     minx, miny, maxx, maxy = blob.bounds
     ax = (anchor or "center").lower()
     if ax in {"end", "right"}:

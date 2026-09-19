@@ -131,7 +131,7 @@ _OP_WORDS: dict[str, tuple[str, ...]] = {
 
 PRESENTATION = {
     "CUT": ("#FF0000", "0.18"),
-    "ENGRAVE": ("#000000", "0.15"),
+    "ENGRAVE": ("#FFFF00", "0.15"),
     "SCORE": ("#0000FF", "0.12"),
     "GUIDE": ("#00AA00", "0.10"),
     "LABEL": ("#333333", "0.12"),
@@ -302,7 +302,7 @@ def _marking_role(mark: dict[str, Any]) -> str:
         return inferred
     if kind == "text":
         return "text"
-    if kind in {"logo", "icon"}:
+    if kind in {"logo", "icon", "image", "bitmap"}:
         return "logo" if kind == "logo" else "ornament"
     if kind in {"path", "line", "lines"}:
         return "engraved_line"

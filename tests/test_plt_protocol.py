@@ -15,6 +15,7 @@ class PLTProtocolTests(unittest.TestCase):
    self.assertIn('result',init.json())
    schema=client.post('/mcp',headers=headers,json={'jsonrpc':'2.0','id':2,'method':'tools/list'}).json()
    design=next(t for t in schema['result']['tools'] if t['name']=='create_design')
+   self.assertTrue({'create_text','create_vector_graphic','inspect_design','compute_safe_design_area','compose_design','validate_composition','repair_composition','export_composed_dxf'}.issubset({t['name'] for t in schema['result']['tools']}))
    self.assertTrue(any(t['name']=='search_joint_templates' for t in schema['result']['tools']))
    self.assertIn('plt',design['inputSchema']['properties']);self.assertIn('plt_base64',design['inputSchema']['properties'])
    import json
@@ -37,5 +38,16 @@ class PLTProtocolTests(unittest.TestCase):
    data=json.loads(response.json()['result']['content'][0]['text'])
    self.assertEqual(data['matches'][0]['name'],'UniversalBox')
    self.assertGreater(data['indexed_templates'],100)
+   response=client.post('/mcp',headers=headers,json={'jsonrpc':'2.0','id':7,'method':'tools/call','params':{'name':'create_design','arguments':{'preset':'engraving_layout','parameters':{'width_mm':100,'height_mm':100,'items':[{'kind':'text','value':'ÖNCE GÜVENLİK','x':50,'y':50,'width':80}]}}}})
+   self.assertEqual(response.status_code,200)
+   data=json.loads(response.json()['result']['content'][0]['text'])
+   self.assertTrue(data['success'])
+   self.assertEqual(data['method'],'positioned_vector_layout')
+   from tests.test_image_engraving import sample
+   response=client.post('/mcp',headers=headers,json={'jsonrpc':'2.0','id':8,'method':'tools/call','params':{'name':'create_from_reference','arguments':{'image_base64':sample('white','black'),'format':'both','primitives':[{'type':'panel','w':100,'h':100,'edges':'eeee','label':'top-panel'}],'reference_markings':[{'target_part':'top-panel','x':50,'y':70,'width':25}]}}})
+   self.assertEqual(response.status_code,200)
+   self.assertFalse(response.json()['result'].get('isError',False))
+   data=json.loads(response.json()['result']['content'][0]['text'])
+   self.assertTrue(data['success'])
 
 if __name__=='__main__':unittest.main()

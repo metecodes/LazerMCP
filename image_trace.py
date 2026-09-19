@@ -185,7 +185,7 @@ def _binary_mask(img: Image.Image, invert: bool | None, threshold: int) -> np.nd
     elif invert is False:
         candidates = [adaptive, global_m] + ([ (arr < float(user_t)).astype(np.uint8) ] if 1 <= user_t <= 255 else [])
 
-    ranked = sorted((_score_mask(c), int(c.sum()), c) for c in candidates)
+    ranked = sorted(((_score_mask(c), int(c.sum()), c) for c in candidates), key=lambda item: (item[0],item[1]))
     best = ranked[-1]
     if best[0] < 0:
         raise ValueError("No usable drawing found. Try a higher-contrast photo or threshold=0 (auto).")
@@ -203,13 +203,11 @@ def _marching_segments(mask: np.ndarray) -> list[tuple[tuple[float, float], tupl
     padded = np.pad(mask, 1, mode="constant")
     h, w = padded.shape
     segs: list[tuple[tuple[float, float], tuple[float, float]]] = []
-    for y in range(h - 1):
-        row = padded[y]
-        row2 = padded[y + 1]
-        for x in range(w - 1):
-            idx = int(row[x]) * 8 + int(row[x + 1]) * 4 + int(row2[x + 1]) * 2 + int(row2[x])
-            for a, b in _CASES.get(idx, ()):
-                segs.append(((x + a[0] - 1.0, y + a[1] - 1.0), (x + b[0] - 1.0, y + b[1] - 1.0)))
+    codes = padded[:-1,:-1]*8 + padded[:-1,1:]*4 + padded[1:,1:]*2 + padded[1:,:-1]
+    for y, x in np.argwhere((codes != 0) & (codes != 15)):
+        x, y = int(x), int(y)
+        for a, b in _CASES[int(codes[y,x])]:
+            segs.append(((x + a[0] - 1.0, y + a[1] - 1.0), (x + b[0] - 1.0, y + b[1] - 1.0)))
     return segs
 
 

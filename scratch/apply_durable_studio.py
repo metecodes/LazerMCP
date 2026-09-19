@@ -23,13 +23,14 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--retention', action='store_true')
     parser.add_argument('--status', action='store_true')
+    parser.add_argument('--assets', action='store_true')
     args = parser.parse_args()
     if args.status:
         result = query("SELECT j.jobname, j.active, d.status, d.end_time FROM cron.job j LEFT JOIN LATERAL (SELECT status, end_time FROM cron.job_run_details WHERE jobid=j.jobid ORDER BY runid DESC LIMIT 1) d ON true WHERE j.jobname='lasermcp-artifact-cleanup'", read_only=True)
         print(json.dumps(result))
         return
     root = Path(__file__).resolve().parents[1]
-    filename = '0003_artifact_retention.sql' if args.retention else '0002_durable_studio.sql'
+    filename = '0004_asset_library.sql' if args.assets else '0003_artifact_retention.sql' if args.retention else '0002_durable_studio.sql'
     query((root / 'migrations' / filename).read_text(encoding='utf-8'))
     if args.retention:
         from persist.env import supabase_service_role, supabase_url, storage_bucket
@@ -44,6 +45,8 @@ def main():
         result = query("SELECT jobname, schedule, active FROM cron.job WHERE jobname = 'lasermcp-artifact-cleanup'", read_only=True)
         print('Retention migration and encrypted cleanup configuration applied')
         print(json.dumps(result))
+    elif args.assets:
+        print('Asset library migration applied')
     else:
         print('Durable studio SQL migration applied')
 

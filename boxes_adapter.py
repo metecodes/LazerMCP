@@ -59,7 +59,7 @@ PAYAS_DEFAULTS = {
     "bed_height": 3000,
     "output": "svg",
     "cut_color": "#FF0000",
-    "etch_color": "#000000",
+    "etch_color": "#FFFF00",
     "holding_nick_mm": 1.0,
 }
 
@@ -754,7 +754,10 @@ def save_generated_svg(
 ) -> dict[str, Any]:
     try:
         from persist.cleanup import cleanup_expired
-        cleanup_expired()
+        from persist.env import uses_supabase_app_db
+        # Hosted storage is cleaned by the scheduled database job, never by CAD requests.
+        if not uses_supabase_app_db():
+            cleanup_expired()
     except Exception:
         pass
         
@@ -767,6 +770,9 @@ def save_generated_svg(
         extra.get("primitives") if isinstance(extra.get("primitives"), list) else None,
         preserve_source_geometry=bool(extra.get("preserve_source_geometry")),
     )
+    if dxf_bytes is not None and (extra.get('parameters') or {}).get('reference_single_sheet'):
+        from dxf_export import svg_bytes_to_dxf
+        dxf_bytes = svg_bytes_to_dxf(svg_bytes)
     if manufacturing:
         extra["manufacturing"] = manufacturing
     elif extra.get("manufacturing") is None:

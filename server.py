@@ -137,12 +137,12 @@ mcp = MCPServer(
         "(payas_workshop|desktop_400|lasercad_900). Do not invent kerf. "
         "MCP writes the kit material list (bom / MATERIALS (MCP)). Never invent hardware. "
         "Optional parameters.project names the job for version history. "
-        "create_from_reference only 2D-traces artwork or etches a photo onto a jigsaw. "
+        "create_from_reference traces flat artwork by itself; with explicit primitives and reference_markings it engraves the supplied artwork on named mechanical panels in the same SVG+DXF sheet. Never infer joints from pixels. "
         "Do not skip the plan. Do not use number_match_puzzle unless the plan says so. "
         "If final_status is BLOCKED, read look_again, fix primitives, call create_design again. "
         "Do not invent a PASS. Working SVG is not a cuttable product until the gate says so. "
         "Defaults: 3 mm poplar, kerf 0.15 mm, 1500×3000 mm bed, SVG + DXF, "
-        "cut #FF0000, etch #000000, LaserCAD Y-up. "
+        "cut #FF0000, text/logo engraving #FFFF00, LaserCAD Y-up. "
         "Notches and closed cuts keep ~1 mm holding nicks so pieces do not fall; do not omit them."
     ),
 )
@@ -483,6 +483,8 @@ def plan_laser_job(
         "PROTOTYPE READY = Prototype SVG only; PRODUCTION EXPORT BLOCKED. "
         "PLT/HP-GL files: pass plt text or plt_base64 to this tool; do not trace a screenshot. "
         "Existing SVG: pass its complete XML in svg, with parameters.svg_default_operation='CUT' only when the user identifies untagged vectors as cut lines. "
+        "Text/logo engraving is yellow #FFFF00, DXF ENGRAVE layer ACI 2; CUT stays red. For standalone artwork use preset='engraving_layout', parameters={width_mm,height_mm,items:[{kind:'text',value:'PAYAS STEM',x:50,y:100,height:6,align:'center'},{kind:'path',d:'actual logo SVG path',x:50,y:80,width:30}]}. Coordinates are mm from bottom-left. Supply real logo vectors; never replace unknown logos with generic icons. "
+        "Uploaded artwork can be engraved directly: use {kind:'image',image_base64:'PNG/JPEG/WebP base64',crop:[left,top,right,bottom],foreground:'auto',x:50,y:50,width:30,operation:'engrave'} in a part's markings or engraving_layout items. Crop coordinates are normalized 0..1 from image top-left. Trace the provided artwork, never substitute another logo. "
         "SVG import preserves narrow tabs, vertices and existing gaps; do not replace supplied SVG with a generic box or holder preset. "
         "plt_units_per_mm defaults to 40; plt_pen_operations explicitly selects CUT/ENGRAVE. "
         "Never say LAZER KESİME HAZIR. Never request a new tool. Never hand-write SVG."
@@ -509,9 +511,9 @@ def create_design(
 
 @mcp.tool(
     description=(
-        "2D artwork only: vectorize a photo or etch it onto a jigsaw. "
+        "Vectorize 2D artwork, or combine an explicit mechanical recipe and reference artwork in one sheet. "
         "Pass compressed JPEG image_base64 plus next_arguments from the plan. "
-        "To build walls/roofs/propellers, use create_design (type=propeller or type=contour), not this tool. "
+        "For a mechanical single-sheet output pass primitives plus reference_markings:[{target_part:'named-panel',kind:'image',crop:[left,top,right,bottom],ink_color:'yellow',x:50,y:50,width:30}]. Crop uses normalized image coordinates. parameters controls material/project. Text/path marks may also be included. format='both' yields SVG+DXF from the same recipe. Never infer mechanical joints from pixel outlines alone. "
         "layout=jigsaw or trace. format=svg or both. Then validate_svg."
     )
 )
@@ -527,6 +529,9 @@ def create_from_reference(
     cols: int = 10,
     seed: int = 1,
     format: str = "svg",
+    primitives: list[Any] | None = None,
+    reference_markings: list[dict[str, Any]] | None = None,
+    parameters: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     try:
         return payas_cad.create_from_reference(
@@ -541,11 +546,15 @@ def create_from_reference(
             cols=cols,
             seed=seed,
             format=format,
+            primitives=primitives,
+            reference_markings=reference_markings,
+            parameters=parameters,
             public_base_url=_tool_public_base(),
         )
     except Exception as exc:
         return payas_cad._mcp(
             {
+                "success": False,
                 "ready_to_cut": False,
                 "hint": (
                     "Compress the photo to ~1200px JPEG and retry. "
@@ -579,6 +588,223 @@ def get_generator_schema(generator: str) -> dict[str, Any]:
 def search_joint_templates(query: str, limit: int = 5) -> dict[str, Any]:
     from joint_library import search_joint_templates as search
     return search(query, limit)
+
+
+@mcp.tool(description="Create a first-class Arial-compatible text object. Production composition converts it to vector paths; Turkish text is supported.")
+def create_text(content: str, parent_part_id: str | None = None, font_size: float = 6, placement: str = "center", operation: str = "ENGRAVE") -> dict[str, Any]:
+    from semantic_cad import create_text as create
+    return create(content,parent_part_id=parent_part_id,font_size=font_size,placement=placement,operation=operation)
+
+
+@mcp.tool(description="Create a product-neutral vector graphic object. Logos/icons/illustrations default to ENGRAVE and require real SVG path data.")
+def create_vector_graphic(d: str, parent_part_id: str | None = None, graphic_type: str = "illustration", placement: str = "center", operation: str = "ENGRAVE") -> dict[str, Any]:
+    from semantic_cad import create_vector_graphic as create
+    return create(d,parent_part_id=parent_part_id,graphic_type=graphic_type,placement=placement,operation=operation)
+
+
+@mcp.tool(description="Create a reusable native vector icon (arrow, circle, cross, heart, plus, square, star, triangle or x); defaults to ENGRAVE.")
+def create_icon(name: str, parent_part_id: str | None = None, placement: str = "center", width: float = 10) -> dict[str, Any]:
+    from markings import ICONS
+    from semantic_cad import create_vector_graphic
+    key=name.strip().lower()
+    if key not in ICONS:raise ValueError('unknown native icon; supply an SVG path with create_vector_graphic')
+    return create_vector_graphic(points=ICONS[key],parent_part_id=parent_part_id,graphic_type='icon',placement=placement,size={'width':width,'height':width},source='native_icon:'+key)
+
+
+@mcp.tool(description="Edit properties of an unlocked semantic text/graphic object without changing its id or type.")
+def edit_design_object(object: dict[str, Any], changes: dict[str, Any]) -> dict[str, Any]:
+    from semantic_cad import edit_object
+    return edit_object(object,changes)
+
+
+@mcp.tool(description="Move/place a semantic text or graphic object by exact part-local millimetres without regenerating mechanical CAD.")
+def place_design_object(object: dict[str, Any], x: float, y: float, parent_part_id: str | None = None) -> dict[str, Any]:
+    from semantic_cad import edit_object
+    changes={'position':{'x':x,'y':y}}
+    if parent_part_id is not None:changes['parent_part_id']=parent_part_id
+    return edit_object(object,changes)
+
+
+@mcp.tool(description="Convert a first-class text object to font-independent vector path geometry.")
+def convert_text_to_paths(object: dict[str, Any]) -> dict[str, Any]:
+    from semantic_cad import convert_text_to_paths as convert
+    return convert(object)
+
+
+@mcp.tool(description="Align semantic objects left/right/top/bottom/center_x/center_y, optionally inside explicit bounds.")
+def align_objects(objects: list[dict[str, Any]], mode: str, bounds: list[float] | None = None) -> list[dict[str, Any]]:
+    from semantic_cad import align_objects as align
+    return align(objects,mode,bounds)
+
+
+@mcp.tool(description="Distribute semantic objects evenly by their centers on the horizontal or vertical axis.")
+def distribute_objects(objects: list[dict[str, Any]], axis: str = "horizontal") -> list[dict[str, Any]]:
+    from semantic_cad import distribute_objects as distribute
+    return distribute(objects,axis)
+
+
+@mcp.tool(description="Inspect semantic objects and detect physical parts from an existing SVG. CAD geometry remains authoritative; UNKNOWN operations are reported.")
+def inspect_design(svg: str) -> dict[str, Any]:
+    from semantic_cad import inspect_design as inspect
+    result=inspect(svg)
+    return {k:v for k,v in result.items() if not k.startswith('_')}
+
+
+@mcp.tool(description="Select one semantic object or detected physical part from an inspected SVG by stable id.")
+def select_design_item(svg: str, item_id: str) -> dict[str, Any]:
+    result=inspect_design(svg)
+    found=next((row for row in result['objects']+result['parts'] if row['id']==item_id),None)
+    if not found:raise ValueError('object or part not found')
+    return found
+
+
+@mcp.tool(description="Import a millimetre ASCII DXF into the semantic SVG coordinate system. CUT/ENGRAVE/SCORE/GUIDE layer names are preserved; other layers become UNKNOWN and block export.")
+def import_dxf_design(dxf: str) -> dict[str, Any]:
+    from dxf_import import dxf_to_svg
+    from semantic_cad import inspect_design as inspect
+    svg=dxf_to_svg(dxf);result=inspect(svg)
+    return {'svg':svg,**{k:v for k,v in result.items() if not k.startswith('_')}}
+
+
+@mcp.tool(description="Return exact outer bounds for a detected physical part in an SVG document.")
+def get_part_bounds(svg: str, part_id: str) -> dict[str, Any]:
+    from semantic_cad import get_part_bounds as bounds
+    return bounds(svg,part_id)
+
+
+@mcp.tool(description="Compute part boundary minus cut features, edge margin and mechanical clearance. Returns bounds, area and WKT geometry.")
+def compute_safe_design_area(svg: str, part_id: str, safe_margin: float = 3, mechanical_clearance: float = 1) -> dict[str, Any]:
+    from semantic_cad import compute_safe_design_area as compute
+    result=compute(svg,part_id,safe_margin,mechanical_clearance)
+    return {k:v for k,v in result.items() if k not in {'_geom','document'}}
+
+
+@mcp.tool(description="Compose text, vectors or image references on detected parts in one CAD coordinate system. Calculates safe areas, avoids mechanical features, repairs affected elements up to five times, converts text to paths, and returns semantic SVG.")
+def compose_design(svg: str, elements: list[dict[str, Any]], safe_margin: float = 3, mechanical_clearance: float = 1, duplicate_policy: str = "replace") -> dict[str, Any]:
+    from semantic_cad import compose_design as compose
+    return compose(svg,elements,safe_margin,mechanical_clearance,duplicate_policy)
+
+
+@mcp.tool(description="Validate semantic text/graphics against parent-part safe areas, mechanical cuts, duplicates, size and UNKNOWN operations.")
+def validate_composition(svg: str, safe_margin: float = 3, mechanical_clearance: float = 1) -> dict[str, Any]:
+    from semantic_cad import validate_composition as validate
+    return validate(svg,safe_margin,mechanical_clearance)
+
+
+@mcp.tool(description="Repair only existing semantic composition objects against current part safe areas, up to five placement/scale attempts per object.")
+def repair_composition(svg: str, safe_margin: float = 3, mechanical_clearance: float = 1) -> dict[str, Any]:
+    from semantic_cad import repair_composition as repair
+    return repair(svg,safe_margin,mechanical_clearance)
+
+
+@mcp.tool(description="Remove one semantic text/graphic object from an existing design without regenerating mechanical geometry.")
+def remove_design_object(svg: str, object_id: str) -> str:
+    from semantic_cad import remove_object
+    return remove_object(svg,object_id)
+
+
+@mcp.tool(description="Replace/edit one semantic object in an existing SVG, then recompute safe placement and validation while preserving mechanical geometry.")
+def replace_design_object(svg: str, object_id: str, replacement: dict[str, Any], safe_margin: float = 3, mechanical_clearance: float = 1) -> dict[str, Any]:
+    from semantic_cad import replace_object
+    return replace_object(svg,object_id,replacement,safe_margin,mechanical_clearance)
+
+
+@mcp.tool(description="Export a semantic SVG document to production DXF layers. Text is vector geometry; no downstream font substitution.")
+def export_composed_dxf(svg: str) -> str:
+    import base64
+    from semantic_cad import export_dxf
+    return base64.b64encode(export_dxf(svg)).decode()
+
+
+@mcp.tool(description="Return a validated semantic production SVG unchanged when composition passes; UNKNOWN or collision failures block export.")
+def export_composed_svg(svg: str) -> dict[str, Any]:
+    from semantic_cad import validate_composition
+    report=validate_composition(svg)
+    return {'success':report['status']!='FAIL','svg':svg if report['status']!='FAIL' else None,'validation':report}
+
+
+@mcp.tool(description="Upload a reusable organization-scoped SVG logo/icon/illustration. Returns a library token once for a new library; save it securely. Assets default to ENGRAVE and contain normalized vector paths.")
+def upload_asset(organization_id: str, name: str, asset_type: str, svg: str, library_token: str | None = None) -> dict[str, Any]:
+    from asset_library import upload_asset as upload
+    return upload(organization_id,name,asset_type,svg,library_token)
+
+
+@mcp.tool(description="List reusable SVG assets accessible with the organization library token.")
+def list_assets(organization_id: str, library_token: str) -> list[dict[str, Any]]:
+    from asset_library import list_assets as listing
+    return listing(organization_id,library_token)
+
+
+@mcp.tool(description="Create a semantic graphic object from a reusable organization asset for placement on a named CAD part.")
+def place_asset(organization_id: str, library_token: str, asset_id: str, parent_part_id: str, placement: str = "center", width: float | None = None, height: float | None = None) -> dict[str, Any]:
+    from asset_library import place_asset as place
+    return place(organization_id,library_token,asset_id,parent_part_id,placement,width,height)
+
+
+@mcp.tool(description="Import a standalone SVG logo/icon/illustration as one editable semantic ENGRAVE graphic.")
+def import_svg_graphic(svg: str, parent_part_id: str | None = None, placement: str = "center", graphic_type: str = "illustration") -> dict[str, Any]:
+    from semantic_cad import import_svg_graphic as load
+    return load(svg,parent_part_id=parent_part_id,placement=placement,graphic_type=graphic_type)
+
+
+@mcp.tool(description="Create a product-neutral native vector primitive: line, polyline, rectangle, rounded_rectangle, circle, ellipse, arc, polygon, bezier or path.")
+def create_primitive(kind: str, parent_part_id: str | None = None, width: float = 10, height: float = 10, points: list[list[float]] | None = None, d: str | None = None, placement: str = "center") -> dict[str, Any]:
+    from semantic_cad import create_primitive as create
+    return create(kind,parent_part_id=parent_part_id,width=width,height=height,points=points,d=d,placement=placement)
+
+
+@mcp.tool(description="Edit a first-class text object's content, typography, placement or constraints while preserving its stable id.")
+def edit_text(object: dict[str, Any], changes: dict[str, Any]) -> dict[str, Any]:
+    if object.get('type')!='text':raise ValueError('text object required')
+    return edit_design_object(object,changes)
+
+
+@mcp.tool(description="Place a text object at exact millimetre coordinates on a named physical part.")
+def place_text(object: dict[str, Any], x: float, y: float, parent_part_id: str | None = None) -> dict[str, Any]:
+    if object.get('type')!='text':raise ValueError('text object required')
+    return place_design_object(object,x,y,parent_part_id)
+
+
+@mcp.tool(description="Place a graphic object at exact millimetre coordinates on a named physical part.")
+def place_graphic(object: dict[str, Any], x: float, y: float, parent_part_id: str | None = None) -> dict[str, Any]:
+    if object.get('type') not in {'graphic','image_reference'}:raise ValueError('graphic object required')
+    return place_design_object(object,x,y,parent_part_id)
+
+
+@mcp.tool(description="Select one semantic object by stable id.")
+def select_object(svg: str, object_id: str) -> dict[str, Any]:
+    row=select_design_item(svg,object_id)
+    if 'type' not in row:raise ValueError('object not found')
+    return row
+
+
+@mcp.tool(description="Select one detected physical part by stable id.")
+def select_part(svg: str, part_id: str) -> dict[str, Any]:
+    result=inspect_design(svg);row=next((p for p in result['parts'] if p['id']==part_id),None)
+    if not row:raise ValueError('part not found')
+    return row
+
+
+@mcp.tool(description="Get one reusable vector asset and its normalized SVG using the organization library token.")
+def get_asset(organization_id: str, library_token: str, asset_id: str) -> dict[str, Any]:
+    from asset_library import get_asset_info
+    return get_asset_info(organization_id,library_token,asset_id)
+
+
+@mcp.tool(description="Replace a reusable asset's vector geometry while preserving its stable asset id and access scope.")
+def replace_asset(organization_id: str, library_token: str, asset_id: str, svg: str, name: str | None = None, asset_type: str | None = None) -> dict[str, Any]:
+    from asset_library import replace_asset as replace
+    return replace(organization_id,library_token,asset_id,svg,name,asset_type)
+
+
+@mcp.tool(description="Validated production SVG export alias for general composition workflows.")
+def export_svg(svg: str) -> dict[str, Any]:
+    return export_composed_svg(svg)
+
+
+@mcp.tool(description="Production DXF export alias for general composition workflows; returns base64 DXF.")
+def export_dxf(svg: str) -> str:
+    return export_composed_dxf(svg)
 
 
 @mcp.tool(description="Boxes.py class SVG only (ABox, TypeTray, …). Use only if plan_laser_job next_tool is generate_svg. Photos of things to build: plan_laser_job then create_design primitives.")
@@ -1487,6 +1713,9 @@ async def api_from_reference(request: Request) -> Response:
         height_mm = float(height_raw) if height_raw not in (None, "", 0, "0") else None
         result = payas_cad.create_from_reference(
             image_base64=merged.get("image_base64"),
+            primitives=merged.get("primitives"),
+            reference_markings=merged.get("reference_markings"),
+            parameters=params,
             width_mm=float(merged.get("width_mm") or 200),
             height_mm=height_mm,
             style=str(merged.get("style") or "cut_and_etch"),

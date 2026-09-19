@@ -1,5 +1,7 @@
 # Boxes.py joint library
 
+The deployed index is packaged in `data/joint_templates.json` to avoid source/AST scans during cold requests. Rebuild it with `joint_library.scan_sources()` whenever the installed Boxes.py version changes; source hashes remain in every entry. Missing snapshots fall back to source scanning. Hosted artifact cleanup is scheduled separately from CAD requests.
+
 `search_joint_templates(query, limit=5)` searches actual installed generator source, descriptions, declared joint settings and literal wall edge sequences. Results include parameter schemas and a SHA-256 source fingerprint. Scan failures remain visible. The index is cached in each server process and rebuilt from the installed source after deployment; it does not depend on temporary storage.
 
 Assembly plans include three source references. Explicit requests for a Boxes.py template without a photograph route to its generator. Supplied vectors and custom silhouettes retain precedence: a generic matching holder is not an exact house-shaped holder.
