@@ -419,16 +419,27 @@ def _materialize_cut_geometry(part: dict[str, Any]) -> dict[str, Any]:
     else:
         return item
     if not base.is_valid or base.area<=0:return item
-    tabs=[];tab_geometry=[]
-    for tab in item.get('tabs') or []:
+    tabs=[];tab_geometry=[];normalized_tabs=[]
+    minx,miny,maxx,maxy=base.bounds
+    for source_tab in item.get('tabs') or []:
+        tab=dict(source_tab) if isinstance(source_tab,dict) else source_tab
         if not isinstance(tab,dict):continue
         x,y,w,h=[_num(tab.get(k),0) for k in ('x','y','w','h')]
         if w>0 and h>0:
+            side_raw=tab.get('side') or tab.get('edge')
+            if side_raw is None and str(tab.get('id') or '') in {'L','R','T','B'}:side_raw=tab.get('id')
+            side=str(side_raw or '').strip().lower()
+            if side in {'l','left'}:x=minx-w/2
+            elif side in {'r','right'}:x=maxx+w/2
+            elif side in {'b','bottom'}:y=miny-h/2
+            elif side in {'t','top'}:y=maxy+h/2
+            tab['x']=x;tab['y']=y
             shape=box(x-w/2,y-h/2,x+w/2,y+h/2);outside=shape.difference(base).area;touches=shape.buffer(.02).intersects(base.boundary)
             shared=base.boundary.buffer(.02).intersection(shape.boundary).length
             already=base.buffer(.02).covers(shape) and shared >= max(w,h)+1.5*min(w,h)
             if outside>.001 and touches:tabs.append(shape)
             tab_geometry.append({'id':str(tab.get('id') or ''),'role':'TAB','operation':'CUT','points':[[float(a),float(b)] for a,b in list(shape.exterior.coords)[:-1]],'materialized':bool(already or (outside>.001 and touches)),'outside_area_mm2':float(outside)})
+        normalized_tabs.append(tab)
     merged=unary_union([base,*tabs]) if tabs else base
     if merged.geom_type!='Polygon':return item
     points=[[float(x),float(y)] for x,y in list(merged.exterior.coords)[:-1]]
@@ -440,6 +451,7 @@ def _materialize_cut_geometry(part: dict[str, Any]) -> dict[str, Any]:
         ring=[[x-w/2,y-h/2],[x+w/2,y-h/2],[x+w/2,y+h/2],[x-w/2,y+h/2]]
         slots.append({'id':str(slot.get('id') or ''),'role':'SLOT','operation':'CUT','points':ring,'mate':slot.get('mate')})
     item['points']=points
+    if normalized_tabs:item['tabs']=normalized_tabs
     item['_cut_geometry']={'outer_cut':{'role':'OUTER_CUT','operation':'CUT','points':points},'inner_cuts':slots,'tabs':tab_geometry}
     if kind in {'panel','wall','rect','roof','roof_panel'} and tabs:item['_render_outer_cut_points']=points
     return item

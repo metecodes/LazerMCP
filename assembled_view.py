@@ -104,7 +104,7 @@ def validate(parts,t):
                 world_slot=[world(p,a,b,0) for a in (x-w/2,x+w/2) for b in (y-h/2,y+h/2)]
                 bbox=lambda pts:[min(q[i] for q in pts) for i in range(3)]+[max(q[i] for q in pts) for i in range(3)]
                 angular=math.degrees(math.asin(min(1,abs(sum(float(a)*float(b) for a,b in zip(n,other_n))))))
-                rec.update({'tab_world_bbox':bbox(world_tab),'slot_world_bbox':bbox(world_slot),'center_distance_mm':math.hypot(centers[0]-x,centers[1]-y),'angular_error_deg':angular,'thickness_clearance_mm':min(expected_sizes[i]-sizes[i] for i in range(2)),'insertion_depth_mm':max(depths)-min(depths)})
+                rec.update({'tab_world_bbox':bbox(world_tab),'slot_world_bbox':bbox(world_slot),'center_distance_mm':math.hypot(centers[0]-x,centers[1]-y),'angular_error_deg':angular,'thickness_clearance_mm':min(expected_sizes)-min(sizes),'insertion_depth_mm':max(depths)-min(depths)})
                 if not perpendicular or not fitted or min(depths)>.05 or max(depths)<t-.05:
                     rec['reason']='orientation, position, thickness clearance or insertion depth mismatch';debug.append(rec);errors.append(f"tab {mate.get('part')}.{mate.get('tab')} does not align with {p.get('label')} slot"); continue
                 rec.update({'result':'PASS','reason':'actual CUT polygons align after shared 3D transform'});debug.append(rec)

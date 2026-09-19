@@ -33,6 +33,19 @@ def helicopter_recipe():
 
 
 class MechanicalRegressionTests(unittest.TestCase):
+    def test_left_and_right_edge_tabs_compile_and_align_in_world_space(self):
+        bridge={'type':'panel','label':'on-kopru','w':50,'h':22,'placement':{'origin':[0,0,10],'u':[1,0,0],'v':[0,1,0]},'tabs':[{'id':'L','x':0,'y':11,'w':3,'h':14},{'id':'R','x':50,'y':11,'w':3,'h':14}]}
+        left={'type':'contour','label':'govde-sol','points':[[0,0],[22,0],[22,30],[0,30]],'placement':{'origin':[-3,0,0],'u':[0,1,0],'v':[0,0,1]},'slots':[{'x':11,'y':11.5,'w':14,'h':3.15,'mate':{'part':'on-kopru','tab':'L'}}]}
+        right={'type':'contour','label':'govde-sag','points':[[0,0],[22,0],[22,30],[0,30]],'placement':{'origin':[50,0,0],'u':[0,1,0],'v':[0,0,1]},'slots':[{'x':11,'y':11.5,'w':14,'h':3.15,'mate':{'part':'on-kopru','tab':'R'}}]}
+        report=check_assembly([bridge,left,right])
+        self.assertTrue(report['ok'],report['look_again'])
+        self.assertEqual(report['tab_slot_pairs'],2)
+        self.assertEqual([row['result'] for row in report['tab_slot_debug']],['PASS','PASS'])
+        from toolbox import _materialize_cut_geometry
+        compiled=_materialize_cut_geometry(bridge)
+        self.assertEqual([round(t['x'],3) for t in compiled['tabs']],[-1.5,51.5])
+        self.assertTrue(all(t['materialized'] for t in compiled['_cut_geometry']['tabs']))
+
     def test_compiler_emits_tab_outer_cut_and_slot_inner_cut(self):
         panel={'type':'panel','label':'panel-a','w':50,'h':22,'tabs':[{'id':'L','x':0,'y':11,'w':3,'h':14}],'slots':[{'x':25,'y':11,'w':14,'h':3.15}]}
         built=render_toolbox([panel],{})
