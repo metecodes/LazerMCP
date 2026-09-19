@@ -518,7 +518,8 @@ def create_design(
     )
 )
 def create_from_reference(
-    image_base64: str,
+    image_base64: str | None = None,
+    image_chunks: list[str] | None = None,
     width_mm: float = 200.0,
     height_mm: float | None = None,
     style: str = "cut_and_etch",
@@ -534,6 +535,13 @@ def create_from_reference(
     parameters: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     try:
+        if not image_base64 and image_chunks:
+            if not all(isinstance(chunk,str) for chunk in image_chunks):raise ValueError('image_chunks must contain base64 strings')
+            image_base64=''.join(image_chunks)
+        if not image_base64:
+            return payas_cad._mcp({'success':False,'ready_to_cut':False,'retryable':True,'error_code':'REFERENCE_IMAGE_MISSING','look_again':['Reference image did not reach LaserMCP. Retry with image_base64 or split the same base64 into image_chunks. For PLT/SVG use compose_source_sheet.']})
+        if len(image_base64)>16_000_000:
+            return payas_cad._mcp({'success':False,'ready_to_cut':False,'retryable':True,'error_code':'REFERENCE_PAYLOAD_TOO_LARGE','look_again':['Reference payload exceeds 16 MB base64. Resize without changing aspect ratio or use the original SVG/PLT with compose_source_sheet.']})
         return payas_cad.create_from_reference(
             image_base64=image_base64,
             width_mm=width_mm,
@@ -556,6 +564,8 @@ def create_from_reference(
             {
                 "success": False,
                 "ready_to_cut": False,
+                "retryable": True,
+                "error_code": "REFERENCE_TRANSFER_OR_DECODE_FAILED",
                 "hint": (
                     "Compress the photo to ~1200px JPEG and retry. "
                     "This tool only traces 2D artwork. For a mill/house/model, call plan_laser_job "
@@ -590,16 +600,22 @@ def search_joint_templates(query: str, limit: int = 5) -> dict[str, Any]:
     return search(query, limit)
 
 
-@mcp.tool(description="Create a first-class Arial-compatible text object. Production composition converts it to vector paths; Turkish text is supported.")
-def create_text(content: str, parent_part_id: str | None = None, font_size: float = 6, placement: str = "center", operation: str = "ENGRAVE") -> dict[str, Any]:
+@mcp.tool(description="Create editable Arial-compatible text. auto_fit measures real outlines and shrinks within max_width/max_height or the part safe area, but never below min_font_size.")
+def create_text(content: str, parent_part_id: str | None = None, font_size: float = 6, placement: str = "center", operation: str = "ENGRAVE", max_width: float | None = None, max_height: float | None = None, min_font_size: float = 1.5, font_weight: str = "normal", letter_spacing: float = 0) -> dict[str, Any]:
     from semantic_cad import create_text as create
-    return create(content,parent_part_id=parent_part_id,font_size=font_size,placement=placement,operation=operation)
+    return create(content,parent_part_id=parent_part_id,font_size=font_size,placement=placement,operation=operation,max_width=max_width,max_height=max_height,min_font_size=min_font_size,font_weight=font_weight,letter_spacing=letter_spacing,auto_fit=True)
 
 
 @mcp.tool(description="Create a product-neutral vector graphic object. Logos/icons/illustrations default to ENGRAVE and require real SVG path data.")
 def create_vector_graphic(d: str, parent_part_id: str | None = None, graphic_type: str = "illustration", placement: str = "center", operation: str = "ENGRAVE") -> dict[str, Any]:
     from semantic_cad import create_vector_graphic as create
     return create(d,parent_part_id=parent_part_id,graphic_type=graphic_type,placement=placement,operation=operation)
+
+
+@mcp.tool(description="Create an editable engraving object from the supplied PNG/JPEG/WebP. exact mode preserves fine contours up to 3000 px; crop, size and placement remain editable.")
+def create_image_reference(image_base64: str, parent_part_id: str | None = None, width: float = 30, height: float | None = None, placement: str = "center", trace_quality: str = "exact", crop: list[float] | None = None, foreground: str = "auto") -> dict[str, Any]:
+    from semantic_cad import create_image_reference as create
+    return create(image_base64,parent_part_id=parent_part_id,width=width,height=height or 0,placement=placement,trace_quality=trace_quality,crop=crop or [],foreground=foreground)
 
 
 @mcp.tool(description="Create a reusable native vector icon (arrow, circle, cross, heart, plus, square, star, triangle or x); defaults to ENGRAVE.")
@@ -683,6 +699,33 @@ def compute_safe_design_area(svg: str, part_id: str, safe_margin: float = 3, mec
 def compose_design(svg: str, elements: list[dict[str, Any]], safe_margin: float = 3, mechanical_clearance: float = 1, duplicate_policy: str = "replace") -> dict[str, Any]:
     from semantic_cad import compose_design as compose
     return compose(svg,elements,safe_margin,mechanical_clearance,duplicate_policy)
+
+
+@mcp.tool(description="Build one persisted sheet from exactly one real geometry source (SVG, PLT/HPGL or primitives), then add editable text/logo/decor objects and export matching SVG+DXF. CUT remains red; ENGRAVE remains yellow. No raster re-measurement of SVG/PLT.")
+def compose_source_sheet(elements: list[dict[str, Any]], svg: str | None = None, plt: str | None = None, plt_base64: str | None = None, primitives: list[dict[str, Any]] | None = None, parameters: dict[str, Any] | None = None, safe_margin: float = 3, mechanical_clearance: float = 1) -> dict[str, Any]:
+    from design_engine import compile_design,import_svg_document
+    sources=sum(value is not None for value in (svg,plt,plt_base64,primitives))
+    if sources!=1:return payas_cad._mcp({'success':False,'ready_to_cut':False,'error_code':'SOURCE_COUNT_INVALID','look_again':['Pass exactly one source: svg, plt, plt_base64 or primitives.']})
+    try:
+        params=dict(parameters or {})
+        if svg is not None:built=import_svg_document(svg,params)
+        elif plt is not None or plt_base64 is not None:
+            import base64 as _base64
+            from plt_import import import_plt_document,MAX_BYTES
+            if plt_base64 is not None:
+                if len(plt_base64)>MAX_BYTES*4//3+4:raise ValueError('PLT payload is too large')
+                plt=_base64.b64decode(plt_base64,validate=True).decode('ascii')
+            built=import_plt_document(plt,params)
+        else:built=compile_design(primitives=primitives,parameters=params)
+        from semantic_cad import compose_design as compose
+        composed=compose(built['svg_bytes'].decode(),elements,safe_margin,mechanical_clearance)
+        if not composed['success']:return payas_cad._mcp({'success':False,'ready_to_cut':False,'error_code':'COMPOSITION_INVALID','composition':composed['validation'],'look_again':[i['note'] for i in composed['issues'] if i['status']=='FAIL']})
+        params['format']='both';params['reference_single_sheet']=True
+        result=payas_cad.create_design(svg=composed['svg'],parameters=params,public_base_url=_tool_public_base())
+        result['composition']=composed['validation'];result['single_sheet']=True
+        return result
+    except Exception as exc:
+        return payas_cad._mcp({'success':False,'ready_to_cut':False,'retryable':True,'error_code':'SOURCE_COMPOSITION_FAILED','look_again':[str(exc)]})
 
 
 @mcp.tool(description="Validate semantic text/graphics against parent-part safe areas, mechanical cuts, duplicates, size and UNKNOWN operations.")

@@ -8,8 +8,8 @@ from PIL import Image, ImageOps
 from shapely.geometry import MultiLineString
 from image_trace import _decode_image, _otsu, _marching_segments, _stitch
 
-@lru_cache(maxsize=2)
-def _trace(encoded, crop, foreground, threshold, ink_color):
+@lru_cache(maxsize=4)
+def _trace(encoded, crop, foreground, threshold, ink_color, trace_quality):
     if len(encoded) > 16_000_000:
         raise ValueError('Image base64 exceeds allowed size')
     raw = encoded.split(',',1)[1] if encoded.startswith('data:') else encoded
@@ -26,7 +26,10 @@ def _trace(encoded, crop, foreground, threshold, ink_color):
         image = image.crop((int(crop[0]*image.width),int(crop[1]*image.height),int(crop[2]*image.width),int(crop[3]*image.height)))
     if min(image.size) < 2:
         raise ValueError('Image crop is empty or too small')
-    image.thumbnail((1400,1400),Image.Resampling.LANCZOS)
+    if trace_quality not in {'exact','balanced'}:
+        raise ValueError('trace_quality must be exact or balanced')
+    limit=3000 if trace_quality=='exact' else 1400
+    image.thumbnail((limit,limit),Image.Resampling.LANCZOS)
     alpha = np.asarray(image.convert('RGBA'))[:,:,3]
     transparent = float((alpha < 16).mean()) > .1
     array = alpha if transparent else np.asarray(ImageOps.grayscale(image.convert('RGB')))
@@ -53,7 +56,7 @@ def _trace(encoded, crop, foreground, threshold, ink_color):
     if not 0 < float(mask.mean()) < .85:
         raise ValueError('No usable foreground; crop the logo or select light/dark')
     lines = _stitch(_marching_segments(mask.astype(np.uint8)))
-    if not lines or sum(len(line) for line in lines) > 200000:
+    if not lines or sum(len(line) for line in lines) > (500000 if trace_quality=='exact' else 200000):
         raise ValueError('Artwork is empty or too complex; crop or resize it')
     # Image Y-down to part-local Y-up; keep all separate contours and fine details.
     return MultiLineString([[(x,-y) for x,y in line] for line in lines])
@@ -63,4 +66,4 @@ def image_geometry(mark):
     if not isinstance(encoded,str) or not encoded:
         raise ValueError('Image marking requires image_base64 (PNG/JPEG/WebP or data URL)')
     crop = tuple(float(v) for v in mark.get('crop', []))
-    return _trace(encoded,crop,str(mark.get('foreground','auto')).lower(),mark.get('threshold'),str(mark.get('ink_color','')).lower())
+    return _trace(encoded,crop,str(mark.get('foreground','auto')).lower(),mark.get('threshold'),str(mark.get('ink_color','')).lower(),str(mark.get('trace_quality','exact')).lower())

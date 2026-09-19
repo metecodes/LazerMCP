@@ -9,6 +9,19 @@ SVG='''<svg xmlns="http://www.w3.org/2000/svg" width="120mm" height="120mm" view
 <path id="HOLE_3" data-operation="CUT" data-operation-origin="EXPLICIT" data-semantic-role="hole" d="M88 55 L92 55 L92 59 L88 59 Z"/></g></svg>'''
 
 class SemanticCadTests(unittest.TestCase):
+    def test_long_text_auto_fits_target_box_and_reports_effective_size(self):
+        item=create_text('UZUN TRAFİK POLİSİ BAŞLIĞI',parent_part_id='PART_A',font_size=12,max_width=75,min_font_size=2,target_box={'x':10,'y':85,'width':80,'height':15})
+        out=compose_design(SVG,[item])
+        self.assertTrue(out['success'],out['issues'])
+        placed=out['objects'][0]
+        self.assertLessEqual(placed['bounds'][2]-placed['bounds'][0],75.01)
+        self.assertGreaterEqual(placed['effective_font_size'],2)
+
+    def test_text_fit_fails_instead_of_becoming_unreadable(self):
+        item=create_text('ÇOK UZUN METİN',parent_part_id='PART_A',font_size=12,max_width=2,min_font_size=5)
+        out=compose_design(SVG,[item])
+        self.assertFalse(out['success'])
+        self.assertIn('minimum font size',str(out['issues']))
     def test_detects_part_features_and_safe_area(self):
         doc=inspect_design(SVG);self.assertEqual(len(doc['parts']),1);self.assertEqual(len(doc['parts'][0]['feature_ids']),3)
         safe=compute_safe_design_area(SVG,'PART_A',5,2);self.assertEqual(safe['bounds'],[15.0,15.0,105.0,105.0]);self.assertLess(safe['area'],8100)

@@ -27,6 +27,10 @@ def create_vector_graphic(d=None, **kw):
     explicit='position' in kw
     role=kw.pop('semantic_role',kw.pop('graphic_type','illustration'))
     return {'id':kw.pop('id',_id('GFX')),'type':'graphic','d':d,'points':kw.pop('points',None),'semantic_role':role,'operation':kw.pop('operation','ENGRAVE'),'position':kw.pop('position',{'x':0,'y':0}),'_position_explicit':explicit,'size':kw.pop('size',{'width':0,'height':0}),'rotation':float(kw.pop('rotation',0)),'parent_part_id':kw.pop('parent_part_id',None),'source':kw.pop('source','native_vector'),'locked':bool(kw.pop('locked',False)),**kw}
+def create_image_reference(image_base64, **kw):
+    if not isinstance(image_base64,str) or not image_base64:raise ValueError('image_base64 is required')
+    explicit='position' in kw
+    return {'id':kw.pop('id',_id('GFX')),'type':'image_reference','image_base64':image_base64,'semantic_role':kw.pop('semantic_role','illustration'),'operation':'ENGRAVE','position':kw.pop('position',{'x':0,'y':0}),'_position_explicit':explicit,'size':kw.pop('size',{'width':kw.pop('width',0),'height':kw.pop('height',0)}),'rotation':float(kw.pop('rotation',0)),'parent_part_id':kw.pop('parent_part_id',None),'source':kw.pop('source','reference_image'),'locked':bool(kw.pop('locked',False)),'trace_quality':kw.pop('trace_quality','exact'),'crop':kw.pop('crop',[]),'foreground':kw.pop('foreground','auto'),**kw}
 def import_svg_graphic(svg, **kw):
     from design_engine import import_svg_document
     built=import_svg_document(svg,{'svg_default_operation':'ENGRAVE'});doc=inspect_design(built['svg_bytes'])
@@ -162,17 +166,31 @@ def _element_geom(item):
             if geom is not None:bits.append(geom)
         geom=unary_union(bits) if bits else None
     elif typ in {'graphic','image_reference'}:
-        mark={'kind':'image' if typ=='image_reference' else 'path','d':item.get('d'),'points':item.get('points'),'image_base64':item.get('image_base64'),'crop':item.get('crop',[]),'ink_color':item.get('ink_color',''),'width':item.get('size',{}).get('width') or item.get('width'),'height':item.get('size',{}).get('height') or item.get('height'),'x':0,'y':0,'operation':'engrave'}
+        mark={'kind':'image' if typ=='image_reference' else 'path','d':item.get('d'),'points':item.get('points'),'image_base64':item.get('image_base64'),'crop':item.get('crop',[]),'ink_color':item.get('ink_color',''),'foreground':item.get('foreground','auto'),'threshold':item.get('threshold'),'trace_quality':item.get('trace_quality','exact'),'width':item.get('size',{}).get('width') or item.get('width'),'height':item.get('size',{}).get('height') or item.get('height'),'x':0,'y':0,'operation':'engrave'}
         geom=marking_geom(mark)
     else:raise ValueError(f'unsupported semantic object: {typ}')
     if geom is None or geom.is_empty:raise ValueError('element has no vector geometry')
     return geom
 def _placed(item,safe,features):
-    geom=_element_geom(item);placement=item.get('placement','center');minx,miny,maxx,maxy=safe.bounds
+    geom=_element_geom(item);placement=item.get('placement','center');zone=safe
+    region=item.get('target_box') or item.get('region')
+    if region:
+        if isinstance(region,dict):rx,ry,rw,rh=map(float,(region.get('x',0),region.get('y',0),region.get('width',0),region.get('height',0)))
+        elif len(region)==4:rx,ry,rw,rh=map(float,region)
+        else:raise ValueError('target_box must be {x,y,width,height} or [x,y,width,height]')
+        if rw<=0 or rh<=0:raise ValueError('target_box width and height must be positive')
+        zone=safe.intersection(box(rx,ry,rx+rw,ry+rh))
+        if zone.is_empty:raise ValueError('target_box does not intersect safe design area')
+    minx,miny,maxx,maxy=zone.bounds;scale_factor=1.0
     wanted=item.get('size') or {}
     if wanted.get('width') or wanted.get('height'):
         gb=geom.bounds;ratio=min(float(wanted.get('width') or 1e99)/max(gb[2]-gb[0],1e-9),float(wanted.get('height') or 1e99)/max(gb[3]-gb[1],1e-9))
-        geom=scale(geom,xfact=ratio,yfact=ratio,origin='centroid')
+        geom=scale(geom,xfact=ratio,yfact=ratio,origin='centroid');scale_factor*=ratio
+    if item.get('type')=='text' and item.get('auto_fit',True):
+        gb=geom.bounds;fit_w=float(item.get('max_width') or (maxx-minx));fit_h=float(item.get('max_height') or (maxy-miny));ratio=min(1.0,fit_w/max(gb[2]-gb[0],1e-9),fit_h/max(gb[3]-gb[1],1e-9))
+        effective=float(item.get('font_size',6))*scale_factor*ratio
+        if effective<float(item.get('min_font_size',1.5)):raise ValueError(f'text cannot fit target area above minimum font size {item.get("min_font_size",1.5)} mm')
+        if ratio<1:geom=scale(geom,xfact=ratio,yfact=ratio,origin='centroid');scale_factor*=ratio
     gb=geom.bounds;hw=(gb[2]-gb[0])/2;hh=(gb[3]-gb[1])/2
     anchors={'center':((minx+maxx)/2,(miny+maxy)/2),'top_center':((minx+maxx)/2,maxy-hh),'bottom_center':((minx+maxx)/2,miny+hh),'bottom_left':(minx+hw,miny+hh),'bottom_right':(maxx-hw,miny+hh),'top_left':(minx+hw,maxy-hh),'top_right':(maxx-hw,maxy-hh)}
     constraints=item.get('constraints') or []
@@ -188,12 +206,14 @@ def _placed(item,safe,features):
     gb=geom.bounds;geom=translate(geom,target[0]-(gb[0]+gb[2])/2,target[1]-(gb[1]+gb[3])/2)
     if item.get('rotation'):geom=rotate(geom,float(item['rotation']),origin='centroid')
     attempts=0
-    while attempts<5 and not safe.covers(geom):
+    while attempts<5 and not zone.covers(geom):
         ratio=min((maxx-minx)/max(geom.bounds[2]-geom.bounds[0],1e-6),(maxy-miny)/max(geom.bounds[3]-geom.bounds[1],1e-6),.85)
         geom=scale(geom,xfact=ratio,yfact=ratio,origin='centroid')
-        zone=max((list(safe.geoms) if hasattr(safe,'geoms') else [safe]),key=lambda g:g.area);p=polylabel(zone,tolerance=.25)
+        scale_factor*=ratio
+        fit_zone=max((list(zone.geoms) if hasattr(zone,'geoms') else [zone]),key=lambda g:g.area);p=polylabel(fit_zone,tolerance=.25)
         geom=translate(geom,p.x-geom.centroid.x,p.y-geom.centroid.y);attempts+=1
-    return geom,attempts
+    if item.get('type')=='text' and float(item.get('font_size',6))*scale_factor<float(item.get('min_font_size',1.5)):raise ValueError('automatic fitting would make text smaller than min_font_size')
+    return geom,attempts,scale_factor
 def _signature(item,geom):return (item.get('type'),str(item.get('content','')).casefold().strip(),item.get('parent_part_id'),tuple(round(v,1) for v in geom.bounds))
 def compose_design(svg,elements,safe_margin=3,mechanical_clearance=1,duplicate_policy='replace'):
     if not isinstance(elements,list) or not elements:raise ValueError('elements required')
@@ -206,7 +226,9 @@ def compose_design(svg,elements,safe_margin=3,mechanical_clearance=1,duplicate_p
         item=copy.deepcopy(raw);item.setdefault('id',_id('TXT' if item.get('type')=='text' else 'GFX'));item.setdefault('operation','ENGRAVE');item.setdefault('semantic_role','text' if item.get('type')=='text' else 'illustration');item.setdefault('locked',False);item.setdefault('source','composition')
         if item['operation']!='ENGRAVE':issues.append({'status':'FAIL','object_id':item['id'],'note':'composition text/graphics must explicitly use ENGRAVE'});continue
         pid=item.get('parent_part_id');safe_info=compute_safe_design_area(svg,pid,safe_margin,mechanical_clearance);safe=safe_info['_geom'];features=[(o['id'],o['_geom']) for o in safe_info['document']['_objects'] if o['parent_part_id']==pid and o['semantic_role']=='cut_feature']
-        geom,attempts=_placed(item,safe,features);sig=_signature(item,geom)
+        try:geom,attempts,scale_factor=_placed(item,safe,features)
+        except ValueError as exc:issues.append({'status':'FAIL','object_id':item['id'],'note':str(exc)});continue
+        sig=_signature(item,geom)
         if sig in existing:
             if duplicate_policy=='ask':issues.append({'status':'WARNING','object_id':item['id'],'note':'semantic duplicate skipped; choose replace to overwrite'});continue
             oldid=existing[sig]
@@ -218,7 +240,7 @@ def compose_design(svg,elements,safe_margin=3,mechanical_clearance=1,duplicate_p
         svggeom=affine_transform(geom,[1,0,0,-1,0,height]);fragment=ET.fromstring('<svg xmlns="http://www.w3.org/2000/svg">'+_emit(svggeom,'#FFFF00',.15)+'</svg>')
         for path in fragment:
             path.set('data-object-id',item['id']);path.set('data-object-type',item['type']);path.set('data-parent-part-id',pid);path.set('data-semantic-role',item['semantic_role']);path.set('data-operation','ENGRAVE');path.set('data-operation-origin','EXPLICIT');path.set('data-source',item['source']);path.set('data-locked',str(bool(item['locked'])).lower());path.set('data-content',item.get('content',''));group.append(path)
-        added.append({**item,'bounds':list(geom.bounds),'repair_attempts':attempts})
+        added.append({**item,'bounds':list(geom.bounds),'repair_attempts':attempts,'effective_font_size':float(item.get('font_size',0))*scale_factor if item.get('type')=='text' else None,'scale_factor':scale_factor})
     raw=ET.tostring(root,encoding='utf-8',xml_declaration=True);final,manufacturing=finish_manufacturing_svg(raw)
     validation=validate_composition(final,safe_margin,mechanical_clearance)
     return {'success':not any(x['status']=='FAIL' for x in issues+validation['issues']),'svg':final.decode(),'objects':added,'issues':issues+validation['issues'],'manufacturing':manufacturing,'validation':validation}

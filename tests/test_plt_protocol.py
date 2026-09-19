@@ -15,10 +15,12 @@ class PLTProtocolTests(unittest.TestCase):
    self.assertIn('result',init.json())
    schema=client.post('/mcp',headers=headers,json={'jsonrpc':'2.0','id':2,'method':'tools/list'}).json()
    design=next(t for t in schema['result']['tools'] if t['name']=='create_design')
-   self.assertTrue({'create_text','create_vector_graphic','inspect_design','compute_safe_design_area','compose_design','validate_composition','repair_composition','export_composed_dxf'}.issubset({t['name'] for t in schema['result']['tools']}))
+   self.assertTrue({'create_text','create_vector_graphic','create_image_reference','inspect_design','compute_safe_design_area','compose_design','compose_source_sheet','validate_composition','repair_composition','export_composed_dxf'}.issubset({t['name'] for t in schema['result']['tools']}))
+   response=client.post('/mcp',headers=headers,json={'jsonrpc':'2.0','id':9,'method':'tools/call','params':{'name':'create_from_reference','arguments':{}}})
+   import json
+   missing=json.loads(response.json()['result']['content'][0]['text']);self.assertEqual(missing['error_code'],'REFERENCE_IMAGE_MISSING');self.assertTrue(missing['retryable'])
    self.assertTrue(any(t['name']=='search_joint_templates' for t in schema['result']['tools']))
    self.assertIn('plt',design['inputSchema']['properties']);self.assertIn('plt_base64',design['inputSchema']['properties'])
-   import json
    for i,source,expected in [(3,'IN;SP1;PU0,0;PD400,0,400,400,0,400,0,0;PU;',True),(4,'PU0,0;PD400,0;PE;',False)]:
     response=client.post('/mcp',headers=headers,json={'jsonrpc':'2.0','id':i,'method':'tools/call','params':{'name':'create_design','arguments':{'plt':source}}})
     self.assertEqual(response.status_code,200)

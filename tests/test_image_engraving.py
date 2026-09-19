@@ -54,3 +54,4 @@ class ImageEngravingTests(unittest.TestCase):
     def test_bad_inputs_and_cut_rejected(self):
         for extra in [{'crop':[.8,0,.2,1]},{'operation':'cut'},{'foreground':'nonsense'}]:
             with self.assertRaises(ValueError):marking_geom({'kind':'image','image_base64':sample('white','black'),'width':30,**extra})
+        with self.assertRaises(ValueError):marking_geom({'kind':'image','image_base64':sample('white','black'),'width':30,'trace_quality':'lossy'})

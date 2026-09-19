@@ -119,4 +119,11 @@ class EditorRouteTests(unittest.IsolatedAsyncioTestCase):
         from server import BRAND_FILES
         self.assertEqual(BRAND_FILES['/editor.js'][0], 'editor.js')
 
+    async def test_editor_zoom_keeps_pointer_focus_and_supports_wheel(self):
+        from pathlib import Path
+        script=Path(__file__).parents[1].joinpath('web','editor.js').read_text(encoding='utf-8')
+        self.assertIn("addEventListener('wheel'",script)
+        self.assertIn('matrixTransform(matrix.inverse())',script)
+        self.assertNotIn("if(state.assembledMode||state.tool==='place'",script)
+
 if __name__=='__main__': unittest.main()
