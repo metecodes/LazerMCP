@@ -62,9 +62,14 @@ def validate(parts,t):
             if not poly.contains(Point(float(hole['x']),float(hole['y'])).buffer(float(hole.get('d',0))/2)):
                 errors.append(f"hole on {p.get('label')} leaves its actual outline")
         for s in p.get('slots') or []:
-            rec={'connection':f'C{len(debug)+1:02d}','tab_part':None,'tab_id':None,'slot_part':p.get('label'),'result':'FAIL'}
+            rec={'connection':f'C{len(debug)+1:02d}','tab_part':None,'tab_id':None,'slot_part':p.get('label'),'result':'FAIL',
+                 'world_center':{'tab':None,'slot':None},'world_normal':{'tab':None,'slot':None},'center_delta':None}
             x,y,w,h=[float(s.get(k) or 0) for k in ('x','y','w','h')]
             rec['slot_local_bbox']=[x-w/2,y-h/2,x+w/2,y+h/2]
+            try:
+                pose=p.get('placement') or {};u,v=pose['u'],pose['v'];slot_n=[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]]
+                rec['world_center']['slot']=world(p,x,y,t/2);rec['world_normal']['slot']=slot_n
+            except (KeyError,TypeError,ValueError):pass
             if w<=0 or h<=0 or not poly.contains(box(x-w/2,y-h/2,x+w/2,y+h/2)):
                 rec['reason']='slot leaves its actual outline';debug.append(rec);errors.append(f"slot on {p.get('label')} leaves its actual outline");continue
             edge_clearance=float(s.get('edge_clearance_mm') or 1.0)
@@ -81,6 +86,12 @@ def validate(parts,t):
                 rec['reason']='no explicit matching tab';debug.append(rec);errors.append(f"slot on {p.get('label')} has no explicit matching tab"); continue
             tx,ty,tw,th=[float(tab.get(k) or 0) for k in ('x','y','w','h')]
             rec['tab_local_bbox']=[tx-tw/2,ty-th/2,tx+tw/2,ty+th/2]
+            try:
+                other_pose=other.get('placement') or {};ou,ov=other_pose['u'],other_pose['v'];tab_n=[ou[1]*ov[2]-ou[2]*ov[1],ou[2]*ov[0]-ou[0]*ov[2],ou[0]*ov[1]-ou[1]*ov[0]]
+                rec['world_center']['tab']=world(other,tx,ty,t/2);rec['world_normal']['tab']=tab_n
+                if rec['world_center']['slot'] is not None:
+                    rec['center_delta']=math.sqrt(sum((rec['world_center']['tab'][i]-rec['world_center']['slot'][i])**2 for i in range(3)))
+            except (KeyError,TypeError,ValueError):pass
             op=Polygon(outline(other)); tab_box=box(tx-tw/2,ty-th/2,tx+tw/2,ty+th/2)
             compiled_tab=next((row for row in (other.get('_cut_geometry') or {}).get('tabs') or [] if str(row.get('id') or '')==str(mate.get('tab') or '')),None)
             if str(other.get('operation') or 'CUT').upper() != 'CUT' or not compiled_tab or not compiled_tab.get('materialized') or not op.is_valid or not _tab_on_outer_cut(op,tab_box,tw,th):
@@ -109,6 +120,7 @@ def validate(parts,t):
                 angular=math.degrees(math.asin(min(1,abs(sum(float(a)*float(b) for a,b in zip(n,other_n))))))
                 in_plane_delta=math.hypot(centers[0]-x,centers[1]-y)
                 rec.update({'tab_local_center':[tx,ty],'tab_world_center':tab_center,'tab_world_normal':other_n,'slot_local_center':[x,y],'slot_world_center':slot_center,'slot_world_normal':n,'tab_world_bbox':bbox(world_tab),'slot_world_bbox':bbox(world_slot),'center_delta_mm':center_delta,'center_distance_mm':in_plane_delta,'center_distance_in_slot_plane_mm':in_plane_delta,'angular_error_deg':angular,'tab_dimensions_mm':[tw,th],'slot_dimensions_mm':[w,h],'material_thickness_mm':t,'thickness_clearance_mm':min(expected_sizes)-min(sizes),'insertion_depth_mm':max(depths)-min(depths)})
+                rec.update({'world_center':{'tab':tab_center,'slot':slot_center},'world_normal':{'tab':other_n,'slot':n},'center_delta':center_delta})
                 if not perpendicular or not fitted or min(depths)>.05 or max(depths)<t-.05:
                     rec['reason']='orientation, position, thickness clearance or insertion depth mismatch';debug.append(rec);errors.append(f"tab {mate.get('part')}.{mate.get('tab')} does not align with {p.get('label')} slot"); continue
                 rec.update({'result':'PASS','reason':'actual CUT polygons align after shared 3D transform'});debug.append(rec)

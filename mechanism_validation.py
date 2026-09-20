@@ -19,7 +19,14 @@ def validate(primitives,parameters,thickness=3.0):
         hw_id=str((conn or {}).get('shaft') or (conn or {}).get('hardware') or ((part.get('mechanism') or {}).get('shaft') if isinstance(part.get('mechanism'),dict) else '') or '')
         shaft=hardware.get(hw_id)
         row={'part':label,'type':kind,'validator':{'wheel':'validateWheel','road_roller_drum':'validateRollerDrum','gear':'validateGear','pulley':'validatePulley','disc':'validateStaticDiscOrExplicitMotion','flywheel':'validateFlywheel'}.get(kind,'validateMechanism')}
-        if not conn or not shaft:row.update(status='FAIL',reason='SHAFT_CONNECTION_MISSING');rows.append(row);continue
+        if not conn or not shaft:
+            expected_id=hw_id or f'{label}-shaft'
+            row.update(status='FAIL',reason='SHAFT_CONNECTION_MISSING',missing=['parameters.connections[]' if not conn else None,'parameters.hardware[]' if not shaft else None],expected_connection_schema={
+                'connection':{'type':'shaft_rotation','shaft':expected_id,'driven_part':label,'hardware_clearance':0.15,'required_length':'number_mm','allowed_contact_parts':[]},
+                'hardware':{'id':expected_id,'type':'shaft','diameter':'number_mm','axis':['x','y','z'],'origin':['x_mm','y_mm','z_mm'],'length':'number_mm'},
+                'required_connection_fields':['type','shaft','driven_part'],
+                'required_hardware_fields':['id','type','diameter','axis','origin','length']})
+            row['missing']=[v for v in row['missing'] if v];rows.append(row);continue
         pose=part.get('placement');origin=shaft.get('origin') or shaft.get('shaft_origin');axis=shaft.get('axis') or shaft.get('shaft_axis')
         if not pose or not isinstance(origin,list) or not isinstance(axis,list):row.update(status='NOT_VERIFIED',reason='PLACEMENT_OR_SHAFT_AXIS_MISSING');rows.append(row);continue
         direction=_unit(axis);normal=_unit(_cross(pose['u'],pose['v']));center=pose['origin'];q=[float(center[i])-float(origin[i]) for i in range(3)];distance=math.sqrt(sum(x*x for x in _cross(q,direction))) if direction else 1e9;angle=math.degrees(math.acos(min(1,abs(sum(a*b for a,b in zip(direction or [0,0,0],normal or [0,0,0])))))) if direction and normal else 180

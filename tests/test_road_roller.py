@@ -29,6 +29,9 @@ class RoadRollerTests(unittest.TestCase):
     def test_road_roller_without_shaft_fails(self):
         report=validate([rotating_part('drum'),chassis()],{},3)
         self.assertEqual(report['checks'][0]['reason'],'SHAFT_CONNECTION_MISSING')
+        schema=report['checks'][0]['expected_connection_schema']
+        self.assertEqual(schema['connection']['type'],'shaft_rotation');self.assertEqual(schema['connection']['driven_part'],'drum')
+        self.assertEqual(schema['hardware']['type'],'shaft')
 
     def test_road_roller_misaligned_shaft_fails_coaxiality(self):
         report=validate([rotating_part('drum'),chassis()],params([0,10,0]),3)
@@ -67,6 +70,9 @@ class RoadRollerTests(unittest.TestCase):
         report=check_assembly([bridge,side])
         self.assertFalse(report['ok']);self.assertEqual(report['tab_slot_pairs'],0)
         self.assertGreater(report['tab_slot_debug'][0]['center_delta_mm'],90)
+        failed=report['tab_slot_debug'][0]
+        self.assertIn('world_center',failed);self.assertIn('world_normal',failed);self.assertIn('center_delta',failed)
+        self.assertEqual(failed['center_delta'],failed['center_delta_mm'])
 
     def test_matching_world_geometry_passes(self):
         bridge=_materialize_cut_geometry({'type':'panel','label':'bridge','w':50,'h':22,'placement':{'origin':[0,0,10],'u':[1,0,0],'v':[0,1,0]},'tabs':[{'id':'L','x':0,'y':11,'w':3,'h':14}]})
@@ -93,6 +99,11 @@ class RoadRollerTests(unittest.TestCase):
         drum={'type':'disc','label':'prop-looking drum','blades':12,'mechanism':{'type':'road_roller_drum','rotating':True}}
         repaired,actions=repair_primitives([drum])
         self.assertEqual(repaired[0]['type'],'disc');self.assertFalse(any(a.get('fix')=='disc_to_propeller' for a in actions))
+
+    def test_legacy_propeller_primitive_is_suppressed_by_explicit_wheel(self):
+        from assembly import expand_faces
+        part={'type':'propeller','label':'legacy rotor','d':40,'hole':4.15,'mechanism':{'type':'wheel','rotating':True}}
+        self.assertEqual(expand_faces([part])[0]['kind'],'disc')
 
 
 if __name__=='__main__':unittest.main()
