@@ -44,10 +44,13 @@ def check_reference_fidelity(parameters:dict[str,Any]|None,primitives:list[Any]|
         return {'active':True,'fidelity':[{'status':NOT_VERIFIED,'note':note}],'outer_cut':[{'status':NOT_VERIFIED,'note':'reference structural silhouettes were not supplied'}],'part_mapping':[{'status':NOT_VERIFIED,'note':note}],'mapping':[]}
     generated=[p for p in (primitives or []) if isinstance(p,dict)]
     by_label={_name(p.get('label')):p for p in generated if p.get('label')}
-    mapping=[];map_checks=[];outer=[];used=set()
+    mapping=[];map_checks=[];outer=[];used=set();reference_ids=set()
     for index,ref in enumerate(refs,1):
         if not isinstance(ref,dict):map_checks.append({'status':FAIL,'note':f'reference part {index} is not an object'});continue
         refname=str(ref.get('reference_part') or ref.get('name') or f'reference-{index}');target=str(ref.get('generated_part') or '')
+        refid=_name(ref.get('id') or refname)
+        if not refid or refid in reference_ids:map_checks.append({'status':FAIL,'note':f'{refname}: reference physical part ID must be unique'});continue
+        reference_ids.add(refid)
         hit=by_label.get(_name(target or refname))
         if not hit:map_checks.append({'status':FAIL,'note':f'{refname}: no generated_part mapping'});continue
         label=str(hit.get('label'));key=_name(label)

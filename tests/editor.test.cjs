@@ -13,7 +13,7 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
   const url=new URL(route.request().url());
   if(url.hostname!=='editor.test')return route.abort();
   if(url.pathname.endsWith('/preview')){submitted=route.request().postDataJSON();return route.fulfill({json:fixture.preview});}
-  if(url.pathname.endsWith('/save')){submitted=route.request().postDataJSON();fixture.meta.primitives=submitted.primitives;fixture.meta.parameters=submitted.parameters;fixture.meta.version++;return route.fulfill({json:{success:true,file_id:'saved.svg'}});}
+  if(url.pathname.endsWith('/save')){submitted=route.request().postDataJSON();fixture.meta.primitives=submitted.primitives;fixture.meta.parameters=submitted.parameters;fixture.meta.version++;fixture.meta.dxf_id='saved.dxf';return route.fulfill({json:{success:true,file_id:'saved.svg',dxf_id:'saved.dxf'}});}
   if(url.pathname.endsWith('/history'))return route.fulfill({json:{success:true,versions:[{n:1,primitives:fixture.meta.primitives,parameters:fixture.meta.parameters}]}});
   if(url.pathname.startsWith('/api/editor/'))return route.fulfill({json:fixture.meta});
   if(url.pathname.startsWith('/files/'))return route.fulfill({contentType:'image/svg+xml',body:fixture.preview.svg});
@@ -31,13 +31,15 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
  await page.click('#validate');await page.waitForFunction(()=>document.querySelector('#save-state').textContent!=='İşleniyor…');assert.equal(submitted.primitives[0].slots.at(-1).x,30);
  await page.click('#place-hole');await page.locator('#canvas svg').click();assert(Number(await page.inputValue('#hole-x'))>0);
  await page.click('#zoom-in');assert.equal(await page.locator('#zoom').innerText(),'125%');await page.click('#fit');
+ await page.click('#measure-tool');const svgBox=await page.locator('#canvas svg').boundingBox();await page.mouse.click(svgBox.x+80,svgBox.y+80);await page.mouse.click(svgBox.x+220,svgBox.y+80);assert.match(await page.locator('#measure-output').innerText(),/mm/);assert.equal(await page.locator('[data-measurement] line').count(),1);await page.click('#clear-measure');assert.equal(await page.locator('[data-measurement]').count(),0);
  await page.click('#add-part');await page.fill('#new-name','Yeni panel');await page.click('#new-part-form button[type=submit], #new-part-form .cut');assert.equal(await page.locator('.part').count(),3);
  await page.click('#connections-tab');await page.selectOption('#connection-a',fixture.meta.primitives[0].label);await page.selectOption('#connection-b','Destek');await page.click('#connect');assert.match(await page.locator('#note').innerText(),/eşleşmiyor/);
  await page.click('#properties-tab');await page.selectOption('#part','0');await page.fill('#width','120');await page.click('#apply');await page.click('#connections-tab');await page.click('#connect');assert.equal(await page.locator('.connection-row').count(),1);
  await page.click('#save');await page.waitForURL('**/edit/saved.svg');await page.waitForFunction(()=>document.querySelector('#save-state').textContent==='Kayıtlı');assert.equal(submitted.parameters.editor_connections.length,1);
- await page.locator('summary').click();await page.click('#history-load');await page.locator('.history-row button').click();
+ assert.equal(await page.locator('#download-dxf').getAttribute('aria-disabled'),'false');assert.match(await page.locator('#download-dxf').getAttribute('href'),/saved\.dxf/);
+ await page.getByText('Sürüm geçmişi',{exact:true}).click();await page.click('#history-load');await page.locator('.history-row button').click();
  for(const width of [1600,768,390]){await page.setViewportSize({width,height:1000});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,`overflow ${width}`);}
  await page.setViewportSize({width:1600,height:1000});await page.click('#properties-tab');await page.screenshot({path:process.env.EDITOR_SCREENSHOT||'editor-preview.png',fullPage:true});
- assert.deepEqual(errors,[]);await browser.close();console.log('PASS: search, lock, dimensions, undo/redo, hole validation, position picker, zoom, new part, connections, save, history, responsive layout');
+ assert.deepEqual(errors,[]);await browser.close();console.log('PASS: editor geometry, snapped measurement, DXF export, save/history and responsive layout');
 })().catch(e=>{console.error(e);process.exit(1);});
 

@@ -3,6 +3,9 @@ import unittest
 from linear_motion import validate
 from topology import inspect_topology
 from nesting import nest_svg
+from dxf_export import svg_bytes_to_dxf
+from dxf_import import dxf_to_svg
+from xml.etree import ElementTree as ET
 
 
 def panel(label, w, h, origin, moving=False):
@@ -39,6 +42,15 @@ class PrecisionValidationTests(unittest.TestCase):
         self.assertLessEqual(info["occupied_mm"][0], 60)
         self.assertLessEqual(info["occupied_mm"][1], 100)
         self.assertIn(b'data-panel="long"', out)
+
+    def test_lasercad_dxf_roundtrip_preserves_mm_layers_and_size(self):
+        svg=b'''<svg xmlns="http://www.w3.org/2000/svg" width="800mm" height="700mm" viewBox="0 0 800 700"><path data-operation="CUT" d="M0 0 L800 0 L800 700 L0 700 Z"/><path data-operation="ENGRAVE" d="M100 100 L200 100"/></svg>'''
+        dxf=svg_bytes_to_dxf(svg).decode('utf-8');restored=ET.fromstring(dxf_to_svg(dxf))
+        self.assertIn('$INSUNITS',dxf);self.assertIn('\n4\n',dxf)
+        groups={g.get('id') for g in restored if g.tag.endswith('g')}
+        self.assertTrue({'CUT','ENGRAVE'}<=groups)
+        vb=[float(x) for x in restored.get('viewBox').split()]
+        self.assertAlmostEqual(vb[2],810,places=2);self.assertAlmostEqual(vb[3],710,places=2)
 
 
 if __name__ == "__main__":

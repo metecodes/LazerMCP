@@ -1,0 +1,11 @@
+{
+  "name": "lasermcp-browser-tests",
+  "private": true,
+  "scripts": {
+    "test:editor": "node tests/editor.test.cjs && node tests/editor_loading.test.cjs",
+    "test:browser": "node tests/editor.test.cjs && node tests/editor_loading.test.cjs && node tests/house_preview.test.cjs && node tests/plt_import.test.cjs"
+  },
+  "devDependencies": {
+    "playwright": "1.63.0"
+  }
+}

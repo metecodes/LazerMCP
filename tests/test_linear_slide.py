@@ -50,6 +50,13 @@ class LinearSlideIntegrationTests(unittest.TestCase):
         self.assertEqual(built['linear_motion']['drives'][0]['status'],'NOT_VERIFIED')
         self.assertEqual(built['final_status'],'BLOCKED')
 
+    def test_removable_slide_reports_remove_install_reinstall_path(self):
+        parts,params=trash_bin();parts[7]['role']='removable';params['connections'][0]['type']='removable_slide'
+        built=review_only(render_toolbox(parts,params));row=built['linear_motion']['slides'][0]
+        self.assertTrue(row['removal_verified']);self.assertTrue(row['reinstall_verified'])
+        self.assertEqual(row['sequence'],['remove','bag_install','reinstall'])
+        self.assertEqual([p['ratio'] for p in row['positions']],[0,.25,.5,.75,1])
+
     def test_missing_placement_names_the_exact_blocking_part(self):
         parts,params=trash_bin();parts[-1].pop('placement')
         built=review_only(render_toolbox(parts,params));diag=built['assembly']['assembled_preview_diagnostics']

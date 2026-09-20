@@ -63,6 +63,20 @@ def inspect_topology(svg_bytes: bytes | None) -> dict[str, Any]:
         subs = list(path.continuous_subpaths()) if path else []
         if not subs:
             continue
+        # A holding-nick loop is emitted as ordered subpaths separated by small
+        # intentional bridges.  Validate the complete cyclic chain instead of
+        # mistaking every fragment for an independently open contour.
+        if len(subs)>1:
+            bridge_gaps=[abs(subs[i].end-subs[(i+1)%len(subs)].start) for i in range(len(subs))]
+            if bridge_gaps and max(bridge_gaps)<=_NICK_GAP:
+                nicked+=1;closed+=1
+                for sub_index,contour in enumerate(subs,1):
+                    for segment in contour:
+                        if abs(segment.start-segment.end)<1e-9 and isinstance(segment,Line):continue
+                        forward=tuple(round(v,5) for p in segment.bpoints() for v in (p.real,p.imag));backward=tuple(round(v,5) for p in reversed(segment.bpoints()) for v in (p.real,p.imag));key=min(forward,backward)
+                        if key in seen:duplicates.append({"path":index,"subpath":sub_index,"note":"Duplicate CUT segment."})
+                        else:seen.add(key)
+                continue
         for sub_index,contour in enumerate(subs,1):
             gap = abs(contour.start - contour.end)
             if gap > _NICK_GAP:

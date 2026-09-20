@@ -18,6 +18,14 @@ class ReferenceFidelityTests(unittest.TestCase):
   report=check_reference_fidelity({'reference_job':True},[])
   self.assertEqual(report['fidelity'][0]['status'],'NOT_VERIFIED')
 
+ def test_reference_physical_ids_must_be_unique(self):
+  refs=[
+   {'id':'side','reference_part':'left','generated_part':'left','role':'decoration'},
+   {'id':'side','reference_part':'right','generated_part':'right','role':'decoration'},
+  ]
+  report=check_reference_fidelity({'reference_job':True,'reference_parts':refs},[{'type':'panel','label':'left'},{'type':'panel','label':'right'}])
+  self.assertTrue(any(c['status']=='FAIL' and 'unique' in c['note'] for c in report['part_mapping']))
+
  def test_photo_derived_house_can_only_pass_with_complete_mapping_and_preview(self):
   from house_holder import recipe
   from design_engine import compile_design

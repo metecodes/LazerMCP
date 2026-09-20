@@ -477,7 +477,7 @@ def plan_laser_job(
         "primitives: box (finger-joint walls+floor), panel (motor plate, solar, roof), "
         "disc (washer/shaft adapter), triangle (roof support), propeller (n-blade rotor), "
         "contour (closed points [[x,y],...] mm), coupon (kerf test). "
-        "Every physical primitive may include placement={origin:[x,y,z],u:[x,y,z],v:[x,y,z]} in assembly millimetres and moving=true. The normal is cross(u,v). Preserve these fields. parameters.connections supports linear_slide={id,type,moving_part,rails,axis,travel_mm,clearance_mm} and servo_linear_drive. "
+        "Every physical primitive may include role=structural|removable|moving|hardware_mount|decorative, moving=true and placement={origin:[x,y,z],u:[x,y,z],v:[x,y,z]} in assembly millimetres. Placement is never connection evidence. Preserve these fields. parameters.connections supports linear_slide/removable_slide={id,type,moving_part,rails,axis,travel_mm,clearance_mm} and servo_linear_drive. Structural, removable, moving and hardware_mount MDF parts require geometrically verified mates; metadata status fields cannot prove a mate. "
         "Door/window = slots on box.walls.front, not type=slot. "
         "Optional marks: part.markings or {type:marking, target_part} "
         "(kind=text|path|icon|line, x,y,width or height, rotation, align, operation=engrave|cut). "

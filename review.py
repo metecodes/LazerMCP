@@ -21,10 +21,13 @@ LASER_READY = "LASER READY"
 _COMPOSED_CRITICAL = (
     "PART_COMPLETENESS",
     "CONNECTIONS",
+    "CONNECTION_COVERAGE",
+    "MATE_GEOMETRY",
     "MATERIAL_COMPATIBILITY",
     "ASSEMBLY",
     "3D_ASSEMBLY",
     "ASSEMBLY_ORDER",
+    "ASSEMBLY_SEQUENCE",
     "TAB_SLOT_GEOMETRY",
     "HARDWARE_FIT",
     "COLLISIONS",
@@ -298,6 +301,9 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
     connections.extend(connection_checks(primitives, built.get("parameters") or {}))
     moving = _moving(faces, primitives)
     linear_report=(built.get('linear_motion') or (assembly.get('linear_motion') if isinstance(assembly,dict) else None) or {'active':False,'status':'N/A','slides':[],'drives':[]})
+    from connection_validation import validate as validate_connection_coverage
+    coverage_report=validate_connection_coverage(primitives,parameters,assembly,linear_report,mechanism_report)
+    built['connection_validation']=coverage_report
     required = list(_COMPOSED_CRITICAL if job == "composed" else _FLAT_CRITICAL)
     if job == "composed" and moving:
         required.append("KINEMATICS")
@@ -309,12 +315,15 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
 
     completeness: list[dict[str, Any]] = []
     connections_c: list[dict[str, Any]] = []
+    coverage_c: list[dict[str, Any]] = list(coverage_report.get('checks') or [])
+    mate_geometry_c: list[dict[str, Any]] = list(coverage_report.get('mate_geometry_checks') or [])
     material: list[dict[str, Any]] = []
     assembly_c: list[dict[str, Any]] = []
     assembly3d_c: list[dict[str, Any]] = []
     tab_slot_c: list[dict[str, Any]] = []
     hardware_c: list[dict[str, Any]] = []
     order_c: list[dict[str, Any]] = []
+    sequence_c: list[dict[str, Any]] = []
     collision_c: list[dict[str, Any]] = []
     kinematics_c: list[dict[str, Any]] = []
     motion_c: list[dict[str, Any]] = []
@@ -489,6 +498,10 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
                 order_c.append({"status": FAIL, "note": "roof lock step exists without a gable lock step"})
         else:
             order_c.append({"status": NOT_VERIFIED, "note": "no assembly sequence"})
+        removable=[r for r in coverage_report.get('physical_part_inventory') or [] if r.get('role')=='removable']
+        if removable and any(c.get('status')=='FAIL' and 'remove/reinstall' in str(c.get('note')) for c in coverage_c):sequence_c.append({'status':FAIL,'note':'removable assembly dependency path is not geometrically verified'})
+        elif sequence:sequence_c.append({'status':PASS,'note':'assembly order exists; removable paths verified where declared'})
+        else:sequence_c.append({'status':NOT_VERIFIED,'note':'assembly dependency sequence is missing'})
 
         clash_notes = [m for m in looks if "clash" in str(m).lower() or "hit the floor" in str(m).lower()]
         if clash_notes:
@@ -569,6 +582,7 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
         hardware_c.append({"status":NA,"note":"flat sheet"})
         motion_c.append({"status":NA,"note":"flat sheet"})
         order_c.append({"status": NA, "note": "flat sheet"})
+        sequence_c.append({"status":NA,"note":"flat sheet"})
         collision_c.append({"status": NA, "note": "flat sheet"})
         function_c.append({"status": PASS, "note": str(built.get("title") or "sheet can be cut")})
 
@@ -767,10 +781,13 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
     cats = [
         _cat("PART_COMPLETENESS", completeness, "PART_COMPLETENESS" in required),
         _cat("CONNECTIONS", connections_c, "CONNECTIONS" in required),
+        _cat("CONNECTION_COVERAGE", coverage_c, "CONNECTION_COVERAGE" in required),
+        _cat("MATE_GEOMETRY", mate_geometry_c, "MATE_GEOMETRY" in required),
         _cat("MATERIAL_COMPATIBILITY", material, "MATERIAL_COMPATIBILITY" in required),
         _cat("ASSEMBLY", assembly_c, "ASSEMBLY" in required),
         _cat("3D_ASSEMBLY", assembly3d_c, "3D_ASSEMBLY" in required),
         _cat("ASSEMBLY_ORDER", order_c, "ASSEMBLY_ORDER" in required),
+        _cat("ASSEMBLY_SEQUENCE", sequence_c, "ASSEMBLY_SEQUENCE" in required),
         _cat("TAB_SLOT_GEOMETRY", tab_slot_c, "TAB_SLOT_GEOMETRY" in required),
         _cat("HARDWARE_FIT", hardware_c, "HARDWARE_FIT" in required),
         _cat("COLLISIONS", collision_c, "COLLISIONS" in required),
@@ -807,7 +824,7 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
     scorecard = build_scorecard(cats, physical)
     gate_levels={
         'GEOMETRY VALID':_card_status(cats,'SVG_GEOMETRY','MANUFACTURING','NESTING'),
-        'ASSEMBLY VALID':_card_status(cats,'ASSEMBLY','3D_ASSEMBLY','TAB_SLOT_GEOMETRY'),
+        'ASSEMBLY VALID':_card_status(cats,'ASSEMBLY','3D_ASSEMBLY','CONNECTION_COVERAGE','MATE_GEOMETRY','ASSEMBLY_SEQUENCE','TAB_SLOT_GEOMETRY','COLLISIONS'),
         'REFERENCE MATCH':_card_status(cats,'REFERENCE_FIDELITY','OUTER_CUT_FIDELITY','PART_MAPPING') if reference.get('active') else NA,
         'FUNCTION VALID':_card_status(cats,'FUNCTION','KINEMATICS','MOTION_CLEARANCE','HARDWARE_FIT'),
     }
