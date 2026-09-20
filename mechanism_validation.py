@@ -9,7 +9,29 @@ LEGACY={'shaft_rotation','axle','bearing_shaft'}
 def _cross(a,b):return [a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]]
 def _unit(v):
     m=math.sqrt(sum(float(x)**2 for x in (v or [])));return [float(x)/m for x in v] if m else None
-def _part(c):return str(c.get('part') or c.get('driven_part') or c.get('mechanism_part') or '')
+def _part(c):return str(c.get('part') or c.get('part_id') or c.get('driven_part') or c.get('mechanism_part') or '')
+def _shaft(c):return str(c.get('shaft') or c.get('shaft_id') or c.get('hardware') or c.get('hardware_id') or '')
+def _connections(primitives,parameters):
+    """Normalize every supported recipe connection form into graph edges."""
+    rows=[]
+    hardware_ids={str(h.get('id') or '') for h in parameters.get('hardware') or [] if isinstance(h,dict)}
+    for raw in parameters.get('connections') or []:
+        if isinstance(raw,dict):rows.append(dict(raw))
+    for part in primitives or []:
+        if not isinstance(part,dict):continue
+        label=str(part.get('label') or part.get('id') or '')
+        for raw in part.get('connections') or []:
+            if isinstance(raw,dict):
+                item=dict(raw);item.setdefault('part',label);rows.append(item)
+        mechanism=part.get('mechanism') or {}
+        sid=mechanism.get('shaft') or mechanism.get('shaft_id') if isinstance(mechanism,dict) else None
+        if sid in hardware_ids and not any(str(c.get('type') or '')=='shaft_hole' and _part(c)==label for c in rows):
+            rows.append({'type':'shaft_hole','part':label,'shaft':sid,'hole':'center-hole','fit':mechanism.get('fit') or 'rotating','source':'mechanism.shaft'})
+    unique=[];seen=set()
+    for c in rows:
+        key=(str(c.get('type') or ''),_part(c),_shaft(c),str(c.get('hole') or c.get('hole_id') or ''))
+        if key not in seen:seen.add(key);unique.append(c)
+    return unique
 def _holes(part):
     rows=[]
     for h in part.get('canonical_holes') or []:
@@ -31,11 +53,11 @@ def _schema(label,sid):
 
 def validate(primitives,parameters,thickness=3.0):
     parameters=parameters if isinstance(parameters,dict) else {};parts={str(p.get('label') or ''):p for p in primitives or [] if isinstance(p,dict)}
-    hardware={str(h.get('id') or ''):h for h in parameters.get('hardware') or [] if isinstance(h,dict)};connections=[c for c in parameters.get('connections') or [] if isinstance(c,dict)]
+    hardware={str(h.get('id') or ''):h for h in parameters.get('hardware') or [] if isinstance(h,dict)};connections=_connections(primitives,parameters)
     explicit=[c for c in connections if str(c.get('type') or '')=='shaft_hole'];legacy=[c for c in connections if str(c.get('type') or '') in LEGACY]
     graph=[];resolved={};shaft_origins={}
     for c in explicit:
-        label=_part(c);part=parts.get(label);sid=str(c.get('shaft') or c.get('hardware') or '');candidates=_holes(part or {});wanted=str(c.get('hole') or '')
+        label=_part(c);part=parts.get(label);sid=_shaft(c);candidates=_holes(part or {});wanted=str(c.get('hole') or c.get('hole_id') or '')
         if wanted:chosen=next((h for h in candidates if h['id']==wanted),None);reason=None if chosen else 'SHAFT_HOLE_NOT_FOUND'
         elif len(candidates)==1:chosen=candidates[0];reason=None
         elif len(candidates)>1:chosen=None;reason='AMBIGUOUS_SHAFT_HOLE'
@@ -67,7 +89,7 @@ def validate(primitives,parameters,thickness=3.0):
             conn=next((c for c in legacy if _part(c)==label),None);candidates=_holes(part)
             if conn and len(candidates)==1:chosen=candidates[0]
             elif conn and len(candidates)>1:rows.append({'part':label,'type':kind,'validator':dispatch.get(kind,'validateMechanism'),'status':'FAIL','reason':'AMBIGUOUS_SHAFT_HOLE','candidate_holes':[h['id'] for h in candidates]});continue
-        sid=str((conn or {}).get('shaft') or (conn or {}).get('hardware') or '');shaft=hardware.get(sid);row={'part':label,'type':kind,'validator':dispatch.get(kind,'validateMechanism'),'shaft_id':sid or None,'hole_id':(chosen or {}).get('id'),'fit':str((conn or {}).get('fit') or 'rotating')}
+        sid=_shaft(conn or {});shaft=hardware.get(sid);row={'part':label,'type':kind,'validator':dispatch.get(kind,'validateMechanism'),'shaft_id':sid or None,'hole_id':(chosen or {}).get('id'),'fit':str((conn or {}).get('fit') or 'rotating')}
         if not conn or not shaft:
             row.update(status='FAIL',reason='SHAFT_CONNECTION_MISSING',missing=[v for v in ['parameters.connections[]' if not conn else None,'parameters.hardware[]' if not shaft else None] if v],expected_connection_schema=_schema(label,sid));rows.append(row);continue
         if edge and edge['status']=='FAIL':row.update(status='FAIL',reason=edge['reason']);rows.append(row);continue

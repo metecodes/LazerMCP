@@ -9,6 +9,7 @@ from toolbox import _materialize_cut_geometry
 from toolbox import _prepare_parts
 from road_roller_fixture import build_fixture
 from repair import repair_primitives
+from review import connection_graph
 
 
 def rotating_part(label,kind='road_roller_drum',origin=None):
@@ -129,6 +130,30 @@ class RoadRollerTests(unittest.TestCase):
         left=rotating_part('drum-left','road_roller_drum',[-5,0,0]);right=rotating_part('drum-right','road_roller_drum',[5,0,0])
         parameters={'hardware':[{'id':'drum-axle','type':'shaft','diameter':4,'axis':[1,0,0],'length':72}], 'connections':[{'type':'shaft_hole','part':n,'shaft':'drum-axle','hole':'center-hole','fit':'rotating'} for n in ('drum-left','drum-right')]}
         rows=validate([left,right,chassis()],parameters,3)['checks'];self.assertTrue(all(r['status']=='PASS' for r in rows),rows)
+
+    def test_primitive_connection_is_promoted_to_canonical_graph(self):
+        wheel=rotating_part('wheel','wheel');wheel['connections']=[{'type':'shaft_hole','shaft':'axle','hole':'center-hole','fit':'rotating'}]
+        parameters={'hardware':[{'id':'axle','type':'shaft','diameter':4,'axis':[1,0,0],'length':72}]}
+        report=validate([wheel,chassis()],parameters,3)
+        self.assertEqual(report['checks'][0]['status'],'PASS');self.assertEqual(report['connection_graph'][0]['part'],'wheel')
+
+    def test_mechanism_shaft_auto_connects_single_center_hole(self):
+        wheel=rotating_part('wheel','wheel')
+        parameters={'hardware':[{'id':'axle-1','type':'shaft','diameter':4,'axis':[1,0,0],'length':72}]}
+        report=validate([wheel,chassis()],parameters,3)
+        self.assertEqual(report['checks'][0]['status'],'PASS');self.assertEqual(report['connection_graph'][0]['shaft'],'axle-1')
+
+    def test_canonical_id_field_names_are_accepted(self):
+        wheel=rotating_part('wheel','wheel');wheel['mechanism'].pop('shaft')
+        parameters={'hardware':[{'id':'axle','type':'shaft','diameter':4,'axis':[1,0,0],'length':72}], 'connections':[{'type':'shaft_hole','part_id':'wheel','shaft_id':'axle','hole_id':'center-hole','fit':'rotating'}]}
+        report=validate([wheel,chassis()],parameters,3)
+        self.assertEqual(report['checks'][0]['status'],'PASS');self.assertEqual(report['connection_graph'][0]['shaft'],'axle')
+
+    def test_review_graph_includes_primitive_shaft_connection(self):
+        wheel=rotating_part('wheel','wheel');wheel['connections']=[{'type':'shaft_hole','shaft':'axle','hole':'center-hole'}]
+        parameters={'hardware':[{'id':'axle','type':'shaft','diameter':4,'axis':[1,0,0],'length':72}]}
+        graph=connection_graph({},[],parameters,[wheel])
+        self.assertEqual(graph[0]['type'],'shaft_hole');self.assertEqual(graph[0]['a_name'],'hardware:axle');self.assertEqual(graph[0]['b_name'],'wheel')
 
     def test_multiple_holes_without_id_is_ambiguous(self):
         wheel=rotating_part('wheel','wheel');wheel['holes']=[{'id':'offset-hole','x':5,'y':0,'d':4.15}]

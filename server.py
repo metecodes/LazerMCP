@@ -1591,6 +1591,8 @@ async def api_admin_requests(request: Request) -> Response:
 async def health(request: Request) -> Response:
     payload = boxespy.health_status()
     payload["auth_required"] = _auth_on()
+    commit = os.getenv("VERCEL_GIT_COMMIT_SHA") or os.getenv("GIT_COMMIT") or "local"
+    payload["deployment"] = {"commit": commit[:12] if commit != "local" else commit}
     status = 200 if payload["status"] == "ok" else 503
     return JSONResponse(payload, status_code=status)
 
