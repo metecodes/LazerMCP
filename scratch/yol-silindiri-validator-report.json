@@ -1,10 +1,9 @@
 {
-  "project": "yol-silindiri-sasi-gecme-v3-reconstructed",
-  "source_note": "Production record was unavailable locally; this is the deterministic reconstructed regression fixture.",
+  "project": "yol-silindiri-v6-reconstructed",
+  "source_note": "Production record unavailable locally; deterministic equivalent uses canonical shaft_hole graph.",
   "assembly": {
     "ok": true,
     "tab_slot_pairs": 4,
-    "placement_diagnostics": [],
     "tab_slot_debug": [
       {
         "connection": "C01",
@@ -12,6 +11,31 @@
         "tab_id": "L",
         "slot_part": "left chassis",
         "result": "PASS",
+        "world_center": {
+          "tab": [
+            -1.5,
+            11.0,
+            11.5
+          ],
+          "slot": [
+            -1.5,
+            11.0,
+            11.5
+          ]
+        },
+        "world_normal": {
+          "tab": [
+            0,
+            0,
+            1
+          ],
+          "slot": [
+            1,
+            0,
+            0
+          ]
+        },
+        "center_delta": 0.0,
         "slot_local_bbox": [
           4.0,
           9.925,
@@ -91,6 +115,31 @@
         "tab_id": "L",
         "slot_part": "left chassis",
         "result": "PASS",
+        "world_center": {
+          "tab": [
+            -1.5,
+            11.0,
+            41.5
+          ],
+          "slot": [
+            -1.5,
+            11.0,
+            41.5
+          ]
+        },
+        "world_normal": {
+          "tab": [
+            0,
+            0,
+            1
+          ],
+          "slot": [
+            1,
+            0,
+            0
+          ]
+        },
+        "center_delta": 0.0,
         "slot_local_bbox": [
           4.0,
           39.925,
@@ -170,6 +219,31 @@
         "tab_id": "R",
         "slot_part": "right chassis",
         "result": "PASS",
+        "world_center": {
+          "tab": [
+            51.5,
+            11.0,
+            11.5
+          ],
+          "slot": [
+            51.5,
+            11.0,
+            11.5
+          ]
+        },
+        "world_normal": {
+          "tab": [
+            0,
+            0,
+            1
+          ],
+          "slot": [
+            1,
+            0,
+            0
+          ]
+        },
+        "center_delta": 0.0,
         "slot_local_bbox": [
           4.0,
           9.925,
@@ -249,6 +323,31 @@
         "tab_id": "R",
         "slot_part": "right chassis",
         "result": "PASS",
+        "world_center": {
+          "tab": [
+            51.5,
+            11.0,
+            41.5
+          ],
+          "slot": [
+            51.5,
+            11.0,
+            41.5
+          ]
+        },
+        "world_normal": {
+          "tab": [
+            0,
+            0,
+            1
+          ],
+          "slot": [
+            1,
+            0,
+            0
+          ]
+        },
+        "center_delta": 0.0,
         "slot_local_bbox": [
           4.0,
           39.925,
@@ -337,6 +436,16 @@
         "rotating": false
       },
       {
+        "part": "left front hub",
+        "type": "disc",
+        "rotating": false
+      },
+      {
+        "part": "right front hub",
+        "type": "disc",
+        "rotating": false
+      },
+      {
         "part": "left front wheel",
         "type": "wheel",
         "rotating": true
@@ -357,17 +466,230 @@
         "rotating": true
       }
     ],
+    "connection_graph": [
+      {
+        "shaft": "front axle",
+        "part": "left front wheel",
+        "hole": "center-hole",
+        "fit": "rotating",
+        "type": "shaft_hole",
+        "world_center": [
+          -8.0,
+          20.0,
+          22.0
+        ],
+        "world_normal": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "hole_diameter_mm": 4.15,
+        "status": "PASS",
+        "reason": "SHAFT_HOLE_VERIFIED",
+        "shaft_diameter_mm": 4.0,
+        "diametral_clearance_mm": 0.15000000000000036,
+        "center_axis_distance_mm": 0.0,
+        "axis_error_deg": 0.0
+      },
+      {
+        "shaft": "front axle",
+        "part": "right front wheel",
+        "hole": "center-hole",
+        "fit": "rotating",
+        "type": "shaft_hole",
+        "world_center": [
+          58.0,
+          20.0,
+          22.0
+        ],
+        "world_normal": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "hole_diameter_mm": 4.15,
+        "status": "PASS",
+        "reason": "SHAFT_HOLE_VERIFIED",
+        "shaft_diameter_mm": 4.0,
+        "diametral_clearance_mm": 0.15000000000000036,
+        "center_axis_distance_mm": 0.0,
+        "axis_error_deg": 0.0
+      },
+      {
+        "shaft": "rear drum axle",
+        "part": "left drum end cap",
+        "hole": "center-hole",
+        "fit": "rotating",
+        "type": "shaft_hole",
+        "world_center": [
+          -8.0,
+          80.0,
+          25.0
+        ],
+        "world_normal": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "hole_diameter_mm": 4.15,
+        "status": "PASS",
+        "reason": "SHAFT_HOLE_VERIFIED",
+        "shaft_diameter_mm": 4.0,
+        "diametral_clearance_mm": 0.15000000000000036,
+        "center_axis_distance_mm": 0.0,
+        "axis_error_deg": 0.0
+      },
+      {
+        "shaft": "rear drum axle",
+        "part": "right drum end cap",
+        "hole": "center-hole",
+        "fit": "rotating",
+        "type": "shaft_hole",
+        "world_center": [
+          58.0,
+          80.0,
+          25.0
+        ],
+        "world_normal": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "hole_diameter_mm": 4.15,
+        "status": "PASS",
+        "reason": "SHAFT_HOLE_VERIFIED",
+        "shaft_diameter_mm": 4.0,
+        "diametral_clearance_mm": 0.15000000000000036,
+        "center_axis_distance_mm": 0.0,
+        "axis_error_deg": 0.0
+      },
+      {
+        "shaft": "front axle",
+        "part": "left front hub",
+        "hole": "center-hole",
+        "fit": "bearing",
+        "type": "shaft_hole",
+        "world_center": [
+          -5.0,
+          20.0,
+          22.0
+        ],
+        "world_normal": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "hole_diameter_mm": 4.15,
+        "status": "PASS",
+        "reason": "SHAFT_HOLE_VERIFIED",
+        "shaft_diameter_mm": 4.0,
+        "diametral_clearance_mm": 0.15000000000000036,
+        "center_axis_distance_mm": 0.0,
+        "axis_error_deg": 0.0
+      },
+      {
+        "shaft": "front axle",
+        "part": "right front hub",
+        "hole": "center-hole",
+        "fit": "bearing",
+        "type": "shaft_hole",
+        "world_center": [
+          55.0,
+          20.0,
+          22.0
+        ],
+        "world_normal": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "hole_diameter_mm": 4.15,
+        "status": "PASS",
+        "reason": "SHAFT_HOLE_VERIFIED",
+        "shaft_diameter_mm": 4.0,
+        "diametral_clearance_mm": 0.15000000000000036,
+        "center_axis_distance_mm": 0.0,
+        "axis_error_deg": 0.0
+      },
+      {
+        "shaft": "rear drum axle",
+        "part": "left drum bearing",
+        "hole": "center-hole",
+        "fit": "bearing",
+        "type": "shaft_hole",
+        "world_center": [
+          -5.0,
+          80.0,
+          25.0
+        ],
+        "world_normal": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "hole_diameter_mm": 4.15,
+        "status": "PASS",
+        "reason": "SHAFT_HOLE_VERIFIED",
+        "shaft_diameter_mm": 4.0,
+        "diametral_clearance_mm": 0.15000000000000036,
+        "center_axis_distance_mm": 0.0,
+        "axis_error_deg": 0.0
+      },
+      {
+        "shaft": "rear drum axle",
+        "part": "right drum bearing",
+        "hole": "center-hole",
+        "fit": "bearing",
+        "type": "shaft_hole",
+        "world_center": [
+          55.0,
+          80.0,
+          25.0
+        ],
+        "world_normal": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "hole_diameter_mm": 4.15,
+        "status": "PASS",
+        "reason": "SHAFT_HOLE_VERIFIED",
+        "shaft_diameter_mm": 4.0,
+        "diametral_clearance_mm": 0.15000000000000036,
+        "center_axis_distance_mm": 0.0,
+        "axis_error_deg": 0.0
+      }
+    ],
     "checks": [
       {
         "part": "left front wheel",
         "type": "wheel",
         "validator": "validateWheel",
+        "shaft_id": "front axle",
+        "hole_id": "center-hole",
+        "fit": "rotating",
         "status": "PASS",
         "reason": "ROTATION_VERIFIED",
+        "world_center": [
+          -8.0,
+          20.0,
+          22.0
+        ],
+        "hole_axis": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "shaft_axis": [
+          1.0,
+          0.0,
+          0.0
+        ],
         "center_axis_distance_mm": 0.0,
-        "axis_normal_error_deg": 0.0,
+        "axis_error_deg": 0.0,
         "shaft_diameter_mm": 4.0,
         "hole_diameter_mm": 4.15,
+        "diametral_clearance_mm": 0.15000000000000036,
         "hardware_clearance_mm": 0.15,
         "motion_clearance": {
           "status": "PASS",
@@ -381,12 +703,31 @@
         "part": "right front wheel",
         "type": "wheel",
         "validator": "validateWheel",
+        "shaft_id": "front axle",
+        "hole_id": "center-hole",
+        "fit": "rotating",
         "status": "PASS",
         "reason": "ROTATION_VERIFIED",
+        "world_center": [
+          58.0,
+          20.0,
+          22.0
+        ],
+        "hole_axis": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "shaft_axis": [
+          1.0,
+          0.0,
+          0.0
+        ],
         "center_axis_distance_mm": 0.0,
-        "axis_normal_error_deg": 0.0,
+        "axis_error_deg": 0.0,
         "shaft_diameter_mm": 4.0,
         "hole_diameter_mm": 4.15,
+        "diametral_clearance_mm": 0.15000000000000036,
         "hardware_clearance_mm": 0.15,
         "motion_clearance": {
           "status": "PASS",
@@ -400,12 +741,31 @@
         "part": "left drum end cap",
         "type": "road_roller_drum",
         "validator": "validateRollerDrum",
+        "shaft_id": "rear drum axle",
+        "hole_id": "center-hole",
+        "fit": "rotating",
         "status": "PASS",
         "reason": "ROTATION_VERIFIED",
+        "world_center": [
+          -8.0,
+          80.0,
+          25.0
+        ],
+        "hole_axis": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "shaft_axis": [
+          1.0,
+          0.0,
+          0.0
+        ],
         "center_axis_distance_mm": 0.0,
-        "axis_normal_error_deg": 0.0,
+        "axis_error_deg": 0.0,
         "shaft_diameter_mm": 4.0,
         "hole_diameter_mm": 4.15,
+        "diametral_clearance_mm": 0.15000000000000036,
         "hardware_clearance_mm": 0.15,
         "motion_clearance": {
           "status": "PASS",
@@ -419,12 +779,31 @@
         "part": "right drum end cap",
         "type": "road_roller_drum",
         "validator": "validateRollerDrum",
+        "shaft_id": "rear drum axle",
+        "hole_id": "center-hole",
+        "fit": "rotating",
         "status": "PASS",
         "reason": "ROTATION_VERIFIED",
+        "world_center": [
+          58.0,
+          80.0,
+          25.0
+        ],
+        "hole_axis": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "shaft_axis": [
+          1.0,
+          0.0,
+          0.0
+        ],
         "center_axis_distance_mm": 0.0,
-        "axis_normal_error_deg": 0.0,
+        "axis_error_deg": 0.0,
         "shaft_diameter_mm": 4.0,
         "hole_diameter_mm": 4.15,
+        "diametral_clearance_mm": 0.15000000000000036,
         "hardware_clearance_mm": 0.15,
         "motion_clearance": {
           "status": "PASS",

@@ -254,6 +254,11 @@ def connection_graph(assembly: dict[str, Any] | None, parts: list[dict[str, Any]
     motion=resolve_motion(parameters or [])
     if motion.get('drive_type')=='direct_motor_shaft' and motion.get('motor_part') and motion.get('moving_part'):
         add('hardware:'+str(motion['motor_part']),str(motion['moving_part']),'direct_motor_shaft','MATCH',{'via':'explicit hardware drive connection; no dowel inferred'})
+    for row in (parameters or {}).get('connections') or []:
+        if not isinstance(row,dict) or str(row.get('type') or '')!='shaft_hole':continue
+        part=str(row.get('part') or row.get('driven_part') or row.get('mechanism_part') or '')
+        shaft=str(row.get('shaft') or row.get('hardware') or '')
+        add('hardware:'+shaft,part,'shaft_hole','MATCH' if shaft and part else 'FAIL',{'hole':row.get('hole'),'fit':row.get('fit') or 'rotating','via':'explicit canonical shaft/hole connection'})
     return graph
 
 

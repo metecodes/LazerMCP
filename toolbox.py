@@ -344,6 +344,9 @@ def _prepare_parts(primitives: list[Any]) -> list[dict[str, Any]]:
             item.setdefault("label", kind)
             kind = item["type"]
         if kind in ASSEMBLY_TYPES:
+            hole=_num(item.get('hole') or item.get('d_hole'),0)
+            if kind in {'disc','disk','circle','washer','spacer','propeller'} and hole>0:
+                item.setdefault('canonical_holes',[{'id':'center-hole','x':0.0,'y':0.0,'diameter':hole,'type':'shaft_hole'}])
             parts.append(item)
     box = next((p for p in parts if _kind(p) == "box"), None)
     panel = next((p for p in parts if _kind(p) in {"panel", "wall", "rect"}), None)

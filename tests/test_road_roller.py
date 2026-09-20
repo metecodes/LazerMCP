@@ -6,6 +6,7 @@ from mechanisms import mechanism_type
 from placement_solver import derive_placements
 from seen import check_what_you_see
 from toolbox import _materialize_cut_geometry
+from toolbox import _prepare_parts
 from road_roller_fixture import build_fixture
 from repair import repair_primitives
 
@@ -30,7 +31,7 @@ class RoadRollerTests(unittest.TestCase):
         report=validate([rotating_part('drum'),chassis()],{},3)
         self.assertEqual(report['checks'][0]['reason'],'SHAFT_CONNECTION_MISSING')
         schema=report['checks'][0]['expected_connection_schema']
-        self.assertEqual(schema['connection']['type'],'shaft_rotation');self.assertEqual(schema['connection']['driven_part'],'drum')
+        self.assertEqual(schema['connection']['type'],'shaft_hole');self.assertEqual(schema['connection']['part'],'drum')
         self.assertEqual(schema['hardware']['type'],'shaft')
 
     def test_road_roller_misaligned_shaft_fails_coaxiality(self):
@@ -104,6 +105,35 @@ class RoadRollerTests(unittest.TestCase):
         from assembly import expand_faces
         part={'type':'propeller','label':'legacy rotor','d':40,'hole':4.15,'mechanism':{'type':'wheel','rotating':True}}
         self.assertEqual(expand_faces([part])[0]['kind'],'disc')
+
+    def test_disc_hole_generates_canonical_center_hole(self):
+        part=_prepare_parts([{'type':'disc','label':'wheel','d':40,'hole':4.15}])[0]
+        self.assertEqual(part['canonical_holes'][0],{'id':'center-hole','x':0.0,'y':0.0,'diameter':4.15,'type':'shaft_hole'})
+
+    def test_explicit_shaft_hole_connection_passes_with_numeric_fit(self):
+        wheel=rotating_part('wheel','wheel');parameters={'hardware':[{'id':'axle','type':'shaft','diameter':4,'axis':[1,0,0],'length':72}], 'connections':[{'type':'shaft_hole','part':'wheel','shaft':'axle','hole':'center-hole','fit':'rotating','allowed_contact_parts':[]}]}
+        report=validate([wheel,chassis()],parameters,3);row=report['checks'][0]
+        self.assertEqual(row['status'],'PASS');self.assertEqual(row['shaft_diameter_mm'],4);self.assertEqual(row['hole_diameter_mm'],4.15);self.assertAlmostEqual(row['diametral_clearance_mm'],.15)
+        self.assertEqual(report['connection_graph'][0]['hole'],'center-hole')
+
+    def test_undersized_shaft_hole_fails(self):
+        wheel=rotating_part('wheel','wheel');wheel['hole']=3.5
+        parameters={'hardware':[{'id':'axle','type':'shaft','diameter':4,'axis':[1,0,0],'length':72}], 'connections':[{'type':'shaft_hole','part':'wheel','shaft':'axle','hole':'center-hole'}]}
+        self.assertEqual(validate([wheel,chassis()],parameters,3)['checks'][0]['reason'],'SHAFT_HOLE_FIT_FAIL')
+
+    def test_explicit_shaft_hole_axis_misaligned_fails(self):
+        wheel=rotating_part('wheel','wheel');parameters={'hardware':[{'id':'axle','type':'shaft','diameter':4,'axis':[0,1,0],'length':72}], 'connections':[{'type':'shaft_hole','part':'wheel','shaft':'axle','hole':'center-hole'}]}
+        self.assertEqual(validate([wheel,chassis()],parameters,3)['checks'][0]['reason'],'COAXIALITY_FAIL')
+
+    def test_explicit_drum_shaft_hole_connection_passes(self):
+        left=rotating_part('drum-left','road_roller_drum',[-5,0,0]);right=rotating_part('drum-right','road_roller_drum',[5,0,0])
+        parameters={'hardware':[{'id':'drum-axle','type':'shaft','diameter':4,'axis':[1,0,0],'length':72}], 'connections':[{'type':'shaft_hole','part':n,'shaft':'drum-axle','hole':'center-hole','fit':'rotating'} for n in ('drum-left','drum-right')]}
+        rows=validate([left,right,chassis()],parameters,3)['checks'];self.assertTrue(all(r['status']=='PASS' for r in rows),rows)
+
+    def test_multiple_holes_without_id_is_ambiguous(self):
+        wheel=rotating_part('wheel','wheel');wheel['holes']=[{'id':'offset-hole','x':5,'y':0,'d':4.15}]
+        parameters={'hardware':[{'id':'axle','type':'shaft','diameter':4,'axis':[1,0,0],'length':72}], 'connections':[{'type':'shaft_hole','part':'wheel','shaft':'axle'}]}
+        self.assertEqual(validate([wheel,chassis()],parameters,3)['checks'][0]['reason'],'AMBIGUOUS_SHAFT_HOLE')
 
 
 if __name__=='__main__':unittest.main()
