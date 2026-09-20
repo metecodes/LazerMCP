@@ -148,4 +148,16 @@ class EditorRouteTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("LaserCAD için mm tabanlı DXF R12",script)
         self.assertIn('state.bed.w',script)
 
+    async def test_editor_measures_between_two_points_without_edge_rulers(self):
+        from pathlib import Path
+        root=Path(__file__).parents[1]
+        html=root.joinpath('web','editor.html').read_text(encoding='utf-8')
+        script=root.joinpath('web','editor.js').read_text(encoding='utf-8')
+        for control in ('measure-tool','clear-measure','measure-output'):
+            self.assertIn(f'id="{control}"',html)
+        self.assertIn('Math.hypot(dx,dy)',script)
+        self.assertIn("data-measurement",script)
+        self.assertNotIn('function rulers(',script)
+        self.assertNotIn("data-rulers",script)
+
 if __name__=='__main__': unittest.main()
