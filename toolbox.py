@@ -907,7 +907,8 @@ def render_toolbox(primitives: list[Any], parameters: dict[str, Any] | None = No
 
     assembly = check_assembly(parts, thickness=thickness, burn=effective_burn)
     from linear_motion import validate as validate_linear_motion
-    linear_motion = validate_linear_motion(parts, params, thickness)
+    physical_for_motion = assembly.pop("_physical_primitives", None) or parts
+    linear_motion = validate_linear_motion(physical_for_motion, params, thickness)
     assembly["linear_motion"] = linear_motion
     for slide in linear_motion.get("slides") or []:
         for rail in slide.get("rails") or []:

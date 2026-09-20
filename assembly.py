@@ -62,6 +62,8 @@ def expand_faces(primitives: list[Any]) -> list[dict[str, Any]]:
             kind='propeller'
         n = _count(part)
         if kind == "box":
+            parent_id = str(part.get("label") or part.get("id") or "box-1")
+            child_name = lambda value: f"{parent_id}/{value}"
             x = _num(part.get("x") or part.get("w"), 80)
             y = _num(part.get("y") or part.get("d") or part.get("depth"), 80)
             h = _num(part.get("h"), 80)
@@ -74,25 +76,25 @@ def expand_faces(primitives: list[Any]) -> list[dict[str, Any]]:
             side_top = "e" if gable_top else top
             walls = part.get("walls") if isinstance(part.get("walls"), dict) else {}
             faces.append(
-                {"name": "front", "kind": "wall", "w": x, "h": h, "edges": f"{b}F{wall_top}F", "features": _features(walls.get("front") or {})}
+                {"name": child_name("front"), "kind": "wall", "w": x, "h": h, "edges": f"{b}F{wall_top}F", "features": _features(walls.get("front") or {})}
             )
             faces.append(
-                {"name": "back", "kind": "wall", "w": x, "h": h, "edges": f"{b}F{wall_top}F", "features": _features(walls.get("back") or {})}
+                {"name": child_name("back"), "kind": "wall", "w": x, "h": h, "edges": f"{b}F{wall_top}F", "features": _features(walls.get("back") or {})}
             )
             if bottom_on:
                 faces.append(
-                    {"name": "bottom", "kind": "floor", "w": x, "h": y, "edges": "ffff", "features": _features(walls.get("bottom") or {})}
+                    {"name": child_name("bottom"), "kind": "floor", "w": x, "h": y, "edges": "ffff", "features": _features(walls.get("bottom") or {})}
                 )
             faces.append(
-                {"name": "left", "kind": "wall", "w": y, "h": h, "edges": f"{b}f{side_top}f", "features": _features(walls.get("left") or {})}
+                {"name": child_name("left"), "kind": "wall", "w": y, "h": h, "edges": f"{b}f{side_top}f", "features": _features(walls.get("left") or {})}
             )
             faces.append(
-                {"name": "right", "kind": "wall", "w": y, "h": h, "edges": f"{b}f{side_top}f", "features": _features(walls.get("right") or {})}
+                {"name": child_name("right"), "kind": "wall", "w": y, "h": h, "edges": f"{b}f{side_top}f", "features": _features(walls.get("right") or {})}
             )
             if lid_on:
                 faces.append(
                     {
-                        "name": "lid",
+                        "name": child_name("lid"),
                         "kind": "floor",
                         "w": x,
                         "h": y,
@@ -295,9 +297,12 @@ def check_assembly(
     """Return mechanical pairs, shaft/slot fit, and a nominal assembly sequence."""
     from toolbox import _materialize_cut_geometry
     primitives=[_materialize_cut_geometry(p) if isinstance(p,dict) else p for p in (primitives or [])]
-    from placement_solver import derive_placements
-    placement_diagnostics=derive_placements([p for p in primitives if isinstance(p,dict)],float(thickness if thickness is not None else PAYAS_DEFAULTS['thickness']))
     t = float(thickness if thickness is not None else PAYAS_DEFAULTS["thickness"])
+    from composite_assembly import expand as expand_composites, classify_contacts
+    composite = expand_composites(primitives, t)
+    physical_parts = [_materialize_cut_geometry(p) for p in composite["physical_parts"]]
+    from placement_solver import derive_placements
+    placement_diagnostics=derive_placements(physical_parts,t)
     kerf = float(burn if burn is not None else PAYAS_DEFAULTS["burn"])
     errors: list[str] = []
     warnings: list[str] = []
@@ -413,8 +418,8 @@ def check_assembly(
                         f"shaft/window clash on {face['name']}: hole at {hx},{hy} d={hd} sits inside slot {sw}×{sh} at {sx},{sy}"
                     )
 
-    front = next((f for f in faces if f["name"] == "front"), None)
-    back = next((f for f in faces if f["name"] == "back"), None)
+    front = next((f for f in faces if str(f["name"]).endswith("/front") or f["name"] == "front"), None)
+    back = next((f for f in faces if str(f["name"]).endswith("/back") or f["name"] == "back"), None)
     if front and back:
         fh = [(_num(h.get("d") or h.get("diameter"), 0), _num(h.get("x"), 0), _num(h.get("y"), 0)) for h in front["features"]["holes"]]
         bh = [(_num(h.get("d") or h.get("diameter"), 0), _num(h.get("x"), 0), _num(h.get("y"), 0)) for h in back["features"]["holes"]]
@@ -467,7 +472,7 @@ def check_assembly(
             warnings.append("gables/roofs without a box: cannot lock them to a wall top")
 
     sequence = []
-    names = {f["name"] for f in faces}
+    names = {str(f["name"]).split("/")[-1] for f in faces}
     if any(f.get("kind") == "coupon" for f in faces):
         sequence.append("Cut the coupon first: dry-fit male f into female F, then measure the 100 mm bar (shrinkage / 2 ≈ burn).")
     if "bottom" in names:
@@ -485,13 +490,17 @@ def check_assembly(
         sequence.append("Dry-fit every f/F pair and every hole/shaft before glue.")
 
     from assembled_view import validate, preview, preview_requirements
-    contour_parts = [p for p in (primitives or []) if isinstance(p, dict) and (_kind(p) in {"polygon", "contour", "outline", "polyline"} or p.get('_cut_geometry') or p.get('tabs') or p.get('placement'))]
+    contour_parts = [p for p in physical_parts if isinstance(p, dict) and (_kind(p) in {"polygon", "contour", "outline", "polyline", "panel"} or p.get('_cut_geometry') or p.get('tabs') or p.get('placement'))]
     explicit_errors, explicit_joints, joint_debug = validate(contour_parts, t)
     errors.extend(explicit_errors)
     joints.extend(explicit_joints)
     ok = not errors
-    preview_diagnostics=preview_requirements(primitives or [])
-    assembled_preview=preview(primitives or [], t) if ok and preview_diagnostics['status']=='PASS' else None
+    preview_diagnostics=preview_requirements(physical_parts)
+    intended_contacts, clearances, illegal_collisions = classify_contacts(physical_parts, composite["derived_constraints"], t)
+    if illegal_collisions:
+        errors.extend(f"illegal collision: {c['part_a']} ↔ {c['part_b']}" for c in illegal_collisions)
+        ok = False
+    assembled_preview=preview(physical_parts, t) if ok and preview_diagnostics['status']=='PASS' else None
     graph = assembly_graph(faces, joints, shaft_pairs, roof_lock)
     return {
         "ok": ok,
@@ -505,6 +514,15 @@ def check_assembly(
         "tab_slot_pairs": sum(1 for joint in joints if joint.get("kind") == "tab-slot"),
         "tab_slot_debug": joint_debug,
         "placement_diagnostics": placement_diagnostics,
+        "physical_parts": [{"id": p.get("physical_part_id"), "placement": p.get("placement"), "placement_source": p.get("placement_source") or (p.get("placement") or {}).get("source"), "outer_cut": (p.get("_cut_geometry") or {}).get("outer_cut")} for p in physical_parts],
+        "logical_groups": composite["logical_groups"],
+        "derived_constraints": composite["derived_constraints"],
+        "intended_contacts": intended_contacts,
+        "clearances": clearances,
+        "illegal_collisions": illegal_collisions,
+        "ambiguous_parts": [n.get("part") for n in placement_diagnostics if n.get("status") == "PLACEMENT_AMBIGUOUS"],
+        "unresolved_parts": list(preview_diagnostics.get("missing_placement") or []),
+        "_physical_primitives": physical_parts,
         "shaft_pairs": shaft_pairs,
         "assembled_mm": assembled,
         "sequence": sequence,

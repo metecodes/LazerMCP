@@ -285,7 +285,9 @@ class RegressionTests(_Iso):
         )
         self.assertTrue(result.get("success"))
         self.assertEqual(result.get("final_status"), "BLOCKED")
-        self.assertEqual(result["review"]["categories"]["3D_ASSEMBLY"]["status"], "NOT_VERIFIED")
+        self.assertEqual(result["review"]["categories"]["ASSEMBLY"]["status"], "PASS")
+        self.assertEqual(result["review"]["categories"]["3D_ASSEMBLY"]["status"], "PASS")
+        self.assertIsNotNone(result["assembly"].get("assembled_preview_svg"))
         self.assertEqual(result.get("design_generation"), "DESIGN_GENERATION_SUCCESS")
         from boxes_adapter import render_preview, validate_svg
 
