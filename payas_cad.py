@@ -515,6 +515,7 @@ def create_design(
         "preserve_source_geometry": bool(built.get("preserve_source_geometry")),
         "plt_import": built.get("plt_import"),
         "assembly": built.get("assembly"),
+        "linear_motion": built.get("linear_motion"),
         "tab_slot_debug": (built.get("assembly") or {}).get("tab_slot_debug") or [],
         "nesting": built.get("nesting"),
         "topology": built.get("topology"),
@@ -594,6 +595,7 @@ def create_design(
 def validate_assembly(
     file_id: str | None = None,
     primitives: list[Any] | None = None,
+    parameters: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Mechanical fit from a recipe, or reload assembly + nesting from a generated file."""
     from assembly import apply_roof_lock, check_assembly
@@ -602,7 +604,7 @@ def validate_assembly(
         from pipeline import run_pipeline
 
         try:
-            built = run_pipeline(primitives, {})
+            built = run_pipeline(primitives, parameters or {})
         except Exception as exc:
             return _mcp({"source": "primitives", "ready_to_cut": False, "look_again": [str(exc)]})
         report = built.get("assembly") or check_assembly(apply_roof_lock(primitives)[0])

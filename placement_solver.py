@@ -11,6 +11,8 @@ def _direction(tab):
 
 def derive_placements(parts,thickness=3.0):
     lookup={str(p.get('label')):p for p in parts if isinstance(p,dict) and p.get('label')};notes=[]
+    for name,p in lookup.items():
+        if p.get('placement'):notes.append({'status':'PASS','part':name,'via':'explicit origin/u/v placement'})
     # A closed mate graph fixes relative placement even when the caller did not
     # choose a world origin. Give such a component a deterministic canonical
     # frame; a tree or single mate still has a free rotational DOF and remains

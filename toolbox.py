@@ -906,6 +906,17 @@ def render_toolbox(primitives: list[Any], parameters: dict[str, Any] | None = No
     from topology import inspect_topology
 
     assembly = check_assembly(parts, thickness=thickness, burn=effective_burn)
+    from linear_motion import validate as validate_linear_motion
+    linear_motion = validate_linear_motion(parts, params, thickness)
+    assembly["linear_motion"] = linear_motion
+    for slide in linear_motion.get("slides") or []:
+        for rail in slide.get("rails") or []:
+            assembly.setdefault("graph", {}).setdefault("edges", []).append({"from":slide.get("moving_part"),"to":rail,"type":"linear_slide","result":slide.get("status"),"via":"world-space sampled travel"})
+    if assembly.get("graph"):
+        assembly["graph"]["edge_count"] = len(assembly["graph"].get("edges") or [])
+    if linear_motion.get("status") == "FAIL":
+        assembly["ok"] = False
+        assembly.setdefault("look_again", []).extend(r.get("reason") for r in linear_motion.get("slides") or [] if r.get("status") == "FAIL")
     if roof_lock:
         assembly["roof_lock"] = assembly.get("roof_lock") or roof_lock
     machine = params.get("_machine") or {}
@@ -958,6 +969,7 @@ def render_toolbox(primitives: list[Any], parameters: dict[str, Any] | None = No
         "parts": [str(p.get("label") or _kind(p)) for p in parts],
         "path_count": metrics.get("path_count"),
         "assembly": assembly,
+        "linear_motion": linear_motion,
         "nesting": nesting,
         "topology": topology,
         "manufacturing": manufacturing,

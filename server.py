@@ -477,6 +477,7 @@ def plan_laser_job(
         "primitives: box (finger-joint walls+floor), panel (motor plate, solar, roof), "
         "disc (washer/shaft adapter), triangle (roof support), propeller (n-blade rotor), "
         "contour (closed points [[x,y],...] mm), coupon (kerf test). "
+        "Every physical primitive may include placement={origin:[x,y,z],u:[x,y,z],v:[x,y,z]} in assembly millimetres and moving=true. The normal is cross(u,v). Preserve these fields. parameters.connections supports linear_slide={id,type,moving_part,rails,axis,travel_mm,clearance_mm} and servo_linear_drive. "
         "Door/window = slots on box.walls.front, not type=slot. "
         "Optional marks: part.markings or {type:marking, target_part} "
         "(kind=text|path|icon|line, x,y,width or height, rotation, align, operation=engrave|cut). "
@@ -934,18 +935,26 @@ def validate_svg(file_id: str | None = None, url: str | None = None) -> dict[str
 def validate_assembly(
     file_id: str | None = None,
     primitives: list[Any] | None = None,
+    parameters: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    return payas_cad.validate_assembly(file_id=file_id, primitives=primitives)
+    return payas_cad.validate_assembly(file_id=file_id, primitives=primitives, parameters=parameters)
 
 
-@mcp.tool(description="Return a preview URL. view='cut' shows the laser sheet; view='assembled' shows upright panels only when explicit placements and tab partners were verified.")
+@mcp.tool(description="Return a mechanical preview. view must be nested, assembled or exploded. nested shows the laser sheet; assembled uses explicit origin/u/v placements; exploded separates those same verified placements for debugging.")
 def render_preview(file_id: str, view: str = "cut") -> dict[str, Any]:
-    if view == "assembled":
+    if view in {"assembled","exploded"}:
         from workshop import editor_context
         data = editor_context(file_id)
         if not data.get("assembled_preview_svg"):
             return {"success": False, "look_again": ["Monte görünüm için doğrulanmış parça konumları ve geçme eşleri gerekli."]}
+        if view == "exploded":
+            from assembled_view import exploded_preview
+            svg=exploded_preview(data.get('primitives') or [],float((data.get('parameters') or {}).get('thickness') or 3))
+            if not svg:return {"success":False,"look_again":["Exploded görünüm için bütün fiziksel parçalarda placement gerekli."]}
+            return {"success":True,"preview_kind":"exploded","svg":svg,"note":"Debug exploded view from explicit placements."}
         return {"success": True, "preview_kind": "assembled", "preview_url": _tool_public_base().rstrip("/") + "/out/" + quote(file_id, safe="") + "?view=assembled", "note": "Nominal digital assembly; physical dry-fit is not verified."}
+    if view not in {"cut","nested"}:
+        return {"success":False,"look_again":["view must be nested, assembled or exploded"]}
     try:
         return payas_cad._mcp(boxespy.render_preview(file_id, public_base_url=_tool_public_base()))
     except Exception as exc:

@@ -181,3 +181,11 @@ def preview(parts,t=3,visible_labels=None,highlight_labels=None,caption=None):
                 chunks.append(f'<path d="{path(p,star)}" fill="none" stroke="#775b3e" stroke-width=".7"/>')
     title=str(caption or 'Nominal assembled panel preview')
     return f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{lo} {hi} {w} {h}" role="img" aria-label={quoteattr(title)}><title>{escape(title)}</title><rect x="{lo}" y="{hi}" width="{w}" height="{h}" fill="#f6f3ed"/>'+''.join(chunks)+'</svg>'
+
+def exploded_preview(parts,t=3,spacing=18):
+    from copy import deepcopy
+    rows=deepcopy([p for p in parts if isinstance(p,dict)])
+    for i,p in enumerate(rows):
+        if p.get('placement'):
+            n=i-(len(rows)-1)/2;p['placement']['origin']=[float(x)+n*spacing*(1 if j==0 else .35 if j==2 else 0) for j,x in enumerate(p['placement']['origin'])]
+    return preview(rows,t,caption='Exploded assembly debug view')

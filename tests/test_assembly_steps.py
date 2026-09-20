@@ -8,7 +8,7 @@ class AssemblyStepTests(unittest.TestCase):
  def test_progressive_steps_follow_verified_house_placements(self):
   parts=recipe();assembly=check_assembly(parts)
   plan=build_assembly_steps(parts,assembly,{'assembly_request':'Kalemliği tabandan başlayarak ayakta kur.'})
-  self.assertEqual(plan['status'],'READY');self.assertEqual(len(plan['steps']),len(parts));self.assertEqual(plan['request'],'Kalemliği tabandan başlayarak ayakta kur.')
+  self.assertEqual(plan['status'],'AVAILABLE');self.assertEqual(len(plan['steps']),len(parts));self.assertEqual(plan['request'],'Kalemliği tabandan başlayarak ayakta kur.')
   first=ET.fromstring(plan['steps'][0]['svg_bytes']);last=ET.fromstring(plan['steps'][-1]['svg_bytes'])
   self.assertEqual(len([e for e in first.iter() if e.get('data-panel')]),1)
   self.assertEqual(len([e for e in last.iter() if e.get('data-panel')]),len(parts))

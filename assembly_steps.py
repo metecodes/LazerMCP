@@ -17,6 +17,8 @@ def _default_order(parts):
 
 def build_assembly_steps(primitives:list[Any]|None,assembly:dict[str,Any]|None,parameters:dict[str,Any]|None=None):
     params=parameters or {}; request=str(params.get('assembly_request') or params.get('user_request') or '').strip()
+    if (assembly or {}).get('ok') is not True:
+        return {'status':'NOT_AVAILABLE','reason':'Assembly steps require ASSEMBLY PASS.','request':request,'steps':[]}
     parts=[p for p in (primitives or []) if isinstance(p,dict) and p.get('label') and p.get('placement') and outline(p)]
     if not parts or len(parts)!=len([p for p in (primitives or []) if isinstance(p,dict)]):
         return {'status':'NOT_AVAILABLE','reason':'Assembly drawings require an explicit placement and outline for every physical part. No orientation is guessed.','request':request,'steps':[]}
@@ -38,5 +40,7 @@ def build_assembly_steps(primitives:list[Any]|None,assembly:dict[str,Any]|None,p
         caption=f'Montaj {index}/{len(order)} — {label}: {instruction}'
         svg=preview(parts,thickness,visible_labels=visible,highlight_labels=[label],caption=caption)
         if not svg:return {'status':'BLOCKED','reason':'A verified progressive preview could not be rendered.','request':request,'steps':[]}
-        steps.append({'step':index,'part':label,'instruction':instruction,'svg_bytes':svg.encode('utf-8')})
-    return {'status':'READY','request':request,'order':order,'steps':steps,'physical_fit':'NOT VERIFIED'}
+        edges=[e for e in ((assembly or {}).get('graph') or {}).get('edges') or [] if label in {str(e.get('from')),str(e.get('to'))}]
+        pose=next(p.get('placement') for p in parts if str(p.get('label'))==label)
+        steps.append({'step':index,'part':label,'mates':[e.get('to') if str(e.get('from'))==label else e.get('from') for e in edges],'connection_types':[e.get('type') for e in edges],'orientation':{'u':pose.get('u'),'v':pose.get('v')},'assembly_direction':pose.get('normal') or 'along verified mate normal','instruction':instruction,'svg_bytes':svg.encode('utf-8')})
+    return {'status':'AVAILABLE','legacy_status':'READY','request':request,'order':order,'steps':steps,'physical_fit':'NOT VERIFIED'}

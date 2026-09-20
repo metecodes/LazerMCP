@@ -118,6 +118,8 @@ def _moving(faces: list[dict[str, Any]], primitives: list[Any] | None) -> bool:
             continue
         if _kind(part) in {"propeller", "pervane", "blades", "fan"}:
             return True
+        if part.get("moving") is True:
+            return True
         label = str(part.get("label") or "").lower()
         if "wheel" in label or "teker" in label:
             return True
@@ -130,7 +132,8 @@ def design_map(primitives: list[Any] | None, thickness: float, burn: float) -> d
     for i, face in enumerate(faces, start=1):
         pid = f"P{i:02d}"
         kind = str(face.get("kind") or "part")
-        moving = kind in {"propeller"} or "wheel" in str(face.get("name") or "").lower()
+        source=next((p for p in (primitives or []) if isinstance(p,dict) and str(p.get('label') or '')==str(face.get('name') or '')),None)
+        moving = bool((source or {}).get('moving')) or kind in {"propeller"} or "wheel" in str(face.get("name") or "").lower()
         role = {
             "wall": "structure",
             "floor": "structure",
@@ -155,6 +158,7 @@ def design_map(primitives: list[Any] | None, thickness: float, burn: float) -> d
                 "d": face.get("d"),
                 "edges": face.get("edges"),
                 "thickness": thickness,
+                "placement": (source or {}).get("placement"),
                 "material": "kavak plywood",
             }
         )
@@ -179,7 +183,7 @@ def design_map(primitives: list[Any] | None, thickness: float, burn: float) -> d
         ),
         "part_count": len(parts),
         "parts": parts,
-        "moving_parts": [p["id"] for p in parts if p.get("moving")],
+        "moving_parts": [p["name"] for p in parts if p.get("moving")],
         "structure": [p["id"] for p in parts if p.get("role") == "structure"],
     }
 
@@ -293,6 +297,7 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
 
     connections.extend(connection_checks(primitives, built.get("parameters") or {}))
     moving = _moving(faces, primitives)
+    linear_report=(built.get('linear_motion') or (assembly.get('linear_motion') if isinstance(assembly,dict) else None) or {'active':False,'status':'N/A','slides':[],'drives':[]})
     required = list(_COMPOSED_CRITICAL if job == "composed" else _FLAT_CRITICAL)
     if job == "composed" and moving:
         required.append("KINEMATICS")
@@ -426,7 +431,9 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
         else:tab_slot_c.append({'status':NA,'note':'no explicit tab-slot pairs'})
 
         hardware=parameters.get('hardware_fits')
-        if nonprop_rotating:
+        if linear_report.get('active') and not nonprop_rotating:
+            hardware_c.append({'status':NA,'note':'linear slide has no shaft/hole hardware interface'})
+        elif nonprop_rotating:
             canonical_edges=mechanism_report.get('connection_graph') or []
             for edge in canonical_edges:
                 sd=edge.get('shaft_diameter_mm');hd=edge.get('hole_diameter_mm');clearance=edge.get('clearance_mm');angle=edge.get('axis_angle_error_deg');distance=edge.get('center_to_axis_distance_mm')
@@ -490,8 +497,20 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
             collision_c.append(
                 {"status": WARNING, "note": "full 3D volume intersection is not simulated — first sheet is a prototype"}
             )
+        if linear_report.get('active'):
+            slide_collisions=[c for s in linear_report.get('slides') or [] for c in s.get('collisions') or []]
+            if slide_collisions:
+                collision_c.append({'status':FAIL,'note':f'linear travel has {len(slide_collisions)} static-moving collisions','collisions':slide_collisions})
+            else:collision_c.append({'status':PASS,'note':'linear slide sampled positions have no static-moving bounding-volume collision'})
 
-        if moving and not nonprop_rotating:
+        if linear_report.get('active'):
+            for slide in linear_report.get('slides') or []:
+                motion_c.append({'status':slide.get('status') or NOT_VERIFIED,'note':f"linear_slide {slide.get('id')}: {slide.get('reason')}; positions="+', '.join(f"{p.get('travel_mm'):g}mm {p.get('status')}" for p in slide.get('positions') or [])})
+                kinematics_c.append({'status':slide.get('status') or NOT_VERIFIED,'note':f"linear_slide {slide.get('moving_part')}: {slide.get('reason')}"})
+            for drive in linear_report.get('drives') or []:
+                kinematics_c.append({'status':drive.get('status') or NOT_VERIFIED,'note':f"servo_linear_drive {drive.get('motor_part')}→{drive.get('driven_part')}: {drive.get('reason')}"})
+            function_c.append({'status':linear_report.get('status') or NOT_VERIFIED,'note':'linear slide and optional servo drive validation'})
+        elif moving and not nonprop_rotating:
             from motion_clearance import check_motion_clearance
             motion_report=check_motion_clearance(primitives,resolved_motion,t)
             motion_c.append({'status':motion_report['status'],'note':motion_report['note']})
@@ -826,6 +845,7 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
         "scorecard": scorecard,
         "gate_levels":gate_levels,
         "mechanisms": mechanism_report,
+        "linear_motion": linear_report,
         "hardware_fit": hardware_c,
         "reference_comparison":reference,
         "physical": physical,
