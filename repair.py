@@ -62,11 +62,13 @@ def _roofs(parts: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def _props(parts: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    from mechanisms import mechanism_type
     out = []
     for p in parts:
-        if _kind(p) in {"propeller", "pervane", "blades", "fan"}:
+        semantic=mechanism_type(p)
+        if semantic in {"propeller", "rotor"}:
             out.append(p)
-        elif _kind(p) in {"disc", "disk"} and (p.get("blades") or "prop" in _label(p) or "pervane" in _label(p)):
+        elif semantic is None and _kind(p) in {"disc", "disk"} and (p.get("blades") or "prop" in _label(p) or "pervane" in _label(p)):
             out.append(p)
     return out
 
@@ -85,7 +87,9 @@ def repair_primitives(primitives: list[Any] | None, review: dict[str, Any] | Non
     for part in parts:
         if not isinstance(part, dict):
             continue
-        if _kind(part) in {"disc", "disk"} and (part.get("blades") or "prop" in _label(part) or "pervane" in _label(part)):
+        from mechanisms import mechanism_type
+        semantic=mechanism_type(part)
+        if semantic not in {"wheel","road_roller_drum","pulley","gear","disc","flywheel"} and _kind(part) in {"disc", "disk"} and (part.get("blades") or "prop" in _label(part) or "pervane" in _label(part)):
             part["type"] = "propeller"
             part.setdefault("blades", int(part.get("blades") or 4))
             actions.append({"fix": "disc_to_propeller", "part": _label(part)})

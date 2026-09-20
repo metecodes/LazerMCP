@@ -333,7 +333,8 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
                  (f.get("kind") == "panel" and "roof" in str(f.get("name") or "").lower() and not
                   any(k in str(f.get("name") or "").lower() for k in ("support", "brace", "mount")))]
         gables = [f for f in faces if f.get("kind") == "gable"]
-        props = [f for f in faces if f.get("kind") == "propeller"]
+        prop_names={m['part'] for m in mechanism_classes if m.get('type') in {'propeller','rotor'}}
+        props = [f for f in faces if f.get("kind") == "propeller" and f.get('name') in prop_names]
         nonprop_rotating=[m for m in mechanism_classes if m.get('rotating') and m.get('type') not in {'propeller','rotor'}]
         box = next((p for p in primitives if _kind(p) == "box"), None)
         if not faces:

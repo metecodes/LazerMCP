@@ -11,6 +11,29 @@ def _direction(tab):
 
 def derive_placements(parts,thickness=3.0):
     lookup={str(p.get('label')):p for p in parts if isinstance(p,dict) and p.get('label')};notes=[]
+    # A closed mate graph fixes relative placement even when the caller did not
+    # choose a world origin. Give such a component a deterministic canonical
+    # frame; a tree or single mate still has a free rotational DOF and remains
+    # explicitly ambiguous.
+    graph={name:set() for name in lookup};edge_count={}
+    for female in lookup.values():
+        for slot in female.get('slots') or []:
+            mate=slot.get('mate') or {};other=str(mate.get('part') or '')
+            if other in lookup:
+                a,b=sorted((str(female.get('label')),other));graph[a].add(b);graph[b].add(a);edge_count[(a,b)]=edge_count.get((a,b),0)+1
+    unseen=set(graph)
+    while unseen:
+        seed=next(iter(unseen));stack=[seed];component=set()
+        while stack:
+            node=stack.pop()
+            if node in component:continue
+            component.add(node);stack.extend(graph[node]-component)
+        unseen-=component
+        edges=sum(n for (a,b),n in edge_count.items() if a in component and b in component)
+        if component and not any(lookup[n].get('placement') for n in component) and edges>=len(component):
+            root=max(component,key=lambda n:(len(lookup[n].get('tabs') or []),len(graph[n]),n))
+            lookup[root]['placement']={'origin':[0.0,0.0,0.0],'u':[1.0,0.0,0.0],'v':[0.0,1.0,0.0],'source':'constraint-canonical'}
+            notes.append({'status':'DERIVED','part':root,'via':'closed constraint graph canonical frame'})
     changed=True
     while changed:
         changed=False

@@ -7,6 +7,7 @@ from placement_solver import derive_placements
 from seen import check_what_you_see
 from toolbox import _materialize_cut_geometry
 from road_roller_fixture import build_fixture
+from repair import repair_primitives
 
 
 def rotating_part(label,kind='road_roller_drum',origin=None):
@@ -80,6 +81,18 @@ class RoadRollerTests(unittest.TestCase):
         self.assertEqual({r['type'] for r in mechanics['classifications']},{'wheel','road_roller_drum','disc'})
         moving=[r for r in mechanics['checks'] if r['type'] in {'wheel','road_roller_drum'}]
         self.assertEqual(len(moving),4);self.assertTrue(all(r['status']=='PASS' for r in moving),moving)
+
+    def test_closed_constraint_graph_gets_canonical_frame(self):
+        bridge=_materialize_cut_geometry({'type':'panel','label':'bridge','w':50,'h':22,'tabs':[{'id':'A','side':'L','x':0,'y':6,'w':3,'h':6},{'id':'B','side':'L','x':0,'y':16,'w':3,'h':6}]})
+        side=_materialize_cut_geometry({'type':'contour','label':'side','points':[[0,0],[22,0],[22,30],[0,30]],'slots':[{'x':6,'y':11.5,'w':6,'h':3.15,'mate':{'part':'bridge','tab':'A'}},{'x':16,'y':11.5,'w':6,'h':3.15,'mate':{'part':'bridge','tab':'B'}}]})
+        report=check_assembly([bridge,side])
+        self.assertTrue(report['ok'],report['look_again']);self.assertEqual(report['tab_slot_pairs'],2)
+        self.assertTrue(any(n.get('via')=='closed constraint graph canonical frame' for n in report['placement_diagnostics']))
+
+    def test_repair_never_turns_explicit_drum_into_propeller(self):
+        drum={'type':'disc','label':'prop-looking drum','blades':12,'mechanism':{'type':'road_roller_drum','rotating':True}}
+        repaired,actions=repair_primitives([drum])
+        self.assertEqual(repaired[0]['type'],'disc');self.assertFalse(any(a.get('fix')=='disc_to_propeller' for a in actions))
 
 
 if __name__=='__main__':unittest.main()

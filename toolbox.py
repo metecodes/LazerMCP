@@ -872,7 +872,8 @@ def render_toolbox(primitives: list[Any], parameters: dict[str, Any] | None = No
     parts, roof_lock = apply_roof_lock(parts)
     from physical import resolve_burn
 
-    moving = any(_kind(p) in {"propeller", "pervane", "blades", "fan"} for p in parts if isinstance(p, dict))
+    from mechanisms import classify
+    moving = any(row.get('rotating') for row in classify(parts))
     thickness = float(params.get("thickness") or PAYAS_DEFAULTS["thickness"])
     burn, physical = resolve_burn(params, moving=moving)
     clearance = float(params.get("joint_clearance_mm") or 0.0)

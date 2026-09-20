@@ -54,6 +54,12 @@ def expand_faces(primitives: list[Any]) -> list[dict[str, Any]]:
         if not isinstance(part, dict):
             continue
         kind = _kind(part)
+        from mechanisms import mechanism_type
+        semantic=mechanism_type(part)
+        if semantic in {'wheel','road_roller_drum','pulley','gear','disc','flywheel'}:
+            kind='disc'
+        elif semantic in {'propeller','rotor'}:
+            kind='propeller'
         n = _count(part)
         if kind == "box":
             x = _num(part.get("x") or part.get("w"), 80)
