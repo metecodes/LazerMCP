@@ -182,6 +182,19 @@ def preview(parts,t=3,visible_labels=None,highlight_labels=None,caption=None):
     title=str(caption or 'Nominal assembled panel preview')
     return f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{lo} {hi} {w} {h}" role="img" aria-label={quoteattr(title)}><title>{escape(title)}</title><rect x="{lo}" y="{hi}" width="{w}" height="{h}" fill="#f6f3ed"/>'+''.join(chunks)+'</svg>'
 
+def preview_requirements(parts):
+    rows=[p for p in parts or [] if isinstance(p,dict)]
+    missing_placement=[str(p.get('label') or p.get('type') or '?') for p in rows if not p.get('placement')]
+    missing_outline=[str(p.get('label') or p.get('type') or '?') for p in rows if not outline(p)]
+    invalid=[]
+    for p in rows:
+        pose=p.get('placement')
+        if not pose:continue
+        try:
+            if any(len(pose[k])!=3 for k in ('origin','u','v')):invalid.append(str(p.get('label') or p.get('type') or '?'))
+        except (KeyError,TypeError):invalid.append(str(p.get('label') or p.get('type') or '?'))
+    return {'status':'PASS' if not missing_placement and not missing_outline and not invalid else 'FAIL','missing_placement':missing_placement,'missing_outline':missing_outline,'invalid_placement':invalid,'part_count':len(rows)}
+
 def exploded_preview(parts,t=3,spacing=18):
     from copy import deepcopy
     rows=deepcopy([p for p in parts if isinstance(p,dict)])

@@ -50,5 +50,14 @@ class LinearSlideIntegrationTests(unittest.TestCase):
         self.assertEqual(built['linear_motion']['drives'][0]['status'],'NOT_VERIFIED')
         self.assertEqual(built['final_status'],'BLOCKED')
 
+    def test_missing_placement_names_the_exact_blocking_part(self):
+        parts,params=trash_bin();parts[-1].pop('placement')
+        built=review_only(render_toolbox(parts,params));diag=built['assembly']['assembled_preview_diagnostics']
+        self.assertEqual(diag['missing_placement'],['servo-holder'])
+        self.assertTrue(built['assembly']['ok'])
+        self.assertEqual(built['review']['categories']['ASSEMBLY']['status'],'NOT_VERIFIED')
+        self.assertEqual(built['review']['categories']['3D_ASSEMBLY']['status'],'NOT_VERIFIED')
+        self.assertIn('servo-holder',built['review']['categories']['3D_ASSEMBLY']['notes'][0])
+
 
 if __name__=='__main__':unittest.main()

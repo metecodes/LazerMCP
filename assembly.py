@@ -484,16 +484,19 @@ def check_assembly(
     if not sequence:
         sequence.append("Dry-fit every f/F pair and every hole/shaft before glue.")
 
-    from assembled_view import validate, preview
+    from assembled_view import validate, preview, preview_requirements
     contour_parts = [p for p in (primitives or []) if isinstance(p, dict) and (_kind(p) in {"polygon", "contour", "outline", "polyline"} or p.get('_cut_geometry') or p.get('tabs') or p.get('placement'))]
     explicit_errors, explicit_joints, joint_debug = validate(contour_parts, t)
     errors.extend(explicit_errors)
     joints.extend(explicit_joints)
     ok = not errors
+    preview_diagnostics=preview_requirements(primitives or [])
+    assembled_preview=preview(primitives or [], t) if ok and preview_diagnostics['status']=='PASS' else None
     graph = assembly_graph(faces, joints, shaft_pairs, roof_lock)
     return {
         "ok": ok,
-        "assembled_preview_svg": preview(primitives or [], t) if ok else None,
+        "assembled_preview_svg": assembled_preview,
+        "assembled_preview_diagnostics": preview_diagnostics,
         "warnings": warnings,
         "look_again": errors,
         "joints": joints,

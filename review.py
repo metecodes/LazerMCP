@@ -413,8 +413,10 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
             assembly_c.append({"status": PASS, "note": "verified geometric connections produced an assembled preview"})
             assembly3d_c.append({"status":PASS,"note":"assembled_preview.svg produced from explicit placements"})
         elif assembly.get("ok") is True and not looks:
-            assembly_c.append({"status": NOT_VERIFIED, "note": "assembly checker ran but assembled_preview.svg could not be produced"})
-            assembly3d_c.append({"status":NOT_VERIFIED,"note":"Assembled Preview: REQUIRED"})
+            diag=assembly.get('assembled_preview_diagnostics') or {}
+            detail=', '.join([*(f'{x}: placement missing' for x in diag.get('missing_placement') or []),*(f'{x}: outline missing' for x in diag.get('missing_outline') or []),*(f'{x}: placement invalid' for x in diag.get('invalid_placement') or [])])
+            assembly_c.append({"status": NOT_VERIFIED, "note": "assembled_preview.svg could not be produced"+(f': {detail}' if detail else '')})
+            assembly3d_c.append({"status":NOT_VERIFIED,"note":"Assembled Preview: REQUIRED"+(f'; {detail}' if detail else '')})
         elif looks:
             for msg in looks:
                 assembly_c.append({"status": FAIL, "note": str(msg)})
