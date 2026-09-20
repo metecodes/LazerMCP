@@ -242,6 +242,8 @@ def editor_context(file_id: str) -> dict[str, Any]:
     return {
         "success": True,
         "file_id": str(file_id or ""),
+        "dxf_id": hit.get("dxf_id"),
+        "dxf_url": ("/files/" + str(hit.get("dxf_id")) + "?download=1") if hit.get("dxf_id") else None,
         "project_id": hit.get("project_id") or "",
         "name": hit.get("name") or "",
         "version": hit.get("version"),

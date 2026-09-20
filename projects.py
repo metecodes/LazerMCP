@@ -146,6 +146,7 @@ def project_by_file(file_id: str) -> dict[str, Any] | None:
                 "name": project.get("name") or pid,
                 "version": ver.get("n"),
                 "file_id": fid,
+                "dxf_id": ver.get("dxf_id"),
                 "primitives": [dict(p) for p in primitives if isinstance(p, dict)],
                 "material": ver.get("material"),
                 "machine": ver.get("machine"),

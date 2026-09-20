@@ -137,4 +137,15 @@ class EditorRouteTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("if(e.key==='0')",script)
         self.assertNotIn("if(state.assembledMode||state.tool!=='pan')",script)
 
+    async def test_editor_audits_large_parts_and_exposes_dxf_download(self):
+        from pathlib import Path
+        root=Path(__file__).parents[1]
+        html=root.joinpath('web','editor.html').read_text(encoding='utf-8')
+        script=root.joinpath('web','editor.js').read_text(encoding='utf-8')
+        for control in ('part-audit','sheet-audit','download-dxf','isolate-selected','show-all'):
+            self.assertIn(f'id="{control}"',html)
+        self.assertIn("format:'both'",script)
+        self.assertIn("LaserCAD için mm tabanlı DXF R12",script)
+        self.assertIn('state.bed.w',script)
+
 if __name__=='__main__': unittest.main()
