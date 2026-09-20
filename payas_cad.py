@@ -519,6 +519,7 @@ def create_design(
         "nesting": built.get("nesting"),
         "topology": built.get("topology"),
         "manufacturing": built.get("manufacturing"),
+        "surface_content": built.get("surface_content"),
         "scale": built.get("scale"),
         "primitives": built.get("primitives"),
         "parts": built.get("parts"),

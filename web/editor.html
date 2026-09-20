@@ -98,6 +98,12 @@
         <label for="depth">Kutu derinliği (mm)</label><input id="depth" type="number" min="1" max="2000" step="0.1">
         <label for="edges">Kenarlar (alt, sağ, üst, sol)</label><input id="edges" placeholder="eeee" maxlength="4">
         <label for="material">Malzeme</label><input id="material" placeholder="poplar_3mm">
+        <hr><h3>Yazı ve marka kazıması</h3>
+        <label for="surface-texts">Kullanıcı metinleri (her satır ayrı)</label><textarea id="surface-texts" rows="3" placeholder="MİNİK MUCİTLER"></textarea>
+        <label><input id="apply-branding" type="checkbox"> Verilen markayı uygun yüzeylere yaz</label>
+        <label for="brand-name">Marka adı</label><input id="brand-name" maxlength="100" placeholder="PAYAS STEM">
+        <label for="brand-logo">Logo SVG path verisi</label><textarea id="brand-logo" rows="3" placeholder="M 0 0 L ... Z"></textarea>
+        <p class="lede">Yazı ve logo sarı ENGRAVE olarak işlenir; kesim katmanına alınmaz.</p>
         <label for="clearance">Geçme boşluğu (mm)</label><input id="clearance" type="number" min="-0.15" max="0.4" step="0.01" value="0">
         <button class="btn cut" id="apply">Ölçüleri uygula</button>
         <hr><h3>Yeni delik</h3>

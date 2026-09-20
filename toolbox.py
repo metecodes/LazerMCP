@@ -864,6 +864,8 @@ def render_toolbox(primitives: list[Any], parameters: dict[str, Any] | None = No
     from studio import prepare_parameters
 
     params = prepare_parameters(parameters)
+    from surface_branding import apply_surface_content
+    parts, surface_content = apply_surface_content(parts, params)
     from scale import scale_primitives
 
     from manufacturing import annotate_primitives
@@ -959,6 +961,7 @@ def render_toolbox(primitives: list[Any], parameters: dict[str, Any] | None = No
         "nesting": nesting,
         "topology": topology,
         "manufacturing": manufacturing,
+        "surface_content": surface_content,
         "scale": scale_info,
         "primitives": parts,
         "parameters": {
