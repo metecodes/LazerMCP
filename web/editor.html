@@ -17,6 +17,12 @@
     .breadcrumb { display:flex; align-items:center; gap:12px; min-width:0; flex:1; color:var(--mute); font-size:13px; }
     #title { font-size:14px; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin:0; }
     .nav-actions { display:flex; gap:8px; }
+    .workflow { display:flex; align-items:center; gap:8px; padding:10px 24px; border-bottom:1px solid var(--line); background:color-mix(in srgb,var(--selection) 4%,var(--paper)); overflow-x:auto; }
+    .workflow-step { display:flex; align-items:center; gap:7px; white-space:nowrap; color:var(--mute); font-size:12px; }
+    .workflow-step b { display:grid; place-items:center; width:22px; height:22px; border-radius:50%; background:var(--paper); border:1px solid var(--line); color:var(--ink); }
+    .workflow-step.active { color:var(--ink); font-weight:600; }
+    .workflow-step.active b { color:white; border-color:var(--selection); background:var(--selection); }
+    .workflow-arrow { color:var(--mute); }
     .editor .btn { border-radius:5px; font-size:13px; padding:10px 16px; }
     .btn:disabled { opacity:.45; cursor:not-allowed; }
     .wrap { display:grid; grid-template-columns:250px minmax(0,1fr) 280px; min-height:calc(100vh - 210px); }
@@ -65,9 +71,13 @@
     #features button { margin-top:8px; } .editor hr { border:0; border-top:1px solid var(--line); margin:24px 0; }
     @media(max-width:800px) { #report { grid-template-columns:1fr; } .breadcrumb { order:0; } .nav-actions { margin-left:0; } }
     .canvas svg .is-on { outline:none; }
+    .canvas-help { margin-left:auto; color:var(--mute); font-size:11px; white-space:nowrap; }
+    .shortcut-grid { display:grid; grid-template-columns:auto 1fr; gap:9px 14px; margin:12px 0 0; font-size:13px; }
+    .shortcut-grid kbd { min-width:58px; padding:3px 7px; text-align:center; border:1px solid var(--line); border-bottom-width:2px; border-radius:5px; background:var(--bg); font:11px var(--mono); }
     .editor .ghost { border:1px solid var(--line); background:var(--paper); }
     .editor h3 { margin:16px 0 8px; } .editor .lede { max-width:none; }
-    @media(min-width:801px) { .wrap { height:calc(100vh - 250px); min-height:520px; } .parts-panel,.properties { overflow-y:auto; } .stage { display:flex; flex-direction:column; } .canvas { height:auto; flex:1; min-height:260px; } .feedback { min-height:160px; } }
+    @media(max-width:800px) { .workflow { padding:9px 16px; } .workflow-arrow { display:none; } .canvas-help { width:100%; margin-left:0; } }
+    @media(min-width:801px) { .wrap { height:calc(100vh - 293px); min-height:520px; } .parts-panel,.properties { overflow-y:auto; } .stage { display:flex; flex-direction:column; } .canvas { height:auto; flex:1; min-height:260px; } .feedback { min-height:160px; } }
   </style>
 </head>
 <body class="editor">
@@ -76,6 +86,12 @@
     <div class="breadcrumb"><a id="studio" href="/dashboard">Stüdyo</a><span>/</span><h1 id="title">SVG editörü</h1></div>
     <div class="nav-actions"><button class="btn ghost" id="undo" title="Ctrl+Z">↶</button><button class="btn ghost" id="redo" title="Ctrl+Shift+Z">↷</button><span id="save-state" class="status-tag">Kayıtlı</span><button class="btn ghost" id="import-plt">PLT içe aktar</button><input type="file" id="plt-file" accept=".plt,.hpgl,.hpg" hidden><button class="btn ghost" id="save">Kaydet</button><button class="btn ghost" id="validate">MCP ile doğrula</button><a class="btn cut" id="download" href="#">SVG indir</a></div>
   </nav>
+  <div class="workflow" aria-label="Düzenleme adımları">
+    <span class="workflow-step active" id="flow-select"><b>1</b> Parça seç</span><span class="workflow-arrow">→</span>
+    <span class="workflow-step" id="flow-edit"><b>2</b> Ölçü ve detayları düzenle</span><span class="workflow-arrow">→</span>
+    <span class="workflow-step" id="flow-check"><b>3</b> Önizle ve doğrula</span><span class="workflow-arrow">→</span>
+    <span class="workflow-step" id="flow-save"><b>4</b> Kaydet ve indir</span>
+  </div>
   <main class="wrap">
     <section class="parts-panel" aria-labelledby="parts-heading">
       <h2 class="panel-title" id="parts-heading">PARÇALAR</h2>
@@ -84,7 +100,7 @@
     </section>
     <section class="stage" aria-label="SVG çalışma alanı">
       <div class="stage-head"><span>ÇALIŞMA ALANI</span><span>Parçaya tıklayarak seç · Ölçüler mm</span></div>
-      <div class="canvas-tools"><button class="btn ghost" id="cut-view" aria-pressed="true">Kesim yerleşimi</button><button class="btn ghost" id="assembled-view" aria-pressed="false" disabled>Monte görünüm</button><button id="select-tool" class="btn ghost" aria-pressed="true">↖ Seç</button><button id="pan-tool" class="btn ghost" aria-pressed="false">✋ Kaydır</button><button class="btn ghost" id="zoom-out" aria-label="Uzaklaştır">−</button><output id="zoom">100%</output><button class="btn ghost" id="zoom-in" aria-label="Yakınlaştır">+</button><button class="btn ghost" id="fit">Sığdır</button></div><div class="canvas" id="canvas">Yükleniyor…</div>
+      <div class="canvas-tools"><button class="btn ghost" id="cut-view" aria-pressed="true">Kesim yerleşimi</button><button class="btn ghost" id="assembled-view" aria-pressed="false" disabled>Monte görünüm</button><button id="select-tool" class="btn ghost" aria-pressed="true">↖ Seç</button><button id="pan-tool" class="btn ghost" aria-pressed="false">✋ Kaydır</button><button class="btn ghost" id="zoom-out" aria-label="Uzaklaştır">−</button><output id="zoom">100%</output><button class="btn ghost" id="zoom-in" aria-label="Yakınlaştır">+</button><button class="btn ghost" id="fit">Tümünü sığdır</button><button class="btn ghost" id="focus-selected">Seçili parçaya git</button><button class="btn ghost" id="shortcuts" aria-haspopup="dialog">Kısayollar</button><span class="canvas-help">Fare tekeri: yakınlaştır · Orta tuş / Boşluk: kaydır</span></div><div class="canvas" id="canvas">Yükleniyor…</div>
       <p class="lede" id="lede">Cetvel: mm · Delik X/Y: parçanın sol alt köşesinden merkezine.</p>
     </section>
     <aside class="properties" aria-labelledby="properties-heading">
@@ -122,6 +138,7 @@
     <div id="report"></div><div class="feedback-content"><p class="note" id="note" role="status" aria-live="polite">Bir parça seçip özelliklerini düzenleyebilirsiniz.</p></div>
   </section>
   <dialog id="new-part"><form id="new-part-form"><h2>Parça ekle</h2><label for="new-name">Parça adı</label><input id="new-name" required maxlength="80"><label for="new-type">Tür</label><select id="new-type"><option value="panel">Panel</option><option value="box">Kutu</option><option value="disc">Disk</option><option value="triangle">Üçgen</option></select><label for="new-w">Genişlik / çap (mm)</label><input id="new-w" type="number" min="1" max="2000" value="80" required><label for="new-h">Yükseklik (mm)</label><input id="new-h" type="number" min="1" max="2000" value="60" required><label for="new-d">Kutu derinliği (mm)</label><input id="new-d" type="number" min="1" max="2000" value="50" required><div class="ops"><button class="btn ghost" type="button" id="cancel-new">Vazgeç</button><button class="btn cut">Ekle</button></div></form></dialog>
+  <dialog id="shortcut-dialog"><form method="dialog"><h2>Çalışma alanı kısayolları</h2><div class="shortcut-grid"><kbd>Fare tekeri</kbd><span>İmlecin olduğu noktaya yakınlaştırır.</span><kbd>Orta tuş</kbd><span>Her görünümde çizimi kaydırır.</span><kbd>Boşluk + sürükle</kbd><span>Geçici olarak kaydırma aracını açar.</span><kbd>+</kbd><span>Yakınlaştırır.</span><kbd>−</kbd><span>Uzaklaştırır.</span><kbd>0</kbd><span>Tüm paftayı ekrana sığdırır.</span><kbd>F</kbd><span>Seçili parçaya odaklanır.</span><kbd>Ctrl + S</kbd><span>Yeni sürümü kaydeder.</span></div><button class="btn cut" value="close" style="width:100%;margin-top:20px">Anladım</button></form></dialog>
   <script src="/editor.js"></script>
 <script src="/ui.js"></script>
 </body>

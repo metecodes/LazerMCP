@@ -126,4 +126,15 @@ class EditorRouteTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('matrixTransform(matrix.inverse())',script)
         self.assertNotIn("if(state.assembledMode||state.tool==='place'",script)
 
+    async def test_editor_has_navigation_aids_and_assembled_pan(self):
+        from pathlib import Path
+        root=Path(__file__).parents[1]
+        html=root.joinpath('web','editor.html').read_text(encoding='utf-8')
+        script=root.joinpath('web','editor.js').read_text(encoding='utf-8')
+        for control in ('flow-select','focus-selected','shortcut-dialog'):
+            self.assertIn(f'id="{control}"',html)
+        self.assertIn("e.button===1||spacePan",script)
+        self.assertIn("if(e.key==='0')",script)
+        self.assertNotIn("if(state.assembledMode||state.tool!=='pan')",script)
+
 if __name__=='__main__': unittest.main()
