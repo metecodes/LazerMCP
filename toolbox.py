@@ -927,6 +927,7 @@ def render_toolbox(primitives: list[Any], parameters: dict[str, Any] | None = No
         bed_height=machine.get("bed_h"),
         gap=float(machine.get("gap_mm") or 3.0),
         panel_names=list(box.drawn_labels),
+        allow_rotation=bool(params.get("allow_part_rotation", True)),
     )
     try:
         from text_path import prepare_lasercad_svg

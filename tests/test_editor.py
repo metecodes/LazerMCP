@@ -156,6 +156,7 @@ class EditorRouteTests(unittest.IsolatedAsyncioTestCase):
         for control in ('measure-tool','clear-measure','measure-output'):
             self.assertIn(f'id="{control}"',html)
         self.assertIn('Math.hypot(dx,dy)',script)
+        self.assertIn('snapMeasurePoint',script)
         self.assertIn("data-measurement",script)
         self.assertNotIn('function rulers(',script)
         self.assertNotIn("data-rulers",script)

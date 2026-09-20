@@ -20,6 +20,19 @@ def _bbox(part,t=3):
 def _overlap(a,b,tol=.01):
     return all(min(a[i+3],b[i+3])-max(a[i],b[i])>tol for i in range(3))
 
+def _swept_overlap(a,b,velocity,tol=.01):
+    """Exact continuous overlap interval for translated 3D AABBs."""
+    enter,leave=0.0,1.0
+    for i,v in enumerate(velocity):
+        lo=float(b[i])+tol-float(a[i+3]);hi=float(b[i+3])-tol-float(a[i])
+        if abs(v)<1e-12:
+            if lo>=0 or hi<=0:return None
+            continue
+        t0,t1=lo/v,hi/v
+        enter=max(enter,min(t0,t1));leave=min(leave,max(t0,t1))
+        if enter>=leave:return None
+    return [max(0.0,enter),min(1.0,leave)] if leave>0 and enter<1 else None
+
 def validate(primitives,parameters,thickness=3):
     parts={str(p.get('label') or ''):p for p in primitives or [] if isinstance(p,dict)}
     conns=[c for c in (parameters or {}).get('connections') or [] if isinstance(c,dict)]
@@ -35,6 +48,13 @@ def validate(primitives,parameters,thickness=3):
         if not axis or travel<=0:row.update(status='FAIL',reason='SLIDE_AXIS_OR_TRAVEL_INVALID');rows.append(row);continue
         if clearance<0:row.update(status='FAIL',reason='NEGATIVE_RAIL_CLEARANCE');rows.append(row);continue
         allowed={label,*row['rails'],*(c.get('allowed_contact_parts') or [])};failed=False
+        start_box=_bbox(moving,thickness);velocity=[axis[i]*travel for i in range(3)]
+        for name,part in parts.items():
+            if name in allowed:continue
+            obstacle_box=_bbox(part,thickness)
+            hit=_swept_overlap(start_box,obstacle_box,velocity,max(.01,clearance)) if start_box and obstacle_box else None
+            if hit:
+                failed=True;row['collisions'].append({'part':name,'kind':'continuous-static-moving','travel_range_mm':[round(hit[0]*travel,3),round(hit[1]*travel,3)]})
         for ratio in SAMPLES:
             probe=deepcopy(moving);probe['placement']=deepcopy(moving['placement']);probe['placement']['origin']=[float(probe['placement']['origin'][i])+axis[i]*travel*ratio for i in range(3)]
             mb=_bbox(probe,thickness);hits=[]
@@ -44,7 +64,7 @@ def validate(primitives,parameters,thickness=3):
                 if mb and pb and _overlap(mb,pb,max(.01,clearance)):hits.append(name)
             status='FAIL' if hits else 'PASS';failed|=bool(hits);row['positions'].append({'travel_mm':round(travel*ratio,3),'ratio':ratio,'status':status,'collisions':hits})
             row['collisions'].extend({'at_mm':round(travel*ratio,3),'part':x,'kind':'static-moving'} for x in hits)
-        row.update(status='FAIL' if failed else 'PASS',reason='SLIDE_COLLISION' if failed else 'LINEAR_TRAVEL_VERIFIED',minimum_clearance_mm=clearance)
+        row.update(status='FAIL' if failed else 'PASS',reason='SLIDE_COLLISION' if failed else 'CONTINUOUS_LINEAR_TRAVEL_VERIFIED',minimum_clearance_mm=clearance,continuous_sweep=True)
         rows.append(row)
     drive_rows=[]
     for c in drives:

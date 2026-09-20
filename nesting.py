@@ -1,4 +1,4 @@
-"""Translation-only nesting of Boxes.py part groups onto the 1500×3000 bed."""
+"""Rotation-aware multi-sheet nesting of Boxes.py part groups."""
 
 from __future__ import annotations
 
@@ -138,14 +138,15 @@ def nest_svg(
     gap: float = 3.0,
     margin: float = 10.0,
     panel_names: list[str] | None = None,
+    allow_rotation: bool = True,
 ) -> tuple[bytes, dict[str, Any]]:
-    """Pack part groups by translation only (no rotate/mirror). Shrink sheet to occupied size."""
+    """Pack groups across sheets; optional 90° rotation never mirrors geometry."""
     bed_w = float(bed_width or PAYAS_DEFAULTS["bed_width"])
     bed_h = float(bed_height or PAYAS_DEFAULTS["bed_height"])
     info: dict[str, Any] = {
         "ok": False,
         "method": "rectpack",
-        "rotation": False,
+        "rotation": bool(allow_rotation),
         "gap_mm": gap,
         "margin_mm": margin,
         "bed_mm": [bed_w, bed_h],
@@ -174,16 +175,17 @@ def nest_svg(
     bin_w = max(1.0, bed_w - 2 * margin)
     bin_h = max(1.0, bed_h - 2 * margin)
     for i, (x0, y0, x1, y1) in enumerate(bounds):
-        if (x1 - x0) + gap > bin_w + 0.05 or (y1 - y0) + gap > bin_h + 0.05:
+        width,height=(x1-x0)+gap,(y1-y0)+gap
+        if not ((width<=bin_w+.05 and height<=bin_h+.05) or (allow_rotation and height<=bin_w+.05 and width<=bin_h+.05)):
             info["errors"] = [
-                f"part {i} {(x1 - x0):.1f}×{(y1 - y0):.1f} mm does not fit the {bed_w:.0f}×{bed_h:.0f} mm bed (no rotate/mirror)"
+                f"part {i} {(x1 - x0):.1f}×{(y1 - y0):.1f} mm does not fit the {bed_w:.0f}×{bed_h:.0f} mm bed"
             ]
             return svg_bytes, info
 
     placed: list = []
     n_bins = 1
     while n_bins <= 12:
-        packer = newPacker(rotation=False)
+        packer = newPacker(rotation=bool(allow_rotation))
         order = sorted(
             range(len(bounds)),
             key=lambda i: -((bounds[i][2] - bounds[i][0]) * (bounds[i][3] - bounds[i][1])),
@@ -272,8 +274,8 @@ def _render_sheet(
     for index, x, y, w, h in items:
         group = live[int(index)]
         x0, y0, _x1, _y1 = bounds[int(index)]
-        dx = margin + x - x0
-        dy = margin + y - y0
+        original_w,original_h=_x1-x0,_y1-y0
+        rotated=abs((w-gap)-original_h)<.05 and abs((h-gap)-original_w)<.05 and abs(original_w-original_h)>.05
         fallback = group.get("id") or f"p-{index}"
         name = ""
         if panel_names and 0 <= int(index) < len(panel_names) and panel_names[int(index)]:
@@ -289,7 +291,15 @@ def _render_sheet(
             if not d.strip():
                 continue
             try:
-                el.set("d", parse_path(d).translated(complex(dx, dy)).d())
+                path=parse_path(d)
+                if rotated:
+                    import numpy as np
+                    from svgpathtools.path import transform
+                    matrix=np.array([[0,1,margin+x-y0],[-1,0,margin+y+_x1],[0,0,1]],dtype=float)
+                    path=transform(path,matrix)
+                else:
+                    path=path.translated(complex(margin+x-x0,margin+y-y0))
+                el.set("d",path.d())
             except Exception:
                 continue
         right = max(right, margin + x + w - gap)
@@ -302,6 +312,7 @@ def _render_sheet(
                 "y": round(margin + y, 2),
                 "w": round(w - gap, 2),
                 "h": round(h - gap, 2),
+                "rotation_deg": 90 if rotated else 0,
             }
         )
         out_root.append(group)
