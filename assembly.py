@@ -289,6 +289,8 @@ def check_assembly(
     """Return mechanical pairs, shaft/slot fit, and a nominal assembly sequence."""
     from toolbox import _materialize_cut_geometry
     primitives=[_materialize_cut_geometry(p) if isinstance(p,dict) else p for p in (primitives or [])]
+    from placement_solver import derive_placements
+    placement_diagnostics=derive_placements([p for p in primitives if isinstance(p,dict)],float(thickness if thickness is not None else PAYAS_DEFAULTS['thickness']))
     t = float(thickness if thickness is not None else PAYAS_DEFAULTS["thickness"])
     kerf = float(burn if burn is not None else PAYAS_DEFAULTS["burn"])
     errors: list[str] = []
@@ -493,6 +495,7 @@ def check_assembly(
         "finger_pairs": sum(1 for joint in joints if not joint.get("kind")),
         "tab_slot_pairs": sum(1 for joint in joints if joint.get("kind") == "tab-slot"),
         "tab_slot_debug": joint_debug,
+        "placement_diagnostics": placement_diagnostics,
         "shaft_pairs": shaft_pairs,
         "assembled_mm": assembled,
         "sequence": sequence,

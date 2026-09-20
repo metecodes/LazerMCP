@@ -79,7 +79,7 @@ GRAMMAR = {
             }
         },
     },
-    "assembled_panel_contract": {"placement": {"origin": "[x,y,z] mm", "u": "unit local X axis", "v": "unit local Y axis; n=normalize(cross(u,v))"}, "tabs": "[{id,x,y,w,h}] centered rectangles compiled into the actual OUTER_CUT polygon", "slots": "[{x,y,w,h,mate:{part:label,tab:id}}] centered closed INNER_CUT polygons; partners are transformed and compared in assembled coordinates", "hardware": "parameters.hardware:[{id,type,shaft_diameter,shaft_axis,shaft_origin}]", "direct_drive": "parameters.connections:[{type:direct_motor_shaft,motor_part,driven_part,shaft_axis,driven_center,radius_mm}]", "preview": "render_preview(file_id,view=assembled); missing placements never get a guessed model"},
+    "assembled_panel_contract": {"placement": {"origin": "[x,y,z] mm", "u": "unit local X axis", "v": "unit local Y axis; n=normalize(cross(u,v))"}, "tabs": "[{id,x,y,w,h,side?}] centered rectangles compiled once into the actual OUTER_CUT polygon", "slots": "[{x,y,w,h,mate:{part:label,tab:id}}] centered closed INNER_CUT polygons; partners are transformed and compared in assembled coordinates", "mechanism": "{type:wheel|road_roller_drum|pulley|gear|disc|propeller|rotor|flywheel,rotating,shaft}; explicit type wins", "hardware": "parameters.hardware:[{id,type:shaft,diameter,axis,origin,length}]", "shaft_drive": "parameters.connections:[{type:shaft_rotation,shaft,driven_part,hardware_clearance,required_length,allowed_contact_parts}]", "direct_drive": "parameters.connections:[{type:direct_motor_shaft,motor_part,driven_part,shaft_axis,driven_center,radius_mm}]", "preview": "render_preview(file_id,view=assembled); uniquely constrained poses may be derived; ambiguity blocks"},
     "panel": {
         "type": "panel",
         "w": 80,
@@ -409,6 +409,12 @@ def _materialize_cut_geometry(part: dict[str, Any]) -> dict[str, Any]:
     from shapely.ops import unary_union
 
     item=dict(part);kind=_TYPE_ALIAS.get(_kind(item),_kind(item))
+    # Compilation can be reached by the renderer, assembly validator and final
+    # reviewer.  Recompiling an already materialized L/R/T/B tab used the
+    # expanded outline as its new base and moved the tab on every pass.
+    existing=item.get('_cut_geometry')
+    if isinstance(existing,dict) and isinstance(existing.get('outer_cut'),dict) and existing['outer_cut'].get('points'):
+        return item
     raw=item.get('points') or item.get('vertices') or item.get('coords') or item.get('contour')
     if raw:
         base=Polygon(_as_points(raw))

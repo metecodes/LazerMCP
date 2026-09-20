@@ -61,7 +61,8 @@ def check_what_you_see(primitives: list[Any] | None, what_you_see: str | None) -
     parts = [p for p in (primitives or []) if isinstance(p, dict)]
     out: list[dict[str, Any]] = []
 
-    if _requested(text, ("pervane", "propeller", "rotor", "yel değirmen", "yel degirmen", "kanatlı", "kanatli")):
+    # Product words such as drum/roller/wheel/rotor are not proof of a propeller.
+    if _requested(text, ("pervane", "propeller", "yel değirmen", "yel degirmen", "kanatlı pervane", "kanatli pervane")):
         if not _propellers(parts):
             out.append({"status": "FAIL", "note": "what_you_see has a rotor — use type=propeller, not disc"})
         else:

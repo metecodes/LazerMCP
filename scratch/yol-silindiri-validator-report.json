@@ -1,0 +1,439 @@
+{
+  "project": "yol-silindiri-sasi-gecme-v3-reconstructed",
+  "source_note": "Production record was unavailable locally; this is the deterministic reconstructed regression fixture.",
+  "assembly": {
+    "ok": true,
+    "tab_slot_pairs": 4,
+    "placement_diagnostics": [],
+    "tab_slot_debug": [
+      {
+        "connection": "C01",
+        "tab_part": "front chassis bridge",
+        "tab_id": "L",
+        "slot_part": "left chassis",
+        "result": "PASS",
+        "slot_local_bbox": [
+          4.0,
+          9.925,
+          18.0,
+          13.075
+        ],
+        "tab_local_bbox": [
+          -3.0,
+          4.0,
+          0.0,
+          18.0
+        ],
+        "tab_local_center": [
+          -1.5,
+          11.0
+        ],
+        "tab_world_center": [
+          -1.5,
+          11.0,
+          11.5
+        ],
+        "tab_world_normal": [
+          0,
+          0,
+          1
+        ],
+        "slot_local_center": [
+          11.0,
+          11.5
+        ],
+        "slot_world_center": [
+          -1.5,
+          11.0,
+          11.5
+        ],
+        "slot_world_normal": [
+          1,
+          0,
+          0
+        ],
+        "tab_world_bbox": [
+          -3.0,
+          4.0,
+          10.0,
+          0.0,
+          18.0,
+          10.0
+        ],
+        "slot_world_bbox": [
+          -3.0,
+          4.0,
+          9.925,
+          -3.0,
+          18.0,
+          13.075
+        ],
+        "center_delta_mm": 0.0,
+        "center_distance_mm": 0.0,
+        "center_distance_in_slot_plane_mm": 0.0,
+        "angular_error_deg": 0.0,
+        "tab_dimensions_mm": [
+          3.0,
+          14.0
+        ],
+        "slot_dimensions_mm": [
+          14.0,
+          3.15
+        ],
+        "material_thickness_mm": 3.0,
+        "thickness_clearance_mm": 0.1499999999999999,
+        "insertion_depth_mm": 3.0,
+        "reason": "actual CUT polygons align after shared 3D transform"
+      },
+      {
+        "connection": "C02",
+        "tab_part": "rear chassis bridge",
+        "tab_id": "L",
+        "slot_part": "left chassis",
+        "result": "PASS",
+        "slot_local_bbox": [
+          4.0,
+          39.925,
+          18.0,
+          43.075
+        ],
+        "tab_local_bbox": [
+          -3.0,
+          4.0,
+          0.0,
+          18.0
+        ],
+        "tab_local_center": [
+          -1.5,
+          11.0
+        ],
+        "tab_world_center": [
+          -1.5,
+          11.0,
+          41.5
+        ],
+        "tab_world_normal": [
+          0,
+          0,
+          1
+        ],
+        "slot_local_center": [
+          11.0,
+          41.5
+        ],
+        "slot_world_center": [
+          -1.5,
+          11.0,
+          41.5
+        ],
+        "slot_world_normal": [
+          1,
+          0,
+          0
+        ],
+        "tab_world_bbox": [
+          -3.0,
+          4.0,
+          40.0,
+          0.0,
+          18.0,
+          40.0
+        ],
+        "slot_world_bbox": [
+          -3.0,
+          4.0,
+          39.925,
+          -3.0,
+          18.0,
+          43.075
+        ],
+        "center_delta_mm": 0.0,
+        "center_distance_mm": 0.0,
+        "center_distance_in_slot_plane_mm": 0.0,
+        "angular_error_deg": 0.0,
+        "tab_dimensions_mm": [
+          3.0,
+          14.0
+        ],
+        "slot_dimensions_mm": [
+          14.0,
+          3.15
+        ],
+        "material_thickness_mm": 3.0,
+        "thickness_clearance_mm": 0.1499999999999999,
+        "insertion_depth_mm": 3.0,
+        "reason": "actual CUT polygons align after shared 3D transform"
+      },
+      {
+        "connection": "C03",
+        "tab_part": "front chassis bridge",
+        "tab_id": "R",
+        "slot_part": "right chassis",
+        "result": "PASS",
+        "slot_local_bbox": [
+          4.0,
+          9.925,
+          18.0,
+          13.075
+        ],
+        "tab_local_bbox": [
+          50.0,
+          4.0,
+          53.0,
+          18.0
+        ],
+        "tab_local_center": [
+          51.5,
+          11.0
+        ],
+        "tab_world_center": [
+          51.5,
+          11.0,
+          11.5
+        ],
+        "tab_world_normal": [
+          0,
+          0,
+          1
+        ],
+        "slot_local_center": [
+          11.0,
+          11.5
+        ],
+        "slot_world_center": [
+          51.5,
+          11.0,
+          11.5
+        ],
+        "slot_world_normal": [
+          1,
+          0,
+          0
+        ],
+        "tab_world_bbox": [
+          50.0,
+          4.0,
+          10.0,
+          53.0,
+          18.0,
+          10.0
+        ],
+        "slot_world_bbox": [
+          50.0,
+          4.0,
+          9.925,
+          50.0,
+          18.0,
+          13.075
+        ],
+        "center_delta_mm": 0.0,
+        "center_distance_mm": 0.0,
+        "center_distance_in_slot_plane_mm": 0.0,
+        "angular_error_deg": 0.0,
+        "tab_dimensions_mm": [
+          3.0,
+          14.0
+        ],
+        "slot_dimensions_mm": [
+          14.0,
+          3.15
+        ],
+        "material_thickness_mm": 3.0,
+        "thickness_clearance_mm": 0.1499999999999999,
+        "insertion_depth_mm": 3.0,
+        "reason": "actual CUT polygons align after shared 3D transform"
+      },
+      {
+        "connection": "C04",
+        "tab_part": "rear chassis bridge",
+        "tab_id": "R",
+        "slot_part": "right chassis",
+        "result": "PASS",
+        "slot_local_bbox": [
+          4.0,
+          39.925,
+          18.0,
+          43.075
+        ],
+        "tab_local_bbox": [
+          50.0,
+          4.0,
+          53.0,
+          18.0
+        ],
+        "tab_local_center": [
+          51.5,
+          11.0
+        ],
+        "tab_world_center": [
+          51.5,
+          11.0,
+          41.5
+        ],
+        "tab_world_normal": [
+          0,
+          0,
+          1
+        ],
+        "slot_local_center": [
+          11.0,
+          41.5
+        ],
+        "slot_world_center": [
+          51.5,
+          11.0,
+          41.5
+        ],
+        "slot_world_normal": [
+          1,
+          0,
+          0
+        ],
+        "tab_world_bbox": [
+          50.0,
+          4.0,
+          40.0,
+          53.0,
+          18.0,
+          40.0
+        ],
+        "slot_world_bbox": [
+          50.0,
+          4.0,
+          39.925,
+          50.0,
+          18.0,
+          43.075
+        ],
+        "center_delta_mm": 0.0,
+        "center_distance_mm": 0.0,
+        "center_distance_in_slot_plane_mm": 0.0,
+        "angular_error_deg": 0.0,
+        "tab_dimensions_mm": [
+          3.0,
+          14.0
+        ],
+        "slot_dimensions_mm": [
+          14.0,
+          3.15
+        ],
+        "material_thickness_mm": 3.0,
+        "thickness_clearance_mm": 0.1499999999999999,
+        "insertion_depth_mm": 3.0,
+        "reason": "actual CUT polygons align after shared 3D transform"
+      }
+    ]
+  },
+  "mechanisms": {
+    "classifications": [
+      {
+        "part": "left drum bearing",
+        "type": "disc",
+        "rotating": false
+      },
+      {
+        "part": "right drum bearing",
+        "type": "disc",
+        "rotating": false
+      },
+      {
+        "part": "left front wheel",
+        "type": "wheel",
+        "rotating": true
+      },
+      {
+        "part": "right front wheel",
+        "type": "wheel",
+        "rotating": true
+      },
+      {
+        "part": "left drum end cap",
+        "type": "road_roller_drum",
+        "rotating": true
+      },
+      {
+        "part": "right drum end cap",
+        "type": "road_roller_drum",
+        "rotating": true
+      }
+    ],
+    "checks": [
+      {
+        "part": "left front wheel",
+        "type": "wheel",
+        "validator": "validateWheel",
+        "status": "PASS",
+        "reason": "ROTATION_VERIFIED",
+        "center_axis_distance_mm": 0.0,
+        "axis_normal_error_deg": 0.0,
+        "shaft_diameter_mm": 4.0,
+        "hole_diameter_mm": 4.15,
+        "hardware_clearance_mm": 0.15,
+        "motion_clearance": {
+          "status": "PASS",
+          "note": "360° swept area clear across 936 geometric samples",
+          "samples": 936,
+          "axis_error_mm": 0.0,
+          "connection_type": "shaft_rotation"
+        }
+      },
+      {
+        "part": "right front wheel",
+        "type": "wheel",
+        "validator": "validateWheel",
+        "status": "PASS",
+        "reason": "ROTATION_VERIFIED",
+        "center_axis_distance_mm": 0.0,
+        "axis_normal_error_deg": 0.0,
+        "shaft_diameter_mm": 4.0,
+        "hole_diameter_mm": 4.15,
+        "hardware_clearance_mm": 0.15,
+        "motion_clearance": {
+          "status": "PASS",
+          "note": "360° swept area clear across 936 geometric samples",
+          "samples": 936,
+          "axis_error_mm": 0.0,
+          "connection_type": "shaft_rotation"
+        }
+      },
+      {
+        "part": "left drum end cap",
+        "type": "road_roller_drum",
+        "validator": "validateRollerDrum",
+        "status": "PASS",
+        "reason": "ROTATION_VERIFIED",
+        "center_axis_distance_mm": 0.0,
+        "axis_normal_error_deg": 0.0,
+        "shaft_diameter_mm": 4.0,
+        "hole_diameter_mm": 4.15,
+        "hardware_clearance_mm": 0.15,
+        "motion_clearance": {
+          "status": "PASS",
+          "note": "360° swept area clear across 936 geometric samples",
+          "samples": 936,
+          "axis_error_mm": 0.0,
+          "connection_type": "shaft_rotation"
+        }
+      },
+      {
+        "part": "right drum end cap",
+        "type": "road_roller_drum",
+        "validator": "validateRollerDrum",
+        "status": "PASS",
+        "reason": "ROTATION_VERIFIED",
+        "center_axis_distance_mm": 0.0,
+        "axis_normal_error_deg": 0.0,
+        "shaft_diameter_mm": 4.0,
+        "hole_diameter_mm": 4.15,
+        "hardware_clearance_mm": 0.15,
+        "motion_clearance": {
+          "status": "PASS",
+          "note": "360° swept area clear across 936 geometric samples",
+          "samples": 936,
+          "axis_error_mm": 0.0,
+          "connection_type": "shaft_rotation"
+        }
+      }
+    ]
+  }
+}

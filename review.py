@@ -109,6 +109,8 @@ def _powered(built: dict[str, Any]) -> bool:
 
 
 def _moving(faces: list[dict[str, Any]], primitives: list[Any] | None) -> bool:
+    from mechanisms import classify
+    if any(row.get('rotating') for row in classify(primitives or [])):return True
     if any(f.get("kind") in {"propeller"} for f in faces):
         return True
     for part in primitives or []:
@@ -261,6 +263,10 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
     burn = float((built.get("parameters") or {}).get("burn", PAYAS_DEFAULTS["burn"]))
     parameters=built.get("parameters") or {}
     primitives = [p for p in (built.get("primitives") or []) if isinstance(p, dict)]
+    from mechanisms import classify
+    mechanism_classes=classify(primitives)
+    from mechanism_validation import validate as validate_mechanisms
+    mechanism_report=validate_mechanisms(primitives,parameters,t)
     assembly = built.get("assembly") if isinstance(built.get("assembly"), dict) else {}
     nesting = built.get("nesting") if isinstance(built.get("nesting"), dict) else {}
     topology = built.get("topology") if isinstance(built.get("topology"), dict) else {}
@@ -328,6 +334,7 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
                   any(k in str(f.get("name") or "").lower() for k in ("support", "brace", "mount")))]
         gables = [f for f in faces if f.get("kind") == "gable"]
         props = [f for f in faces if f.get("kind") == "propeller"]
+        nonprop_rotating=[m for m in mechanism_classes if m.get('rotating') and m.get('type') not in {'propeller','rotor'}]
         box = next((p for p in primitives if _kind(p) == "box"), None)
         if not faces:
             completeness.append({"status": FAIL, "note": "no parts to assemble"})
@@ -413,7 +420,9 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
         else:tab_slot_c.append({'status':NA,'note':'no explicit tab-slot pairs'})
 
         hardware=parameters.get('hardware_fits')
-        if drive_type=='direct_motor_shaft':
+        if nonprop_rotating:
+            pass
+        elif drive_type=='direct_motor_shaft':
             hw_id=str(resolved_motion.get('motor_part') or '')
             hw=next((h for h in parameters.get('hardware') or [] if isinstance(h,dict) and str(h.get('id') or '')==hw_id),None)
             driven=next((p for p in primitives if str(p.get('label') or '')==str(resolved_motion.get('moving_part') or '')),None)
@@ -466,7 +475,7 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
                 {"status": WARNING, "note": "full 3D volume intersection is not simulated — first sheet is a prototype"}
             )
 
-        if moving:
+        if moving and not nonprop_rotating:
             from motion_clearance import check_motion_clearance
             motion_report=check_motion_clearance(primitives,resolved_motion,t)
             motion_c.append({'status':motion_report['status'],'note':motion_report['note']})
@@ -497,6 +506,14 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
                 {"status": PASS if drive_verified and not any("hit the floor" in str(m).lower() for m in looks) else FAIL,
                  "note": "mill function: rotor must spin on a coaxial shaft without hitting the floor"}
             )
+        elif nonprop_rotating:
+            checks=mechanism_report.get('checks') or []
+            for row in checks:
+                status=row.get('status') or NOT_VERIFIED;note=f"{row.get('validator')} {row.get('part')}: {row.get('reason')}"
+                kinematics_c.append({'status':status,'note':note})
+                motion_c.append({'status':(row.get('motion_clearance') or {}).get('status') or status,'note':(row.get('motion_clearance') or {}).get('note') or note})
+                hardware_c.append({'status':status,'note':f"shaft/hole {row.get('shaft_diameter_mm')}→{row.get('hole_diameter_mm')} mm; axis error {row.get('center_axis_distance_mm')} mm"})
+            function_c.append({'status':PASS if checks and all(r.get('status')==PASS for r in checks) else FAIL,'note':'mechanism-specific kinematics dispatch: '+', '.join(m['type'] for m in nonprop_rotating)})
         else:
             function_c.append({"status": PASS, "note": "static assembly — enclose and lock"})
         if box:
@@ -793,6 +810,7 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
         "categories": {c["id"]: {k: c[k] for k in ("status", "required", "notes")} for c in cats},
         "scorecard": scorecard,
         "gate_levels":gate_levels,
+        "mechanisms": mechanism_report,
         "reference_comparison":reference,
         "physical": physical,
         "assembly_sheet": sheet,

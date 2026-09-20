@@ -86,7 +86,8 @@ def validate(parts,t):
             if str(other.get('operation') or 'CUT').upper() != 'CUT' or not compiled_tab or not compiled_tab.get('materialized') or not op.is_valid or not _tab_on_outer_cut(op,tab_box,tw,th):
                 rec['reason']='tab is metadata only; missing from actual outer CUT geometry';debug.append(rec);errors.append(f"tab {mate.get('tab')} is metadata only; it is missing from {mate.get('part')} actual outer CUT geometry"); continue
             if not p.get('placement') or not other.get('placement'):
-                rec['reason']='explicit assembled placements required';debug.append(rec);errors.append(f"tab-slot {p.get('label')} needs explicit assembled placements"); continue
+                code=p.get('_placement_error') or other.get('_placement_error') or 'PLACEMENT_MISSING'
+                rec['reason']=code;debug.append(rec);errors.append(f"tab-slot {p.get('label')} {code}"); continue
             try:
                 corners=[world(other,a,b,c) for a in (tx-tw/2,tx+tw/2) for b in (ty-th/2,ty+th/2) for c in (0,t)]
                 pose=p['placement']; local=[[sum((a[i]-pose['origin'][i])*pose[k][i] for i in range(3)) for k in ('u','v')] for a in corners]
@@ -103,8 +104,11 @@ def validate(parts,t):
                 world_tab=[world(other,a,b,0) for a in (tx-tw/2,tx+tw/2) for b in (ty-th/2,ty+th/2)]
                 world_slot=[world(p,a,b,0) for a in (x-w/2,x+w/2) for b in (y-h/2,y+h/2)]
                 bbox=lambda pts:[min(q[i] for q in pts) for i in range(3)]+[max(q[i] for q in pts) for i in range(3)]
+                tab_center=world(other,tx,ty,t/2);slot_center=world(p,x,y,t/2)
+                center_delta=math.sqrt(sum((tab_center[i]-slot_center[i])**2 for i in range(3)))
                 angular=math.degrees(math.asin(min(1,abs(sum(float(a)*float(b) for a,b in zip(n,other_n))))))
-                rec.update({'tab_world_bbox':bbox(world_tab),'slot_world_bbox':bbox(world_slot),'center_distance_mm':math.hypot(centers[0]-x,centers[1]-y),'angular_error_deg':angular,'thickness_clearance_mm':min(expected_sizes)-min(sizes),'insertion_depth_mm':max(depths)-min(depths)})
+                in_plane_delta=math.hypot(centers[0]-x,centers[1]-y)
+                rec.update({'tab_local_center':[tx,ty],'tab_world_center':tab_center,'tab_world_normal':other_n,'slot_local_center':[x,y],'slot_world_center':slot_center,'slot_world_normal':n,'tab_world_bbox':bbox(world_tab),'slot_world_bbox':bbox(world_slot),'center_delta_mm':center_delta,'center_distance_mm':in_plane_delta,'center_distance_in_slot_plane_mm':in_plane_delta,'angular_error_deg':angular,'tab_dimensions_mm':[tw,th],'slot_dimensions_mm':[w,h],'material_thickness_mm':t,'thickness_clearance_mm':min(expected_sizes)-min(sizes),'insertion_depth_mm':max(depths)-min(depths)})
                 if not perpendicular or not fitted or min(depths)>.05 or max(depths)<t-.05:
                     rec['reason']='orientation, position, thickness clearance or insertion depth mismatch';debug.append(rec);errors.append(f"tab {mate.get('part')}.{mate.get('tab')} does not align with {p.get('label')} slot"); continue
                 rec.update({'result':'PASS','reason':'actual CUT polygons align after shared 3D transform'});debug.append(rec)
