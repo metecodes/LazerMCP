@@ -427,7 +427,17 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
 
         hardware=parameters.get('hardware_fits')
         if nonprop_rotating:
-            pass
+            canonical_edges=mechanism_report.get('connection_graph') or []
+            for edge in canonical_edges:
+                sd=edge.get('shaft_diameter_mm');hd=edge.get('hole_diameter_mm');clearance=edge.get('clearance_mm');angle=edge.get('axis_angle_error_deg');distance=edge.get('center_to_axis_distance_mm')
+                status=edge.get('status') or NOT_VERIFIED
+                if not all(isinstance(v,(int,float)) for v in (sd,hd,clearance,angle,distance)):
+                    status=FAIL;note=f"{edge.get('shaft')} → {edge.get('part')}.{edge.get('hole')}: CANONICAL_SHAFT_METRICS_MISSING"
+                else:
+                    note=(f"shaft {edge.get('shaft')} → {edge.get('part')}.{edge.get('hole')}: "
+                          f"{sd:.2f}→{hd:.2f} mm, clearance {clearance:.2f} mm, "
+                          f"axis angle error {angle:.3f}°, center-to-axis distance {distance:.3f} mm; {edge.get('reason')}")
+                hardware_c.append({'status':status,'note':note,'shaft_id':edge.get('shaft'),'part':edge.get('part'),'hole_id':edge.get('hole'),'shaft_diameter_mm':sd,'hole_diameter_mm':hd,'clearance_mm':clearance,'axis_angle_error_deg':angle,'center_to_axis_distance_mm':distance})
         elif drive_type=='direct_motor_shaft':
             hw_id=str(resolved_motion.get('motor_part') or '')
             hw=next((h for h in parameters.get('hardware') or [] if isinstance(h,dict) and str(h.get('id') or '')==hw_id),None)
@@ -518,7 +528,6 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
                 status=row.get('status') or NOT_VERIFIED;note=f"{row.get('validator')} {row.get('part')}: {row.get('reason')}"
                 kinematics_c.append({'status':status,'note':note})
                 motion_c.append({'status':(row.get('motion_clearance') or {}).get('status') or status,'note':(row.get('motion_clearance') or {}).get('note') or note})
-                hardware_c.append({'status':status,'note':f"shaft/hole {row.get('shaft_diameter_mm')}→{row.get('hole_diameter_mm')} mm; axis error {row.get('center_axis_distance_mm')} mm"})
             function_c.append({'status':PASS if checks and all(r.get('status')==PASS for r in checks) else FAIL,'note':'mechanism-specific kinematics dispatch: '+', '.join(m['type'] for m in nonprop_rotating)})
         else:
             function_c.append({"status": PASS, "note": "static assembly — enclose and lock"})
@@ -817,6 +826,7 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
         "scorecard": scorecard,
         "gate_levels":gate_levels,
         "mechanisms": mechanism_report,
+        "hardware_fit": hardware_c,
         "reference_comparison":reference,
         "physical": physical,
         "assembly_sheet": sheet,

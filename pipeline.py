@@ -90,6 +90,7 @@ def _attach_gate(built: dict[str, Any], report: dict[str, Any]) -> dict[str, Any
     built["scorecard"] = report.get("scorecard")
     built["gate_levels"] = report.get("gate_levels")
     built["reference_comparison"] = report.get("reference_comparison")
+    built["hardware_fit"] = report.get("hardware_fit")
     built["physical"] = report.get("physical")
     built["assembly_sheet"] = report.get("assembly_sheet")
     built["authorized_output"] = report.get("authorized_output")

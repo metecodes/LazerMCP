@@ -65,7 +65,8 @@ def validate(primitives,parameters,thickness=3.0):
         center,normal=_hole_world(part or {},chosen) if chosen else (None,None);status='PASS' if part and sid and chosen and center else 'FAIL'
         if not part:reason='PART_NOT_FOUND'
         elif not sid:reason='SHAFT_ID_MISSING'
-        edge={'shaft':sid,'part':label,'hole':wanted or (chosen or {}).get('id'),'fit':str(c.get('fit') or 'rotating'),'type':'shaft_hole','world_center':center,'world_normal':normal,'hole_diameter_mm':(chosen or {}).get('diameter'),'status':status,'reason':reason}
+        shaft_ref=hardware.get(sid)
+        edge={'shaft':sid,'part':label,'hole':wanted or (chosen or {}).get('id'),'fit':str(c.get('fit') or 'rotating'),'type':'shaft_hole','shaft_ref':shaft_ref,'hole_ref':chosen,'world_center':center,'world_normal':normal,'shaft_diameter_mm':float((shaft_ref or {}).get('diameter') or (shaft_ref or {}).get('shaft_diameter') or 0),'hole_diameter_mm':float((chosen or {}).get('diameter') or 0),'status':status,'reason':reason}
         graph.append(edge);resolved[label]=(c,chosen,edge)
         if status=='PASS' and sid not in shaft_origins:shaft_origins[sid]=center
     for edge in graph:
@@ -75,7 +76,7 @@ def validate(primitives,parameters,thickness=3.0):
         if not direction or not isinstance(origin,list):edge.update(status='FAIL',reason='SHAFT_AXIS_MISSING');continue
         q=[edge['world_center'][i]-float(origin[i]) for i in range(3)];distance=math.sqrt(sum(x*x for x in _cross(q,direction)));angle=math.degrees(math.acos(min(1,abs(sum(a*b for a,b in zip(direction,edge['world_normal']))))))
         sd=float(shaft.get('diameter') or shaft.get('shaft_diameter') or 0);hd=float(edge.get('hole_diameter_mm') or 0);clearance=hd-sd
-        edge.update(shaft_diameter_mm=sd,diametral_clearance_mm=clearance,center_axis_distance_mm=distance,axis_error_deg=angle)
+        edge.update(shaft_diameter_mm=sd,diametral_clearance_mm=clearance,clearance_mm=clearance,center_axis_distance_mm=distance,center_to_axis_distance_mm=distance,axis_error_deg=angle,axis_angle_error_deg=angle)
         if sd<=0:edge.update(status='FAIL',reason='MISSING_SHAFT_DIAMETER')
         elif hd<=0:edge.update(status='FAIL',reason='MISSING_HOLE_DIAMETER')
         elif distance>.15 or angle>1:edge.update(status='FAIL',reason='COAXIALITY_FAIL')
@@ -92,7 +93,8 @@ def validate(primitives,parameters,thickness=3.0):
         sid=_shaft(conn or {});shaft=hardware.get(sid);row={'part':label,'type':kind,'validator':dispatch.get(kind,'validateMechanism'),'shaft_id':sid or None,'hole_id':(chosen or {}).get('id'),'fit':str((conn or {}).get('fit') or 'rotating')}
         if not conn or not shaft:
             row.update(status='FAIL',reason='SHAFT_CONNECTION_MISSING',missing=[v for v in ['parameters.connections[]' if not conn else None,'parameters.hardware[]' if not shaft else None] if v],expected_connection_schema=_schema(label,sid));rows.append(row);continue
-        if edge and edge['status']=='FAIL':row.update(status='FAIL',reason=edge['reason']);rows.append(row);continue
+        if edge and edge['status']=='FAIL':
+            row.update(status='FAIL',reason=edge['reason'],shaft_diameter_mm=edge.get('shaft_diameter_mm'),hole_diameter_mm=edge.get('hole_diameter_mm'),diametral_clearance_mm=edge.get('diametral_clearance_mm'),clearance_mm=edge.get('clearance_mm'),world_center=edge.get('world_center'),hole_axis=edge.get('world_normal'),axis_error_deg=edge.get('axis_error_deg'),axis_angle_error_deg=edge.get('axis_angle_error_deg'),center_axis_distance_mm=edge.get('center_axis_distance_mm'),center_to_axis_distance_mm=edge.get('center_to_axis_distance_mm'));rows.append(row);continue
         candidates=_holes(part)
         if chosen is None:
             if len(candidates)==1:chosen=candidates[0]
@@ -110,5 +112,5 @@ def validate(primitives,parameters,thickness=3.0):
         elif shaft.get('length') is not None and conn.get('required_length') is not None and float(shaft['length'])<float(conn['required_length']):status,reason='FAIL','SHAFT_LENGTH_FAIL'
         elif swept['status']!='PASS':status,reason=swept['status'],swept['note']
         else:status,reason='PASS','ROTATION_VERIFIED'
-        row.update(status=status,reason=reason,world_center=center,hole_axis=normal,shaft_axis=direction,center_axis_distance_mm=distance,axis_error_deg=angle,shaft_diameter_mm=dia,hole_diameter_mm=hole,diametral_clearance_mm=clearance,hardware_clearance_mm=desired,motion_clearance=swept);rows.append(row)
+        row.update(status=status,reason=reason,world_center=center,hole_axis=normal,shaft_axis=direction,center_axis_distance_mm=distance,center_to_axis_distance_mm=distance,axis_error_deg=angle,axis_angle_error_deg=angle,shaft_diameter_mm=dia,hole_diameter_mm=hole,diametral_clearance_mm=clearance,clearance_mm=clearance,hardware_clearance_mm=desired,motion_clearance=swept);rows.append(row)
     return {'classifications':classify(primitives),'connection_graph':graph,'checks':rows}

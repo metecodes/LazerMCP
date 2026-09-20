@@ -10,6 +10,7 @@ from toolbox import _prepare_parts
 from road_roller_fixture import build_fixture
 from repair import repair_primitives
 from review import connection_graph
+from review import review_built
 
 
 def rotating_part(label,kind='road_roller_drum',origin=None):
@@ -89,6 +90,15 @@ class RoadRollerTests(unittest.TestCase):
         self.assertEqual({r['type'] for r in mechanics['classifications']},{'wheel','road_roller_drum','disc'})
         moving=[r for r in mechanics['checks'] if r['type'] in {'wheel','road_roller_drum'}]
         self.assertEqual(len(moving),4);self.assertTrue(all(r['status']=='PASS' for r in moving),moving)
+
+    def test_final_gate_hardware_fit_uses_all_canonical_edges_without_none(self):
+        primitives,parameters=build_fixture()
+        built={'composed':True,'method':'compose_primitives','primitives':primitives,'parameters':parameters,'assembly':check_assembly(primitives),'nesting':{'ok':True,'part_count':len(primitives)},'topology':{'ok':True,'cut_paths':1},'svg_bytes':b'<svg xmlns="http://www.w3.org/2000/svg"><g data-operation="CUT"><path data-operation="CUT" data-semantic-role="outer_contour" d="M0 0H10V10H0Z"/></g></svg>'}
+        review=review_built(built);rows=review['hardware_fit']
+        shaft_rows=[r for r in rows if r.get('shaft_id')]
+        self.assertEqual(len(shaft_rows),8);self.assertTrue(all(r['status']=='PASS' for r in shaft_rows),shaft_rows)
+        self.assertTrue(all(all(isinstance(r.get(k),(int,float)) for k in ('shaft_diameter_mm','hole_diameter_mm','clearance_mm','axis_angle_error_deg','center_to_axis_distance_mm')) for r in shaft_rows))
+        self.assertNotIn('None',str(shaft_rows))
 
     def test_closed_constraint_graph_gets_canonical_frame(self):
         bridge=_materialize_cut_geometry({'type':'panel','label':'bridge','w':50,'h':22,'tabs':[{'id':'A','side':'L','x':0,'y':6,'w':3,'h':6},{'id':'B','side':'L','x':0,'y':16,'w':3,'h':6}]})
