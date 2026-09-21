@@ -329,6 +329,18 @@ def check_assembly(
 
     males: list[tuple[str, int, float]] = []
     females: list[tuple[str, int, float]] = []
+    explicit_report = next((p.get("_explicit_panel_assembly") for p in (primitives or []) if isinstance(p, dict) and p.get("_explicit_panel_assembly")), None) or {}
+    declared_edge_keys: set[tuple[str, str]] = set()
+    for row in explicit_report.get("joints") or []:
+        declared_edge_keys.update({(str(row.get("part_a")), str(row.get("edge_a"))), (str(row.get("part_b")), str(row.get("edge_b")))})
+        joints.append({"id": row.get("id"), "female": row.get("female"), "female_edge": row.get("female_edge"),
+                       "male": row.get("male"), "male_edge": row.get("male_edge"), "length_mm": row.get("length_mm"),
+                       "result": row.get("result"), "via": row.get("via"), "joint_type": "finger_joint",
+                       "finger_count": row.get("finger_count"), "finger_pitch_mm": row.get("finger_pitch_mm"),
+                       "finger_width_mm": row.get("finger_width_mm"), "finger_depth_mm": row.get("finger_depth_mm"),
+                       "material_thickness_mm": row.get("material_thickness_mm"), "kerf_compensation_mm": row.get("kerf_compensation_mm"),
+                       "world_edge_error_mm": row.get("world_edge_error_mm"), "port_keepout_clear": row.get("port_keepout_clear")})
+    errors.extend(str(e) for e in explicit_report.get("errors") or [])
     composite_ids={str(p.get("physical_part_id")) for p in physical_parts if p.get("composite_parent")}
     for face in faces:
         if str(face.get("name")) in composite_ids:
@@ -337,6 +349,8 @@ def check_assembly(
         if len(edges) < 3:
             continue
         for i, ch in enumerate(edges[:4]):
+            if (str(face.get("name")), _EDGE[i]) in declared_edge_keys:
+                continue
             length = _round(_edge_length(face, i))
             if ch == "f":
                 males.append((face["name"], i, length))

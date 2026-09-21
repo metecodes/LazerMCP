@@ -455,9 +455,14 @@ def create_design(
     from plans import gate_job
 
     started_at = time.perf_counter()
+    def blocked(code: str, stage: str, message: str, reasons: list[str] | None = None) -> dict[str, Any]:
+        clean_message = str(message).split("\n")[0][:600]
+        return _mcp({"success": False, "ready_to_cut": False, "final_status": "BLOCKED",
+                     "error_code": code, "error_stage": stage, "error_message": clean_message,
+                     "blocking_reasons": list(reasons or [clean_message]), "look_again": list(reasons or [clean_message])})
     gate = gate_job("design")
     if not gate.get("ok"):
-        return _mcp({"ready_to_cut": False, "plan": gate.get("plan"), "look_again": gate.get("look_again") or []})
+        return blocked("DESIGN_GATE_BLOCKED", "input_validation", "; ".join(gate.get("look_again") or ["design gate blocked"]), gate.get("look_again") or [])
 
     try:
         if sum(bool(x) for x in (svg, primitives, preset, plt, plt_base64)) > 1:
@@ -475,17 +480,11 @@ def create_design(
         else:
             built = compile_design(preset=preset, primitives=primitives, parameters=parameters)
     except Exception as exc:
-        from toolbox import GRAMMAR, HINT
-
-        return _mcp(
-            {
-                "success": False,
-                "ready_to_cut": False,
-                "hint": HINT,
-                "grammar": GRAMMAR,
-                "look_again": [str(exc), "Call create_design with box/panel/propeller primitives from the mill grammar."],
-            }
-        )
+        message = str(exc)
+        if "Unknown icon" in message:
+            return blocked("UNKNOWN_ENGRAVING_ICON", "icon_resolver", message)
+        stage = "marking_compiler" if any(word in message.lower() for word in ("marking", "text", "icon", "engraving")) else "primitive_compiler"
+        return blocked("DESIGN_INPUT_INVALID", stage, message)
     name = str(built.get("preset") or preset or "design")
     title = "İçe aktarılan PLT" if built.get("plt_import") else "İçe aktarılan SVG" if built.get("imported") else "Bestelenmiş kesim"
     if name in {"number_match_puzzle", "number_match"}:
@@ -554,29 +553,20 @@ def create_design(
     }
     fmt = str((parameters or {}).get("format") or "svg")
     if extra.get("review") is None:
-        from nesting import inspect_nesting
-        from pipeline import review_only
-        from topology import inspect_topology
-
-        extra["topology"] = extra.get("topology") or inspect_topology(built.get("svg_bytes"))
-        extra["nesting"] = extra.get("nesting") or inspect_nesting(built.get("svg_bytes"))
-        gated = review_only({**built, **extra, "svg_bytes": built.get("svg_bytes")})
-        extra["review"] = gated.get("review")
-        extra["pipeline"] = gated.get("pipeline")
-        extra["design_map"] = gated.get("design_map")
-        extra["connections"] = gated.get("connections")
-        extra["final_status"] = gated.get("final_status")
-        extra["speak"] = gated.get("speak")
-        extra["scorecard"] = gated.get("scorecard")
-        extra["gate_levels"] = gated.get("gate_levels")
-        extra["reference_comparison"] = gated.get("reference_comparison")
-        extra["authorized_output"] = gated.get("authorized_output")
-        extra["production_export"] = gated.get("production_export") or "BLOCKED"
-        extra["production_summary"] = gated.get("production_summary")
-        extra["look_again"] = gated.get("look_again") or extra.get("look_again")
-        extra["blocking_checks"] = gated.get("blocking_checks") or []
-        extra["physical"] = gated.get("physical")
-        extra["assembly_sheet"] = gated.get("assembly_sheet")
+        try:
+            from nesting import inspect_nesting
+            from pipeline import review_only
+            from topology import inspect_topology
+            extra["topology"] = extra.get("topology") or inspect_topology(built.get("svg_bytes"))
+            extra["nesting"] = extra.get("nesting") or inspect_nesting(built.get("svg_bytes"))
+            gated = review_only({**built, **extra, "svg_bytes": built.get("svg_bytes")})
+            for key in ("review","pipeline","design_map","connections","final_status","speak","scorecard","gate_levels","reference_comparison","authorized_output","production_summary","physical","assembly_sheet"):
+                extra[key] = gated.get(key)
+            extra["production_export"] = gated.get("production_export") or "BLOCKED"
+            extra["look_again"] = gated.get("look_again") or extra.get("look_again")
+            extra["blocking_checks"] = gated.get("blocking_checks") or []
+        except Exception as exc:
+            return blocked("INTERNAL_PIPELINE_ERROR", "reviewer", str(exc))
     extra["_started_at"] = started_at
     extra["production_export"] = extra.get("production_export") or "BLOCKED"
     extra["ready_to_cut"] = extra.get("final_status") == "PRODUCTION READY"
@@ -586,7 +576,19 @@ def create_design(
         if extra.get("final_status") == "PRODUCTION READY"
         else ("Prototype SVG" if extra.get("final_status") == "PROTOTYPE READY" else "None"),
     )
-    result = _save_build(built["svg_bytes"], name, title, public_base_url, extra, dxf_bytes=_dxf_from_built(built, fmt))
+    try:
+        dxf_bytes = _dxf_from_built(built, fmt)
+    except Exception as exc:
+        return blocked("INTERNAL_PIPELINE_ERROR", "dxf_writer", str(exc))
+    try:
+        result = _save_build(built["svg_bytes"], name, title, public_base_url, extra, dxf_bytes=dxf_bytes)
+    except Exception as exc:
+        return blocked("INTERNAL_PIPELINE_ERROR", "svg_writer", str(exc))
+    if not isinstance(result, dict) or not result:
+        return blocked("INTERNAL_PIPELINE_ERROR", "svg_writer", "create_design persistence returned an empty response")
+    result.setdefault("success", True)
+    result.setdefault("final_status", extra.get("final_status") or "BLOCKED")
+    result.setdefault("speak", extra.get("speak") or "")
     if (built.get("assembly") or {}).get("assembled_preview_svg") and result.get("file_id"):
         result["assembled_preview_url"] = public_base_url.rstrip("/") + "/out/" + result["file_id"] + "?view=assembled"
     return _mcp(result)

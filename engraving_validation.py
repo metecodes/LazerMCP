@@ -42,6 +42,12 @@ def validate(svg_bytes: bytes, edge_clearance_mm: float = 1.0) -> dict[str, list
             from semantic_cad import inspect_design
             doc = inspect_design(svg_bytes)
             parts = [p["_geom"] for p in doc.get("_parts") or []]
+            if not parts:
+                from shapely.geometry import box
+                cut_geoms = [o["_geom"] for o in doc.get("_objects") or [] if o.get("operation") == "CUT"]
+                if cut_geoms:
+                    bounds = [g.bounds for g in cut_geoms]
+                    parts = [box(min(b[0] for b in bounds), min(b[1] for b in bounds), max(b[2] for b in bounds), max(b[3] for b in bounds))]
             marks = [o["_geom"] for o in doc.get("_objects") or [] if o.get("operation") == "ENGRAVE"]
             mark_rows = [o for o in doc.get("_objects") or [] if o.get("operation") == "ENGRAVE"]
             inside = bool(parts) and all(any(part.buffer(1e-6).covers(mark) for part in parts) for mark in marks)
@@ -51,7 +57,8 @@ def validate(svg_bytes: bytes, edge_clearance_mm: float = 1.0) -> dict[str, list
             overlaps = []
             for index, left in enumerate(mark_rows):
                 for right in mark_rows[index + 1:]:
-                    if left.get("id") != right.get("id") and left["_geom"].intersects(right["_geom"]):
+                    explicit_ids = not str(left.get("id") or "").startswith("OBJ_") and not str(right.get("id") or "").startswith("OBJ_")
+                    if explicit_ids and left.get("id") != right.get("id") and left["_geom"].intersects(right["_geom"]):
                         overlaps.append((left.get("id"), right.get("id")))
             geometry.append({"status": FAIL if overlaps else PASS, "note": f"unintended engraving overlaps={len(overlaps)}"})
         except Exception as exc:

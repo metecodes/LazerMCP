@@ -866,12 +866,16 @@ def render_toolbox(primitives: list[Any], parameters: dict[str, Any] | None = No
     """One Boxes.py compile. The pipeline calls this; incoming AIs call create_design."""
     if not primitives:
         raise ValueError("primitives is empty")
+    from studio import prepare_parameters
+    params = prepare_parameters(parameters)
+    from explicit_panel_assembly import compile_connections
+    primitives, explicit_panel_assembly = compile_connections(
+        primitives, params, float(params.get("thickness") or PAYAS_DEFAULTS["thickness"]),
+        float(params.get("burn") or PAYAS_DEFAULTS["burn"]),
+    )
     parts = _prepare_parts(primitives)
     if not parts:
         raise ValueError("no assembly primitives (box, panel, disc, triangle, propeller, contour, coupon). " + HINT)
-    from studio import prepare_parameters
-
-    params = prepare_parameters(parameters)
     from surface_branding import apply_surface_content
     parts, surface_content = apply_surface_content(parts, params)
     from scale import scale_primitives
@@ -914,6 +918,7 @@ def render_toolbox(primitives: list[Any], parameters: dict[str, Any] | None = No
     from topology import inspect_topology
 
     assembly = check_assembly(parts, thickness=thickness, burn=effective_burn)
+    assembly["explicit_panel_assembly"] = explicit_panel_assembly
     from linear_motion import validate as validate_linear_motion
     physical_for_motion = assembly.pop("_physical_primitives", None) or parts
     linear_motion = validate_linear_motion(physical_for_motion, params, thickness)

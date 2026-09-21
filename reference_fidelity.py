@@ -57,6 +57,18 @@ def check_reference_fidelity(parameters:dict[str,Any]|None,primitives:list[Any]|
         if key in used:map_checks.append({'status':FAIL,'note':f'{refname}: generated part {label} is mapped more than once'});continue
         used.add(key);mapping.append({'reference_part':refname,'generated_part':label,'generated_kind':_kind(hit)})
         map_checks.append({'status':PASS,'note':f'{refname} → {label}'})
+        expected_w=ref.get('width_mm');expected_h=ref.get('height_mm')
+        actual_w=hit.get('w') or hit.get('x') or hit.get('width');actual_h=hit.get('h') or hit.get('y') or hit.get('height')
+        if expected_w is not None and (actual_w is None or abs(float(actual_w)-float(expected_w))>.05):
+            map_checks.append({'status':FAIL,'note':f'{refname} → {label}: width {actual_w} != {expected_w} mm'})
+        if expected_h is not None and (actual_h is None or abs(float(actual_h)-float(expected_h))>.05):
+            map_checks.append({'status':FAIL,'note':f'{refname} → {label}: height {actual_h} != {expected_h} mm'})
+        expected_ports=ref.get('ports')
+        if expected_ports is not None:
+            expected_ids=[str(p.get('id') if isinstance(p,dict) else p) for p in expected_ports]
+            actual_ids=[str(p.get('id') or f'port-{i+1}') for i,p in enumerate(hit.get('ports') or []) if isinstance(p,dict)]
+            if expected_ids!=actual_ids:
+                map_checks.append({'status':FAIL,'note':f'{refname} → {label}: port mapping {actual_ids} != {expected_ids}; port migration detected'})
         if str(ref.get('role') or 'structural').lower() not in {'engrave','decoration','graphic','text'}:
             ok,note=_silhouette_check(ref,hit);outer.append({'status':PASS if ok else FAIL,'note':f'{refname} → {label}: {note}'})
     expected=sum(int(r.get('count',1)) for r in refs if isinstance(r,dict))

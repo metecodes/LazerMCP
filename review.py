@@ -316,6 +316,12 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
     from connection_validation import validate as validate_connection_coverage
     coverage_report=validate_connection_coverage(primitives,parameters,assembly,linear_report,mechanism_report)
     built['connection_validation']=coverage_report
+    mates_by_name: dict[str, list[dict[str, Any]]] = {}
+    for edge in coverage_report.get("connection_graph") or []:
+        for name in (str(edge.get("part_a") or ""), str(edge.get("part_b") or "")):
+            if name: mates_by_name.setdefault(name, []).append(edge)
+    for part in dmap.get("parts") or []:
+        part["mates"] = mates_by_name.get(str(part.get("name") or ""), [])
     required = list(_STANDALONE_CRITICAL if assembly_mode == "standalone" else (_COMPOSED_CRITICAL if job == "composed" or assembly_mode == "mechanical" else _FLAT_CRITICAL))
     if assembly_mode == "mechanical" and moving:
         required.append("KINEMATICS")
