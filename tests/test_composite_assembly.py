@@ -33,6 +33,14 @@ class CompositeAssemblyTests(unittest.TestCase):
         self.assertEqual(len(result["intended_contacts"]), 8)
         self.assertIsNotNone(result["assembled_preview_svg"])
 
+    def test_box_transform_validation_rejects_displaced_wall(self):
+        source=[{"type":"box","label":"body","x":100,"y":80,"h":50,"bottom":True,
+                 "child_placements":{"front":{"origin":[0,5,3],"u":[1,0,0],"v":[0,0,1]}}}]
+        result=check_assembly(source,thickness=3)
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["transform_validation"]["status"],"FAIL")
+        self.assertTrue(any(c.get("type")=="JOINT_TRANSFORM" and c.get("status")=="FAIL" for c in result["transform_validation"]["checks"]))
+
     def test_two_level_sliding_lid_uses_expanded_box_and_sampled_sweep(self):
         source = [
             {"type": "box", "label": "main-bin-body", "x": 394, "y": 394, "h": 697, "bottom": True},

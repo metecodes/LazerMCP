@@ -11,6 +11,7 @@ from copy import deepcopy
 from typing import Any
 
 from assembled_view import outline, world
+import math
 
 
 def _num(value: Any, default: float = 0.0) -> float:
@@ -144,9 +145,48 @@ def _box(parent: dict[str, Any], index: int, thickness: float):
         "part_a": f"{parent_id}/{a}", "edge_a": edge(a, ea),
         "part_b": f"{parent_id}/{bpart}", "edge_b": edge(bpart, eb),
         "joint_type": "removable_lid" if a=="lid" and lid_type in {"removable","sliding"} else "finger_joint", "expected_transform": "vertical_removal_path" if a=="lid" and lid_type in {"removable","sliding"} else "orthogonal_edge_mate",
-        "tolerance": 0.05, "result": "MATCH",
+        "tolerance": 0.05, "result": "NOT_VERIFIED",
     } for a, ea, bpart, eb in constraints]
     return parent_id, children, joints
+
+def _normal(part):
+    pose=part.get("placement") or {};u=pose.get("u") or [];v=pose.get("v") or []
+    if len(u)!=3 or len(v)!=3:return None
+    n=[float(u[1])*float(v[2])-float(u[2])*float(v[1]),float(u[2])*float(v[0])-float(u[0])*float(v[2]),float(u[0])*float(v[1])-float(u[1])*float(v[0])]
+    mag=math.sqrt(sum(x*x for x in n));return [x/mag for x in n] if mag else None
+
+def _edge_points(part,name,z):
+    w,h=float(part.get("w") or 0),float(part.get("h") or 0)
+    ends={"bottom":((0,0),(w,0)),"right":((w,0),(w,h)),"top":((0,h),(w,h)),"left":((0,0),(0,h))}.get(name)
+    return [world(part,x,y,z) for x,y in ends] if ends else []
+
+def validate_box_transforms(parts,constraints,thickness):
+    """Prove compiler-derived box poses against the actual joint graph."""
+    lookup={str(p.get("physical_part_id")):p for p in parts};checks=[];tol=.05;t=float(thickness)
+    expected={"bottom":[0,0,1],"lid":[0,0,1],"front":[0,-1,0],"back":[0,1,0],"left":[-1,0,0],"right":[1,0,0]}
+    for part in parts:
+        role=str(part.get("composite_role") or "");normal=_normal(part);target=expected.get(role)
+        status="PASS" if normal and target and math.sqrt(sum((normal[i]-target[i])**2 for i in range(3)))<=1e-6 else "FAIL"
+        checks.append({"type":"PART_TRANSFORM","part":part.get("physical_part_id"),"status":status,"origin":(part.get("placement") or {}).get("origin"),"u":(part.get("placement") or {}).get("u"),"v":(part.get("placement") or {}).get("v"),"normal":normal,"expected_normal":target})
+    for joint in constraints:
+        a,b=lookup.get(str(joint.get("part_a"))),lookup.get(str(joint.get("part_b")));ea=str(joint.get("edge_a") or "").split(":")[-1];eb=str(joint.get("edge_b") or "").split(":")[-1]
+        best=None
+        if a and b:
+            for za in (0,t):
+                for zb in (0,t):
+                    ap,bp=_edge_points(a,ea,za),_edge_points(b,eb,zb)
+                    if len(ap)!=2 or len(bp)!=2:continue
+                    direct=max(math.dist(ap[i],bp[i]) for i in (0,1));reverse=max(math.dist(ap[i],bp[1-i]) for i in (0,1));candidate=(min(direct,reverse),za,zb)
+                    if best is None or candidate[0]<best[0]:best=candidate
+        la=float(a.get("w") if ea in {"bottom","top"} else a.get("h") or 0) if a else 0;lb=float(b.get("w") if eb in {"bottom","top"} else b.get("h") or 0) if b else 0
+        na,nb=_normal(a or {}),_normal(b or {});angle=math.degrees(math.acos(min(1,abs(sum(na[i]*nb[i] for i in range(3)))))) if na and nb else None
+        ok=bool(best and best[0]<=tol and abs(la-lb)<=tol and angle is not None and abs(angle-90)<=.01)
+        joint.update(result="MATCH" if ok else "FAIL",world_edge_error_mm=round(best[0],6) if best else None,edge_length_delta_mm=round(abs(la-lb),6),normal_angle_deg=round(angle,6) if angle is not None else None,material_surface_offsets_mm=[best[1],best[2]] if best else None)
+        checks.append({"type":"JOINT_TRANSFORM","part_a":joint.get("part_a"),"part_b":joint.get("part_b"),"status":"PASS" if ok else "FAIL","world_edge_error_mm":joint.get("world_edge_error_mm"),"edge_length_delta_mm":joint.get("edge_length_delta_mm"),"normal_angle_deg":joint.get("normal_angle_deg"),"material_surface_offsets_mm":joint.get("material_surface_offsets_mm")})
+    bottoms=[p for p in parts if p.get("composite_role")=="bottom"];walls={p.get("composite_role"):p for p in parts if p.get("composite_role") in {"front","back","left","right"}}
+    volume_ok=bool(bottoms and len(walls)==4 and float(bottoms[0].get("w") or 0)>0 and float(bottoms[0].get("h") or 0)>0 and min(float(p.get("h") or 0) for p in walls.values())>0)
+    checks.append({"type":"INTERIOR_VOLUME","status":"PASS" if volume_ok else "FAIL","inner_dimensions_mm":[float(bottoms[0].get("w")),float(bottoms[0].get("h")),float(walls["front"].get("h"))] if volume_ok else None})
+    return {"status":"PASS" if checks and all(c["status"]=="PASS" for c in checks) else "FAIL","checks":checks}
 
 
 def expand(primitives: list[Any] | None, thickness: float = 3.0) -> dict[str, Any]:
@@ -173,7 +213,8 @@ def expand(primitives: list[Any] | None, thickness: float = 3.0) -> dict[str, An
             part["placement_source"] = "explicit"
             part["placement"].setdefault("source", "explicit")
         physical.append(part)
-    return {"physical_parts": physical, "logical_groups": groups, "derived_constraints": constraints}
+    validation=validate_box_transforms(physical,constraints,thickness) if groups else {"status":"N/A","checks":[]}
+    return {"physical_parts": physical, "logical_groups": groups, "derived_constraints": constraints,"transform_validation":validation}
 
 
 def _bbox(part: dict[str, Any], thickness: float):

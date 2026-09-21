@@ -41,7 +41,9 @@ class ElectronicsBoxTests(unittest.TestCase):
             "right":{"ports":[{"id":"aux","x":30,"y":12,"w":12,"h":8}]},
             "lid":{"ports":[{"id":"gpio-ffc","x":47,"y":34.5,"w":55,"h":8}]},
         })
-        built=self.compile(row);self.assertEqual(built["final_status"],"PROTOTYPE READY",built.get("blocking_reasons"))
+        from payas_cad import create_design
+        built=create_design(primitives=[row],parameters={"thickness":3,"burn":.15,"material":"poplar_3mm","machine":"payas_workshop"},public_base_url="http://127.0.0.1:8000")
+        self.assertTrue(built["success"]);self.assertEqual(built["final_status"],"PROTOTYPE READY",built.get("blocking_reasons"))
         self.assert_parts_preserved(built,6)
         counts={p["id"].split("/")[-1]:len(p["inner_cuts"]) for p in built["assembly"]["physical_parts"]}
         self.assertEqual(counts,{"bottom":4,"front":2,"back":3,"left":1,"right":1,"lid":1})
@@ -49,6 +51,9 @@ class ElectronicsBoxTests(unittest.TestCase):
             self.assertEqual(built["review"]["categories"][category]["status"],"PASS",category)
         self.assertEqual(built["physical"]["kerf"],"NOT_VERIFIED")
         self.assertEqual(built["physical"]["assembly"],"NOT_VERIFIED")
+        self.assertEqual(built["production_export"],"BLOCKED")
+        self.assertEqual(built["assembly"]["transform_validation"]["status"],"PASS")
+        self.assertIsNotNone(built["assembly"]["assembled_preview_svg"])
 
     def test_port_uses_larger_plug_envelope_plus_clearance(self):
         row=base(walls={"front":{"ports":[{"id":"usb-c","x":30,"y":15,"connector_width":10,"connector_height":5,"plug_width":14,"plug_height":9,"clearance":1}]}})

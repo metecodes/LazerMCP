@@ -297,7 +297,7 @@ def check_assembly(
     from toolbox import _materialize_cut_geometry
     primitives=[_materialize_cut_geometry(p) if isinstance(p,dict) else p for p in (primitives or [])]
     t = float(thickness if thickness is not None else PAYAS_DEFAULTS["thickness"])
-    from composite_assembly import expand as expand_composites, classify_contacts
+    from composite_assembly import expand as expand_composites, classify_contacts, _normal
     composite = expand_composites(primitives, t)
     physical_parts = [_materialize_cut_geometry(p) for p in composite["physical_parts"]]
     from placement_solver import derive_placements
@@ -305,6 +305,9 @@ def check_assembly(
     kerf = float(burn if burn is not None else PAYAS_DEFAULTS["burn"])
     errors: list[str] = []
     warnings: list[str] = []
+    transform_validation=composite.get("transform_validation") or {"status":"N/A","checks":[]}
+    if transform_validation.get("status")=="FAIL":
+        errors.extend("box assembly transform failed: "+str(c.get("type"))+" "+str(c.get("part") or (str(c.get("part_a"))+" ↔ "+str(c.get("part_b")))) for c in transform_validation.get("checks") or [] if c.get("status")=="FAIL")
     joints: list[dict[str, Any]] = []
     shaft_pairs: list[dict[str, Any]] = []
     faces = expand_faces(primitives or [])
@@ -513,9 +516,10 @@ def check_assembly(
         "tab_slot_pairs": sum(1 for joint in joints if joint.get("kind") == "tab-slot"),
         "tab_slot_debug": joint_debug,
         "placement_diagnostics": placement_diagnostics,
-        "physical_parts": [{"id": p.get("physical_part_id"), "role":p.get("role"), "placement": p.get("placement"), "placement_source": p.get("placement_source") or (p.get("placement") or {}).get("source"), "outer_cut": (p.get("_cut_geometry") or {}).get("outer_cut"),"inner_cuts":(p.get("_cut_geometry") or {}).get("inner_cuts") or []} for p in physical_parts],
+        "physical_parts": [{"id": p.get("physical_part_id"), "role":p.get("role"), "placement": p.get("placement"),"normal":_normal(p), "placement_source": p.get("placement_source") or (p.get("placement") or {}).get("source"), "outer_cut": (p.get("_cut_geometry") or {}).get("outer_cut"),"inner_cuts":(p.get("_cut_geometry") or {}).get("inner_cuts") or []} for p in physical_parts],
         "logical_groups": composite["logical_groups"],
         "derived_constraints": composite["derived_constraints"],
+        "transform_validation":transform_validation,
         "intended_contacts": intended_contacts,
         "clearances": clearances,
         "illegal_collisions": illegal_collisions,
