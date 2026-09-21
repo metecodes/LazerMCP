@@ -100,7 +100,20 @@ def _path_geoms(el,parents,width,height):
             matrix=_matrix(el,parents,width,height);a,b,c,d,e,f=matrix[0,0],matrix[1,0],matrix[0,1],matrix[1,1],matrix[0,2],matrix[1,2];raw=affine_transform(raw,[a,c,b,d,e,f]);return [affine_transform(raw,[1,0,0,-1,0,height])]
         except (TypeError,ValueError):return []
     if not el.get('d'):return []
-    path=transform(parse_path(el.get('d')),_matrix(el,parents,width,height));result=[]
+    raw_path = parse_path(el.get('d'))
+    if el.get('data-holding-nicks') and classify_element(el,parents)[0] == 'CUT':
+        from svgpathtools import Path as SVGPath
+        from holding_nicks import NICK_MM
+        subs = list(raw_path.continuous_subpaths())
+        if subs and all(abs(subs[i].end-subs[(i+1)%len(subs)].start) <= NICK_MM + .8 for i in range(len(subs))):
+            segments = []
+            for i, sub in enumerate(subs):
+                segments.extend(sub)
+                end = subs[(i+1)%len(subs)].start
+                if abs(sub.end-end) > 1e-9:
+                    segments.append(Line(sub.end,end))
+            raw_path = SVGPath(*segments)
+    path=transform(raw_path,_matrix(el,parents,width,height));result=[]
     for sub in path.continuous_subpaths():
         pts=[]
         for seg in sub:

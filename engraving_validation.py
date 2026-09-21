@@ -41,24 +41,26 @@ def validate(svg_bytes: bytes, edge_clearance_mm: float = 1.0) -> dict[str, list
         try:
             from semantic_cad import inspect_design
             doc = inspect_design(svg_bytes)
-            parts = [p["_geom"] for p in doc.get("_parts") or []]
-            if not parts:
-                from shapely.geometry import box
-                cut_geoms = [o["_geom"] for o in doc.get("_objects") or [] if o.get("operation") == "CUT"]
-                if cut_geoms:
-                    bounds = [g.bounds for g in cut_geoms]
-                    parts = [box(min(b[0] for b in bounds), min(b[1] for b in bounds), max(b[2] for b in bounds), max(b[3] for b in bounds))]
+            from shapely.ops import unary_union
+            parts = []
+            for part in doc.get("_parts") or []:
+                holes = [obj["_geom"] for obj in doc.get("_objects") or []
+                         if obj.get("id") in part.get("feature_ids", [])]
+                material = part["_geom"]
+                if holes:
+                    material = material.difference(unary_union(holes))
+                parts.append(material)
             marks = [o["_geom"] for o in doc.get("_objects") or [] if o.get("operation") == "ENGRAVE"]
             mark_rows = [o for o in doc.get("_objects") or [] if o.get("operation") == "ENGRAVE"]
-            inside = bool(parts) and all(any(part.buffer(1e-6).covers(mark) for part in parts) for mark in marks)
-            clearance = bool(parts) and all(any(part.buffer(1e-6).covers(mark) and part.boundary.distance(mark) + 1e-6 >= edge_clearance_mm for part in parts) for mark in marks)
+            inside = bool(parts) and bool(marks) and all(any(part.buffer(1e-6).covers(mark) for part in parts) for mark in marks)
+            clearance = bool(parts) and bool(marks) and all(any(part.buffer(1e-6).covers(mark) and part.boundary.distance(mark) + 1e-6 >= edge_clearance_mm for part in parts) for mark in marks)
             geometry.append({"status": PASS if inside else FAIL, "note": "engraving is inside an outer CUT contour" if inside else "engraving extends outside every outer CUT contour"})
             geometry.append({"status": PASS if clearance else FAIL, "note": f"engraving edge clearance ≥ {edge_clearance_mm:g} mm" if clearance else f"engraving violates {edge_clearance_mm:g} mm edge clearance"})
             overlaps = []
             for index, left in enumerate(mark_rows):
                 for right in mark_rows[index + 1:]:
                     explicit_ids = not str(left.get("id") or "").startswith("OBJ_") and not str(right.get("id") or "").startswith("OBJ_")
-                    if explicit_ids and left.get("id") != right.get("id") and left["_geom"].intersects(right["_geom"]):
+                    if (left["_geom"].equals(right["_geom"]) or (explicit_ids and left.get("id") != right.get("id") and left["_geom"].intersects(right["_geom"]))):
                         overlaps.append((left.get("id"), right.get("id")))
             geometry.append({"status": FAIL if overlaps else PASS, "note": f"unintended engraving overlaps={len(overlaps)}"})
         except Exception as exc:

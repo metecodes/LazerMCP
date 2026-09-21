@@ -52,16 +52,14 @@ def inspect_topology(svg_bytes: bytes | None) -> dict[str, Any]:
             continue
         index += 1
         nicks = el.get("data-holding-nicks")
-        if nicks:
-            nicked += 1
-            closed += 1
-            continue
         try:
             path = parse_path(d)
-        except Exception:
+        except Exception as exc:
+            open_cuts.append({"path": index, "code": "INVALID_CUT_PATH", "note": str(exc)})
             continue
         subs = list(path.continuous_subpaths()) if path else []
         if not subs:
+            open_cuts.append({"path": index, "code": "EMPTY_CUT_PATH", "note": "CUT path has no segments"})
             continue
         # A holding-nick loop is emitted as ordered subpaths separated by small
         # intentional bridges.  Validate the complete cyclic chain instead of

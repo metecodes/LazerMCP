@@ -46,8 +46,9 @@ class CompositeAssemblyTests(unittest.TestCase):
             {"type": "box", "label": "main-bin-body", "x": 394, "y": 394, "h": 697, "bottom": True},
             panel("top-lid-fixed", 394, 197, (0, 197, 706)),
             panel("top-lid-sliding", 394, 190, (0, 0, 700), moving=True),
-            panel("lid-rail-left", 200, 8, (0, -3, 700)),
-            panel("lid-rail-right", 200, 8, (194, 389, 700)),
+            # Three-mm rails support the lid at Z=700, without occupying it.
+            panel("lid-rail-left", 200, 8, (0, -3, 697)),
+            panel("lid-rail-right", 200, 8, (194, 389, 697)),
         ]
         params = {"connections": [{
             "id": "lid-slide", "type": "linear_slide", "moving_part": "top-lid-sliding",

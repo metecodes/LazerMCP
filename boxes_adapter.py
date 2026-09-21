@@ -828,8 +828,11 @@ def save_generated_svg(
         if gated.get("look_again"):
             extra["look_again"] = gated["look_again"]
     except Exception:
-        extra.setdefault("final_status", extra.get("final_status") or "BLOCKED")
-        extra.setdefault("production_export", "BLOCKED")
+        extra["final_status"] = "BLOCKED"
+        extra["production_export"] = "BLOCKED"
+        extra["validation_error"] = "POST_SAVE_REVIEW_FAILED"
+        extra["authorized_output"] = "None"
+        extra["look_again"] = ["POST_SAVE_REVIEW_FAILED: finalized SVG could not be verified"]
     extra["ready_to_cut"] = extra.get("final_status") == "PRODUCTION READY"
     extra["production_export"] = extra.get("production_export") or "BLOCKED"
     extra.setdefault(

@@ -181,6 +181,8 @@ def svg_bytes_to_dxf(svg_bytes: bytes, step_mm: float = 0.6) -> bytes:
     cuts, etches = [], []
     from manufacturing import classify_element
     for el in root.iter():
+        if el.tag.split("}")[-1].lower() in {"text", "image", "use"}:
+            raise ValueError("DXF_UNRESOLVED_GEOMETRY: text must be outlined and image/use geometry expanded before export")
         if el.tag.split("}")[-1].lower() != "path" or not (el.get("d") or "").strip():
             continue
         op = classify_element(el, parents)[0]

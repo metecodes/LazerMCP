@@ -1,0 +1,246 @@
+{
+  "coplanar_compiler": {
+    "active": true,
+    "status": "FAIL",
+    "joints": [],
+    "errors": [
+      "C1: FINGER_JOINT_ORIENTATION_INVALID: mating panels must be perpendicular"
+    ],
+    "port_keepouts": [],
+    "port_inventory": {
+      "a": [],
+      "b": []
+    }
+  },
+  "coplanar_collision": [
+    [],
+    [],
+    []
+  ],
+  "coplanar_final_gate": {
+    "final_status": "BLOCKED",
+    "categories": {
+      "CONNECTIONS": {
+        "status": "FAIL",
+        "required": true,
+        "notes": [
+          "C1: FINGER_JOINT_ORIENTATION_INVALID: mating panels must be perpendicular"
+        ]
+      },
+      "ASSEMBLY": {
+        "status": "FAIL",
+        "required": true,
+        "notes": [
+          "C1: FINGER_JOINT_ORIENTATION_INVALID: mating panels must be perpendicular"
+        ]
+      },
+      "3D_ASSEMBLY": {
+        "status": "FAIL",
+        "required": true,
+        "notes": [
+          "assembled preview rejected because geometric assembly checks failed"
+        ]
+      },
+      "TAB_SLOT_GEOMETRY": {
+        "status": "N/A",
+        "required": true,
+        "notes": [
+          "no explicit tab-slot pairs"
+        ]
+      }
+    }
+  },
+  "engraving_in_cut_hole": {
+    "geometry": [
+      {
+        "status": "PASS",
+        "note": "ENGRAVE yellow #FFFF00: 1/1"
+      },
+      {
+        "status": "FAIL",
+        "note": "engraving extends outside every outer CUT contour"
+      },
+      {
+        "status": "FAIL",
+        "note": "engraving violates 1 mm edge clearance"
+      },
+      {
+        "status": "PASS",
+        "note": "unintended engraving overlaps=0"
+      }
+    ],
+    "separation": [
+      {
+        "status": "PASS",
+        "note": "ENGRAVE remains a non-through surface operation"
+      },
+      {
+        "status": "PASS",
+        "note": "CUT red #FF0000: 2/2"
+      },
+      {
+        "status": "PASS",
+        "note": "DXF ENGRAVE layer uses ACI 2"
+      }
+    ]
+  },
+  "duplicate_unnamed_engraving": {
+    "geometry": [
+      {
+        "status": "PASS",
+        "note": "ENGRAVE yellow #FFFF00: 2/2"
+      },
+      {
+        "status": "PASS",
+        "note": "engraving is inside an outer CUT contour"
+      },
+      {
+        "status": "PASS",
+        "note": "engraving edge clearance \u2265 1 mm"
+      },
+      {
+        "status": "FAIL",
+        "note": "unintended engraving overlaps=1"
+      }
+    ],
+    "separation": [
+      {
+        "status": "PASS",
+        "note": "ENGRAVE remains a non-through surface operation"
+      },
+      {
+        "status": "PASS",
+        "note": "CUT red #FF0000: 1/1"
+      },
+      {
+        "status": "PASS",
+        "note": "DXF ENGRAVE layer uses ACI 2"
+      }
+    ]
+  },
+  "malformed_cut": {
+    "ok": false,
+    "cut_paths": 1,
+    "closed": 0,
+    "nicked_closed": 0,
+    "open_cuts": [
+      {
+        "path": 1,
+        "code": "INVALID_CUT_PATH",
+        "note": "Invalid path string: command 'M' expects 2 values but only 0 remain in 'M broken'"
+      }
+    ],
+    "duplicates": [],
+    "self_intersections": []
+  },
+  "fake_standalone": {
+    "mode": "mechanical",
+    "requested": "standalone",
+    "valid": false,
+    "physical_part_count": 2,
+    "reason": "standalone rejected: physical_parts=2, connections=False, moving=False, mechanical_preset=False"
+  },
+  "moving_through_rail": {
+    "active": true,
+    "slides": [
+      {
+        "id": "S1",
+        "type": "linear_slide",
+        "moving_part": "a",
+        "rails": [
+          "b"
+        ],
+        "axis": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "travel_mm": 10.0,
+        "clearance_mm": 0.0,
+        "positions": [
+          {
+            "travel_mm": 0.0,
+            "ratio": 0,
+            "status": "FAIL",
+            "collisions": [
+              "b"
+            ]
+          },
+          {
+            "travel_mm": 2.5,
+            "ratio": 0.25,
+            "status": "FAIL",
+            "collisions": [
+              "b"
+            ]
+          },
+          {
+            "travel_mm": 5.0,
+            "ratio": 0.5,
+            "status": "FAIL",
+            "collisions": [
+              "b"
+            ]
+          },
+          {
+            "travel_mm": 7.5,
+            "ratio": 0.75,
+            "status": "FAIL",
+            "collisions": [
+              "b"
+            ]
+          },
+          {
+            "travel_mm": 10.0,
+            "ratio": 1,
+            "status": "FAIL",
+            "collisions": [
+              "b"
+            ]
+          }
+        ],
+        "collisions": [
+          {
+            "part": "b",
+            "kind": "continuous-static-moving",
+            "travel_range_mm": [
+              0.0,
+              10.0
+            ]
+          },
+          {
+            "at_mm": 0.0,
+            "part": "b",
+            "kind": "static-moving"
+          },
+          {
+            "at_mm": 2.5,
+            "part": "b",
+            "kind": "static-moving"
+          },
+          {
+            "at_mm": 5.0,
+            "part": "b",
+            "kind": "static-moving"
+          },
+          {
+            "at_mm": 7.5,
+            "part": "b",
+            "kind": "static-moving"
+          },
+          {
+            "at_mm": 10.0,
+            "part": "b",
+            "kind": "static-moving"
+          }
+        ],
+        "status": "FAIL",
+        "reason": "SLIDE_COLLISION",
+        "minimum_clearance_mm": 0.0,
+        "continuous_sweep": true
+      }
+    ],
+    "drives": [],
+    "status": "FAIL"
+  }
+}

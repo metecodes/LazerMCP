@@ -47,12 +47,13 @@ def validate(primitives,parameters,thickness=3):
         if len(rails)<1 or any(not r or not r.get('placement') for r in rails):row.update(status='FAIL',reason='RAIL_OR_PLACEMENT_MISSING');rows.append(row);continue
         if not axis or travel<=0:row.update(status='FAIL',reason='SLIDE_AXIS_OR_TRAVEL_INVALID');rows.append(row);continue
         if clearance<0:row.update(status='FAIL',reason='NEGATIVE_RAIL_CLEARANCE');rows.append(row);continue
-        allowed={label,*row['rails'],*(c.get('allowed_contact_parts') or [])};failed=False
+        # Contact is permitted at a surface, not throughout a named rail's solid.
+        allowed={label};failed=False
         start_box=_bbox(moving,thickness);velocity=[axis[i]*travel for i in range(3)]
         for name,part in parts.items():
             if name in allowed:continue
             obstacle_box=_bbox(part,thickness)
-            hit=_swept_overlap(start_box,obstacle_box,velocity,max(.01,clearance)) if start_box and obstacle_box else None
+            hit=_swept_overlap(start_box,obstacle_box,velocity,.01) if start_box and obstacle_box else None
             if hit:
                 failed=True;row['collisions'].append({'part':name,'kind':'continuous-static-moving','travel_range_mm':[round(hit[0]*travel,3),round(hit[1]*travel,3)]})
         for ratio in SAMPLES:
@@ -61,7 +62,7 @@ def validate(primitives,parameters,thickness=3):
             for name,part in parts.items():
                 if name in allowed:continue
                 pb=_bbox(part,thickness)
-                if mb and pb and _overlap(mb,pb,max(.01,clearance)):hits.append(name)
+                if mb and pb and _overlap(mb,pb,.01):hits.append(name)
             status='FAIL' if hits else 'PASS';failed|=bool(hits);row['positions'].append({'travel_mm':round(travel*ratio,3),'ratio':ratio,'status':status,'collisions':hits})
             row['collisions'].extend({'at_mm':round(travel*ratio,3),'part':x,'kind':'static-moving'} for x in hits)
         row.update(status='FAIL' if failed else 'PASS',reason='SLIDE_COLLISION' if failed else 'CONTINUOUS_LINEAR_TRAVEL_VERIFIED',minimum_clearance_mm=clearance,continuous_sweep=True)

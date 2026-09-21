@@ -15,9 +15,7 @@ def classify_assembly_mode(built: dict[str, Any], faces: list[dict[str, Any]], c
                 "reason": "assembly_mode must be auto, standalone or mechanical"}
 
     preset = str(built.get("preset") or built.get("product") or "").strip().lower()
-    if preset == "engraving_layout":
-        physical_count = 1
-    elif faces:
+    if faces:
         physical_count = sum(1 for face in faces if str(face.get("kind") or "").lower() not in _ARTWORK_TYPES)
     else:
         try:

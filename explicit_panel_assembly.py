@@ -87,6 +87,16 @@ def compile_connections(primitives: list[Any], parameters: dict[str, Any] | None
             report["errors"].append(f"{joint_id}: missing explicit panel {a_name or '?'} or {b_name or '?'}")
             continue
         try:
+            def normal(panel):
+                u, v = panel["placement"]["u"], panel["placement"]["v"]
+                n = [u[1]*v[2]-u[2]*v[1], u[2]*v[0]-u[0]*v[2], u[0]*v[1]-u[1]*v[0]]
+                length = sum(x*x for x in n)**.5
+                if length <= 1e-9:
+                    raise ValueError("invalid placement normal")
+                return [x/length for x in n]
+            if abs(sum(x*y for x,y in zip(normal(a), normal(b)))) > .001:
+                report["errors"].append(f"{joint_id}: FINGER_JOINT_ORIENTATION_INVALID: mating panels must be perpendicular")
+                continue
             candidates = []
             for ea in _edges(a):
                 for eb in _edges(b):
