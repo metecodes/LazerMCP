@@ -535,6 +535,7 @@ def create_design(
         "gate_levels": built.get("gate_levels"),
         "reference_comparison": built.get("reference_comparison"),
         "blocking_checks": built.get("blocking_checks") or [],
+        "compiler_error": built.get("compiler_error"),
         "look_again": built.get("look_again") or [],
         "authorized_output": built.get("authorized_output"),
         "production_export": built.get("production_export") or "BLOCKED",
@@ -565,6 +566,7 @@ def create_design(
             extra["production_export"] = gated.get("production_export") or "BLOCKED"
             extra["look_again"] = gated.get("look_again") or extra.get("look_again")
             extra["blocking_checks"] = gated.get("blocking_checks") or []
+            extra["compiler_error"] = gated.get("compiler_error")
         except Exception as exc:
             return blocked("INTERNAL_PIPELINE_ERROR", "reviewer", str(exc))
     extra["_started_at"] = started_at

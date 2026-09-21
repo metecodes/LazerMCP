@@ -49,7 +49,9 @@ class ImageEngravingTests(unittest.TestCase):
         built=compile_design(preset='engraving_layout',parameters={'width_mm':100,'height_mm':100,'items':[{'kind':'image','image_base64':sample('black','yellow'),'x':50,'y':50,'width':30}]})
         paths=[el for el in ET.fromstring(built['svg_bytes']).iter() if el.tag.endswith('path')]
         self.assertTrue(paths)
-        self.assertTrue(all(p.get('data-operation')=='ENGRAVE' and p.get('stroke')=='#FFFF00' for p in paths))
+        engraves=[p for p in paths if p.get('data-operation')=='ENGRAVE'];cuts=[p for p in paths if p.get('data-operation')=='CUT']
+        self.assertTrue(engraves);self.assertTrue(all(p.get('stroke')=='#FFFF00' for p in engraves))
+        self.assertEqual(len(cuts),1);self.assertEqual(cuts[0].get('stroke'),'#FF0000')
 
     def test_bad_inputs_and_cut_rejected(self):
         for extra in [{'crop':[.8,0,.2,1]},{'operation':'cut'},{'foreground':'nonsense'}]:

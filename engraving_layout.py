@@ -15,9 +15,9 @@ def build_layout(params):
     if not isinstance(items, list) or not 1 <= len(items) <= 500:
         raise ValueError('engraving_layout requires 1..500 text/path/icon/line items')
     root = ET.Element('svg', {'xmlns':'http://www.w3.org/2000/svg','width':f'{width}mm','height':f'{height}mm','viewBox':f'0 0 {width} {height}'})
-    panel = ET.SubElement(root, 'rect', {'id':'engraving-panel','x':'0','y':'0','width':f'{width}','height':f'{height}',
+    ET.SubElement(root, 'path', {'id':'engraving-panel','d':f'M 0 0 L {width:g} 0 L {width:g} {height:g} L 0 {height:g} Z',
         'fill':'none','stroke':'#FF0000','stroke-width':'.15','data-operation':'CUT','data-operation-origin':'EXPLICIT',
-        'data-semantic-role':'outer_contour','data-physical-part':'true'})
+        'data-semantic-role':'outer_contour','data-semantic-operation':'OUTER_CUT','data-physical-part':'true'})
     for i, item in enumerate(items):
         if not isinstance(item, dict):
             raise ValueError(f'Item {i} must be an object')

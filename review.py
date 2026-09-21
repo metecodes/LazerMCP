@@ -350,6 +350,7 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
     svg_c: list[dict[str, Any]] = []
     mfg_c: list[dict[str, Any]] = []
     semantic_cut_c: list[dict[str, Any]] = []
+    semantic_outer_cut_count = 0
     nest_c: list[dict[str, Any]] = []
     safety_c: list[dict[str, Any]] = []
     bom_c: list[dict[str, Any]] = []
@@ -705,10 +706,19 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
                 elif role in {'tab','finger_joint'} and op=='CUT':classes['TAB']+=1
                 elif op=='CUT':classes['INNER_CUT']+=1
                 if role in SURFACE_ROLES and op=='CUT':bad.append(row)
+            semantic_outer_cut_count = classes['OUTER_CUT']
             if bad:semantic_cut_c.append({'status':FAIL,'note':f'{len(bad)} reference/decorative surface paths are CUT'})
             elif not rows:semantic_cut_c.append({'status':NOT_VERIFIED,'note':'no drawable operation evidence'})
             else:semantic_cut_c.append({'status':PASS,'note':'semantic operations '+', '.join(f'{k}={v}' for k,v in classes.items())})
         except Exception as exc:semantic_cut_c.append({'status':NOT_VERIFIED,'note':f'semantic CUT classification failed: {exc}'})
+
+    cut_geometry_mismatch = None
+    physical_cut_path_count = int(topology.get("cut_paths") or 0)
+    if semantic_outer_cut_count > 0 and physical_cut_path_count == 0:
+        cut_geometry_mismatch = {"error_code": "CUT_GEOMETRY_COMPILER_MISMATCH", "semantic_cut_count": semantic_outer_cut_count,
+                                 "physical_cut_path_count": physical_cut_path_count, "compiler_stage": "svg_writer"}
+        svg_c = [row for row in svg_c if row.get("note") != "no CUT paths in the SVG"]
+        svg_c.append({"status": FAIL, "note": "CUT_GEOMETRY_COMPILER_MISMATCH: semantic OUTER_CUT exists but no physical SVG CUT path was emitted", **cut_geometry_mismatch})
 
     if assembly_mode == "standalone":
         from engraving_validation import validate as validate_engraving
@@ -905,7 +915,8 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
         production_export = "BLOCKED"
         ready = False
     card = format_gate_card(scorecard, final, authorized, production_export)
-    blocking_checks = [{"category": c["id"], "status": check["status"], "note": check["note"]}
+    blocking_checks = [{"category": c["id"], "status": check["status"], "note": check["note"],
+                        **{k: check[k] for k in ("error_code","semantic_cut_count","physical_cut_path_count","compiler_stage") if k in check}}
                        for c in fail + unverified for check in c.get("checks", [])
                        if check.get("status") in {FAIL, NOT_VERIFIED} and check.get("note")]
     if final == BLOCKED and looks:
@@ -938,6 +949,7 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
         },
         "look_again": looks,
         "blocking_checks": blocking_checks,
+        "compiler_error": cut_geometry_mismatch,
         "warnings": [n for c in warn for n in (c.get("notes") or [])],
         "final_status": final,
         "authorized_output": authorized,
