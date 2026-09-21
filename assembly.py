@@ -68,6 +68,7 @@ def expand_faces(primitives: list[Any]) -> list[dict[str, Any]]:
             bottom_on = bottom_value is not False
             lid_on = bool(lid_value)
             lid_type=str(lid_value.get("type") if isinstance(lid_value,dict) else "finger_joint").lower()
+            lid_edges=str(lid_value.get("edges") or "ffff")[:4] if isinstance(lid_value,dict) else "ffff"
             if lid_on and lid_type in {"finger","finger_joint","fixed"}:wall_top=side_top="F"
             gable_top = bool(part.get("gable_top") or part.get("lock_roof"))
             b = "F" if bottom_on else "e"
@@ -97,7 +98,7 @@ def expand_faces(primitives: list[Any]) -> list[dict[str, Any]]:
                         "kind": "floor",
                         "w": x,
                         "h": y,
-                        "edges": "ffff" if top in "fF" else "eeee",
+                        "edges": lid_edges if lid_type in {"finger","finger_joint","fixed"} else "eeee",
                         "features": _features({**(lid_value if isinstance(lid_value,dict) else {}),**(walls.get("top") or walls.get("lid") or {})}),
                     }
                 )
@@ -328,7 +329,10 @@ def check_assembly(
 
     males: list[tuple[str, int, float]] = []
     females: list[tuple[str, int, float]] = []
+    composite_ids={str(p.get("physical_part_id")) for p in physical_parts if p.get("composite_parent")}
     for face in faces:
+        if str(face.get("name")) in composite_ids:
+            continue
         edges = str(face.get("edges") or "")
         if len(edges) < 3:
             continue
@@ -369,6 +373,9 @@ def check_assembly(
     for mi, (mn, me, ml) in enumerate(males):
         if mi not in used_m:
             errors.append(f"male edge {mn}.{_EDGE[me] if me < 4 else me} ({ml} mm) has no matching F holes")
+
+    for constraint in composite.get("derived_constraints") or []:
+        joints.append({"female":constraint.get("part_b"),"female_edge":str(constraint.get("edge_b") or "").split(":")[-1],"male":constraint.get("part_a"),"male_edge":str(constraint.get("edge_a") or "").split(":")[-1],"length_mm":None,"result":constraint.get("result"),"via":"compiled composite CUT geometry + world-space transform","joint_type":constraint.get("joint_type"),"world_edge_error_mm":constraint.get("world_edge_error_mm"),"edge_profiles":constraint.get("edge_profiles")})
 
     walls = [f for f in faces if f.get("kind") == "wall"]
     for face in walls:

@@ -21,7 +21,13 @@ def validate(primitives,parameters,assembly,linear,mechanism=None):
         inventory.append({"id":pid,"role":role,"role_source":role_source,"mates":[]});inventory_ids.append(pid)
     edges=[]
     def add(a,b,kind,status="PASS",evidence=""):
-        if a and b and str(a)!=str(b):edges.append({"part_a":str(a),"part_b":str(b),"type":str(kind),"status":str(status),"evidence":evidence})
+        if not a or not b or str(a)==str(b):return
+        a,b,kind,status=str(a),str(b),str(kind),str(status)
+        existing=next((e for e in edges if {e["part_a"],e["part_b"]}=={a,b} and e["type"]==kind),None)
+        if existing:
+            if status not in {"PASS","MATCH"}:existing.update(status=status,evidence=evidence)
+            return
+        edges.append({"part_a":a,"part_b":b,"type":kind,"status":status,"evidence":evidence})
     for c in assembly.get("derived_constraints") or []:add(c.get("part_a"),c.get("part_b"),c.get("joint_type") or "joint",c.get("result") or "PASS","compiled geometry")
     for c in assembly.get("joints") or []:add(c.get("male"),c.get("female"),c.get("kind") or "finger_joint","PASS" if c.get("result") in {"MATCH","PASS","PLANNED"} else "FAIL",c.get("via") or "")
     slide_rows={str(s.get("id")):s for s in linear.get("slides") or []}
@@ -49,9 +55,27 @@ def validate(primitives,parameters,assembly,linear,mechanism=None):
     for edge in edges:
         for key in ("part_a","part_b"):
             if edge[key] in lookup:lookup[edge[key]]["mates"].append(edge)
-    expected=len([r for r in inventory if r["role"]!="decorative"])>1;checks=[]
+    expected=len([r for r in inventory if r["role"]!="decorative"])>1;checks=[];required_checks=[]
     duplicates=sorted({pid for pid in inventory_ids if not pid or inventory_ids.count(pid)>1})
     if duplicates:checks.append({"status":"FAIL","note":"physical part IDs must be unique and non-empty: "+", ".join(duplicates or ["<empty>"])})
+    required=[]
+    for p in primitives or []:
+        if not isinstance(p,dict) or str(p.get("type") or p.get("kind") or "").lower()!="box":continue
+        lid=p.get("lid");lid_type=str(lid.get("type") if isinstance(lid,dict) else ("finger_joint" if lid else "")).lower()
+        if lid_type in {"finger","finger_joint","fixed"}:
+            parent=str(p.get("label") or p.get("id") or "box-1");required.extend([{"a":f"{parent}/lid","b":f"{parent}/{wall}","type":"finger_joint","source":"finger_joint lid invariant"} for wall in ("front","back","left","right")])
+            lid_row=next((r for r in (assembly.get("physical_parts") or []) if r.get("id")==f"{parent}/lid"),None);profiles=str(((lid_row or {}).get("outer_cut") or {}).get("edge_profiles") or "")
+            if profiles=="eeee" or len(profiles)!=4 or any(ch!="f" for ch in profiles):required_checks.append({"status":"FAIL","note":"finger_joint lid requested but lid has no joint geometry","part":f"{parent}/lid"})
+    for raw in parameters.get("required_connections") or []:
+        if isinstance(raw,(list,tuple)) and len(raw)>=2:required.append({"a":str(raw[0]),"b":str(raw[1]),"type":"finger_joint","source":"required_connections"})
+        elif isinstance(raw,dict):required.append({"a":str(raw.get("a") or raw.get("part_a") or ""),"b":str(raw.get("b") or raw.get("part_b") or ""),"type":str(raw.get("type") or "finger_joint"),"source":"required_connections"})
+    for req in required:
+        a,b,typ=req["a"],req["b"],req["type"]
+        edge=next((e for e in edges if {e["part_a"],e["part_b"]}=={a,b} and e["type"]==typ and e["status"] in {"PASS","MATCH"}),None)
+        missing=[pid for pid in (a,b) if pid not in lookup]
+        status="PASS" if edge and not missing else "FAIL";reason="verified CUT geometry and world-space mate" if status=="PASS" else ("missing part(s): "+", ".join(missing) if missing else "required connection or matching geometry is missing")
+        required_checks.append({"status":status,"note":f'{a} ↔ {b} {typ}: {reason}',"part_a":a,"part_b":b,"type":typ,"source":req["source"]})
+    checks.extend(required_checks)
     for item in inventory:
         role,mates=item["role"],item["mates"]
         if not expected or role=="decorative":continue
@@ -61,6 +85,7 @@ def validate(primitives,parameters,assembly,linear,mechanism=None):
         if role=="moving" and not any(e["type"] in {"linear_slide","removable_slide","shaft_hole","shaft_rotation","direct_motor_shaft"} for e in mates):checks.append({"status":"FAIL","note":f'{item["id"]} moving part has no motion connection'})
         if role=="removable" and not any(e["type"] in {"removable_slide","removable_lid"} and e["status"] in {"PASS","MATCH"} for e in mates):checks.append({"status":"FAIL","note":f'{item["id"]} removable part has no verified remove/reinstall path'})
     covered=sum(1 for r in inventory if r["role"]=="decorative" or not expected or (r["mates"] and all(e["status"] in {"PASS","MATCH"} for e in r["mates"])))
-    mate_checks=[{"status":e["status"],"note":f'{e["part_a"]} → {e["part_b"]} {e["type"]}: {e["evidence"]}'} for e in edges]
+    mate_checks=[{"status":e["status"],"note":f'{e["part_a"]} → {e["part_b"]} {e["type"]}: {e["evidence"]}'} for e in edges]+required_checks
     if expected and not edges:mate_checks=[{"status":"FAIL","note":"connection graph is empty; placement is not connection evidence"}]
-    return {"physical_part_inventory":inventory,"connection_graph":edges,"checks":checks or [{"status":"PASS","note":"single physical part; assembly connection not required"}],"mate_geometry_checks":mate_checks or [{"status":"PASS","note":"single physical part; mate geometry not required"}],"coverage_percent":round(100*covered/max(1,len(inventory)),1),"assembly_expected":expected}
+    lid_checks=[c for c in required_checks if "/lid" in str(c.get("part_a"))+str(c.get("part_b"))]
+    return {"physical_part_inventory":inventory,"connection_graph":edges,"checks":checks or [{"status":"PASS","note":"single physical part; assembly connection not required"}],"mate_geometry_checks":mate_checks or [{"status":"PASS","note":"single physical part; mate geometry not required"}],"required_connection_checks":required_checks,"lid_joint_coverage":{"passed":sum(c["status"]=="PASS" for c in lid_checks),"required":len(lid_checks),"checks":lid_checks},"coverage_percent":round(100*covered/max(1,len(inventory)),1),"assembly_expected":expected}

@@ -104,6 +104,7 @@ def _box(parent: dict[str, Any], index: int, thickness: float):
     bottom_on = bottom_value is not False
     lid_on = bool(lid_value)
     lid_type=str(lid_value.get("type") if isinstance(lid_value,dict) else "finger_joint").lower()
+    lid_edges=str(lid_value.get("edges") or "ffff")[:4] if isinstance(lid_value,dict) else "ffff"
     top = str(parent.get("top") or "e")[:1]
     b = "F" if bottom_on else "e"
     walls = parent.get("walls") if isinstance(parent.get("walls"), dict) else {}
@@ -116,15 +117,15 @@ def _box(parent: dict[str, Any], index: int, thickness: float):
     if lid_on and lid_type in {"finger","finger_joint","fixed"}:top="F"
     t = float(thickness)
     specs = [
-        ("front", x, h, f"{b}FeF", {"origin": [0, 0, t], "u": [1, 0, 0], "v": [0, 0, 1]}, feats("front")),
-        ("back", x, h, f"{b}FeF", {"origin": [x, y, t], "u": [-1, 0, 0], "v": [0, 0, 1]}, feats("back")),
+        ("front", x, h, f"{b}F{top}F", {"origin": [0, 0, t], "u": [1, 0, 0], "v": [0, 0, 1]}, feats("front")),
+        ("back", x, h, f"{b}F{top}F", {"origin": [x, y, t], "u": [-1, 0, 0], "v": [0, 0, 1]}, feats("back")),
         ("left", y, h, f"{b}f{top}f", {"origin": [0, y, t], "u": [0, -1, 0], "v": [0, 0, 1]}, feats("left")),
         ("right", y, h, f"{b}f{top}f", {"origin": [x, 0, t], "u": [0, 1, 0], "v": [0, 0, 1]}, feats("right")),
     ]
     if bottom_on:
         specs.insert(0, ("bottom", x, y, "ffff", {"origin": [0, 0, 0], "u": [1, 0, 0], "v": [0, 1, 0]}, feats("bottom")))
     if lid_on:
-        specs.append(("lid", x, y, "ffff" if lid_type in {"finger","finger_joint","fixed"} else "eeee", {"origin": [0, 0, h + t], "u": [1, 0, 0], "v": [0, 1, 0]}, feats("lid") or feats("top"),"removable" if lid_type in {"removable","sliding"} else "structural"))
+        specs.append(("lid", x, y, lid_edges if lid_type in {"finger","finger_joint","fixed"} else "eeee", {"origin": [0, 0, h + t], "u": [1, 0, 0], "v": [0, 1, 0]}, feats("lid") or feats("top"),"removable" if lid_type in {"removable","sliding"} else "structural"))
     children = [_child(parent,parent_id,*spec[:6],thickness,*(spec[6:] or ["structural"])) for spec in specs]
     edge = lambda part, name: f"{parent_id}/{part}:{name}"
     constraints = []
@@ -180,9 +181,12 @@ def validate_box_transforms(parts,constraints,thickness):
                     if best is None or candidate[0]<best[0]:best=candidate
         la=float(a.get("w") if ea in {"bottom","top"} else a.get("h") or 0) if a else 0;lb=float(b.get("w") if eb in {"bottom","top"} else b.get("h") or 0) if b else 0
         na,nb=_normal(a or {}),_normal(b or {});angle=math.degrees(math.acos(min(1,abs(sum(na[i]*nb[i] for i in range(3)))))) if na and nb else None
-        ok=bool(best and best[0]<=tol and abs(la-lb)<=tol and angle is not None and abs(angle-90)<=.01)
-        joint.update(result="MATCH" if ok else "FAIL",world_edge_error_mm=round(best[0],6) if best else None,edge_length_delta_mm=round(abs(la-lb),6),normal_angle_deg=round(angle,6) if angle is not None else None,material_surface_offsets_mm=[best[1],best[2]] if best else None)
-        checks.append({"type":"JOINT_TRANSFORM","part_a":joint.get("part_a"),"part_b":joint.get("part_b"),"status":"PASS" if ok else "FAIL","world_edge_error_mm":joint.get("world_edge_error_mm"),"edge_length_delta_mm":joint.get("edge_length_delta_mm"),"normal_angle_deg":joint.get("normal_angle_deg"),"material_surface_offsets_mm":joint.get("material_surface_offsets_mm")})
+        edge_index={"bottom":0,"right":1,"top":2,"left":3};pa=str((((a or {}).get("_cut_geometry") or {}).get("outer_cut") or {}).get("edge_profiles") or "");pb=str((((b or {}).get("_cut_geometry") or {}).get("outer_cut") or {}).get("edge_profiles") or "")
+        ca=pa[edge_index[ea]] if len(pa)==4 and ea in edge_index else "";cb=pb[edge_index[eb]] if len(pb)==4 and eb in edge_index else "";complementary={ca,cb}=={"f","F"}
+        actual_a=bool((((a or {}).get("_cut_geometry") or {}).get("outer_cut") or {}).get("points"));actual_b=bool((((b or {}).get("_cut_geometry") or {}).get("outer_cut") or {}).get("points"))
+        ok=bool(best and best[0]<=tol and abs(la-lb)<=tol and angle is not None and abs(angle-90)<=.01 and complementary and actual_a and actual_b)
+        joint.update(result="MATCH" if ok else "FAIL",world_edge_error_mm=round(best[0],6) if best else None,edge_length_delta_mm=round(abs(la-lb),6),normal_angle_deg=round(angle,6) if angle is not None else None,material_surface_offsets_mm=[best[1],best[2]] if best else None,edge_profiles=[ca,cb],complementary_geometry=complementary)
+        checks.append({"type":"JOINT_TRANSFORM","part_a":joint.get("part_a"),"part_b":joint.get("part_b"),"status":"PASS" if ok else "FAIL","world_edge_error_mm":joint.get("world_edge_error_mm"),"edge_length_delta_mm":joint.get("edge_length_delta_mm"),"normal_angle_deg":joint.get("normal_angle_deg"),"material_surface_offsets_mm":joint.get("material_surface_offsets_mm"),"edge_profiles":[ca,cb],"complementary_geometry":complementary})
     bottoms=[p for p in parts if p.get("composite_role")=="bottom"];walls={p.get("composite_role"):p for p in parts if p.get("composite_role") in {"front","back","left","right"}}
     volume_ok=bool(bottoms and len(walls)==4 and float(bottoms[0].get("w") or 0)>0 and float(bottoms[0].get("h") or 0)>0 and min(float(p.get("h") or 0) for p in walls.values())>0)
     checks.append({"type":"INTERIOR_VOLUME","status":"PASS" if volume_ok else "FAIL","inner_dimensions_mm":[float(bottoms[0].get("w")),float(bottoms[0].get("h")),float(walls["front"].get("h"))] if volume_ok else None})

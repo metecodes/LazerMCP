@@ -790,6 +790,7 @@ class PayasToolbox(Boxes):
         bottom_on = bottom_value is not False
         lid_on = bool(lid_value)
         lid_type=str(lid_value.get("type") if isinstance(lid_value,dict) else "finger_joint").lower()
+        lid_edges=str(lid_value.get("edges") or "ffff")[:4] if isinstance(lid_value,dict) else "ffff"
         if lid_on and lid_type in {"finger","finger_joint","fixed"}:wall_top=side_top="F"
         b = "F" if bottom_on else "e"
         walls = part.get("walls") if isinstance(part.get("walls"), dict) else {}
@@ -828,7 +829,7 @@ class PayasToolbox(Boxes):
         self._note_part("right")
         if lid_on:
             self.rectangularWall(
-                x, y, "ffff" if top in "fF" else "eeee",
+                x, y, lid_edges if lid_type in {"finger","finger_joint","fixed"} else "eeee",
                 callback=self._wall_cb(wall("lid")),
                 move="up",
                 label="lid",

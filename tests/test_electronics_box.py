@@ -63,4 +63,31 @@ class ElectronicsBoxTests(unittest.TestCase):
         self.assertEqual(max(p[1] for p in pts)-min(p[1] for p in pts),11)
         self.assertEqual(front["inner_cuts"][0]["semantic_role"],"port_cutout")
 
+    def test_finger_joint_lid_has_four_real_required_mates(self):
+        row=base(lid={"type":"finger_joint"})
+        built=self.compile(row);physical={p["id"]:p for p in built["assembly"]["physical_parts"]}
+        self.assertEqual(physical["case/lid"]["outer_cut"]["edge_profiles"],"ffff")
+        for wall in ("front","back","left","right"):
+            self.assertEqual(physical[f"case/{wall}"]["outer_cut"]["edge_profiles"][2],"F")
+        lid_edges=[e for e in built["connection_validation"]["connection_graph"] if "case/lid" in {e["part_a"],e["part_b"]}]
+        self.assertEqual(len(lid_edges),4);self.assertTrue(all(e["status"]=="MATCH" for e in lid_edges))
+        self.assertEqual(built["connection_validation"]["lid_joint_coverage"]["passed"],4)
+        self.assertEqual(built["connection_validation"]["lid_joint_coverage"]["required"],4)
+        self.assertEqual(built["review"]["categories"]["COLLISIONS"]["status"],"PASS")
+        self.assertEqual(built["final_status"],"PROTOTYPE READY")
+
+    def test_finger_joint_lid_with_plain_cut_geometry_is_blocked(self):
+        row=base(lid={"type":"finger_joint","edges":"eeee"})
+        built=self.compile(row);self.assertEqual(built["final_status"],"BLOCKED")
+        notes=" ".join(n for c in built["review"]["categories"].values() for n in c.get("notes") or [])
+        self.assertIn("finger_joint lid requested but lid has no joint geometry",notes)
+        for category in ("CONNECTIONS","CONNECTION_COVERAGE","MATE_GEOMETRY","ASSEMBLY","3D_ASSEMBLY","TAB_SLOT_GEOMETRY"):
+            self.assertEqual(built["review"]["categories"][category]["status"],"FAIL",category)
+
+    def test_explicit_required_connection_is_enforced(self):
+        row=base()
+        built=review_only(render_toolbox([row],{"required_connections":[["case/front","case/missing-bracket"]]}))
+        self.assertEqual(built["final_status"],"BLOCKED")
+        self.assertTrue(any(c["status"]=="FAIL" for c in built["connection_validation"]["required_connection_checks"]))
+
 if __name__=="__main__":unittest.main()

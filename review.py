@@ -317,6 +317,7 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
     connections_c: list[dict[str, Any]] = []
     coverage_c: list[dict[str, Any]] = list(coverage_report.get('checks') or [])
     mate_geometry_c: list[dict[str, Any]] = list(coverage_report.get('mate_geometry_checks') or [])
+    required_connection_c: list[dict[str, Any]] = list(coverage_report.get('required_connection_checks') or [])
     material: list[dict[str, Any]] = []
     assembly_c: list[dict[str, Any]] = []
     assembly3d_c: list[dict[str, Any]] = []
@@ -342,6 +343,8 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
 
     if job == "composed":
         from seen import check_what_you_see
+
+        connections_c.extend(required_connection_c)
 
         completeness.extend(check_what_you_see(primitives, (built.get("parameters") or {}).get("what_you_see")))
         names = {str(f.get("name") or "").split("/")[-1] for f in faces}
@@ -443,6 +446,10 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
             status=PASS if assembly.get('ok') is True and verified_slots==explicit_slots else FAIL
             tab_slot_c.append({'status':status,'note':f'geometric tab-slot matches {verified_slots}/{explicit_slots}; names alone are not evidence'})
         else:tab_slot_c.append({'status':NA,'note':'no explicit tab-slot pairs'})
+        if required_connection_c:
+            tab_slot_c.extend(required_connection_c)
+            assembly_c.extend(c for c in required_connection_c if c.get('status')=='FAIL')
+            assembly3d_c.extend(c for c in required_connection_c if c.get('status')=='FAIL')
 
         hardware=parameters.get('hardware_fits')
         if linear_report.get('active') and not nonprop_rotating:
@@ -512,9 +519,10 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
                 collision_c.append({"status": FAIL, "note": str(msg)})
         else:
             collision_c.append({"status": PASS, "note": "no panel/shaft clashes reported on the recipe"})
-            collision_c.append(
-                {"status": WARNING, "note": "full 3D volume intersection is not simulated — first sheet is a prototype"}
-            )
+            if (assembly.get("transform_validation") or {}).get("status")==PASS:
+                collision_c.append({"status":PASS,"note":"compiled composite 3D contacts and illegal penetrations verified"})
+            else:
+                collision_c.append({"status": WARNING, "note": "full 3D volume intersection is not simulated — first sheet is a prototype"})
         if linear_report.get('active'):
             slide_collisions=[c for s in linear_report.get('slides') or [] for c in s.get('collisions') or []]
             if slide_collisions:
