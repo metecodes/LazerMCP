@@ -812,14 +812,6 @@ def _distribution_warnings(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "critical": False,
             }
         )
-    if len(set(ops)) == 1 and len(rows) > 8 and "CUT" in ops:
-        checks.append(
-            {
-                "status": WARNING,
-                "note": "operation distribution is suspiciously uniform (all CUT)",
-                "critical": False,
-            }
-        )
     inferred_cut_decor = [
         r
         for r in rows

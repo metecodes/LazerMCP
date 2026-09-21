@@ -29,12 +29,8 @@ def _round(length: float) -> float:
 
 
 def _features(part: dict[str, Any]) -> dict[str, list]:
-    raw = part if isinstance(part, dict) else {}
-    return {
-        "holes": list(raw.get("holes") or []),
-        "slots": list(raw.get("slots") or raw.get("rect_holes") or []),
-        "finger_holes": list(raw.get("finger_holes") or []),
-    }
+    from enclosure_features import normalize
+    return normalize(part)
 
 
 def _inside(x: float, y: float, w: float, h: float, pad: float) -> bool:
@@ -68,8 +64,11 @@ def expand_faces(primitives: list[Any]) -> list[dict[str, Any]]:
             y = _num(part.get("y") or part.get("d") or part.get("depth"), 80)
             h = _num(part.get("h"), 80)
             top = str(part.get("top") or "e")[:1]
-            bottom_on = bool(part.get("bottom", True))
-            lid_on = bool(part.get("lid", False))
+            bottom_value=part.get("bottom", True);lid_value=part.get("lid", False)
+            bottom_on = bottom_value is not False
+            lid_on = bool(lid_value)
+            lid_type=str(lid_value.get("type") if isinstance(lid_value,dict) else "finger_joint").lower()
+            if lid_on and lid_type in {"finger","finger_joint","fixed"}:wall_top=side_top="F"
             gable_top = bool(part.get("gable_top") or part.get("lock_roof"))
             b = "F" if bottom_on else "e"
             wall_top = "F" if gable_top else top
@@ -83,7 +82,7 @@ def expand_faces(primitives: list[Any]) -> list[dict[str, Any]]:
             )
             if bottom_on:
                 faces.append(
-                    {"name": child_name("bottom"), "kind": "floor", "w": x, "h": y, "edges": "ffff", "features": _features(walls.get("bottom") or {})}
+                    {"name": child_name("bottom"), "kind": "floor", "w": x, "h": y, "edges": "ffff", "features": _features({**(bottom_value if isinstance(bottom_value,dict) else {}),**(walls.get("bottom") or {})})}
                 )
             faces.append(
                 {"name": child_name("left"), "kind": "wall", "w": y, "h": h, "edges": f"{b}f{side_top}f", "features": _features(walls.get("left") or {})}
@@ -99,7 +98,7 @@ def expand_faces(primitives: list[Any]) -> list[dict[str, Any]]:
                         "w": x,
                         "h": y,
                         "edges": "ffff" if top in "fF" else "eeee",
-                        "features": _features(walls.get("top") or walls.get("lid") or {}),
+                        "features": _features({**(lid_value if isinstance(lid_value,dict) else {}),**(walls.get("top") or walls.get("lid") or {})}),
                     }
                 )
             continue
@@ -514,7 +513,7 @@ def check_assembly(
         "tab_slot_pairs": sum(1 for joint in joints if joint.get("kind") == "tab-slot"),
         "tab_slot_debug": joint_debug,
         "placement_diagnostics": placement_diagnostics,
-        "physical_parts": [{"id": p.get("physical_part_id"), "placement": p.get("placement"), "placement_source": p.get("placement_source") or (p.get("placement") or {}).get("source"), "outer_cut": (p.get("_cut_geometry") or {}).get("outer_cut")} for p in physical_parts],
+        "physical_parts": [{"id": p.get("physical_part_id"), "role":p.get("role"), "placement": p.get("placement"), "placement_source": p.get("placement_source") or (p.get("placement") or {}).get("source"), "outer_cut": (p.get("_cut_geometry") or {}).get("outer_cut"),"inner_cuts":(p.get("_cut_geometry") or {}).get("inner_cuts") or []} for p in physical_parts],
         "logical_groups": composite["logical_groups"],
         "derived_constraints": composite["derived_constraints"],
         "intended_contacts": intended_contacts,

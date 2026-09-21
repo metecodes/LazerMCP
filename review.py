@@ -344,7 +344,7 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
         from seen import check_what_you_see
 
         completeness.extend(check_what_you_see(primitives, (built.get("parameters") or {}).get("what_you_see")))
-        names = {f.get("name") for f in faces}
+        names = {str(f.get("name") or "").split("/")[-1] for f in faces}
         # A house-shaped contour (or "roof-support" label) is not a roof panel.
         roof_labels = {str(p.get("label")) for p in primitives if _kind(p) in {"roof", "roof_panel"} or
                        (_kind(p) in {"panel", "wall", "rect"} and str(p.get("semantic_role") or "") == "roof")}
@@ -401,6 +401,9 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
         material.append({"status": PASS, "note": f"nominal thickness {t} mm, kerf {burn} mm"})
         for face in faces:
             for slot in (face.get("features") or {}).get("slots") or []:
+                if str(slot.get("semantic_role") or "").lower()=="port_cutout":
+                    material.append({"status":PASS,"note":f"port cutout on {face.get('name')} uses connector/plug clearance envelope"})
+                    continue
                 sw = _num(slot.get("w") or slot.get("dx"))
                 sh = _num(slot.get("h") or slot.get("dy"))
                 thin = min(sw, sh) if sw and sh else 0

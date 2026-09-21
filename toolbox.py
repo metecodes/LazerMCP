@@ -69,13 +69,14 @@ GRAMMAR = {
         "x": "inner width mm",
         "y": "inner depth mm",
         "h": "inner height mm",
-        "bottom": True,
-        "lid": False,
+        "bottom": "true or {holes:[{x,y,d}]} ",
+        "lid": "false | true (finger-joint) | {type:finger_joint|removable|sliding, holes/slots/ports:[]}",
         "top": "e",
         "walls": {
             "front": {
                 "holes": [{"x": 40, "y": 90, "d": 4}],
                 "slots": [{"x": 40, "y": 40, "w": 20, "h": 28}],
+                "ports": [{"id":"usb-c","x":20,"y":15,"connector_width":10,"connector_height":5,"plug_width":12,"plug_height":7,"clearance":0.5}],
             }
         },
     },
@@ -488,13 +489,9 @@ def _edges3(raw: Any, default: str = "eee") -> str:
 
 def _features(part: dict[str, Any]) -> dict[str, Any]:
     from markings import collect_markings
-
-    return {
-        "holes": list(part.get("holes") or []),
-        "slots": list(part.get("slots") or part.get("rect_holes") or []),
-        "finger_holes": list(part.get("finger_holes") or part.get("fingerHoles") or []),
-        "markings": collect_markings(part),
-    }
+    from enclosure_features import normalize
+    result=normalize(part);result["markings"]=collect_markings(part)
+    return result
 
 
 def _as_points(raw: Any) -> list[tuple[float, float]]:
@@ -789,14 +786,19 @@ class PayasToolbox(Boxes):
         gable_top = bool(part.get("gable_top") or part.get("lock_roof"))
         wall_top = "F" if gable_top else top
         side_top = "e" if gable_top else top
-        bottom_on = bool(part.get("bottom", True))
-        lid_on = bool(part.get("lid", False))
+        bottom_value=part.get("bottom", True);lid_value=part.get("lid", False)
+        bottom_on = bottom_value is not False
+        lid_on = bool(lid_value)
+        lid_type=str(lid_value.get("type") if isinstance(lid_value,dict) else "finger_joint").lower()
+        if lid_on and lid_type in {"finger","finger_joint","fixed"}:wall_top=side_top="F"
         b = "F" if bottom_on else "e"
         walls = part.get("walls") if isinstance(part.get("walls"), dict) else {}
         ignore = [1, 6] if bottom_on else []
 
         def wall(name: str) -> dict[str, Any]:
             raw = walls.get(name) if isinstance(walls.get(name), dict) else {}
+            if name=="bottom" and isinstance(bottom_value,dict):raw={**bottom_value,**raw}
+            if name in {"top","lid"} and isinstance(lid_value,dict):raw={**lid_value,**raw}
             return _features(raw)
 
         self.rectangularWall(
@@ -827,7 +829,7 @@ class PayasToolbox(Boxes):
         if lid_on:
             self.rectangularWall(
                 x, y, "ffff" if top in "fF" else "eeee",
-                callback=self._wall_cb(wall("top") or wall("lid")),
+                callback=self._wall_cb(wall("lid")),
                 move="up",
                 label="lid",
             )

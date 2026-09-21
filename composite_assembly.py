@@ -55,11 +55,23 @@ def _rect(w: float, h: float, edges: str, thickness: float) -> dict[str, Any]:
 
 
 def _child(parent: dict[str, Any], parent_id: str, name: str, w: float, h: float,
-           edges: str, placement: dict[str, Any], features: dict[str, Any], thickness: float) -> dict[str, Any]:
+           edges: str, placement: dict[str, Any], features: dict[str, Any], thickness: float, role: str="structural") -> dict[str, Any]:
     pid = f"{parent_id}/{name}"
     explicit = (parent.get("child_placements") or {}).get(name)
     pose = deepcopy(explicit or placement)
     pose["source"] = "explicit" if explicit else "derived"
+    geometry=_rect(w,h,edges,thickness);inner=[]
+    for slot in features.get("slots") or []:
+        if not isinstance(slot,dict):continue
+        x=float(slot.get("x") if slot.get("x") is not None else slot.get("cx") or 0);y=float(slot.get("y") if slot.get("y") is not None else slot.get("cy") or 0)
+        sw=float(slot.get("w") or slot.get("width") or slot.get("dx") or 0);sh=float(slot.get("h") or slot.get("height") or slot.get("dy") or 0)
+        if sw>0 and sh>0:inner.append({"id":str(slot.get("id") or ""),"role":"SLOT","semantic_role":slot.get("semantic_role") or "inner_cut","operation":"CUT","parent_part_id":pid,"points":[[x-sw/2,y-sh/2],[x+sw/2,y-sh/2],[x+sw/2,y+sh/2],[x-sw/2,y+sh/2]],"clearance_mm":slot.get("clearance_mm")})
+    from math import cos,sin,pi
+    for hole in features.get("holes") or []:
+        if not isinstance(hole,dict):continue
+        x=float(hole.get("x") if hole.get("x") is not None else hole.get("cx") or 0);y=float(hole.get("y") if hole.get("y") is not None else hole.get("cy") or 0);d=float(hole.get("d") or hole.get("diameter") or 2*float(hole.get("r") or 0))
+        if d>0:inner.append({"id":str(hole.get("id") or ""),"role":"HARDWARE_HOLE","semantic_role":"hardware_hole","operation":"CUT","parent_part_id":pid,"diameter_mm":d,"points":[[x+d/2*cos(2*pi*i/32),y+d/2*sin(2*pi*i/32)] for i in range(32)]})
+    geometry["inner_cuts"]=inner
     return {
         "id": pid,
         "physical_part_id": pid,
@@ -67,6 +79,7 @@ def _child(parent: dict[str, Any], parent_id: str, name: str, w: float, h: float
         "type": "panel",
         "composite_parent": parent_id,
         "composite_role": name,
+        "role":role,
         "w": float(w),
         "h": float(h),
         "edges": edges,
@@ -77,7 +90,7 @@ def _child(parent: dict[str, Any], parent_id: str, name: str, w: float, h: float
         "finger_holes": deepcopy(features.get("finger_holes") or []),
         "markings": deepcopy(features.get("markings") or []),
         "operation": "CUT",
-        "_cut_geometry": _rect(w, h, edges, thickness),
+        "_cut_geometry": geometry,
     }
 
 
@@ -86,12 +99,20 @@ def _box(parent: dict[str, Any], index: int, thickness: float):
     x = _num(parent.get("x") or parent.get("w"), 80)
     y = _num(parent.get("y") or parent.get("d") or parent.get("depth"), 80)
     h = _num(parent.get("h") or parent.get("height"), 80)
-    bottom_on = bool(parent.get("bottom", True))
-    lid_on = bool(parent.get("lid", False))
+    bottom_value=parent.get("bottom", True);lid_value=parent.get("lid", False)
+    bottom_on = bottom_value is not False
+    lid_on = bool(lid_value)
+    lid_type=str(lid_value.get("type") if isinstance(lid_value,dict) else "finger_joint").lower()
     top = str(parent.get("top") or "e")[:1]
     b = "F" if bottom_on else "e"
     walls = parent.get("walls") if isinstance(parent.get("walls"), dict) else {}
-    feats = lambda name: walls.get(name) if isinstance(walls.get(name), dict) else {}
+    from enclosure_features import normalize
+    def feats(name):
+        value=walls.get(name) if isinstance(walls.get(name),dict) else {}
+        if name=="bottom" and isinstance(bottom_value,dict):value={**bottom_value,**value}
+        if name in {"lid","top"} and isinstance(lid_value,dict):value={**lid_value,**value}
+        return normalize(value)
+    if lid_on and lid_type in {"finger","finger_joint","fixed"}:top="F"
     t = float(thickness)
     specs = [
         ("front", x, h, f"{b}FeF", {"origin": [0, 0, t], "u": [1, 0, 0], "v": [0, 0, 1]}, feats("front")),
@@ -102,8 +123,8 @@ def _box(parent: dict[str, Any], index: int, thickness: float):
     if bottom_on:
         specs.insert(0, ("bottom", x, y, "ffff", {"origin": [0, 0, 0], "u": [1, 0, 0], "v": [0, 1, 0]}, feats("bottom")))
     if lid_on:
-        specs.append(("lid", x, y, "ffff" if top in "fF" else "eeee", {"origin": [0, 0, h + t], "u": [1, 0, 0], "v": [0, 1, 0]}, feats("lid") or feats("top")))
-    children = [_child(parent, parent_id, *spec, thickness) for spec in specs]
+        specs.append(("lid", x, y, "ffff" if lid_type in {"finger","finger_joint","fixed"} else "eeee", {"origin": [0, 0, h + t], "u": [1, 0, 0], "v": [0, 1, 0]}, feats("lid") or feats("top"),"removable" if lid_type in {"removable","sliding"} else "structural"))
+    children = [_child(parent,parent_id,*spec[:6],thickness,*(spec[6:] or ["structural"])) for spec in specs]
     edge = lambda part, name: f"{parent_id}/{part}:{name}"
     constraints = []
     if bottom_on:
@@ -115,10 +136,14 @@ def _box(parent: dict[str, Any], index: int, thickness: float):
         ("front", "left", "left", "right"), ("front", "right", "right", "left"),
         ("back", "right", "left", "left"), ("back", "left", "right", "right"),
     ])
+    if lid_on and lid_type in {"finger","finger_joint","fixed"}:
+        constraints.extend([("lid","bottom","front","top"),("lid","top","back","top"),("lid","left","left","top"),("lid","right","right","top")])
+    elif lid_on:
+        constraints.extend([("lid","bottom","front","top")])
     joints = [{
         "part_a": f"{parent_id}/{a}", "edge_a": edge(a, ea),
         "part_b": f"{parent_id}/{bpart}", "edge_b": edge(bpart, eb),
-        "joint_type": "finger_joint", "expected_transform": "orthogonal_edge_mate",
+        "joint_type": "removable_lid" if a=="lid" and lid_type in {"removable","sliding"} else "finger_joint", "expected_transform": "vertical_removal_path" if a=="lid" and lid_type in {"removable","sliding"} else "orthogonal_edge_mate",
         "tolerance": 0.05, "result": "MATCH",
     } for a, ea, bpart, eb in constraints]
     return parent_id, children, joints

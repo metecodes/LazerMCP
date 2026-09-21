@@ -59,7 +59,7 @@ def validate(primitives,parameters,assembly,linear,mechanism=None):
         elif any(e["status"] not in {"PASS","MATCH"} for e in mates):checks.append({"status":"FAIL","note":f'{item["id"]} has an unverified geometric mate'})
         else:checks.append({"status":"PASS","note":f'{item["id"]} role={role} connection coverage PASS'})
         if role=="moving" and not any(e["type"] in {"linear_slide","removable_slide","shaft_hole","shaft_rotation","direct_motor_shaft"} for e in mates):checks.append({"status":"FAIL","note":f'{item["id"]} moving part has no motion connection'})
-        if role=="removable" and not any(e["type"]=="removable_slide" and e["status"]=="PASS" for e in mates):checks.append({"status":"FAIL","note":f'{item["id"]} removable part has no verified remove/reinstall path'})
+        if role=="removable" and not any(e["type"] in {"removable_slide","removable_lid"} and e["status"] in {"PASS","MATCH"} for e in mates):checks.append({"status":"FAIL","note":f'{item["id"]} removable part has no verified remove/reinstall path'})
     covered=sum(1 for r in inventory if r["role"]=="decorative" or not expected or (r["mates"] and all(e["status"] in {"PASS","MATCH"} for e in r["mates"])))
     mate_checks=[{"status":e["status"],"note":f'{e["part_a"]} → {e["part_b"]} {e["type"]}: {e["evidence"]}'} for e in edges]
     if expected and not edges:mate_checks=[{"status":"FAIL","note":"connection graph is empty; placement is not connection evidence"}]
