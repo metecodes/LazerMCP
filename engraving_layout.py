@@ -15,6 +15,9 @@ def build_layout(params):
     if not isinstance(items, list) or not 1 <= len(items) <= 500:
         raise ValueError('engraving_layout requires 1..500 text/path/icon/line items')
     root = ET.Element('svg', {'xmlns':'http://www.w3.org/2000/svg','width':f'{width}mm','height':f'{height}mm','viewBox':f'0 0 {width} {height}'})
+    panel = ET.SubElement(root, 'rect', {'id':'engraving-panel','x':'0','y':'0','width':f'{width}','height':f'{height}',
+        'fill':'none','stroke':'#FF0000','stroke-width':'.15','data-operation':'CUT','data-operation-origin':'EXPLICIT',
+        'data-semantic-role':'outer_contour','data-physical-part':'true'})
     for i, item in enumerate(items):
         if not isinstance(item, dict):
             raise ValueError(f'Item {i} must be an object')
@@ -36,7 +39,8 @@ def build_layout(params):
             path.set('data-operation', operation)
             path.set('data-operation-origin', 'EXPLICIT')
             path.set('data-semantic-role', 'text' if kind == 'text' else 'logo')
+            path.set('data-object-id', f'layout-item-{i}')
             group.append(path)
     built = import_svg_document(ET.tostring(root, encoding='unicode'), params)
-    built.update({'preset':'engraving_layout','layout_items':len(items),'method':'positioned_vector_layout'})
+    built.update({'preset':'engraving_layout','layout_items':len(items),'method':'positioned_vector_layout','physical_part_count':1})
     return built

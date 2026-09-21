@@ -132,6 +132,8 @@ def list_design_api() -> dict[str, Any]:
             },
         },
         "font": "Outline paths (bundled Arimo). No SVG <text>.",
+        "assembly_mode": {"type": "string", "enum": ["auto", "standalone", "mechanical"], "default": "auto",
+                          "description": "auto counts physical parts; engraving objects never count as physical parts"},
         "note": (
             "This server is a toolbox, not a catalog. Do not ask for a new kit tool. "
             "Look at the photo, call plan_laser_job, then create_design with Boxes.py primitives "

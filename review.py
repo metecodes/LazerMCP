@@ -38,6 +38,7 @@ _COMPOSED_CRITICAL = (
     "NESTING",
 )
 _FLAT_CRITICAL = ("SVG_GEOMETRY", "MANUFACTURING", "SEMANTIC_CUT", "NESTING")
+_STANDALONE_CRITICAL = ("PART_COMPLETENESS", "SVG_GEOMETRY", "MANUFACTURING", "SEMANTIC_CUT", "ENGRAVE_GEOMETRY", "OPERATION_SEPARATION", "NESTING")
 _NAMED_KITS = {
     "traffic_light",
     "robot_bank",
@@ -70,6 +71,8 @@ def _num(value: Any, default: float = 0.0) -> float:
 
 
 def _status(items: list[dict[str, Any]]) -> str:
+    if items and all(str(item.get("status") or PASS) == NA for item in items):
+        return NA
     ranks = {FAIL: 3, NOT_VERIFIED: 2, WARNING: 1, PASS: 0, NA: 0}
     worst = PASS
     for item in items:
@@ -300,12 +303,21 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
 
     connections.extend(connection_checks(primitives, built.get("parameters") or {}))
     moving = _moving(faces, primitives)
+    from standalone_validation import classify_assembly_mode
+    assembly_mode_report = classify_assembly_mode(built, faces, connections, moving)
+    assembly_mode = assembly_mode_report["mode"]
+    built["assembly_mode"] = assembly_mode
+    if assembly_mode == "standalone" and not topology and built.get("svg_bytes"):
+        from topology import inspect_topology
+        topology = inspect_topology(built.get("svg_bytes"))
+    if assembly_mode == "standalone" and not nesting:
+        nesting = {"ok": True, "part_count": 1, "placements": [{"part": "standalone-panel"}]}
     linear_report=(built.get('linear_motion') or (assembly.get('linear_motion') if isinstance(assembly,dict) else None) or {'active':False,'status':'N/A','slides':[],'drives':[]})
     from connection_validation import validate as validate_connection_coverage
     coverage_report=validate_connection_coverage(primitives,parameters,assembly,linear_report,mechanism_report)
     built['connection_validation']=coverage_report
-    required = list(_COMPOSED_CRITICAL if job == "composed" else _FLAT_CRITICAL)
-    if job == "composed" and moving:
+    required = list(_STANDALONE_CRITICAL if assembly_mode == "standalone" else (_COMPOSED_CRITICAL if job == "composed" or assembly_mode == "mechanical" else _FLAT_CRITICAL))
+    if assembly_mode == "mechanical" and moving:
         required.append("KINEMATICS")
         required.append("MOTION_CLEARANCE")
     from reference_fidelity import check_reference_fidelity
@@ -340,8 +352,11 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
     illus_c: list[dict[str, Any]] = []
     electrical_c: list[dict[str, Any]] = []
     report_c: list[dict[str, Any]] = []
+    assembly_mode_c = [{"status": PASS if assembly_mode_report.get("valid") else FAIL, "note": assembly_mode_report.get("reason")}]
+    engrave_geometry_c: list[dict[str, Any]] = []
+    operation_separation_c: list[dict[str, Any]] = []
 
-    if job == "composed":
+    if assembly_mode == "mechanical" and job == "composed":
         from seen import check_what_you_see
 
         connections_c.extend(required_connection_c)
@@ -583,19 +598,30 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
             function_c.append(
                 {"status": FAIL if lock_fail else PASS, "note": "roof must FingerJoint-lock, not sit on the gables"}
             )
-    else:
-        completeness.append({"status": PASS, "note": "flat sheet job — no 3D part kit required"})
-        connections_c.append({"status": NA, "note": "no 3D connections on a flat sheet"})
+    elif assembly_mode == "standalone":
+        completeness.append({"status": PASS, "note": "one physical panel; engraving objects are manufacturing operations, not parts"})
+        connections_c.append({"status": NA, "note": "standalone panel requires no connection graph"})
         material.append({"status": PASS, "note": f"thickness {t} mm, kerf {burn} mm"})
-        assembly_c.append({"status": NA, "note": "flat sheet"})
-        assembly3d_c.append({"status":NA,"note":"flat sheet"})
-        tab_slot_c.append({"status":NA,"note":"flat sheet"})
-        hardware_c.append({"status":NA,"note":"flat sheet"})
-        motion_c.append({"status":NA,"note":"flat sheet"})
-        order_c.append({"status": NA, "note": "flat sheet"})
-        sequence_c.append({"status":NA,"note":"flat sheet"})
-        collision_c.append({"status": NA, "note": "flat sheet"})
-        function_c.append({"status": PASS, "note": str(built.get("title") or "sheet can be cut")})
+        assembly_c.append({"status": NA, "note": "standalone panel"})
+        assembly3d_c.append({"status":NA,"note":"standalone panel"})
+        tab_slot_c.append({"status":NA,"note":"standalone panel"})
+        hardware_c.append({"status":NA,"note":"standalone panel"})
+        motion_c.append({"status":NA,"note":"standalone panel"})
+        kinematics_c.append({"status":NA,"note":"standalone panel"})
+        order_c.append({"status": NA, "note": "standalone panel"})
+        sequence_c.append({"status":NA,"note":"standalone panel"})
+        collision_c.append({"status": NA, "note": "standalone panel"})
+        function_c.append({"status": NA, "note": "no mechanical function"})
+        coverage_c = [{"status": NA, "note": "standalone panel"}]
+        mate_geometry_c = [{"status": NA, "note": "standalone panel"}]
+    else:
+        completeness.append({"status": FAIL, "note": "multiple physical parts require the mechanical assembly pipeline"})
+        connections_c.append({"status": NOT_VERIFIED, "note": "mechanical connection graph was not verified"})
+        assembly_c.append({"status": NOT_VERIFIED, "note": "mechanical assembly checker did not run"})
+        assembly3d_c.append({"status":NOT_VERIFIED,"note":"Assembled Preview: REQUIRED"})
+        tab_slot_c.append({"status":NOT_VERIFIED,"note":"mechanical fit validation required"})
+        collision_c.append({"status":NOT_VERIFIED,"note":"mechanical collision validation required"})
+        function_c.append({"status":NOT_VERIFIED,"note":"mechanical function validation required"})
 
     opens = list(topology.get("open_cuts") or [])
     dups = list(topology.get("duplicates") or [])
@@ -677,6 +703,15 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
             elif not rows:semantic_cut_c.append({'status':NOT_VERIFIED,'note':'no drawable operation evidence'})
             else:semantic_cut_c.append({'status':PASS,'note':'semantic operations '+', '.join(f'{k}={v}' for k,v in classes.items())})
         except Exception as exc:semantic_cut_c.append({'status':NOT_VERIFIED,'note':f'semantic CUT classification failed: {exc}'})
+
+    if assembly_mode == "standalone":
+        from engraving_validation import validate as validate_engraving
+        engraving_report = validate_engraving(built.get("svg_bytes") or b"", float(parameters.get("engrave_edge_clearance_mm") or 1.0))
+        engrave_geometry_c.extend(engraving_report["geometry"])
+        operation_separation_c.extend(engraving_report["separation"])
+    else:
+        engrave_geometry_c.append({"status": NA, "note": "standalone engraving gate not applicable"})
+        operation_separation_c.append({"status": NA, "note": "standalone engraving gate not applicable"})
 
     nest_looks = list(nesting.get("errors") or nesting.get("look_again") or [])
     if not nesting:
@@ -808,6 +843,9 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
         _cat("SVG_GEOMETRY", svg_c, "SVG_GEOMETRY" in required),
         _cat("MANUFACTURING", mfg_c, "MANUFACTURING" in required),
         _cat("SEMANTIC_CUT",semantic_cut_c,"SEMANTIC_CUT" in required),
+        _cat("ENGRAVE_GEOMETRY", engrave_geometry_c, "ENGRAVE_GEOMETRY" in required),
+        _cat("OPERATION_SEPARATION", operation_separation_c, "OPERATION_SEPARATION" in required),
+        _cat("ASSEMBLY_MODE", assembly_mode_c, True),
         _cat("REFERENCE_FIDELITY",reference.get('fidelity') or [{'status':NA,'note':'no structural reference'}],"REFERENCE_FIDELITY" in required),
         _cat("OUTER_CUT_FIDELITY",reference.get('outer_cut') or [{'status':NA,'note':'no structural reference'}],"OUTER_CUT_FIDELITY" in required),
         _cat("PART_MAPPING",reference.get('part_mapping') or [{'status':NA,'note':'no structural reference'}],"PART_MAPPING" in required),
@@ -832,10 +870,14 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
     physical = physical or read_physical(built.get("parameters") or {}, moving=moving, powered=_powered(built))
     if physical.get("kerf") == FAIL:
         looks.append(str((physical.get("notes") or {}).get("kerf") or "measured_bar_mm is out of range"))
+    if assembly_mode == "standalone":
+        physical = dict(physical)
+        physical.update({"assembly": NA, "movement": NA, "use": NA, "production_ok": False})
+        physical.setdefault("engraving", NOT_VERIFIED)
     scorecard = build_scorecard(cats, physical)
     gate_levels={
         'GEOMETRY VALID':_card_status(cats,'SVG_GEOMETRY','MANUFACTURING','NESTING'),
-        'ASSEMBLY VALID':_card_status(cats,'ASSEMBLY','3D_ASSEMBLY','CONNECTION_COVERAGE','MATE_GEOMETRY','ASSEMBLY_SEQUENCE','TAB_SLOT_GEOMETRY','COLLISIONS'),
+        'ASSEMBLY VALID':NA if assembly_mode == 'standalone' else _card_status(cats,'ASSEMBLY','3D_ASSEMBLY','CONNECTION_COVERAGE','MATE_GEOMETRY','ASSEMBLY_SEQUENCE','TAB_SLOT_GEOMETRY','COLLISIONS'),
         'REFERENCE MATCH':_card_status(cats,'REFERENCE_FIDELITY','OUTER_CUT_FIDELITY','PART_MAPPING') if reference.get('active') else NA,
         'FUNCTION VALID':_card_status(cats,'FUNCTION','KINEMATICS','MOTION_CLEARANCE','HARDWARE_FIT'),
     }
@@ -869,6 +911,8 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
 
     return {
         "job_class": job,
+        "assembly_mode": assembly_mode,
+        "assembly_mode_report": assembly_mode_report,
         "design_map": dmap,
         "connections": connections,
         "categories": {c["id"]: {k: c[k] for k in ("status", "required", "notes")} for c in cats},
@@ -899,9 +943,12 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
 
 
 def _card_status(cats: list[dict[str, Any]], *ids: str) -> str:
-    """Public card: WARNING and N/A display as PASS. FAIL / NOT_VERIFIED stay visible."""
+    """Preserve all-N/A groups; warnings do not block the public card."""
     by = {c["id"]: c for c in cats}
     rank = {FAIL: 3, NOT_VERIFIED: 2, PASS: 0, WARNING: 0, NA: 0}
+    statuses = [by[cid]["status"] for cid in ids if cid in by]
+    if statuses and all(status == NA for status in statuses):
+        return NA
     worst = PASS
     for cid in ids:
         cat = by.get(cid)
@@ -939,12 +986,16 @@ def build_scorecard(cats: list[dict[str, Any]], physical: dict[str, Any] | None 
         "3D Assembly": _card_status(cats,"3D_ASSEMBLY"),
         "Hardware Fit": _card_status(cats,"HARDWARE_FIT"),
         "Motion Clearance": _card_status(cats,"MOTION_CLEARANCE"),
+        "Engrave Geometry": _card_status(cats,"ENGRAVE_GEOMETRY"),
+        "Operation Separation": _card_status(cats,"OPERATION_SEPARATION"),
+        "Assembled Preview": _card_status(cats,"3D_ASSEMBLY"),
     }
     phys = physical or {}
     return {
         "digital": digital,
         "physical": {
             "Physical Kerf Test": phys.get("kerf") or NOT_VERIFIED,
+            "Physical Engraving Test": phys.get("engraving") or NOT_VERIFIED,
             "Physical Assembly": phys.get("assembly") or NOT_VERIFIED,
             "Movement Test": phys.get("movement") or NOT_VERIFIED,
             "After Assembly Use": phys.get("use") or NOT_VERIFIED,
@@ -982,10 +1033,13 @@ def format_gate_card(
         f"{'3D Assembly':<24}{_card_label(digital.get('3D Assembly', PASS))}",
         f"{'Hardware Fit':<24}{_card_label(digital.get('Hardware Fit', PASS))}",
         f"{'Motion Clearance':<24}{_card_label(digital.get('Motion Clearance', PASS))}",
-        f"{'Assembled Preview:':<24}{'REQUIRED'}",
+        f"{'Engrave Geometry':<24}{_card_label(digital.get('Engrave Geometry', PASS))}",
+        f"{'Operation Separation':<24}{_card_label(digital.get('Operation Separation', PASS))}",
+        f"{'Assembled Preview:':<24}{_card_label(digital.get('Assembled Preview', NA)) if digital.get('Assembled Preview') == NA else 'REQUIRED'}",
         f"{'Reference Comparison:':<24}{'REQUIRED' if digital.get('Reference Fidelity') not in {PASS,NA} or digital.get('Part Mapping') not in {PASS,NA} else 'PASS'}",
         "",
         f"{'Physical Kerf Test':<24}{_card_label(physical.get('Physical Kerf Test', NOT_VERIFIED))}",
+        f"{'Physical Engraving Test':<24}{_card_label(physical.get('Physical Engraving Test', NOT_VERIFIED))}",
         f"{'Physical Assembly':<24}{_card_label(physical.get('Physical Assembly', NOT_VERIFIED))}",
         f"{'Movement Test':<24}{_card_label(physical.get('Movement Test', NOT_VERIFIED))}",
         f"{'After Assembly Use':<24}{_card_label(physical.get('After Assembly Use', NOT_VERIFIED))}",

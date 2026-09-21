@@ -111,6 +111,7 @@ def read_physical(parameters: dict[str, Any] | None, *, moving: bool = False, po
         "assembly": assembly,
         "movement": movement,
         "use": use,
+        "engraving": NOT_VERIFIED,
         "notes": {"kerf": kerf_note, "assembly": assembly_note, "movement": movement_note, "use": use_note},
         "measured_bar_mm": measured,
         "nominal_bar_mm": nominal,
