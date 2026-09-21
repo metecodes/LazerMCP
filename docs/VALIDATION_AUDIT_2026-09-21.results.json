@@ -1,0 +1,220 @@
+{
+  "coplanar_compiler": {
+    "active": true,
+    "status": "PASS",
+    "joints": [
+      {
+        "id": "C1",
+        "part_a": "a",
+        "edge_a": "bottom",
+        "part_b": "b",
+        "edge_b": "bottom",
+        "joint_type": "finger_joint",
+        "male": "a",
+        "male_edge": "bottom",
+        "female": "b",
+        "female_edge": "bottom",
+        "length_mm": 100.0,
+        "finger_count": 15,
+        "finger_pitch_mm": 6.666666666666667,
+        "finger_width_mm": 3.225806451612903,
+        "finger_depth_mm": 3.0,
+        "material_thickness_mm": 3.0,
+        "kerf_compensation_mm": 0.15,
+        "world_edge_error_mm": 0.0,
+        "result": "MATCH",
+        "via": "declared connection + placement-derived equal-length contacting edges",
+        "keepout_strategy": "reduce_count_then_shift",
+        "port_keepout_clear": true
+      }
+    ],
+    "errors": [],
+    "port_keepouts": [],
+    "port_inventory": {
+      "a": [],
+      "b": []
+    }
+  },
+  "coplanar_collision": [
+    [],
+    [],
+    []
+  ],
+  "coplanar_final_gate": {
+    "final_status": "PROTOTYPE READY",
+    "categories": {
+      "CONNECTIONS": {
+        "status": "PASS",
+        "required": true,
+        "notes": [
+          "C01 finger_joint b \u2194 a",
+          "1 connections have mates"
+        ]
+      },
+      "ASSEMBLY": {
+        "status": "PASS",
+        "required": true,
+        "notes": [
+          "verified geometric connections produced an assembled preview"
+        ]
+      },
+      "3D_ASSEMBLY": {
+        "status": "PASS",
+        "required": true,
+        "notes": [
+          "assembled_preview.svg produced from explicit placements"
+        ]
+      },
+      "TAB_SLOT_GEOMETRY": {
+        "status": "N/A",
+        "required": true,
+        "notes": [
+          "no explicit tab-slot pairs"
+        ]
+      }
+    }
+  },
+  "engraving_in_cut_hole": {
+    "geometry": [
+      {
+        "status": "PASS",
+        "note": "ENGRAVE yellow #FFFF00: 1/1"
+      },
+      {
+        "status": "PASS",
+        "note": "engraving is inside an outer CUT contour"
+      },
+      {
+        "status": "PASS",
+        "note": "engraving edge clearance \u2265 1 mm"
+      },
+      {
+        "status": "PASS",
+        "note": "unintended engraving overlaps=0"
+      }
+    ],
+    "separation": [
+      {
+        "status": "PASS",
+        "note": "ENGRAVE remains a non-through surface operation"
+      },
+      {
+        "status": "PASS",
+        "note": "CUT red #FF0000: 2/2"
+      },
+      {
+        "status": "PASS",
+        "note": "DXF ENGRAVE layer uses ACI 2"
+      }
+    ]
+  },
+  "duplicate_unnamed_engraving": {
+    "geometry": [
+      {
+        "status": "PASS",
+        "note": "ENGRAVE yellow #FFFF00: 2/2"
+      },
+      {
+        "status": "PASS",
+        "note": "engraving is inside an outer CUT contour"
+      },
+      {
+        "status": "PASS",
+        "note": "engraving edge clearance \u2265 1 mm"
+      },
+      {
+        "status": "PASS",
+        "note": "unintended engraving overlaps=0"
+      }
+    ],
+    "separation": [
+      {
+        "status": "PASS",
+        "note": "ENGRAVE remains a non-through surface operation"
+      },
+      {
+        "status": "PASS",
+        "note": "CUT red #FF0000: 1/1"
+      },
+      {
+        "status": "PASS",
+        "note": "DXF ENGRAVE layer uses ACI 2"
+      }
+    ]
+  },
+  "malformed_cut": {
+    "ok": true,
+    "cut_paths": 1,
+    "closed": 0,
+    "nicked_closed": 0,
+    "open_cuts": [],
+    "duplicates": [],
+    "self_intersections": []
+  },
+  "fake_standalone": {
+    "mode": "standalone",
+    "requested": "standalone",
+    "valid": true,
+    "physical_part_count": 1,
+    "reason": "single physical part with no assembly graph"
+  },
+  "moving_through_rail": {
+    "active": true,
+    "slides": [
+      {
+        "id": "S1",
+        "type": "linear_slide",
+        "moving_part": "a",
+        "rails": [
+          "b"
+        ],
+        "axis": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "travel_mm": 10.0,
+        "clearance_mm": 0.0,
+        "positions": [
+          {
+            "travel_mm": 0.0,
+            "ratio": 0,
+            "status": "PASS",
+            "collisions": []
+          },
+          {
+            "travel_mm": 2.5,
+            "ratio": 0.25,
+            "status": "PASS",
+            "collisions": []
+          },
+          {
+            "travel_mm": 5.0,
+            "ratio": 0.5,
+            "status": "PASS",
+            "collisions": []
+          },
+          {
+            "travel_mm": 7.5,
+            "ratio": 0.75,
+            "status": "PASS",
+            "collisions": []
+          },
+          {
+            "travel_mm": 10.0,
+            "ratio": 1,
+            "status": "PASS",
+            "collisions": []
+          }
+        ],
+        "collisions": [],
+        "status": "PASS",
+        "reason": "CONTINUOUS_LINEAR_TRAVEL_VERIFIED",
+        "minimum_clearance_mm": 0.0,
+        "continuous_sweep": true
+      }
+    ],
+    "drives": [],
+    "status": "PASS"
+  }
+}

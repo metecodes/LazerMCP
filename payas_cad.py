@@ -520,6 +520,7 @@ def create_design(
         "topology": built.get("topology"),
         "manufacturing": built.get("manufacturing"),
         "surface_content": built.get("surface_content"),
+        "design_contract": built.get("design_contract"),
         "scale": built.get("scale"),
         "primitives": built.get("primitives"),
         "parts": built.get("parts"),

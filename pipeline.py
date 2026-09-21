@@ -50,6 +50,13 @@ def run_pipeline(primitives: list[Any], parameters: dict[str, Any] | None = None
         if i >= MAX_REVIEW:
             break
         repaired, actions = repair_primitives(parts, report)
+        from design_contract import snapshot, compare
+        repair_contract = compare(snapshot(parts), repaired)
+        if repair_contract["status"] == "FAIL":
+            iterations.append({"iteration": i, "stage": "repair", "actions": [],
+                               "rejected_actions": actions, "contract": repair_contract,
+                               "note": "repair would change protected dimensions, features or part identity"})
+            break
         if not actions or _sig(repaired) == _sig(parts):
             iterations.append({"iteration": i, "stage": "repair", "actions": [], "note": "no further parametric repair"})
             break

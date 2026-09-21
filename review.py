@@ -841,6 +841,9 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
     # Report Consistency
     report_c.append({"status": PASS, "note": "Internal reports match."})
     cats = [
+        _cat("DESIGN_CONTRACT", [{"status": (built.get("design_contract") or {}).get("status", NA),
+              "note": "protected design intent changed during compilation" if (built.get("design_contract") or {}).get("status") == FAIL else "compiler intent contract",
+              "changes": (built.get("design_contract") or {}).get("changes", [])}], bool(built.get("design_contract"))),
         _cat("PART_COMPLETENESS", completeness, "PART_COMPLETENESS" in required),
         _cat("CONNECTIONS", connections_c, "CONNECTIONS" in required),
         _cat("CONNECTION_COVERAGE", coverage_c, "CONNECTION_COVERAGE" in required),

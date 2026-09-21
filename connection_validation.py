@@ -13,6 +13,7 @@ def _role(p):
     return "structural","derived:default"
 
 def validate(primitives,parameters,assembly,linear,mechanism=None):
+    unsupported = []
     rows=assembly.get("physical_parts") or [{"id":str(p.get("label") or p.get("id") or f"part-{i+1}"),**p} for i,p in enumerate(primitives or []) if isinstance(p,dict)]
     source={str(p.get("physical_part_id") or p.get("label") or p.get("id") or ""):p for p in primitives or [] if isinstance(p,dict)}
     inventory=[];inventory_ids=[]
@@ -51,6 +52,8 @@ def validate(primitives,parameters,assembly,linear,mechanism=None):
             driven=str(c.get("part") or c.get("driven_part") or "");shaft=str(c.get("shaft") or c.get("motor_part") or "")
             canonical=next((e for e in mechanism_edges if isinstance(e,dict) and str(e.get("part") or "")==driven and str(e.get("shaft") or "")==shaft and e.get("status")=="PASS"),None)
             add(c.get("part") or c.get("driven_part"),"hardware:"+str(c.get("shaft") or c.get("motor_part") or ""),typ,"PASS" if canonical else "NOT_VERIFIED","canonical hardware geometry" if canonical else "connection metadata is not geometric proof")
+        else:
+            unsupported.append({"status":"FAIL","note":f"UNSUPPORTED_CONNECTION_TYPE: {typ or '<missing>'}; no geometric validator is registered"})
     lookup={r["id"]:r for r in inventory}
     for edge in edges:
         for key in ("part_a","part_b"):
@@ -76,6 +79,7 @@ def validate(primitives,parameters,assembly,linear,mechanism=None):
         status="PASS" if edge and not missing else "FAIL";reason="verified CUT geometry and world-space mate" if status=="PASS" else ("missing part(s): "+", ".join(missing) if missing else "required connection or matching geometry is missing")
         required_checks.append({"status":status,"note":f'{a} ↔ {b} {typ}: {reason}',"part_a":a,"part_b":b,"type":typ,"source":req["source"]})
     checks.extend(required_checks)
+    checks.extend(unsupported)
     for item in inventory:
         role,mates=item["role"],item["mates"]
         if not expected or role=="decorative":continue

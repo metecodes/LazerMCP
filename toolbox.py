@@ -884,6 +884,8 @@ def render_toolbox(primitives: list[Any], parameters: dict[str, Any] | None = No
 
     parts = annotate_primitives(parts)
     parts, scale_info = scale_primitives(parts, params)
+    from design_contract import snapshot, compare
+    intent_contract = snapshot(parts)
     from assembly import apply_roof_lock, check_assembly
 
     parts, roof_lock = apply_roof_lock(parts)
@@ -990,6 +992,7 @@ def render_toolbox(primitives: list[Any], parameters: dict[str, Any] | None = No
         "manufacturing": manufacturing,
         "engraving_composition": list(parts[0].get('_engraving_reports') or []) if parts else [],
         "surface_content": surface_content,
+        "design_contract": compare(intent_contract, parts),
         "scale": scale_info,
         "primitives": parts,
         "parameters": {
