@@ -433,7 +433,9 @@ def marking_geom(mark: dict[str, Any]):
             return None
         size = height or 6.0
         geom = layout_text(value, 0.0, 0.0, size, y_up=True, anchor="left", baseline="bottom")
-        return _place(geom, x, y, width, None if width else size, rotation, align)
+        # When both limits are supplied, fit inside both. This prevents short
+        # labels such as "I" from becoming taller than a learning-card cell.
+        return _place(geom, x, y, width, height or size, rotation, align)
 
     if kind == "icon":
         name = str(mark.get("icon") or mark.get("name") or mark.get("value") or "plus").strip().lower()

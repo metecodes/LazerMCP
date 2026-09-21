@@ -81,6 +81,7 @@ GRAMMAR = {
         },
     },
     "assembled_panel_contract": {"role":"structural|removable|moving|hardware_mount|decorative", "placement": {"origin": "[x,y,z] mm", "u": "unit local X axis", "v": "unit local Y axis; n=normalize(cross(u,v)); position only, never mate evidence"}, "tabs": "[{id,x,y,w,h,side?}] centered rectangles compiled once into the actual OUTER_CUT polygon", "slots": "[{x,y,w,h,mate:{part:label,tab:id}}] centered closed INNER_CUT polygons; partners are transformed and compared in assembled coordinates", "slides":"parameters.connections:[{id,type:linear_slide|removable_slide,moving_part,rails,axis,travel_mm,clearance_mm}]", "mechanism": "{type:wheel|road_roller_drum|pulley|gear|disc|propeller|rotor|flywheel,rotating,shaft}; explicit type wins", "hardware": "parameters.hardware:[{id,type:shaft,diameter,axis,origin,length}]", "shaft_drive": "parameters.connections:[{type:shaft_rotation,shaft,driven_part,hardware_clearance,required_length,allowed_contact_parts}]", "direct_drive": "parameters.connections:[{type:direct_motor_shaft,motor_part,driven_part,shaft_axis,driven_center,radius_mm}]", "preview": "render_preview(file_id,view=assembled); uniquely constrained poses may be derived; ambiguity blocks"},
+    "engraving_composition": {"layout":"grid | image_caption | radial", "safe_margin_mm":3, "mechanical_clearance_mm":1, "columns":3, "items":"engraving-only text/image/path/icon items; image_caption uses {illustration,caption}"},
     "panel": {
         "type": "panel",
         "w": 80,
@@ -404,6 +405,10 @@ def _prepare_parts(primitives: list[Any]) -> list[dict[str, Any]]:
                     "d": extra.get("d") or extra.get("diameter") or extra.get("hole") or 4,
                 }
             )
+    from engraving_composition import prepare as prepare_engraving
+    parts,reports=prepare_engraving(parts)
+    for part in parts:
+        if reports:part.setdefault('_engraving_reports',reports)
     return [_materialize_cut_geometry(part) for part in parts]
 
 
@@ -978,6 +983,7 @@ def render_toolbox(primitives: list[Any], parameters: dict[str, Any] | None = No
         "nesting": nesting,
         "topology": topology,
         "manufacturing": manufacturing,
+        "engraving_composition": list(parts[0].get('_engraving_reports') or []) if parts else [],
         "surface_content": surface_content,
         "scale": scale_info,
         "primitives": parts,
