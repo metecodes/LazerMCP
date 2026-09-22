@@ -382,9 +382,14 @@ def import_svg_document(svg_text: str, parameters: dict[str, Any] | None = None)
             root.set("height", f"{height:.2f}mm")
             raw = ET.tostring(root, encoding="unicode")
     raw = ET.tostring(root, encoding="unicode")
-    svg_bytes, manufacturing = finish_manufacturing_svg(raw.encode("utf-8"))
+    from project_options import apply_holding_nicks
+    source_bytes=apply_holding_nicks(raw.encode("utf-8"),params,preserve_source_geometry=True)
+    svg_bytes, manufacturing = finish_manufacturing_svg(source_bytes)
+    import json
+    repair_report=json.loads(ET.fromstring(source_bytes).get('data-cut-gap-repair') or '{}')
     return {
         "svg_bytes": svg_bytes,
+        "cut_gap_repair": repair_report,
         "manufacturing": manufacturing,
         "parameters": params,
         "preserve_source_geometry": True,

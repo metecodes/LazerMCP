@@ -164,6 +164,9 @@ def _write_svg(
     operation_settings: dict[str, Any] | None = None,
     project_parameters: dict[str, Any] | None = None,
 ) -> tuple[str, bytes, dict[str, Any] | None]:
+    from project_options import apply_holding_nicks
+    if (project_parameters or {}).get('holding_nicks') is False:
+        svg_bytes=apply_holding_nicks(svg_bytes,project_parameters,preserve_source_geometry)
     original = svg_bytes
     manufacturing = None
     try:

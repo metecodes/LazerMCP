@@ -88,7 +88,7 @@ class SourceModelTests(unittest.TestCase):
         from tools.build_standard_models import SOURCE,remove_source_nicks
         from collections import Counter
         svg=(ROOT/'web/demo/house-pencil-holder.svg').read_bytes()
-        self.assertEqual(remove_source_nicks(SOURCE.read_bytes())[0],svg)
+        self.assertEqual(ET.canonicalize(remove_source_nicks(SOURCE.read_bytes())[0],rewrite_prefixes=True), ET.canonicalize(svg,rewrite_prefixes=True))
         expected=[]
         for e in ET.fromstring(svg).iter():
             if e.tag.endswith('path'):

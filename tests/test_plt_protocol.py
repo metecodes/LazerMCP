@@ -19,6 +19,8 @@ class PLTProtocolTests(unittest.TestCase):
    assembly_tool=next(t for t in schema['result']['tools'] if t['name']=='validate_assembly')
    self.assertIn('placement',design['description']);self.assertIn('moving=true',design['description']);self.assertIn('linear_slide',design['description'])
    self.assertIn('assembled',preview['description']);self.assertIn('exploded',preview['description']);self.assertIn('nested',preview['description'])
+   self.assertIn('repair_cut_gaps',design['inputSchema']['properties'])
+   self.assertIn('repair_cut_gaps=true',design['description'])
    self.assertIn('view',preview['inputSchema']['properties']);self.assertIn('parameters',assembly_tool['inputSchema']['properties'])
    self.assertTrue({'start_reference_upload','upload_reference_chunk','discard_reference_upload','get_operation_settings','create_text','create_vector_graphic','create_image_reference','inspect_design','compute_safe_design_area','compose_design','compose_source_sheet','validate_composition','repair_composition','export_composed_dxf'}.issubset({t['name'] for t in schema['result']['tools']}))
    import json

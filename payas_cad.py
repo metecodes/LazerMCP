@@ -513,6 +513,7 @@ def create_design(
         "imported": bool(built.get("imported")),
         "preserve_source_geometry": bool(built.get("preserve_source_geometry")),
         "plt_import": built.get("plt_import"),
+        "cut_gap_repair": built.get("cut_gap_repair"),
         "assembly": built.get("assembly"),
         "linear_motion": built.get("linear_motion"),
         "tab_slot_debug": (built.get("assembly") or {}).get("tab_slot_debug") or [],

@@ -13,6 +13,10 @@ def resolve_choices(parameters=None, holding_nicks=None, surface_texts=None):
         raise ValueError('holding_nicks must be true or false')
     if 'surface_texts' in params and not isinstance(params['surface_texts'], list):
         raise ValueError('surface_texts must be a list; [] means no additional text')
+    if 'repair_cut_gaps' in params and not isinstance(params['repair_cut_gaps'], bool):
+        raise ValueError('repair_cut_gaps must be true or false')
+    if params.get('repair_cut_gaps') and params.get('holding_nicks') is not False:
+        raise ValueError('repair_cut_gaps requires holding_nicks=false')
     questions = []
     if 'holding_nicks' not in params:
         questions.append({'field':'holding_nicks', 'question':'Kesim noçlu mu, noçsuz mu olsun? Noç, parçayı levhada tutan küçük kesilmemiş köprüdür; geçme dişi değildir.',
@@ -35,9 +39,9 @@ def apply_holding_nicks(svg_bytes, parameters=None, preserve_source_geometry=Fal
     if not isinstance(enabled, bool):
         raise ValueError('holding_nicks must be true or false')
     if not enabled:
-        root = ET.fromstring(svg_bytes)
-        if params.get('holding_nicks') is False and any(e.get('data-holding-nicks') or e.get('data-holding-bridges') for e in root.iter()):
-            raise ValueError('SOURCE_HAS_HOLDING_NICKS: provide the original un-nicked geometry to request a no-nick export')
+        if params.get('holding_nicks') is False:
+            from cut_gap_repair import repair_cut_gaps
+            return repair_cut_gaps(svg_bytes,explicit=params.get('repair_cut_gaps',False))
         return svg_bytes
     width = float(params.get('holding_nick_mm', NICK_MM))
     if not math.isfinite(width) or width <= 0:

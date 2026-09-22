@@ -58,8 +58,10 @@ class ProjectOptionsTests(unittest.TestCase):
         self.assertEqual(built['surface_content']['placements'],[])
         self.assertNotIn(b'data-holding-nicks',built['svg_bytes'])
 
-    def test_source_nicks_cannot_be_silently_closed(self):
-        raw = b'<svg xmlns="http://www.w3.org/2000/svg"><path data-operation="CUT" stroke="#FF0000" d="M0 0H100V100H0Z"/></svg>'
+    def test_tagged_source_nicks_are_restored_when_no_nicks_requested(self):
+        raw = b'<svg xmlns="http://www.w3.org/2000/svg" width="100mm" height="100mm" viewBox="0 0 100 100"><path data-operation="CUT" stroke="#FF0000" d="M0 0H100V100H0Z"/></svg>'
         nicked = apply_holding_nicks(raw,{'holding_nicks':True})
-        with self.assertRaisesRegex(ValueError,'SOURCE_HAS_HOLDING_NICKS'):
-            apply_holding_nicks(nicked,{'holding_nicks':False})
+        restored=apply_holding_nicks(nicked,{'holding_nicks':False})
+        from topology import inspect_topology
+        self.assertTrue(inspect_topology(restored)['ok'])
+        self.assertNotIn(b'data-holding-nicks',restored)

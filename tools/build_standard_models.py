@@ -19,39 +19,7 @@ from topology import inspect_topology
 SOURCE = ROOT/'assets/standard-models/house-pencil-holder.source.svg'
 
 
-def _axis(segment):
-    delta = segment.end-segment.start
-    if abs(delta.imag)<1e-8 and abs(delta.real)>1e-8: return 'x'
-    if abs(delta.real)<1e-8 and abs(delta.imag)>1e-8: return 'y'
-    return None
-
-
-def gap_segments(a, b, before, after):
-    """Preserve real slopes; bridge offset orthogonal runs with square corners."""
-    axis = _axis(before)
-    if axis and axis == _axis(after) and abs(a.real-b.real)>1e-8 and abs(a.imag-b.imag)>1e-8:
-        if axis == 'x':
-            middle = (a.real+b.real)/2
-            points = [a,complex(middle,a.imag),complex(middle,b.imag),b]
-        else:
-            middle = (a.imag+b.imag)/2
-            points = [a,complex(a.real,middle),complex(b.real,middle),b]
-        return [Line(x,y) for x,y in zip(points,points[1:]) if abs(x-y)>1e-8]
-    return [Line(a,b)] if abs(a-b)>1e-8 else []
-
-
-def clean_micro_returns(path):
-    """Remove only zero-area backtracks; never silently reshape a contour."""
-    from shapely.geometry import Polygon
-    poly=Polygon([(s.start.real,s.start.imag) for s in path])
-    if poly.is_valid:return path
-    cleaned=poly.buffer(0)
-    if (cleaned.geom_type!='Polygon' or cleaned.interiors or not cleaned.is_valid
-            or abs(cleaned.area-poly.area)>1e-5
-            or poly.boundary.hausdorff_distance(cleaned.boundary)>.03):
-        raise ValueError('Contour repair exceeds micro-return limit; manual review required')
-    points=[complex(x,y) for x,y in cleaned.exterior.coords]
-    return SVGPath(*(Line(a,b) for a,b in zip(points,points[1:])))
+from cut_gap_repair import gap_segments, clean_micro_returns
 
 
 def remove_source_nicks(data, straighten=True):

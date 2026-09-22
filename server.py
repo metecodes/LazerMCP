@@ -483,7 +483,7 @@ def plan_laser_job(
         "(kind=text|path|icon|line, x,y,width or height, rotation, align, operation=engrave|cut). "
         "For educational cards, boards and wheels use part.engraving_composition={layout:'grid'|'image_caption'|'radial',safe_margin_mm,mechanical_clearance_mm,columns,items}. image_caption items are {illustration:{kind:'image'|'path'|'icon',...},caption:'DOG'}. The compiler auto-fits real vector/text geometry, avoids holes and slots, and forces every composed item to ENGRAVE. "
         "Scale with parameters.scale or parameters.reference={feature, mm, drawn_mm}. "
-        "Before generation collect holding_nicks (true=noçlu holding bridges; false=noçsuz continuous cuts) and surface_texts (list of user texts or {text,target_part}; [] means no extra text). Missing choices return NEEDS_INPUT: ask the user, never guess. These options can also be passed in parameters and persist with the project. Noç does not mean finger joints. "
+        "Before generation collect holding_nicks (true=noçlu holding bridges; false=noçsuz continuous cuts) and surface_texts (list of user texts or {text,target_part}; [] means no extra text). Missing choices return NEEDS_INPUT: ask the user, never guess. These options can also be passed in parameters and persist with the project. Noç does not mean finger joints. With holding_nicks=false, tagged holding gaps are restored. Set repair_cut_gaps=true only when the user requests closing untagged imported CUT gaps. Repairs require unscaled mm geometry and unique endpoint matches within 1.5 mm; offset orthogonal joins are squared, real slopes and engraving are preserved. Ambiguous gaps fail closed. "
         "parameters.material / parameters.machine pick profiles. parameters.assembly_mode is optional: 'auto' (default), 'standalone', or 'mechanical'. auto uses the physical part tree; text/path/icon/image engraving never counts as a physical part, and an invalid standalone override is rejected. Optional parameters.operation_settings overrides CUT/ENGRAVE speed_scale, power_scale, speed_mm_s, power_percent and passes; ENGRAVE must stay lower-power, one-pass and non-through. Photo-derived structures require parameters.reference_job=true and complete reference_parts mapping before PROTOTYPE READY. For a final user assembly request copy it to parameters.assembly_request; use parameters.assembly_order with every explicit placed part label exactly once and parameters.assembly_notes for step text. Successful explicit assemblies return progressive assembly_steps SVG drawings. MCP writes bom. "
         "preset=jigsaw_puzzle or number_match_puzzle only when the plan says so. "
         "Paste speak as the gate card. BLOCKED = no authorized SVG. "
@@ -506,9 +506,12 @@ def create_design(
     plt_base64: str | None = None,
     holding_nicks: bool | None = None,
     surface_texts: list[Any] | None = None,
+    repair_cut_gaps: bool | None = None,
 ) -> dict[str, Any]:
     from project_options import resolve_choices
     try:
+        if repair_cut_gaps is not None:
+            parameters = dict(parameters or {}, repair_cut_gaps=repair_cut_gaps)
         parameters, pending = resolve_choices(parameters, holding_nicks, surface_texts)
     except ValueError as exc:
         return {'success':False, 'error_code':'PROJECT_CHOICES_INVALID', 'error_message':str(exc)}

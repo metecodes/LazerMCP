@@ -1,0 +1,28 @@
+StreamableHTTP session manager started
+Terminating session: None
+HTTP Request: POST http://testserver/mcp "HTTP/1.1 200 OK"
+Terminating session: None
+HTTP Request: POST http://testserver/mcp "HTTP/1.1 200 OK"
+Terminating session: None
+HTTP Request: POST http://testserver/mcp "HTTP/1.1 200 OK"
+Terminating session: None
+HTTP Request: POST http://testserver/mcp "HTTP/1.1 200 OK"
+Terminating session: None
+HTTP Request: POST http://testserver/mcp "HTTP/1.1 200 OK"
+Terminating session: None
+HTTP Request: POST http://testserver/mcp "HTTP/1.1 200 OK"
+Terminating session: None
+HTTP Request: POST http://testserver/mcp "HTTP/1.1 200 OK"
+Terminating session: None
+HTTP Request: POST http://testserver/mcp "HTTP/1.1 200 OK"
+Terminating session: None
+HTTP Request: POST http://testserver/mcp "HTTP/1.1 200 OK"
+Terminating session: None
+HTTP Request: POST http://testserver/mcp "HTTP/1.1 200 OK"
+Terminating session: None
+HTTP Request: POST http://testserver/mcp "HTTP/1.1 200 OK"
+StreamableHTTP session manager shutting down
+----------------------------------------------------------------------
+Ran 22 tests in 1.620s
+
+OK
