@@ -59,7 +59,7 @@ PAYAS_DEFAULTS = {
     "bed_height": 3000,
     "output": "svg",
     "cut_color": "#FF0000",
-    "etch_color": "#FFFF00",
+    "etch_color": "#000000",
     "holding_nick_mm": 1.0,
 }
 
@@ -162,6 +162,7 @@ def _write_svg(
     primitives: list[Any] | None = None,
     preserve_source_geometry: bool = False,
     operation_settings: dict[str, Any] | None = None,
+    project_parameters: dict[str, Any] | None = None,
 ) -> tuple[str, bytes, dict[str, Any] | None]:
     original = svg_bytes
     manufacturing = None
@@ -184,14 +185,8 @@ def _write_svg(
     if operation_settings:
         from laser_settings import stamp_operation_settings
         svg_bytes=stamp_operation_settings(svg_bytes,operation_settings)
-    try:
-        from holding_nicks import NICK_MM, nick_cut_svg
-
-        nicked = None if preserve_source_geometry else nick_cut_svg(svg_bytes, float(PAYAS_DEFAULTS.get("holding_nick_mm") or NICK_MM))
-        if nicked:
-            svg_bytes = nicked
-    except Exception:
-        pass
+    from project_options import apply_holding_nicks
+    svg_bytes = apply_holding_nicks(svg_bytes, project_parameters, preserve_source_geometry)
     file_id = _new_file_id(generator)
     path = OUTPUT_DIR / file_id
     path.write_bytes(svg_bytes)
@@ -777,6 +772,7 @@ def save_generated_svg(
         extra.get("primitives") if isinstance(extra.get("primitives"), list) else None,
         preserve_source_geometry=bool(extra.get("preserve_source_geometry")),
         operation_settings=laser_profile,
+        project_parameters=extra.get('parameters') or {},
     )
     # Rebuild every requested DXF from the finalized SVG. Manufacturing normalization,
     # holding nicks and operation repair happen in _write_svg and must not leave the

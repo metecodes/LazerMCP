@@ -19,7 +19,7 @@ class ReferenceAssemblyTests(unittest.TestCase):
         self.assertNotIn('markings',recipe[0])
         paths=[el for el in ET.fromstring(captured['svg']).iter() if el.tag.endswith('path')]
         self.assertTrue(any(p.get('data-operation')=='CUT' for p in paths))
-        self.assertTrue(any(p.get('data-operation')=='ENGRAVE' and p.get('stroke')=='#FFFF00' for p in paths))
+        self.assertTrue(any(p.get('data-operation')=='ENGRAVE' and p.get('stroke')=='#000000' for p in paths))
         self.assertIn(b'ENGRAVE',captured['dxf']);self.assertIn(b'CUT',captured['dxf'])
 
     def test_unknown_destination_is_reported(self):

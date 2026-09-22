@@ -27,7 +27,7 @@ class SemanticCadTests(unittest.TestCase):
         safe=compute_safe_design_area(SVG,'PART_A',5,2);self.assertEqual(safe['bounds'],[15.0,15.0,105.0,105.0]);self.assertLess(safe['area'],8100)
     def test_turkish_multiline_text_becomes_paths_and_preserves_cad(self):
         item=create_text('ÖNCE GÜVENLİK\nİŞARET',parent_part_id='PART_A',font_size=7,placement='top_center')
-        out=compose_design(SVG,[item]);self.assertTrue(out['success'],out['issues']);self.assertNotIn('<text',out['svg']);self.assertIn('PART_A',out['svg']);self.assertIn('#FFFF00',out['svg']);self.assertEqual(out['validation']['status'],'PASS')
+        out=compose_design(SVG,[item]);self.assertTrue(out['success'],out['issues']);self.assertNotIn('<text',out['svg']);self.assertIn('PART_A',out['svg']);self.assertIn('#000000',out['svg']);self.assertEqual(out['validation']['status'],'PASS')
     def test_three_labels_snap_to_actual_holes(self):
         elements=[create_text(label,parent_part_id='PART_A',font_size=4,anchor_feature_id=f'HOLE_{i}',offset_y=-10) for i,label in enumerate(['KIRMIZI','SARI','YEŞİL'],1)]
         out=compose_design(SVG,elements);self.assertTrue(out['success'],out['issues']);centers=[round((o['bounds'][0]+o['bounds'][2])/2) for o in out['objects']];self.assertEqual(centers,[30,60,90])

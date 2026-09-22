@@ -15,9 +15,9 @@ class EngravingLayoutTests(unittest.TestCase):
         paths=[el for el in ET.fromstring(final).iter() if el.tag.endswith('path')]
         self.assertTrue(paths)
         for path in paths:
-            self.assertEqual(path.get('stroke'),'#FF0000' if path.get('data-operation')=='CUT' else '#FFFF00')
+            self.assertEqual(path.get('stroke'),'#FF0000' if path.get('data-operation')=='CUT' else '#000000')
         dxf=svg_bytes_to_dxf(final).decode()
-        self.assertIn('ENGRAVE\n70\n0\n62\n2',dxf)
+        self.assertIn('ENGRAVE\n70\n0\n62\n7',dxf)
         self.assertIn('CUT\n70\n0\n62\n1',dxf)
         self.assertNotIn('<text',final.decode())
 

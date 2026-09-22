@@ -36,7 +36,7 @@ def import_svg_graphic(svg, **kw):
     built=import_svg_document(svg,{'svg_default_operation':'ENGRAVE'});doc=inspect_design(built['svg_bytes'])
     geoms=[o['_geom'] for o in doc['_objects'] if o['operation']=='ENGRAVE']
     if not geoms:raise ValueError('SVG graphic has no ENGRAVE vector geometry')
-    geom=unary_union(geoms);fragment=ET.fromstring('<svg>'+_emit(geom,'#FFFF00',.15)+'</svg>')
+    geom=unary_union(geoms);fragment=ET.fromstring('<svg>'+_emit(geom,'#000000',.15)+'</svg>')
     return create_vector_graphic(' '.join(p.get('d','') for p in fragment),source='imported_svg',**kw)
 
 def create_primitive(kind, **kw):
@@ -250,7 +250,7 @@ def compose_design(svg,elements,safe_margin=3,mechanical_clearance=1,duplicate_p
             issues.append({'status':'WARNING','object_id':item['id'],'note':'semantic duplicate replaced'})
         existing[sig]=item['id']
         if not safe.covers(geom):issues.append({'status':'FAIL','object_id':item['id'],'note':'cannot fit inside safe design area'});continue
-        svggeom=affine_transform(geom,[1,0,0,-1,0,height]);fragment=ET.fromstring('<svg xmlns="http://www.w3.org/2000/svg">'+_emit(svggeom,'#FFFF00',.15)+'</svg>')
+        svggeom=affine_transform(geom,[1,0,0,-1,0,height]);fragment=ET.fromstring('<svg xmlns="http://www.w3.org/2000/svg">'+_emit(svggeom,'#000000',.15)+'</svg>')
         for path in fragment:
             path.set('data-object-id',item['id']);path.set('data-object-type',item['type']);path.set('data-parent-part-id',pid);path.set('data-semantic-role',item['semantic_role']);path.set('data-operation','ENGRAVE');path.set('data-operation-origin','EXPLICIT');path.set('data-source',item['source']);path.set('data-locked',str(bool(item['locked'])).lower());path.set('data-content',item.get('content',''));group.append(path)
         added.append({**item,'bounds':list(geom.bounds),'repair_attempts':attempts,'effective_font_size':float(item.get('font_size',0))*scale_factor if item.get('type')=='text' else None,'scale_factor':scale_factor})
@@ -284,7 +284,7 @@ def export_dxf(svg):
 def convert_text_to_paths(obj):
     if obj.get('type')!='text':raise ValueError('text object required')
     geom=_element_geom(obj)
-    return {'id':obj.get('id'),'type':'graphic','semantic_role':'text','operation':obj.get('operation','ENGRAVE'),'parent_part_id':obj.get('parent_part_id'),'d':_emit(geom,'#FFFF00',.15),'bounds':list(geom.bounds),'source':'text_to_paths','locked':obj.get('locked',False)}
+    return {'id':obj.get('id'),'type':'graphic','semantic_role':'text','operation':obj.get('operation','ENGRAVE'),'parent_part_id':obj.get('parent_part_id'),'d':_emit(geom,'#000000',.15),'bounds':list(geom.bounds),'source':'text_to_paths','locked':obj.get('locked',False)}
 
 def repair_composition(svg,safe_margin=3,mechanical_clearance=1):
     doc=inspect_design(svg);root=doc['_root'];parents=_parents(root);elements=[]
@@ -293,7 +293,7 @@ def repair_composition(svg,safe_margin=3,mechanical_clearance=1):
         if obj['type']=='text' and obj.get('content'):
             elements.append(create_text(obj['content'],id=obj['id'],parent_part_id=obj['parent_part_id'],font_size=max(1,obj['size']['height']),position=obj['position']))
         else:
-            fragment=ET.fromstring('<svg xmlns="http://www.w3.org/2000/svg">'+_emit(obj['_geom'],'#FFFF00',.15)+'</svg>')
+            fragment=ET.fromstring('<svg xmlns="http://www.w3.org/2000/svg">'+_emit(obj['_geom'],'#000000',.15)+'</svg>')
             d=' '.join(p.get('d','') for p in fragment)
             elements.append(create_vector_graphic(d,id=obj['id'],parent_part_id=obj['parent_part_id'],position=obj['position'],semantic_role=obj['semantic_role']))
     for el in list(root.iter()):

@@ -54,5 +54,5 @@ def dxf_to_svg(text):
     groups={op:ET.SubElement(root,'g',{'id':op}) for op in {'CUT','ENGRAVE','SCORE','GUIDE','UNKNOWN'}}
     for index,op,pts,closed in entities:
         coords=[(x-minx+margin,maxy-y+margin) for x,y in pts];d='M '+' L '.join(f'{x:.6f} {y:.6f}' for x,y in coords)+(' Z' if closed else '')
-        ET.SubElement(groups[op],'path',{'id':f'DXF_{index}','d':d,'fill':'none','data-operation':op,'data-operation-origin':'EXPLICIT' if op!='UNKNOWN' else 'UNKNOWN','stroke':'#FF0000' if op=='CUT' else '#FFFF00'})
+        ET.SubElement(groups[op],'path',{'id':f'DXF_{index}','d':d,'fill':'none','data-operation':op,'data-operation-origin':'EXPLICIT' if op!='UNKNOWN' else 'UNKNOWN','stroke':'#FF0000' if op=='CUT' else '#000000'})
     return ET.tostring(root,encoding='unicode')

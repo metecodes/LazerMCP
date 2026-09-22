@@ -145,9 +145,9 @@ mcp = MCPServer(
         "If final_status is BLOCKED, read look_again, fix primitives, call create_design again. "
         "Do not invent a PASS. Working SVG is not a cuttable product until the gate says so. "
         "Defaults: 3 mm poplar, kerf 0.15 mm, 1500×3000 mm bed, SVG + DXF, "
-        "cut #FF0000, text/logo/decor engraving #FFFF00, LaserCAD Y-up. Yellow is always ENGRAVE, not CUT. "
-        "The default ENGRAVE intent is 0.65 CUT speed and 0.25 CUT power, one non-through pass; calibrate absolute values with a material coupon. "
-        "Notches and closed cuts keep ~1 mm holding nicks so pieces do not fall; do not omit them."
+        "cut #FF0000, text/logo/decor engraving #000000, LaserCAD Y-up. Black is always ENGRAVE, not CUT. "
+        "The default ENGRAVE intent is 2.0 CUT speed and 0.30 CUT power, one non-through pass; calibrate absolute values with a material coupon. "
+        "Ask noçlu/noçsuz and surface text choices; honor holding_nicks true/false per project."
     ),
 )
 
@@ -483,13 +483,14 @@ def plan_laser_job(
         "(kind=text|path|icon|line, x,y,width or height, rotation, align, operation=engrave|cut). "
         "For educational cards, boards and wheels use part.engraving_composition={layout:'grid'|'image_caption'|'radial',safe_margin_mm,mechanical_clearance_mm,columns,items}. image_caption items are {illustration:{kind:'image'|'path'|'icon',...},caption:'DOG'}. The compiler auto-fits real vector/text geometry, avoids holes and slots, and forces every composed item to ENGRAVE. "
         "Scale with parameters.scale or parameters.reference={feature, mm, drawn_mm}. "
+        "Before generation collect holding_nicks (true=noçlu holding bridges; false=noçsuz continuous cuts) and surface_texts (list of user texts or {text,target_part}; [] means no extra text). Missing choices return NEEDS_INPUT: ask the user, never guess. These options can also be passed in parameters and persist with the project. Noç does not mean finger joints. "
         "parameters.material / parameters.machine pick profiles. parameters.assembly_mode is optional: 'auto' (default), 'standalone', or 'mechanical'. auto uses the physical part tree; text/path/icon/image engraving never counts as a physical part, and an invalid standalone override is rejected. Optional parameters.operation_settings overrides CUT/ENGRAVE speed_scale, power_scale, speed_mm_s, power_percent and passes; ENGRAVE must stay lower-power, one-pass and non-through. Photo-derived structures require parameters.reference_job=true and complete reference_parts mapping before PROTOTYPE READY. For a final user assembly request copy it to parameters.assembly_request; use parameters.assembly_order with every explicit placed part label exactly once and parameters.assembly_notes for step text. Successful explicit assemblies return progressive assembly_steps SVG drawings. MCP writes bom. "
         "preset=jigsaw_puzzle or number_match_puzzle only when the plan says so. "
         "Paste speak as the gate card. BLOCKED = no authorized SVG. "
         "PROTOTYPE READY = Prototype SVG only; PRODUCTION EXPORT BLOCKED. "
         "PLT/HP-GL files: pass plt text or plt_base64 to this tool; do not trace a screenshot. "
         "Existing SVG: pass its complete XML in svg, with parameters.svg_default_operation='CUT' only when the user identifies untagged vectors as cut lines. "
-        "Text/logo engraving is yellow #FFFF00, DXF ENGRAVE layer ACI 2; CUT stays red. For standalone artwork use preset='engraving_layout', parameters={width_mm,height_mm,items:[{kind:'text',value:'PAYAS STEM',x:50,y:100,height:6,align:'center'},{kind:'path',d:'actual logo SVG path',x:50,y:80,width:30}]}. Coordinates are mm from bottom-left. Supply real logo vectors; never replace unknown logos with generic icons. "
+        "Text/logo engraving is black #000000, DXF ENGRAVE layer ACI 7; CUT stays red. For standalone artwork use preset='engraving_layout', parameters={width_mm,height_mm,items:[{kind:'text',value:'PAYAS STEM',x:50,y:100,height:6,align:'center'},{kind:'path',d:'actual logo SVG path',x:50,y:80,width:30}]}. Coordinates are mm from bottom-left. Supply real logo vectors; never replace unknown logos with generic icons. "
         "Uploaded artwork can be engraved directly: use {kind:'image',image_base64:'PNG/JPEG/WebP base64',crop:[left,top,right,bottom],foreground:'auto',x:50,y:50,width:30,operation:'engrave'} in a part's markings or engraving_layout items. Crop coordinates are normalized 0..1 from image top-left. Trace the provided artwork, never substitute another logo. "
         "SVG import preserves narrow tabs, vertices and existing gaps; do not replace supplied SVG with a generic box or holder preset. "
         "plt_units_per_mm defaults to 40; plt_pen_operations explicitly selects CUT/ENGRAVE. "
@@ -503,7 +504,22 @@ def create_design(
     svg: str | None = None,
     plt: str | None = None,
     plt_base64: str | None = None,
+    holding_nicks: bool | None = None,
+    surface_texts: list[Any] | None = None,
 ) -> dict[str, Any]:
+    from project_options import resolve_choices
+    try:
+        parameters, pending = resolve_choices(parameters, holding_nicks, surface_texts)
+    except ValueError as exc:
+        return {'success':False, 'error_code':'PROJECT_CHOICES_INVALID', 'error_message':str(exc)}
+    if pending:
+        return pending
+    if parameters.get('surface_texts') and not primitives:
+        return {'success':False, 'status':'NEEDS_INPUT', 'ready_to_cut':False,
+                'error_code':'TEXT_PLACEMENT_REQUIRED',
+                'questions':[{'field':'text_placement', 'question':'İçe aktarılan çizimde veya hazır paftada yazılar hangi yüzeye/konuma eklensin?'}],
+                'instruction':'Keep the requested text. For engraving_layout put it in parameters.items with positions; for SVG/PLT use compose_source_sheet. Once included in the source, pass surface_texts=[] to avoid adding it twice.',
+                'requested_texts':parameters['surface_texts'], 'resolved_parameters':parameters}
     return payas_cad.create_design(
         preset=preset,
         primitives=primitives,
@@ -519,7 +535,7 @@ def create_design(
     description=(
         "Vectorize 2D artwork, or combine an explicit mechanical recipe and reference artwork in one sheet. "
         "Pass compressed JPEG image_base64, a public HTTPS image_url, or upload large base64 through start_reference_upload + upload_reference_chunk and pass reference_upload_id. "
-        "For a mechanical single-sheet output pass primitives plus reference_markings:[{target_part:'named-panel',kind:'image',crop:[left,top,right,bottom],ink_color:'yellow',x:50,y:50,width:30}]. Crop uses normalized image coordinates. parameters controls material/project and optional operation_settings. Text/path marks stay yellow ENGRAVE and are never through-cut. format='both' yields SVG+DXF from the same recipe. Never infer mechanical joints from pixel outlines alone. "
+        "For a mechanical single-sheet output pass primitives plus reference_markings:[{target_part:'named-panel',kind:'image',crop:[left,top,right,bottom],ink_color:'yellow',x:50,y:50,width:30}]. Crop uses normalized image coordinates. parameters controls material/project and optional operation_settings. Text/path marks stay black ENGRAVE and are never through-cut. format='both' yields SVG+DXF from the same recipe. Never infer mechanical joints from pixel outlines alone. "
         "layout=jigsaw or trace. format=svg or both. Then validate_svg."
     )
 )
@@ -556,6 +572,10 @@ def create_from_reference(
             return payas_cad._mcp({'success':False,'ready_to_cut':False,'retryable':True,'error_code':'REFERENCE_IMAGE_MISSING','look_again':['Reference image did not reach LaserMCP. Retry with image_base64 or split the same base64 into image_chunks. For PLT/SVG use compose_source_sheet.']})
         if len(image_base64)>16_000_000:
             return payas_cad._mcp({'success':False,'ready_to_cut':False,'retryable':True,'error_code':'REFERENCE_PAYLOAD_TOO_LARGE','look_again':['Reference payload exceeds 16 MB base64. Resize without changing aspect ratio or use the original SVG/PLT with compose_source_sheet.']})
+        from project_options import resolve_choices
+        parameters, pending = resolve_choices(parameters)
+        if pending:
+            return pending
         return payas_cad.create_from_reference(
             image_base64=image_base64,
             width_mm=width_mm,
@@ -616,10 +636,12 @@ def payas_defaults() -> dict[str, Any]:
     result=boxespy.payas_defaults()
     from laser_settings import resolve_operation_settings
     result["operation_settings"]=resolve_operation_settings()
+    from standard_models import get_standard_model
+    result['standard_models'] = [get_standard_model(base_url=_tool_public_base())]
     return result
 
 
-@mcp.tool(description="Return and validate CUT/ENGRAVE/SCORE/GUIDE speed, power and pass intent. Pass the same parameters.operation_settings object to create_design or create_from_reference. Yellow ENGRAVE remains a one-pass non-through surface operation; absolute values require a material coupon.")
+@mcp.tool(description="Return and validate CUT/ENGRAVE/SCORE/GUIDE speed, power and pass intent. Pass the same parameters.operation_settings object to create_design or create_from_reference. Black ENGRAVE remains a one-pass non-through surface operation; absolute values require a material coupon.")
 def get_operation_settings(parameters: dict[str, Any] | None = None) -> dict[str, Any]:
     from laser_settings import resolve_operation_settings
     try:return {"success":True,**resolve_operation_settings(parameters)}
@@ -746,7 +768,7 @@ def compose_design(svg: str, elements: list[dict[str, Any]], safe_margin: float 
     return compose(svg,elements,safe_margin,mechanical_clearance,duplicate_policy)
 
 
-@mcp.tool(description="Build one persisted sheet from exactly one real geometry source (SVG, PLT/HPGL or primitives), then add editable text/logo/decor objects and export matching SVG+DXF. CUT remains red; ENGRAVE remains yellow. No raster re-measurement of SVG/PLT.")
+@mcp.tool(description="Build one persisted sheet from exactly one real geometry source (SVG, PLT/HPGL or primitives), then add editable text/logo/decor objects and export matching SVG+DXF. CUT remains red; ENGRAVE remains black. No raster re-measurement of SVG/PLT.")
 def compose_source_sheet(elements: list[dict[str, Any]], svg: str | None = None, plt: str | None = None, plt_base64: str | None = None, primitives: list[dict[str, Any]] | None = None, parameters: dict[str, Any] | None = None, safe_margin: float = 3, mechanical_clearance: float = 1) -> dict[str, Any]:
     from design_engine import compile_design,import_svg_document
     sources=sum(value is not None for value in (svg,plt,plt_base64,primitives))
@@ -1145,6 +1167,17 @@ async def api_demo(request: Request) -> Response:
     from demo_kits import list_kits
 
     return JSONResponse(list_kits())
+
+
+@mcp.tool(description="Get a permanent standard model page, checked SVG/DXF and assembled preview. model_id='house-pencil-holder': 130x90x180 mm, 2.7 mm material, no holding nicks, no added text. Assets are versioned site files and do not expire after 24 hours. Prototype digital checks are not physical production verification.")
+def get_standard_model(model_id: str = 'house-pencil-holder') -> dict[str, Any]:
+    from standard_models import get_standard_model as get
+    return get(model_id, _tool_public_base())
+
+
+@mcp.custom_route("/models/house-pencil-holder", methods=["GET"])
+async def standard_house_model_page(request: Request) -> Response:
+    return FileResponse(WEB_DIR / 'house-pencil-holder.html', media_type='text/html; charset=utf-8')
 
 
 @mcp.custom_route("/demo/{filename}", methods=["GET"])

@@ -20,7 +20,7 @@ class SurfaceBrandingTests(unittest.TestCase):
         parts,report=apply_surface_content(self.panels(),{'surface_texts':['MİNİK MUCİTLER']})
         marks=[m for p in parts for m in p.get('markings') or []]
         self.assertEqual(len(marks),1);self.assertEqual(marks[0]['value'],'MİNİK MUCİTLER')
-        self.assertEqual(marks[0]['operation'],'ENGRAVE');self.assertEqual(report['placements'][0]['color'],'#FFFF00')
+        self.assertEqual(marks[0]['operation'],'ENGRAVE');self.assertEqual(report['placements'][0]['color'],'#000000')
 
     def test_opt_in_brand_name_and_logo_reach_each_suitable_panel(self):
         params={'apply_branding':True,'branding':{'name':'PAYAS STEM','logo_path':'M0 0 L10 0 L5 8 Z'}}
@@ -35,7 +35,7 @@ class SurfaceBrandingTests(unittest.TestCase):
     def test_compiled_svg_keeps_branding_yellow_and_reports_dimensions(self):
         built=render_toolbox([{'type':'panel','label':'face','w':100,'h':70,'edges':'eeee'}],{'surface_texts':['MİNİK MUCİTLER'],'apply_branding':True,'brand_name':'PAYAS STEM'})
         svg=built['svg_bytes'].decode('utf-8')
-        self.assertIn('#FFFF00',svg);self.assertIn('data-operation="ENGRAVE"',svg)
+        self.assertIn('#000000',svg);self.assertIn('data-operation="ENGRAVE"',svg)
         self.assertNotIn('data-semantic-role="text" data-operation="CUT"',svg)
         self.assertEqual(len(built['surface_content']['placements']),2)
         self.assertTrue(all(p['width_mm']>0 and p['height_mm']>0 for p in built['surface_content']['placements']))

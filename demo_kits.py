@@ -13,6 +13,14 @@ NS = "{http://www.w3.org/2000/svg}"
 
 KITS: list[dict[str, Any]] = [
     {
+        "id": "house-pencil-holder", "tool": "get_standard_model",
+        "title_tr": "Ev Kalemlik", "title_en": "House pencil holder",
+        "blurb_tr": "130×90×180 mm · 2,7 mm · Noçsuz standart model",
+        "blurb_en": "130×90×180 mm · 2.7 mm · No holding bridges",
+        "src": "house-pencil-holder.assembled.svg", "cut": "house-pencil-holder.svg",
+        "model_url": "/models/house-pencil-holder", "dxf_url": "/demo/house-pencil-holder.dxf",
+    },
+    {
         "id": "traffic_light",
         "tool": "create_traffic_light",
         "title_tr": "Trafik lambası",

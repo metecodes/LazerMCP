@@ -131,7 +131,7 @@ _OP_WORDS: dict[str, tuple[str, ...]] = {
 
 PRESENTATION = {
     "CUT": ("#FF0000", "0.18"),
-    "ENGRAVE": ("#FFFF00", "0.15"),
+    "ENGRAVE": ("#000000", "0.15"),
     "SCORE": ("#0000FF", "0.12"),
     "GUIDE": ("#00AA00", "0.10"),
     "LABEL": ("#333333", "0.12"),

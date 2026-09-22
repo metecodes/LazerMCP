@@ -1,0 +1,69 @@
+{
+  "id": "house-pencil-holder",
+  "version": 1,
+  "title": "Ev Kalemlik",
+  "dimensions_mm": {
+    "width": 130,
+    "depth": 90,
+    "height": 180
+  },
+  "thickness_mm": 2.7,
+  "holding_nicks": false,
+  "surface_texts": [],
+  "physical_part_count": 7,
+  "palette": {
+    "CUT": "#FF0000",
+    "ENGRAVE": "#000000"
+  },
+  "final_status": "PROTOTYPE READY",
+  "production_export": "BLOCKED",
+  "physical_assembly": "NOT VERIFIED",
+  "physical_kerf_test": "NOT VERIFIED",
+  "note": "Fotoğraftaki ev biçimli kalemliğin ölçülendirilmiş parametrik sürümü. Yıldız ön yüze yapıştırılır. Fiziksel geçme testi yapılmadı.",
+  "tab_slot_pairs": 11,
+  "topology": {
+    "ok": true,
+    "cut_paths": 31,
+    "closed": 31,
+    "nicked_closed": 0,
+    "open_cuts": [],
+    "duplicates": [],
+    "self_intersections": []
+  },
+  "scorecard": {
+    "digital": {
+      "Digital Geometry": "PASS",
+      "Part Completeness": "PASS",
+      "Connections": "PASS",
+      "Assembly": "PASS",
+      "Collision": "PASS",
+      "Kinematics": "N/A",
+      "Electrical Logic": "PASS",
+      "Safety": "PASS",
+      "BOM": "PASS",
+      "Text & Engraving": "PASS",
+      "Orientation & Y-Axis": "PASS",
+      "Illustration Quality": "PASS",
+      "Report Consistency": "PASS",
+      "SVG Geometry": "PASS",
+      "Manufacturing Geometry": "PASS",
+      "Reference Fidelity": "N/A",
+      "Outer Cut Fidelity": "N/A",
+      "Part Mapping": "N/A",
+      "Tab-Slot Geometry": "PASS",
+      "3D Assembly": "PASS",
+      "Hardware Fit": "N/A",
+      "Motion Clearance": "N/A",
+      "Engrave Geometry": "N/A",
+      "Operation Separation": "N/A",
+      "Assembled Preview": "PASS"
+    },
+    "physical": {
+      "Physical Kerf Test": "NOT_VERIFIED",
+      "Physical Engraving Test": "NOT_VERIFIED",
+      "Physical Assembly": "NOT_VERIFIED",
+      "Movement Test": "N/A",
+      "After Assembly Use": "N/A"
+    }
+  }
+}

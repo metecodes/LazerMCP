@@ -20,7 +20,7 @@ def svg(content):
 
 
 OUTER = '<path d="M0 0H100V100H0Z" stroke="#FF0000" fill="none" data-operation="CUT"/>'
-MARK = '<path d="M45 50L55 50" stroke="#FFFF00" fill="none" data-operation="ENGRAVE"/>'
+MARK = '<path d="M45 50L55 50" stroke="#000000" fill="none" data-operation="ENGRAVE"/>'
 
 
 class ValidationGapRegressions(unittest.TestCase):

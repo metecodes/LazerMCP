@@ -34,9 +34,9 @@ def validate(svg_bytes: bytes, edge_clearance_mm: float = 1.0) -> dict[str, list
     if not engrave:
         geometry.append({"status": NA, "note": "no engraving operations"})
     else:
-        bad_color = [el for el in engrave if inherited(el, "stroke").upper() not in {"#FFFF00", "YELLOW"}]
+        bad_color = [el for el in engrave if inherited(el, "stroke").upper() not in {"#000000", "BLACK"}]
         through = [el for el in engrave if inherited(el, "data-through-cut").lower() in {"1", "true", "yes"}]
-        geometry.append({"status": FAIL if bad_color else PASS, "note": f"ENGRAVE yellow #FFFF00: {len(engrave)-len(bad_color)}/{len(engrave)}"})
+        geometry.append({"status": FAIL if bad_color else PASS, "note": f"ENGRAVE black #000000: {len(engrave)-len(bad_color)}/{len(engrave)}"})
         separation.append({"status": FAIL if through else PASS, "note": "ENGRAVE remains a non-through surface operation"})
         try:
             from semantic_cad import inspect_design
@@ -70,8 +70,8 @@ def validate(svg_bytes: bytes, edge_clearance_mm: float = 1.0) -> dict[str, list
     try:
         from dxf_export import svg_bytes_to_dxf
         dxf = svg_bytes_to_dxf(svg_bytes).decode("utf-8", errors="replace")
-        aci2 = not engrave or ("\nENGRAVE\n" in dxf and "\n62\n2\n" in dxf)
-        separation.append({"status": PASS if aci2 else FAIL, "note": "DXF ENGRAVE layer uses ACI 2" if aci2 else "DXF ENGRAVE ACI 2 missing"})
+        aci7 = not engrave or ("\nENGRAVE\n" in dxf and "\n62\n7\n" in dxf)
+        separation.append({"status": PASS if aci7 else FAIL, "note": "DXF ENGRAVE layer uses ACI 7" if aci7 else "DXF ENGRAVE ACI 7 missing"})
     except Exception as exc:
         separation.append({"status": FAIL, "note": f"DXF operation separation failed: {exc}"})
     return {"geometry": geometry, "separation": separation}

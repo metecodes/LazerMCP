@@ -24,7 +24,7 @@ from text_path import svg_document, to_lasercad_y
 PRESETS = {
     "engraving_layout": {
         "title": "Metin ve logo yerleşimi",
-        "hint": "Yellow ENGRAVE artwork. parameters: width_mm, height_mm, items with kind=text|path|icon|line, value/d, x,y,width,height,align. Coordinates mm bottom-left. Real vector logos required.",
+        "hint": "Black ENGRAVE artwork. parameters: width_mm, height_mm, items with kind=text|path|icon|line, value/d, x,y,width,height,align. Coordinates mm bottom-left. Real vector logos required.",
     },
     "jigsaw_puzzle": {
         "title": "Klasik yapboz",

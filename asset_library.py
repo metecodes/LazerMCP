@@ -13,7 +13,7 @@ def upload_asset(organization_id,name,asset_type,svg,library_token=None):
     token=library_token or new_token();built=import_svg_document(svg,{'svg_default_operation':'ENGRAVE'});doc=inspect_design(built['svg_bytes'])
     geoms=[o['_geom'] for o in doc['_objects'] if o['operation']=='ENGRAVE']
     if not geoms:raise ValueError('asset has no ENGRAVE vector geometry')
-    geom=unary_union(geoms);bounds=list(geom.bounds);normalized=translate(geom,-bounds[0],-bounds[1]);body=_emit(normalized,'#FFFF00',.15)
+    geom=unary_union(geoms);bounds=list(geom.bounds);normalized=translate(geom,-bounds[0],-bounds[1]);body=_emit(normalized,'#000000',.15)
     width,height=bounds[2]-bounds[0],bounds[3]-bounds[1];clean=f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}mm" height="{height}mm" viewBox="0 0 {width} {height}"><g id="ENGRAVE">{body}</g></svg>'.encode()
     aid=__import__('uuid').uuid4().hex;digest=hashlib.sha256(clean).hexdigest();path=StorageService().durable_path(organization_id,aid,digest,'svg');StorageService().put(path,clean,'image/svg+xml')
     row=AssetRepository().insert({'id':aid,'organization_id':organization_id,'name':name[:100],'asset_type':asset_type,'storage_path':path,'default_operation':'ENGRAVE','bounds':[0,0,width,height],'token_hash':token_hash(token)})
@@ -31,10 +31,10 @@ def replace_asset(organization_id,library_token,asset_id,svg,name=None,asset_typ
     built=import_svg_document(svg,{'svg_default_operation':'ENGRAVE'});doc=inspect_design(built['svg_bytes']);geoms=[o['_geom'] for o in doc['_objects'] if o['operation']=='ENGRAVE']
     if not geoms:raise ValueError('asset has no ENGRAVE vector geometry')
     geom=unary_union(geoms);bounds=list(geom.bounds);normalized=translate(geom,-bounds[0],-bounds[1]);width,height=bounds[2]-bounds[0],bounds[3]-bounds[1]
-    clean=f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}mm" height="{height}mm" viewBox="0 0 {width} {height}"><g id="ENGRAVE">{_emit(normalized,"#FFFF00",.15)}</g></svg>'.encode()
+    clean=f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}mm" height="{height}mm" viewBox="0 0 {width} {height}"><g id="ENGRAVE">{_emit(normalized,"#000000",.15)}</g></svg>'.encode()
     digest=hashlib.sha256(clean).hexdigest();path=StorageService().durable_path(organization_id,asset_id,digest,'svg');StorageService().put(path,clean,'image/svg+xml')
     row=AssetRepository().update(asset_id,organization_id,library_token,{'name':name or old['name'],'asset_type':asset_type or old['asset_type'],'storage_path':path,'bounds':[0,0,width,height]})
     return {'success':True,'asset':{k:v for k,v in row.items() if k not in {'token_hash','storage_path'}}}
 def place_asset(organization_id,library_token,asset_id,parent_part_id,placement='center',width=None,height=None):
-    row,svg=get_asset(organization_id,library_token,asset_id);doc=inspect_design(svg);geom=unary_union([o['_geom'] for o in doc['_objects'] if o['operation']=='ENGRAVE']);fragment=ET.fromstring('<svg>'+_emit(geom,'#FFFF00',.15)+'</svg>');d=' '.join(p.get('d','') for p in fragment)
+    row,svg=get_asset(organization_id,library_token,asset_id);doc=inspect_design(svg);geom=unary_union([o['_geom'] for o in doc['_objects'] if o['operation']=='ENGRAVE']);fragment=ET.fromstring('<svg>'+_emit(geom,'#000000',.15)+'</svg>');d=' '.join(p.get('d','') for p in fragment)
     return create_vector_graphic(d,id='GFX_'+asset_id[:10].upper(),parent_part_id=parent_part_id,graphic_type=row['asset_type'],placement=placement,size={'width':width or 0,'height':height or 0},source='asset:'+asset_id)

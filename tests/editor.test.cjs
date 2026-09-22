@@ -25,7 +25,7 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
  assert(Number(await page.locator('[data-selection] rect').getAttribute('width'))>100);
  await page.fill('#search','Destek');assert.equal(await page.locator('.part').count(),1);await page.fill('#search','');
  await page.locator('.part').first().locator('.mini').nth(1).click();await page.fill('#width','130');await page.click('#apply');assert.match(await page.locator('#note').innerText(),/kilitli/);await page.locator('.part').first().locator('.mini').nth(1).click();
- await page.fill('#width','130');await page.click('#apply');assert.equal(await page.locator('#save-state').innerText(),'Kaydedilmedi');await page.click('#undo');assert.equal(await page.inputValue('#width'),'120');await page.click('#redo');assert.equal(await page.inputValue('#width'),'130');
+ await page.selectOption('#holding-nicks','false');await page.fill('#surface-texts','PAYAS STEM');await page.fill('#width','130');await page.click('#apply');assert.equal(await page.locator('#save-state').innerText(),'Kaydedilmedi');await page.click('#undo');assert.equal(await page.inputValue('#width'),'120');await page.click('#redo');assert.equal(await page.inputValue('#width'),'130');
  await page.fill('#hole-x','1');await page.click('#add-hole');assert.match(await page.locator('#note').innerText(),/içinde/);
  await page.fill('#hole-x','30');await page.fill('#hole-y','25');await page.click('#add-hole');
  await page.click('#validate');await page.waitForFunction(()=>document.querySelector('#save-state').textContent!=='İşleniyor…');assert.equal(submitted.primitives[0].slots.at(-1).x,30);
@@ -35,7 +35,7 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
  await page.click('#add-part');await page.fill('#new-name','Yeni panel');await page.click('#new-part-form button[type=submit], #new-part-form .cut');assert.equal(await page.locator('.part').count(),3);
  await page.click('#connections-tab');await page.selectOption('#connection-a',fixture.meta.primitives[0].label);await page.selectOption('#connection-b','Destek');await page.click('#connect');assert.match(await page.locator('#note').innerText(),/eşleşmiyor/);
  await page.click('#properties-tab');await page.selectOption('#part','0');await page.fill('#width','120');await page.click('#apply');await page.click('#connections-tab');await page.click('#connect');assert.equal(await page.locator('.connection-row').count(),1);
- await page.click('#save');await page.waitForURL('**/edit/saved.svg');await page.waitForFunction(()=>document.querySelector('#save-state').textContent==='Kayıtlı');assert.equal(submitted.parameters.editor_connections.length,1);
+ await page.click('#save');await page.waitForURL('**/edit/saved.svg');await page.waitForFunction(()=>document.querySelector('#save-state').textContent==='Kayıtlı');assert.equal(submitted.parameters.editor_connections.length,1);assert.equal(submitted.parameters.holding_nicks,false);assert.deepEqual(submitted.parameters.surface_texts,['PAYAS STEM']);
  assert.equal(await page.locator('#download-dxf').getAttribute('aria-disabled'),'false');assert.match(await page.locator('#download-dxf').getAttribute('href'),/saved\.dxf/);
  await page.getByText('Sürüm geçmişi',{exact:true}).click();await page.click('#history-load');await page.locator('.history-row button').click();
  for(const width of [1600,768,390]){await page.setViewportSize({width,height:1000});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,`overflow ${width}`);}

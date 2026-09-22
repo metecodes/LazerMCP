@@ -10,7 +10,7 @@ class EngravingCompositionTests(unittest.TestCase):
         self.assertEqual(report["status"],"PASS");self.assertEqual(report["item_count"],2)
         self.assertTrue(all(c["status"]=="PASS" for c in report["checks"]))
         paths=[el for el in ET.fromstring(built["svg_bytes"]).iter() if el.tag.endswith("path") and el.get("data-operation")=="ENGRAVE"]
-        self.assertTrue(paths);self.assertTrue(all(p.get("stroke")=="#FFFF00" for p in paths))
+        self.assertTrue(paths);self.assertTrue(all(p.get("stroke")=="#000000" for p in paths))
 
     def test_grid_places_multiple_words(self):
         part={"type":"panel","label":"sentence-board","w":160,"h":80,"edges":"eeee","engraving_composition":{"layout":"grid","columns":3,"items":["I","like","apples","She","has","a cat"]}}

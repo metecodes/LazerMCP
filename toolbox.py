@@ -655,38 +655,15 @@ class PayasToolbox(Boxes):
             self.hole((minx + maxx) / 2 + ox, (miny + maxy) / 2 + oy, d=float(hole_d))
         if feats and self._has_draw_feats(feats):
             self._callback(feats, origin=(ox, oy))()
-        x0, y0 = shifted[0]
-        self.moveTo(x0, y0)
-        heading = 0.0
-        ring = shifted + [shifted[0]]
-        for i in range(len(ring) - 1):
-            x1, y1 = ring[i]
-            x2, y2 = ring[i + 1]
-            dx, dy = x2 - x1, y2 - y1
-            dist = math.hypot(dx, dy)
-            if dist < 0.05:
-                continue
-            want = math.degrees(math.atan2(dy, dx))
-            turn = want - heading
-            while turn > 180.0:
-                turn -= 360.0
-            while turn < -180.0:
-                turn += 360.0
-            if abs(turn) > 1e-4:
-                self.corner(turn)
-            self.edge(dist)
-            heading = want
-        first_dx = ring[1][0] - ring[0][0]
-        first_dy = ring[1][1] - ring[0][1]
-        if math.hypot(first_dx, first_dy) > 0.05:
-            first_h = math.degrees(math.atan2(first_dy, first_dx))
-            turn = first_h - heading
-            while turn > 180.0:
-                turn -= 360.0
-            while turn < -180.0:
-                turn += 360.0
-            if abs(turn) > 1e-4:
-                self.corner(turn)
+        # Offset one closed polygon; turtle corner rotations can leave a gap
+        # on acute contours (for example the five-point decorative star).
+        from shapely.geometry import Polygon
+        from text_path import stroke_geom
+        outline = Polygon(shifted).buffer(float(self.burn), join_style=2)
+        if outline.geom_type != 'Polygon' or not outline.is_valid or outline.is_empty:
+            raise ValueError(f"invalid compensated contour: {label}")
+        with self.saved_context():
+            stroke_geom(self.ctx, outline)
         self.move(tw, th, move, label=label)
 
     def _render_part(self, part: dict[str, Any]) -> int:
@@ -908,6 +885,7 @@ def render_toolbox(primitives: list[Any], parameters: dict[str, Any] | None = No
             "--labels=0",
             "--reference=0",
             "--tabs=0",
+            "--inner_corners=corner",
             "--qr_code=0",
         ]
     )
@@ -961,15 +939,8 @@ def render_toolbox(primitives: list[Any], parameters: dict[str, Any] | None = No
             svg_bytes = stamped
     except Exception:
         manufacturing = None
-    try:
-        from holding_nicks import NICK_MM, nick_cut_svg
-        from boxes_adapter import PAYAS_DEFAULTS as _D
-
-        nicked = nick_cut_svg(svg_bytes, float(_D.get("holding_nick_mm") or NICK_MM))
-        if nicked:
-            svg_bytes = nicked
-    except Exception:
-        pass
+    from project_options import apply_holding_nicks
+    svg_bytes = apply_holding_nicks(svg_bytes, params)
     topology = inspect_topology(svg_bytes)
     metrics = _svg_metrics(svg_bytes.decode("utf-8", errors="replace"))
     return {

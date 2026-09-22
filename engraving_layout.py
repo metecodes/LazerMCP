@@ -34,7 +34,7 @@ def build_layout(params):
         if not all(math.isfinite(v) for v in bounds) or bounds[0] < 0 or bounds[1] < 0 or bounds[2] > width or bounds[3] > height:
             raise ValueError(f'Item {i}: outside layout; coordinates use mm, origin bottom-left')
         group = ET.SubElement(root, 'g', {'data-operation':operation,'data-semantic-role':'text' if kind == 'text' else 'logo', 'id':f'layout-item-{i}'})
-        fragment = ET.fromstring('<svg>'+_emit(to_lasercad_y(geom, height), '#FFFF00' if operation=='ENGRAVE' else '#FF0000', .15)+'</svg>')
+        fragment = ET.fromstring('<svg>'+_emit(to_lasercad_y(geom, height), '#000000' if operation=='ENGRAVE' else '#FF0000', .15)+'</svg>')
         for path in fragment:
             path.set('data-operation', operation)
             path.set('data-operation-origin', 'EXPLICIT')

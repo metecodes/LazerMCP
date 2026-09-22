@@ -1,0 +1,86 @@
+<?xml version='1.0' encoding='utf-8'?>
+<svg xmlns="http://www.w3.org/2000/svg" width="335.90mm" height="395.81mm" viewBox="0 0 335.900 395.810" data-layout="compact" data-sheet="1" data-gap="2.5" data-margin="10.0"><g id="p-0" style="fill:none;stroke-linecap:round;stroke-linejoin:round;" data-panel="front-house-face" data-sheet="1">
+  
+</g>
+<g id="p-1" style="fill:none;stroke-linecap:round;stroke-linejoin:round;" data-panel="back-house-face" data-sheet="1">
+  
+</g>
+<g id="p-2" style="fill:none;stroke-linecap:round;stroke-linejoin:round;" data-panel="left-side" data-sheet="1">
+  
+</g>
+<g id="p-3" style="fill:none;stroke-linecap:round;stroke-linejoin:round;" data-panel="right-side" data-sheet="1">
+  
+</g>
+<g id="p-5" style="fill:none;stroke-linecap:round;stroke-linejoin:round;" data-panel="divider" data-sheet="1">
+  
+</g>
+<g id="p-4" style="fill:none;stroke-linecap:round;stroke-linejoin:round;" data-panel="floor" data-sheet="1">
+  
+</g>
+<g id="p-6" style="fill:none;stroke-linecap:round;stroke-linejoin:round;" data-panel="raised-star" data-sheet="1">
+  
+</g>
+
+<g id="CUT" data-operation="CUT"><g data-panel="front-house-face" data-sheet="1"><path d="M 14.2,170.0390000000001 L 13.0,170.0390000000001 L 13.0,80.33900000000006 L 15.4,80.33900000000006 L 15.4,170.0390000000001 L 14.2,170.0390000000001" stroke="#FF0000" stroke-width="0.30" data-operation="CUT" data-semantic-role="inner_cutout" data-operation-origin="INFERRED" data-operation-source="inferred" fill="none" transform="matrix(1 0 0 1 0 0)" />
+  
+<path d="M 136.1,170.0390000000001 L 134.9,170.0390000000001 L 134.9,80.33900000000006 L 137.29999999999998,80.33900000000006 L 137.29999999999998,170.0390000000001 L 136.1,170.0390000000001" stroke="#FF0000" stroke-width="0.30" data-operation="CUT" data-semantic-role="inner_cutout" data-operation-origin="INFERRED" data-operation-source="inferred" fill="none" transform="matrix(1 0 0 1 0 0)" />
+  
+<path d="M 75.14999999999999,185.0390000000001 L 68.3,185.0390000000001 L 68.3,182.639 L 82.0,182.639 L 82.0,185.0390000000001 L 75.14999999999999,185.0390000000001" stroke="#FF0000" stroke-width="0.30" data-operation="CUT" data-semantic-role="inner_cutout" data-operation-origin="INFERRED" data-operation-source="inferred" fill="none" transform="matrix(1 0 0 1 0 0)" />
+  
+<path d="M 75.14999999999999,178.33900000000006 L 73.95,178.33900000000006 L 73.95,162.639 L 76.35,162.639 L 76.35,178.33900000000006 L 75.14999999999999,178.33900000000006" stroke="#FF0000" stroke-width="0.30" data-operation="CUT" data-semantic-role="inner_cutout" data-operation-origin="INFERRED" data-operation-source="inferred" fill="none" transform="matrix(1 0 0 1 0 0)" />
+  
+<path d="M 36.150000000000006,176.43900000000008 L 27.3,176.43900000000008 L 27.3,146.73900000000003 L 45.0,146.73900000000003 L 45.0,176.43900000000008 L 36.150000000000006,176.43900000000008" stroke="#FF0000" stroke-width="0.30" data-operation="CUT" data-semantic-role="inner_cutout" data-operation-origin="INFERRED" data-operation-source="inferred" fill="none" transform="matrix(1 0 0 1 0 0)" />
+  
+<path d="M 58.150000000000006,176.43900000000008 L 51.3,176.43900000000008 L 51.3,162.73900000000003 L 65.0,162.73900000000003 L 65.0,176.43900000000008 L 58.150000000000006,176.43900000000008" stroke="#FF0000" stroke-width="0.30" data-operation="CUT" data-semantic-role="inner_cutout" data-operation-origin="INFERRED" data-operation-source="inferred" fill="none" transform="matrix(1 0 0 1 0 0)" />
+  
+<path d="M 58.150000000000006,160.43900000000008 L 51.3,160.43900000000008 L 51.3,146.73900000000003 L 65.0,146.73900000000003 L 65.0,160.43900000000008 L 58.150000000000006,160.43900000000008" stroke="#FF0000" stroke-width="0.30" data-operation="CUT" data-semantic-role="inner_cutout" data-operation-origin="INFERRED" data-operation-source="inferred" fill="none" transform="matrix(1 0 0 1 0 0)" />
+  
+<path d="M 36.150000000000006,127.0390000000001 L 27.3,127.0390000000001 L 27.3,97.33900000000006 L 45.0,97.33900000000006 L 45.0,127.0390000000001 L 36.150000000000006,127.0390000000001" stroke="#FF0000" stroke-width="0.30" data-operation="CUT" data-semantic-role="inner_cutout" data-operation-origin="INFERRED" data-operation-source="inferred" fill="none" transform="matrix(1 0 0 1 0 0)" />
+  
+<path d="M 58.150000000000006,127.0390000000001 L 51.3,127.0390000000001 L 51.3,113.33900000000006 L 65.0,113.33900000000006 L 65.0,127.0390000000001 L 58.150000000000006,127.0390000000001" stroke="#FF0000" stroke-width="0.30" data-operation="CUT" data-semantic-role="inner_cutout" data-operation-origin="INFERRED" data-operation-source="inferred" fill="none" transform="matrix(1 0 0 1 0 0)" />
+  
+<path d="M 58.150000000000006,111.0390000000001 L 51.3,111.0390000000001 L 51.3,97.33900000000006 L 65.0,97.33900000000006 L 65.0,111.0390000000001 L 58.150000000000006,111.0390000000001" stroke="#FF0000" stroke-width="0.30" data-operation="CUT" data-semantic-role="inner_cutout" data-operation-origin="INFERRED" data-operation-source="inferred" fill="none" transform="matrix(1 0 0 1 0 0)" />
+  
+<path d="M 88.14999999999999,176.43900000000008 L 79.3,176.43900000000008 L 79.3,146.73900000000003 L 97.0,146.73900000000003 L 97.0,176.43900000000008 L 88.14999999999999,176.43900000000008" stroke="#FF0000" stroke-width="0.30" data-operation="CUT" data-semantic-role="inner_cutout" data-operation-origin="INFERRED" data-operation-source="inferred" fill="none" transform="matrix(1 0 0 1 0 0)" />
+  
+<path d="M 110.14999999999999,176.43900000000008 L 103.3,176.43900000000008 L 103.3,162.73900000000003 L 117.0,162.73900000000003 L 117.0,176.43900000000008 L 110.14999999999999,176.43900000000008" stroke="#FF0000" stroke-width="0.30" data-operation="CUT" data-semantic-role="inner_cutout" data-operation-origin="INFERRED" data-operation-source="inferred" fill="none" transform="matrix(1 0 0 1 0 0)" />
+  
+<path d="M 110.14999999999999,160.43900000000008 L 103.3,160.43900000000008 L 103.3,146.73900000000003 L 117.0,146.73900000000003 L 117.0,160.43900000000008 L 110.14999999999999,160.43900000000008" stroke="#FF0000" stroke-width="0.30" data-operation="CUT" data-semantic-role="inner_cutout" data-operation-origin="INFERRED" data-operation-source="inferred" fill="none" transform="matrix(1 0 0 1 0 0)" />
+  
+<path d="M 88.14999999999999,127.0390000000001 L 79.3,127.0390000000001 L 79.3,97.33900000000006 L 97.0,97.33900000000006 L 97.0,127.0390000000001 L 88.14999999999999,127.0390000000001" stroke="#FF0000" stroke-width="0.30" data-operation="CUT" data-semantic-role="inner_cutout" data-operation-origin="INFERRED" data-operation-source="inferred" fill="none" transform="matrix(1 0 0 1 0 0)" />
+  
+<path d="M 110.14999999999999,127.0390000000001 L 103.3,127.0390000000001 L 103.3,113.33900000000006 L 117.0,113.33900000000006 L 117.0,127.0390000000001 L 110.14999999999999,127.0390000000001" stroke="#FF0000" stroke-width="0.30" data-operation="CUT" data-semantic-role="inner_cutout" data-operation-origin="INFERRED" data-operation-source="inferred" fill="none" transform="matrix(1 0 0 1 0 0)" />
+  
+<path d="M 110.14999999999999,111.0390000000001 L 103.3,111.0390000000001 L 103.3,97.33900000000006 L 117.0,97.33900000000006 L 117.0,111.0390000000001 L 110.14999999999999,111.0390000000001" stroke="#FF0000" stroke-width="0.30" data-operation="CUT" data-semantic-role="inner_cutout" data-operation-origin="INFERRED" data-operation-source="inferred" fill="none" transform="matrix(1 0 0 1 0 0)" />
+  
+<path d="M 10.0,190.33900000000006 L 10.0,60.11500000000001 L 75.14999999999999,10.0 L 140.29999999999998,60.11500000000001 L 140.29999999999998,190.33900000000006 L 10.0,190.33900000000006" stroke="#FF0000" stroke-width="0.30" data-operation="CUT" data-semantic-role="outer_contour" data-operation-origin="INFERRED" data-operation-source="inferred" fill="none" transform="matrix(1 0 0 1 0 0)" />
+
+</g><g data-panel="back-house-face" data-sheet="1"><path d="M 14.2,352.87800000000004 L 13.0,352.87800000000004 L 13.0,263.1780000000001 L 15.4,263.1780000000001 L 15.4,352.87800000000004 L 14.2,352.87800000000004" stroke="#FF0000" stroke-width="0.30" data-operation="CUT" data-semantic-role="inner_cutout" data-operation-origin="INFERRED" data-operation-source="inferred" fill="none" transform="matrix(1 0 0 1 0 0)" />
+  
+<path d="M 136.1,352.87800000000004 L 134.9,352.87800000000004 L 134.9,263.1780000000001 L 137.29999999999998,263.1780000000001 L 137.29999999999998,352.87800000000004 L 136.1,352.87800000000004" stroke="#FF0000" stroke-width="0.30" data-operation="CUT" data-semantic-role="inner_cutout" data-operation-origin="INFERRED" data-operation-source="inferred" fill="none" transform="matrix(1 0 0 1 0 0)" />
+  
+<path d="M 75.14999999999999,367.87800000000004 L 68.3,367.87800000000004 L 68.3,365.47800000000007 L 82.0,365.47800000000007 L 82.0,367.87800000000004 L 75.14999999999999,367.87800000000004" stroke="#FF0000" stroke-width="0.30" data-operation="CUT" data-semantic-role="inner_cutout" data-operation-origin="INFERRED" data-operation-source="inferred" fill="none" transform="matrix(1 0 0 1 0 0)" />
+  
+<path d="M 75.14999999999999,361.1780000000001 L 73.95,361.1780000000001 L 73.95,345.47800000000007 L 76.35,345.47800000000007 L 76.35,361.1780000000001 L 75.14999999999999,361.1780000000001" stroke="#FF0000" stroke-width="0.30" data-operation="CUT" data-semantic-role="inner_cutout" data-operation-origin="INFERRED" data-operation-source="inferred" fill="none" transform="matrix(1 0 0 1 0 0)" />
+  
+<path d="M 10.0,373.1780000000001 L 10.0,242.95400000000006 L 75.14999999999999,192.83900000000006 L 140.29999999999998,242.95400000000006 L 140.29999999999998,373.1780000000001 L 10.0,373.1780000000001" stroke="#FF0000" stroke-width="0.30" data-operation="CUT" data-semantic-role="outer_contour" data-operation-origin="INFERRED" data-operation-source="inferred" fill="none" transform="matrix(1 0 0 1 0 0)" />
+
+</g><g data-panel="left-side" data-sheet="1"><path d="M 187.95,135.0 L 177.09999999999997,135.0 L 177.09999999999997,132.60000000000002 L 198.79999999999998,132.60000000000002 L 198.79999999999998,135.0 L 187.95,135.0" stroke="#FF0000" stroke-width="0.30" data-operation="CUT" data-semantic-role="inner_cutout" data-operation-origin="INFERRED" data-operation-source="inferred" fill="none" transform="matrix(1 0 0 1 0 0)" />
+  
+<path d="M 145.49999999999997,140.30000000000007 L 145.49999999999997,120.30000000000001 L 142.79999999999998,120.30000000000001 L 142.79999999999998,30.0 L 145.49999999999997,30.0 L 145.49999999999997,10.0 L 230.39999999999998,10.0 L 230.39999999999998,30.0 L 233.09999999999997,30.0 L 233.09999999999997,120.30000000000001 L 230.39999999999998,120.30000000000001 L 230.39999999999998,140.30000000000007 L 145.49999999999997,140.30000000000007" stroke="#FF0000" stroke-width="0.30" data-operation="CUT" data-semantic-role="outer_contour" data-operation-origin="INFERRED" data-operation-source="inferred" fill="none" transform="matrix(1 0 0 1 0 0)" />
+
+</g><g data-panel="right-side" data-sheet="1"><path d="M 280.74999999999994,135.0 L 269.9,135.0 L 269.9,132.60000000000002 L 291.59999999999997,132.60000000000002 L 291.59999999999997,135.0 L 280.74999999999994,135.0" stroke="#FF0000" stroke-width="0.30" data-operation="CUT" data-semantic-role="inner_cutout" data-operation-origin="INFERRED" data-operation-source="inferred" fill="none" transform="matrix(1 0 0 1 0 0)" />
+  
+<path d="M 238.29999999999995,140.3 L 238.29999999999995,120.30000000000001 L 235.59999999999997,120.30000000000001 L 235.59999999999997,30.0 L 238.29999999999995,30.0 L 238.29999999999995,10.0 L 323.19999999999993,10.0 L 323.19999999999993,30.0 L 325.9,30.0 L 325.9,120.30000000000001 L 323.19999999999993,120.30000000000001 L 323.19999999999993,140.3 L 238.29999999999995,140.3" stroke="#FF0000" stroke-width="0.30" data-operation="CUT" data-semantic-role="outer_contour" data-operation-origin="INFERRED" data-operation-source="inferred" fill="none" transform="matrix(1 0 0 1 0 0)" />
+
+</g><g data-panel="divider" data-sheet="1"><path d="M 295.59999999999997,185.75500000000002 C 295.59999999999997,188.60200000000003 294.782,191.38800000000003 293.24299999999994,193.78300000000002 C 291.70399999999995,196.17800000000003 289.50899999999996,198.08000000000004 286.919,199.26300000000003 C 284.33,200.44500000000002 281.455,200.85900000000004 278.63699999999994,200.454 C 275.81899999999996,200.04900000000004 273.17699999999996,198.84200000000004 271.02599999999995,196.978 C 268.87399999999997,195.11300000000003 267.304,192.67000000000002 266.50199999999995,189.93900000000002 C 265.69999999999993,187.20700000000002 265.69999999999993,184.30300000000003 266.50199999999995,181.57100000000003 C 267.304,178.84000000000003 268.87399999999997,176.39600000000002 271.02599999999995,174.53200000000004 C 273.17699999999996,172.668 275.81899999999996,171.461 278.63699999999994,171.05600000000004 C 281.455,170.651 284.33,171.06400000000002 286.919,172.247 C 289.50899999999996,173.42900000000003 291.70399999999995,175.33100000000002 293.24299999999994,177.72600000000003 C 294.782,180.12100000000004 295.59999999999997,182.90800000000002 295.59999999999997,185.75500000000002" stroke="#FF0000" stroke-width="0.30" data-operation="CUT" data-semantic-role="inner_cutout" data-operation-origin="INFERRED" data-operation-source="inferred" fill="none" transform="matrix(1 0 0 1 0 0)" />
+  
+<path d="M 238.29999999999995,265.40000000000003 L 238.29999999999995,261.40000000000003 L 235.59999999999997,261.40000000000003 L 235.59999999999997,245.10000000000002 L 238.29999999999995,245.10000000000002 L 238.29999999999995,142.8 L 323.19999999999993,142.8 L 323.19999999999993,245.10000000000002 L 325.9,245.10000000000002 L 325.9,261.40000000000003 L 323.19999999999993,261.40000000000003 L 323.19999999999993,265.40000000000003 L 291.9,265.40000000000003 L 291.9,268.1 L 269.59999999999997,268.1 L 269.59999999999997,265.40000000000003 L 238.29999999999995,265.40000000000003" stroke="#FF0000" stroke-width="0.30" data-operation="CUT" data-semantic-role="outer_contour" data-operation-origin="INFERRED" data-operation-source="inferred" fill="none" transform="matrix(1 0 0 1 0 0)" />
+
+</g><g data-panel="floor" data-sheet="1"><path d="M 205.25,326.6 L 204.04999999999998,326.6 L 204.04999999999998,304.90000000000003 L 206.45,304.90000000000003 L 206.45,326.6 L 205.25,326.6" stroke="#FF0000" stroke-width="0.30" data-operation="CUT" data-semantic-role="inner_cutout" data-operation-origin="INFERRED" data-operation-source="inferred" fill="none" transform="matrix(1 0 0 1 0 0)" />
+  
+<path d="M 145.49999999999997,358.20000000000005 L 145.49999999999997,326.90000000000003 L 142.79999999999998,326.90000000000003 L 142.79999999999998,304.6 L 145.49999999999997,304.6 L 145.49999999999997,273.30000000000007 L 198.09999999999997,273.30000000000007 L 198.09999999999997,270.6 L 212.39999999999998,270.6 L 212.39999999999998,273.30000000000007 L 265.0,273.30000000000007 L 265.0,304.6 L 267.7,304.6 L 267.7,326.90000000000003 L 265.0,326.90000000000003 L 265.0,358.20000000000005 L 212.39999999999998,358.20000000000005 L 212.39999999999998,360.9 L 198.09999999999997,360.9 L 198.09999999999997,358.20000000000005 L 145.49999999999997,358.20000000000005" stroke="#FF0000" stroke-width="0.30" data-operation="CUT" data-semantic-role="outer_contour" data-operation-origin="INFERRED" data-operation-source="inferred" fill="none" transform="matrix(1 0 0 1 0 0)" />
+
+</g><g data-panel="raised-star" data-sheet="1"><path d="M 154.58399999999997,363.4 L 157.862,371.28 L 166.368,371.962 L 159.88699999999997,377.51399999999995 L 161.867,385.815 L 154.58399999999997,381.366 L 147.301,385.815 L 149.28099999999998,377.51399999999995 L 142.79999999999998,371.962 L 151.307,371.28 L 154.58399999999997,363.4" stroke="#FF0000" stroke-width="0.30" data-operation="CUT" data-semantic-role="outer_contour" data-operation-origin="INFERRED" data-operation-source="inferred" fill="none" transform="matrix(1 0 0 1 0 0)" />
+
+</g></g><g id="ENGRAVE" data-operation="ENGRAVE" /><g id="SCORE" data-operation="SCORE" /><g id="GUIDE" data-operation="GUIDE" /><g id="LABEL" data-operation="LABEL" /></svg>

@@ -115,7 +115,7 @@ def apply_surface_content(parts: list[dict[str, Any]], parameters: dict[str, Any
         if not spot:
             report["skipped"].append({"part":label,"content":str(value)[:80],"reason":"NO_SAFE_AREA"});return False
         part.setdefault("markings",[]).append(_mark(kind,value,spot,source))
-        report["placements"].append({"part":label,"content":str(value)[:80],"kind":"logo" if kind=="path" else "text","operation":"ENGRAVE","color":"#FFFF00","x_mm":round(spot["x"],2),"y_mm":round(spot["y"],2),"width_mm":round(spot["width"],2),"height_mm":round(spot["height"],2),"zone":spot["zone"]});return True
+        report["placements"].append({"part":label,"content":str(value)[:80],"kind":"logo" if kind=="path" else "text","operation":"ENGRAVE","color":"#000000","x_mm":round(spot["x"],2),"y_mm":round(spot["y"],2),"width_mm":round(spot["width"],2),"height_mm":round(spot["height"],2),"zone":spot["zone"]});return True
 
     for item in normalized:
         target=str(item.get("target_part") or item.get("part") or "").strip().lower()
