@@ -1,0 +1,6751 @@
+{
+  "review": {
+    "job_class": "composed",
+    "assembly_mode": "mechanical",
+    "assembly_mode_report": {
+      "mode": "mechanical",
+      "requested": "auto",
+      "valid": true,
+      "physical_part_count": 12,
+      "reason": "mechanical validation required"
+    },
+    "design_map": {
+      "product": "finger-joint box",
+      "purpose": "finger-joint box",
+      "material": "kavak plywood",
+      "thickness": 3.0,
+      "kerf_burn": 0.15,
+      "target_dimensions": [
+        105,
+        75,
+        28
+      ],
+      "part_count": 12,
+      "parts": [
+        {
+          "id": "P01",
+          "name": "Alt Elektronik Kutu/front",
+          "kind": "wall",
+          "role": "structure",
+          "moving": false,
+          "w": 105.0,
+          "h": 28.0,
+          "d": null,
+          "edges": "FFeF",
+          "thickness": 3.0,
+          "placement": null,
+          "material": "kavak plywood",
+          "part_id": "Alt Elektronik Kutu/front",
+          "connectors": [],
+          "mates": [
+            {
+              "part_a": "Alt Elektronik Kutu/bottom",
+              "part_b": "Alt Elektronik Kutu/front",
+              "type": "finger_joint",
+              "status": "MATCH",
+              "evidence": "compiled geometry",
+              "part": "Alt Elektronik Kutu/bottom"
+            },
+            {
+              "part_a": "Alt Elektronik Kutu/front",
+              "part_b": "Alt Elektronik Kutu/left",
+              "type": "finger_joint",
+              "status": "MATCH",
+              "evidence": "compiled geometry",
+              "part": "Alt Elektronik Kutu/left"
+            },
+            {
+              "part_a": "Alt Elektronik Kutu/front",
+              "part_b": "Alt Elektronik Kutu/right",
+              "type": "finger_joint",
+              "status": "MATCH",
+              "evidence": "compiled geometry",
+              "part": "Alt Elektronik Kutu/right"
+            },
+            {
+              "part_a": "Alt Elektronik Kutu/lid",
+              "part_b": "Alt Elektronik Kutu/front",
+              "type": "finger_joint",
+              "status": "MATCH",
+              "evidence": "compiled geometry",
+              "part": "Alt Elektronik Kutu/lid"
+            }
+          ]
+        },
+        {
+          "id": "P02",
+          "name": "Alt Elektronik Kutu/back",
+          "kind": "wall",
+          "role": "structure",
+          "moving": false,
+          "w": 105.0,
+          "h": 28.0,
+          "d": null,
+          "edges": "FFeF",
+          "thickness": 3.0,
+          "placement": null,
+          "material": "kavak plywood",
+          "part_id": "Alt Elektronik Kutu/back",
+          "connectors": [],
+          "mates": [
+            {
+              "part_a": "Alt Elektronik Kutu/bottom",
+              "part_b": "Alt Elektronik Kutu/back",
+              "type": "finger_joint",
+              "status": "MATCH",
+              "evidence": "compiled geometry",
+              "part": "Alt Elektronik Kutu/bottom"
+            },
+            {
+              "part_a": "Alt Elektronik Kutu/back",
+              "part_b": "Alt Elektronik Kutu/left",
+              "type": "finger_joint",
+              "status": "MATCH",
+              "evidence": "compiled geometry",
+              "part": "Alt Elektronik Kutu/left"
+            },
+            {
+              "part_a": "Alt Elektronik Kutu/back",
+              "part_b": "Alt Elektronik Kutu/right",
+              "type": "finger_joint",
+              "status": "MATCH",
+              "evidence": "compiled geometry",
+              "part": "Alt Elektronik Kutu/right"
+            },
+            {
+              "part_a": "Alt Elektronik Kutu/lid",
+              "part_b": "Alt Elektronik Kutu/back",
+              "type": "finger_joint",
+              "status": "MATCH",
+              "evidence": "compiled geometry",
+              "part": "Alt Elektronik Kutu/lid"
+            }
+          ]
+        },
+        {
+          "id": "P03",
+          "name": "Alt Elektronik Kutu/bottom",
+          "kind": "floor",
+          "role": "structure",
+          "moving": false,
+          "w": 105.0,
+          "h": 75.0,
+          "d": null,
+          "edges": "ffff",
+          "thickness": 3.0,
+          "placement": null,
+          "material": "kavak plywood",
+          "part_id": "Alt Elektronik Kutu/bottom",
+          "connectors": [],
+          "mates": [
+            {
+              "part_a": "Alt Elektronik Kutu/bottom",
+              "part_b": "Alt Elektronik Kutu/front",
+              "type": "finger_joint",
+              "status": "MATCH",
+              "evidence": "compiled geometry",
+              "part": "Alt Elektronik Kutu/front"
+            },
+            {
+              "part_a": "Alt Elektronik Kutu/bottom",
+              "part_b": "Alt Elektronik Kutu/back",
+              "type": "finger_joint",
+              "status": "MATCH",
+              "evidence": "compiled geometry",
+              "part": "Alt Elektronik Kutu/back"
+            },
+            {
+              "part_a": "Alt Elektronik Kutu/bottom",
+              "part_b": "Alt Elektronik Kutu/left",
+              "type": "finger_joint",
+              "status": "MATCH",
+              "evidence": "compiled geometry",
+              "part": "Alt Elektronik Kutu/left"
+            },
+            {
+              "part_a": "Alt Elektronik Kutu/bottom",
+              "part_b": "Alt Elektronik Kutu/right",
+              "type": "finger_joint",
+              "status": "MATCH",
+              "evidence": "compiled geometry",
+              "part": "Alt Elektronik Kutu/right"
+            }
+          ]
+        },
+        {
+          "id": "P04",
+          "name": "Alt Elektronik Kutu/left",
+          "kind": "wall",
+          "role": "structure",
+          "moving": false,
+          "w": 75.0,
+          "h": 28.0,
+          "d": null,
+          "edges": "Ffef",
+          "thickness": 3.0,
+          "placement": null,
+          "material": "kavak plywood",
+          "part_id": "Alt Elektronik Kutu/left",
+          "connectors": [],
+          "mates": [
+            {
+              "part_a": "Alt Elektronik Kutu/bottom",
+              "part_b": "Alt Elektronik Kutu/left",
+              "type": "finger_joint",
+              "status": "MATCH",
+              "evidence": "compiled geometry",
+              "part": "Alt Elektronik Kutu/bottom"
+            },
+            {
+              "part_a": "Alt Elektronik Kutu/front",
+              "part_b": "Alt Elektronik Kutu/left",
+              "type": "finger_joint",
+              "status": "MATCH",
+              "evidence": "compiled geometry",
+              "part": "Alt Elektronik Kutu/front"
+            },
+            {
+              "part_a": "Alt Elektronik Kutu/back",
+              "part_b": "Alt Elektronik Kutu/left",
+              "type": "finger_joint",
+              "status": "MATCH",
+              "evidence": "compiled geometry",
+              "part": "Alt Elektronik Kutu/back"
+            },
+            {
+              "part_a": "Alt Elektronik Kutu/lid",
+              "part_b": "Alt Elektronik Kutu/left",
+              "type": "finger_joint",
+              "status": "MATCH",
+              "evidence": "compiled geometry",
+              "part": "Alt Elektronik Kutu/lid"
+            }
+          ]
+        },
+        {
+          "id": "P05",
+          "name": "Alt Elektronik Kutu/right",
+          "kind": "wall",
+          "role": "structure",
+          "moving": false,
+          "w": 75.0,
+          "h": 28.0,
+          "d": null,
+          "edges": "Ffef",
+          "thickness": 3.0,
+          "placement": null,
+          "material": "kavak plywood",
+          "part_id": "Alt Elektronik Kutu/right",
+          "connectors": [],
+          "mates": [
+            {
+              "part_a": "Alt Elektronik Kutu/bottom",
+              "part_b": "Alt Elektronik Kutu/right",
+              "type": "finger_joint",
+              "status": "MATCH",
+              "evidence": "compiled geometry",
+              "part": "Alt Elektronik Kutu/bottom"
+            },
+            {
+              "part_a": "Alt Elektronik Kutu/front",
+              "part_b": "Alt Elektronik Kutu/right",
+              "type": "finger_joint",
+              "status": "MATCH",
+              "evidence": "compiled geometry",
+              "part": "Alt Elektronik Kutu/front"
+            },
+            {
+              "part_a": "Alt Elektronik Kutu/back",
+              "part_b": "Alt Elektronik Kutu/right",
+              "type": "finger_joint",
+              "status": "MATCH",
+              "evidence": "compiled geometry",
+              "part": "Alt Elektronik Kutu/back"
+            },
+            {
+              "part_a": "Alt Elektronik Kutu/lid",
+              "part_b": "Alt Elektronik Kutu/right",
+              "type": "finger_joint",
+              "status": "MATCH",
+              "evidence": "compiled geometry",
+              "part": "Alt Elektronik Kutu/lid"
+            }
+          ]
+        },
+        {
+          "id": "P06",
+          "name": "Alt Elektronik Kutu/lid",
+          "kind": "floor",
+          "role": "structure",
+          "moving": false,
+          "w": 105.0,
+          "h": 75.0,
+          "d": null,
+          "edges": "ffff",
+          "thickness": 3.0,
+          "placement": null,
+          "material": "kavak plywood",
+          "part_id": "Alt Elektronik Kutu/lid",
+          "connectors": [],
+          "mates": [
+            {
+              "part_a": "Alt Elektronik Kutu/lid",
+              "part_b": "Alt Elektronik Kutu/front",
+              "type": "finger_joint",
+              "status": "MATCH",
+              "evidence": "compiled geometry",
+              "part": "Alt Elektronik Kutu/front"
+            },
+            {
+              "part_a": "Alt Elektronik Kutu/lid",
+              "part_b": "Alt Elektronik Kutu/back",
+              "type": "finger_joint",
+              "status": "MATCH",
+              "evidence": "compiled geometry",
+              "part": "Alt Elektronik Kutu/back"
+            },
+            {
+              "part_a": "Alt Elektronik Kutu/lid",
+              "part_b": "Alt Elektronik Kutu/left",
+              "type": "finger_joint",
+              "status": "MATCH",
+              "evidence": "compiled geometry",
+              "part": "Alt Elektronik Kutu/left"
+            },
+            {
+              "part_a": "Alt Elektronik Kutu/lid",
+              "part_b": "Alt Elektronik Kutu/right",
+              "type": "finger_joint",
+              "status": "MATCH",
+              "evidence": "compiled geometry",
+              "part": "Alt Elektronik Kutu/right"
+            }
+          ]
+        },
+        {
+          "id": "P07",
+          "name": "Ön Ev",
+          "kind": "contour",
+          "role": "functional",
+          "moving": false,
+          "w": 106.0,
+          "h": 111.0,
+          "d": null,
+          "edges": null,
+          "thickness": 3.0,
+          "placement": {
+            "origin": [
+              2.5,
+              2.5,
+              31
+            ],
+            "u": [
+              1,
+              0,
+              0
+            ],
+            "v": [
+              0,
+              0,
+              1
+            ]
+          },
+          "material": "kavak plywood",
+          "part_id": "front",
+          "connectors": [],
+          "mates": []
+        },
+        {
+          "id": "P08",
+          "name": "Arka Ev",
+          "kind": "contour",
+          "role": "functional",
+          "moving": false,
+          "w": 106.0,
+          "h": 111.0,
+          "d": null,
+          "edges": null,
+          "thickness": 3.0,
+          "placement": {
+            "origin": [
+              2.5,
+              72.5,
+              31
+            ],
+            "u": [
+              1,
+              0,
+              0
+            ],
+            "v": [
+              0,
+              0,
+              1
+            ]
+          },
+          "material": "kavak plywood",
+          "part_id": "back",
+          "connectors": [],
+          "mates": []
+        },
+        {
+          "id": "P09",
+          "name": "Sol Yan",
+          "kind": "contour",
+          "role": "functional",
+          "moving": false,
+          "w": 76.0,
+          "h": 73.0,
+          "d": null,
+          "edges": null,
+          "thickness": 3.0,
+          "placement": {
+            "origin": [
+              2.5,
+              2.5,
+              31
+            ],
+            "u": [
+              0,
+              1,
+              0
+            ],
+            "v": [
+              0,
+              0,
+              1
+            ]
+          },
+          "material": "kavak plywood",
+          "part_id": "left",
+          "connectors": [],
+          "mates": []
+        },
+        {
+          "id": "P10",
+          "name": "Sağ Yan",
+          "kind": "contour",
+          "role": "functional",
+          "moving": false,
+          "w": 76.0,
+          "h": 73.0,
+          "d": null,
+          "edges": null,
+          "thickness": 3.0,
+          "placement": {
+            "origin": [
+              102.5,
+              2.5,
+              31
+            ],
+            "u": [
+              0,
+              1,
+              0
+            ],
+            "v": [
+              0,
+              0,
+              1
+            ]
+          },
+          "material": "kavak plywood",
+          "part_id": "right",
+          "connectors": [],
+          "mates": []
+        },
+        {
+          "id": "P11",
+          "name": "Sol Çatı",
+          "kind": "panel",
+          "role": "decorative",
+          "moving": false,
+          "w": 76.0,
+          "h": 66.0,
+          "d": null,
+          "edges": "eeee",
+          "thickness": 3.0,
+          "placement": {
+            "origin": [
+              -0.5,
+              -0.5,
+              101
+            ],
+            "u": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "v": [
+              0.7954317177369463,
+              0.0,
+              0.6060432182757687
+            ]
+          },
+          "material": "kavak plywood",
+          "part_id": "roofL",
+          "connectors": [],
+          "mates": []
+        },
+        {
+          "id": "P12",
+          "name": "Sağ Çatı",
+          "kind": "panel",
+          "role": "decorative",
+          "moving": false,
+          "w": 76.0,
+          "h": 66.0,
+          "d": null,
+          "edges": "eeee",
+          "thickness": 3.0,
+          "placement": {
+            "origin": [
+              105.5,
+              -0.5,
+              101
+            ],
+            "u": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "v": [
+              -0.7954317177369463,
+              0.0,
+              0.6060432182757687
+            ]
+          },
+          "material": "kavak plywood",
+          "part_id": "roofR",
+          "connectors": [],
+          "mates": []
+        }
+      ],
+      "moving_parts": [],
+      "structure": [
+        "P01",
+        "P02",
+        "P03",
+        "P04",
+        "P05",
+        "P06"
+      ]
+    },
+    "connections": [
+      {
+        "id": "C01",
+        "a": "P01",
+        "b": "P03",
+        "a_name": "Alt Elektronik Kutu/front",
+        "b_name": "Alt Elektronik Kutu/bottom",
+        "type": "finger_joint",
+        "status": "PASS",
+        "length_mm": null,
+        "via": "compiled composite CUT geometry + world-space transform"
+      },
+      {
+        "id": "C02",
+        "a": "P02",
+        "b": "P03",
+        "a_name": "Alt Elektronik Kutu/back",
+        "b_name": "Alt Elektronik Kutu/bottom",
+        "type": "finger_joint",
+        "status": "PASS",
+        "length_mm": null,
+        "via": "compiled composite CUT geometry + world-space transform"
+      },
+      {
+        "id": "C03",
+        "a": "P04",
+        "b": "P03",
+        "a_name": "Alt Elektronik Kutu/left",
+        "b_name": "Alt Elektronik Kutu/bottom",
+        "type": "finger_joint",
+        "status": "PASS",
+        "length_mm": null,
+        "via": "compiled composite CUT geometry + world-space transform"
+      },
+      {
+        "id": "C04",
+        "a": "P05",
+        "b": "P03",
+        "a_name": "Alt Elektronik Kutu/right",
+        "b_name": "Alt Elektronik Kutu/bottom",
+        "type": "finger_joint",
+        "status": "PASS",
+        "length_mm": null,
+        "via": "compiled composite CUT geometry + world-space transform"
+      },
+      {
+        "id": "C05",
+        "a": "P04",
+        "b": "P01",
+        "a_name": "Alt Elektronik Kutu/left",
+        "b_name": "Alt Elektronik Kutu/front",
+        "type": "finger_joint",
+        "status": "PASS",
+        "length_mm": null,
+        "via": "compiled composite CUT geometry + world-space transform"
+      },
+      {
+        "id": "C06",
+        "a": "P05",
+        "b": "P01",
+        "a_name": "Alt Elektronik Kutu/right",
+        "b_name": "Alt Elektronik Kutu/front",
+        "type": "finger_joint",
+        "status": "PASS",
+        "length_mm": null,
+        "via": "compiled composite CUT geometry + world-space transform"
+      },
+      {
+        "id": "C07",
+        "a": "P04",
+        "b": "P02",
+        "a_name": "Alt Elektronik Kutu/left",
+        "b_name": "Alt Elektronik Kutu/back",
+        "type": "finger_joint",
+        "status": "PASS",
+        "length_mm": null,
+        "via": "compiled composite CUT geometry + world-space transform"
+      },
+      {
+        "id": "C08",
+        "a": "P05",
+        "b": "P02",
+        "a_name": "Alt Elektronik Kutu/right",
+        "b_name": "Alt Elektronik Kutu/back",
+        "type": "finger_joint",
+        "status": "PASS",
+        "length_mm": null,
+        "via": "compiled composite CUT geometry + world-space transform"
+      },
+      {
+        "id": "C09",
+        "a": "P01",
+        "b": "P06",
+        "a_name": "Alt Elektronik Kutu/front",
+        "b_name": "Alt Elektronik Kutu/lid",
+        "type": "finger_joint",
+        "status": "PASS",
+        "length_mm": null,
+        "via": "compiled composite CUT geometry + world-space transform"
+      },
+      {
+        "id": "C10",
+        "a": "P02",
+        "b": "P06",
+        "a_name": "Alt Elektronik Kutu/back",
+        "b_name": "Alt Elektronik Kutu/lid",
+        "type": "finger_joint",
+        "status": "PASS",
+        "length_mm": null,
+        "via": "compiled composite CUT geometry + world-space transform"
+      },
+      {
+        "id": "C11",
+        "a": "P04",
+        "b": "P06",
+        "a_name": "Alt Elektronik Kutu/left",
+        "b_name": "Alt Elektronik Kutu/lid",
+        "type": "finger_joint",
+        "status": "PASS",
+        "length_mm": null,
+        "via": "compiled composite CUT geometry + world-space transform"
+      },
+      {
+        "id": "C12",
+        "a": "P05",
+        "b": "P06",
+        "a_name": "Alt Elektronik Kutu/right",
+        "b_name": "Alt Elektronik Kutu/lid",
+        "type": "finger_joint",
+        "status": "PASS",
+        "length_mm": null,
+        "via": "compiled composite CUT geometry + world-space transform"
+      }
+    ],
+    "canonical_connection_graph": [
+      {
+        "part_a": "Alt Elektronik Kutu/bottom",
+        "part_b": "Alt Elektronik Kutu/front",
+        "type": "finger_joint",
+        "status": "MATCH",
+        "evidence": "compiled geometry"
+      },
+      {
+        "part_a": "Alt Elektronik Kutu/bottom",
+        "part_b": "Alt Elektronik Kutu/back",
+        "type": "finger_joint",
+        "status": "MATCH",
+        "evidence": "compiled geometry"
+      },
+      {
+        "part_a": "Alt Elektronik Kutu/bottom",
+        "part_b": "Alt Elektronik Kutu/left",
+        "type": "finger_joint",
+        "status": "MATCH",
+        "evidence": "compiled geometry"
+      },
+      {
+        "part_a": "Alt Elektronik Kutu/bottom",
+        "part_b": "Alt Elektronik Kutu/right",
+        "type": "finger_joint",
+        "status": "MATCH",
+        "evidence": "compiled geometry"
+      },
+      {
+        "part_a": "Alt Elektronik Kutu/front",
+        "part_b": "Alt Elektronik Kutu/left",
+        "type": "finger_joint",
+        "status": "MATCH",
+        "evidence": "compiled geometry"
+      },
+      {
+        "part_a": "Alt Elektronik Kutu/front",
+        "part_b": "Alt Elektronik Kutu/right",
+        "type": "finger_joint",
+        "status": "MATCH",
+        "evidence": "compiled geometry"
+      },
+      {
+        "part_a": "Alt Elektronik Kutu/back",
+        "part_b": "Alt Elektronik Kutu/left",
+        "type": "finger_joint",
+        "status": "MATCH",
+        "evidence": "compiled geometry"
+      },
+      {
+        "part_a": "Alt Elektronik Kutu/back",
+        "part_b": "Alt Elektronik Kutu/right",
+        "type": "finger_joint",
+        "status": "MATCH",
+        "evidence": "compiled geometry"
+      },
+      {
+        "part_a": "Alt Elektronik Kutu/lid",
+        "part_b": "Alt Elektronik Kutu/front",
+        "type": "finger_joint",
+        "status": "MATCH",
+        "evidence": "compiled geometry"
+      },
+      {
+        "part_a": "Alt Elektronik Kutu/lid",
+        "part_b": "Alt Elektronik Kutu/back",
+        "type": "finger_joint",
+        "status": "MATCH",
+        "evidence": "compiled geometry"
+      },
+      {
+        "part_a": "Alt Elektronik Kutu/lid",
+        "part_b": "Alt Elektronik Kutu/left",
+        "type": "finger_joint",
+        "status": "MATCH",
+        "evidence": "compiled geometry"
+      },
+      {
+        "part_a": "Alt Elektronik Kutu/lid",
+        "part_b": "Alt Elektronik Kutu/right",
+        "type": "finger_joint",
+        "status": "MATCH",
+        "evidence": "compiled geometry"
+      }
+    ],
+    "connection_graph_summary": {
+      "nodes": 12,
+      "edges": 12,
+      "connected_components": 7,
+      "components": [
+        [
+          "Alt Elektronik Kutu/back",
+          "Alt Elektronik Kutu/bottom",
+          "Alt Elektronik Kutu/front",
+          "Alt Elektronik Kutu/left",
+          "Alt Elektronik Kutu/lid",
+          "Alt Elektronik Kutu/right"
+        ],
+        [
+          "Arka Ev"
+        ],
+        [
+          "Sağ Yan"
+        ],
+        [
+          "Sağ Çatı"
+        ],
+        [
+          "Sol Yan"
+        ],
+        [
+          "Sol Çatı"
+        ],
+        [
+          "Ön Ev"
+        ]
+      ]
+    },
+    "structural_inference": {
+      "joints": [],
+      "inferred_mates": [],
+      "reciprocal_mates": {
+        "Ön Ev": [],
+        "Arka Ev": [],
+        "Sol Yan": [],
+        "Sağ Yan": [],
+        "Sol Çatı": [],
+        "Sağ Çatı": []
+      },
+      "errors": [],
+      "rejected_candidates": []
+    },
+    "canonical_mates": {
+      "active": false,
+      "connectors": [],
+      "connections": [],
+      "errors": [],
+      "joints": [],
+      "verified_slots": [],
+      "sequence": {
+        "status": "N/A",
+        "steps": []
+      }
+    },
+    "categories": {
+      "DESIGN_CONTRACT": {
+        "status": "PASS",
+        "required": true,
+        "notes": [
+          "compiler intent contract"
+        ]
+      },
+      "PART_COMPLETENESS": {
+        "status": "PASS",
+        "required": true,
+        "notes": [
+          "12 faces present"
+        ]
+      },
+      "CONNECTIONS": {
+        "status": "FAIL",
+        "required": true,
+        "notes": [
+          "Alt Elektronik Kutu/lid ↔ Alt Elektronik Kutu/front finger_joint: verified CUT geometry and world-space mate",
+          "Alt Elektronik Kutu/lid ↔ Alt Elektronik Kutu/back finger_joint: verified CUT geometry and world-space mate",
+          "Alt Elektronik Kutu/lid ↔ Alt Elektronik Kutu/left finger_joint: verified CUT geometry and world-space mate",
+          "Alt Elektronik Kutu/lid ↔ Alt Elektronik Kutu/right finger_joint: verified CUT geometry and world-space mate",
+          "box assembly transform failed: PART_TRANSFORM Ön Ev",
+          "box assembly transform failed: PART_TRANSFORM Arka Ev",
+          "box assembly transform failed: PART_TRANSFORM Sol Yan",
+          "box assembly transform failed: PART_TRANSFORM Sağ Yan",
+          "box assembly transform failed: PART_TRANSFORM Sol Çatı",
+          "box assembly transform failed: PART_TRANSFORM Sağ Çatı",
+          "slot on Alt Elektronik Kutu/lid has no explicit matching tab",
+          "slot on Alt Elektronik Kutu/lid has no explicit matching tab",
+          "slot on Alt Elektronik Kutu/lid has no explicit matching tab",
+          "slot on Alt Elektronik Kutu/lid has no explicit matching tab",
+          "slot on Alt Elektronik Kutu/lid has no explicit matching tab",
+          "slot on Alt Elektronik Kutu/lid has no explicit matching tab",
+          "slot on Alt Elektronik Kutu/lid has no explicit matching tab",
+          "slot on Alt Elektronik Kutu/lid has no explicit matching tab",
+          "slot on Sol Çatı has no explicit matching tab",
+          "slot on Sol Çatı has no explicit matching tab",
+          "slot on Sol Çatı has no explicit matching tab",
+          "slot on Sol Çatı has no explicit matching tab",
+          "slot on Sağ Çatı has no explicit matching tab",
+          "slot on Sağ Çatı has no explicit matching tab",
+          "slot on Sağ Çatı has no explicit matching tab",
+          "slot on Sağ Çatı has no explicit matching tab",
+          "C01 finger_joint Alt Elektronik Kutu/front ↔ Alt Elektronik Kutu/bottom",
+          "C02 finger_joint Alt Elektronik Kutu/back ↔ Alt Elektronik Kutu/bottom",
+          "C03 finger_joint Alt Elektronik Kutu/left ↔ Alt Elektronik Kutu/bottom",
+          "C04 finger_joint Alt Elektronik Kutu/right ↔ Alt Elektronik Kutu/bottom",
+          "C05 finger_joint Alt Elektronik Kutu/left ↔ Alt Elektronik Kutu/front",
+          "C06 finger_joint Alt Elektronik Kutu/right ↔ Alt Elektronik Kutu/front",
+          "C07 finger_joint Alt Elektronik Kutu/left ↔ Alt Elektronik Kutu/back",
+          "C08 finger_joint Alt Elektronik Kutu/right ↔ Alt Elektronik Kutu/back",
+          "C09 finger_joint Alt Elektronik Kutu/front ↔ Alt Elektronik Kutu/lid",
+          "C10 finger_joint Alt Elektronik Kutu/back ↔ Alt Elektronik Kutu/lid",
+          "C11 finger_joint Alt Elektronik Kutu/left ↔ Alt Elektronik Kutu/lid",
+          "C12 finger_joint Alt Elektronik Kutu/right ↔ Alt Elektronik Kutu/lid",
+          "Alt Elektronik Kutu/lid ↔ Alt Elektronik Kutu/front finger_joint: verified CUT geometry and world-space mate",
+          "Alt Elektronik Kutu/lid ↔ Alt Elektronik Kutu/back finger_joint: verified CUT geometry and world-space mate",
+          "Alt Elektronik Kutu/lid ↔ Alt Elektronik Kutu/left finger_joint: verified CUT geometry and world-space mate",
+          "Alt Elektronik Kutu/lid ↔ Alt Elektronik Kutu/right finger_joint: verified CUT geometry and world-space mate",
+          "Alt Elektronik Kutu/bottom role=structural connection coverage PASS",
+          "Alt Elektronik Kutu/front role=structural connection coverage PASS",
+          "Alt Elektronik Kutu/back role=structural connection coverage PASS",
+          "Alt Elektronik Kutu/left role=structural connection coverage PASS",
+          "Alt Elektronik Kutu/right role=structural connection coverage PASS",
+          "Alt Elektronik Kutu/lid role=structural connection coverage PASS",
+          "Ön Ev role=structural has mates=[]; placement is not connection evidence",
+          "Arka Ev role=structural has mates=[]; placement is not connection evidence",
+          "Sol Yan role=structural has mates=[]; placement is not connection evidence",
+          "Sağ Yan role=structural has mates=[]; placement is not connection evidence",
+          "Sol Çatı role=structural has mates=[]; placement is not connection evidence",
+          "Sağ Çatı role=structural has mates=[]; placement is not connection evidence",
+          "disconnected structural connection graph: 7 components",
+          "Alt Elektronik Kutu/bottom → Alt Elektronik Kutu/front finger_joint: compiled geometry",
+          "Alt Elektronik Kutu/bottom → Alt Elektronik Kutu/back finger_joint: compiled geometry",
+          "Alt Elektronik Kutu/bottom → Alt Elektronik Kutu/left finger_joint: compiled geometry",
+          "Alt Elektronik Kutu/bottom → Alt Elektronik Kutu/right finger_joint: compiled geometry",
+          "Alt Elektronik Kutu/front → Alt Elektronik Kutu/left finger_joint: compiled geometry",
+          "Alt Elektronik Kutu/front → Alt Elektronik Kutu/right finger_joint: compiled geometry",
+          "Alt Elektronik Kutu/back → Alt Elektronik Kutu/left finger_joint: compiled geometry",
+          "Alt Elektronik Kutu/back → Alt Elektronik Kutu/right finger_joint: compiled geometry",
+          "Alt Elektronik Kutu/lid → Alt Elektronik Kutu/front finger_joint: compiled geometry",
+          "Alt Elektronik Kutu/lid → Alt Elektronik Kutu/back finger_joint: compiled geometry",
+          "Alt Elektronik Kutu/lid → Alt Elektronik Kutu/left finger_joint: compiled geometry",
+          "Alt Elektronik Kutu/lid → Alt Elektronik Kutu/right finger_joint: compiled geometry",
+          "Alt Elektronik Kutu/lid ↔ Alt Elektronik Kutu/front finger_joint: verified CUT geometry and world-space mate",
+          "Alt Elektronik Kutu/lid ↔ Alt Elektronik Kutu/back finger_joint: verified CUT geometry and world-space mate",
+          "Alt Elektronik Kutu/lid ↔ Alt Elektronik Kutu/left finger_joint: verified CUT geometry and world-space mate",
+          "Alt Elektronik Kutu/lid ↔ Alt Elektronik Kutu/right finger_joint: verified CUT geometry and world-space mate"
+        ]
+      },
+      "CONNECTION_COVERAGE": {
+        "status": "FAIL",
+        "required": true,
+        "notes": [
+          "Alt Elektronik Kutu/lid ↔ Alt Elektronik Kutu/front finger_joint: verified CUT geometry and world-space mate",
+          "Alt Elektronik Kutu/lid ↔ Alt Elektronik Kutu/back finger_joint: verified CUT geometry and world-space mate",
+          "Alt Elektronik Kutu/lid ↔ Alt Elektronik Kutu/left finger_joint: verified CUT geometry and world-space mate",
+          "Alt Elektronik Kutu/lid ↔ Alt Elektronik Kutu/right finger_joint: verified CUT geometry and world-space mate",
+          "Alt Elektronik Kutu/bottom role=structural connection coverage PASS",
+          "Alt Elektronik Kutu/front role=structural connection coverage PASS",
+          "Alt Elektronik Kutu/back role=structural connection coverage PASS",
+          "Alt Elektronik Kutu/left role=structural connection coverage PASS",
+          "Alt Elektronik Kutu/right role=structural connection coverage PASS",
+          "Alt Elektronik Kutu/lid role=structural connection coverage PASS",
+          "Ön Ev role=structural has mates=[]; placement is not connection evidence",
+          "Arka Ev role=structural has mates=[]; placement is not connection evidence",
+          "Sol Yan role=structural has mates=[]; placement is not connection evidence",
+          "Sağ Yan role=structural has mates=[]; placement is not connection evidence",
+          "Sol Çatı role=structural has mates=[]; placement is not connection evidence",
+          "Sağ Çatı role=structural has mates=[]; placement is not connection evidence",
+          "disconnected structural connection graph: 7 components"
+        ]
+      },
+      "MATE_GEOMETRY": {
+        "status": "PASS",
+        "required": true,
+        "notes": [
+          "Alt Elektronik Kutu/bottom → Alt Elektronik Kutu/front finger_joint: compiled geometry",
+          "Alt Elektronik Kutu/bottom → Alt Elektronik Kutu/back finger_joint: compiled geometry",
+          "Alt Elektronik Kutu/bottom → Alt Elektronik Kutu/left finger_joint: compiled geometry",
+          "Alt Elektronik Kutu/bottom → Alt Elektronik Kutu/right finger_joint: compiled geometry",
+          "Alt Elektronik Kutu/front → Alt Elektronik Kutu/left finger_joint: compiled geometry",
+          "Alt Elektronik Kutu/front → Alt Elektronik Kutu/right finger_joint: compiled geometry",
+          "Alt Elektronik Kutu/back → Alt Elektronik Kutu/left finger_joint: compiled geometry",
+          "Alt Elektronik Kutu/back → Alt Elektronik Kutu/right finger_joint: compiled geometry",
+          "Alt Elektronik Kutu/lid → Alt Elektronik Kutu/front finger_joint: compiled geometry",
+          "Alt Elektronik Kutu/lid → Alt Elektronik Kutu/back finger_joint: compiled geometry",
+          "Alt Elektronik Kutu/lid → Alt Elektronik Kutu/left finger_joint: compiled geometry",
+          "Alt Elektronik Kutu/lid → Alt Elektronik Kutu/right finger_joint: compiled geometry",
+          "Alt Elektronik Kutu/lid ↔ Alt Elektronik Kutu/front finger_joint: verified CUT geometry and world-space mate",
+          "Alt Elektronik Kutu/lid ↔ Alt Elektronik Kutu/back finger_joint: verified CUT geometry and world-space mate",
+          "Alt Elektronik Kutu/lid ↔ Alt Elektronik Kutu/left finger_joint: verified CUT geometry and world-space mate",
+          "Alt Elektronik Kutu/lid ↔ Alt Elektronik Kutu/right finger_joint: verified CUT geometry and world-space mate"
+        ]
+      },
+      "MATERIAL_COMPATIBILITY": {
+        "status": "PASS",
+        "required": true,
+        "notes": [
+          "nominal thickness 3.0 mm, kerf 0.15 mm",
+          "tab-slot on Alt Elektronik Kutu/lid ≈ thickness",
+          "tab-slot on Alt Elektronik Kutu/lid ≈ thickness",
+          "tab-slot on Alt Elektronik Kutu/lid ≈ thickness",
+          "tab-slot on Alt Elektronik Kutu/lid ≈ thickness",
+          "tab-slot on Alt Elektronik Kutu/lid ≈ thickness",
+          "tab-slot on Alt Elektronik Kutu/lid ≈ thickness",
+          "tab-slot on Alt Elektronik Kutu/lid ≈ thickness",
+          "tab-slot on Alt Elektronik Kutu/lid ≈ thickness",
+          "tab-slot on Sol Çatı ≈ thickness",
+          "tab-slot on Sol Çatı ≈ thickness",
+          "tab-slot on Sol Çatı ≈ thickness",
+          "tab-slot on Sol Çatı ≈ thickness",
+          "tab-slot on Sağ Çatı ≈ thickness",
+          "tab-slot on Sağ Çatı ≈ thickness",
+          "tab-slot on Sağ Çatı ≈ thickness",
+          "tab-slot on Sağ Çatı ≈ thickness"
+        ]
+      },
+      "ASSEMBLY": {
+        "status": "FAIL",
+        "required": true,
+        "notes": [
+          "box assembly transform failed: PART_TRANSFORM Ön Ev",
+          "box assembly transform failed: PART_TRANSFORM Arka Ev",
+          "box assembly transform failed: PART_TRANSFORM Sol Yan",
+          "box assembly transform failed: PART_TRANSFORM Sağ Yan",
+          "box assembly transform failed: PART_TRANSFORM Sol Çatı",
+          "box assembly transform failed: PART_TRANSFORM Sağ Çatı",
+          "slot on Alt Elektronik Kutu/lid has no explicit matching tab",
+          "slot on Alt Elektronik Kutu/lid has no explicit matching tab",
+          "slot on Alt Elektronik Kutu/lid has no explicit matching tab",
+          "slot on Alt Elektronik Kutu/lid has no explicit matching tab",
+          "slot on Alt Elektronik Kutu/lid has no explicit matching tab",
+          "slot on Alt Elektronik Kutu/lid has no explicit matching tab",
+          "slot on Alt Elektronik Kutu/lid has no explicit matching tab",
+          "slot on Alt Elektronik Kutu/lid has no explicit matching tab",
+          "slot on Sol Çatı has no explicit matching tab",
+          "slot on Sol Çatı has no explicit matching tab",
+          "slot on Sol Çatı has no explicit matching tab",
+          "slot on Sol Çatı has no explicit matching tab",
+          "slot on Sağ Çatı has no explicit matching tab",
+          "slot on Sağ Çatı has no explicit matching tab",
+          "slot on Sağ Çatı has no explicit matching tab",
+          "slot on Sağ Çatı has no explicit matching tab"
+        ]
+      },
+      "3D_ASSEMBLY": {
+        "status": "FAIL",
+        "required": true,
+        "notes": [
+          "assembled preview rejected because geometric assembly checks failed"
+        ]
+      },
+      "ASSEMBLY_ORDER": {
+        "status": "PASS",
+        "required": true,
+        "notes": [
+          "Stand the bottom panel; fingers point up. ; Insert front wall fingers into matching F holes / floor edge. ; Insert back wall fingers into matching F holes / floor edge. ; Insert left wall fingers into matching F holes / floor edge. ; Insert right wall fingers into matching F holes / floor edge."
+        ]
+      },
+      "ASSEMBLY_SEQUENCE": {
+        "status": "PASS",
+        "required": true,
+        "notes": [
+          "assembly order exists; removable paths verified where declared"
+        ]
+      },
+      "TAB_SLOT_GEOMETRY": {
+        "status": "PASS",
+        "required": true,
+        "notes": [
+          "no explicit tab-slot pairs",
+          "Alt Elektronik Kutu/lid ↔ Alt Elektronik Kutu/front finger_joint: verified CUT geometry and world-space mate",
+          "Alt Elektronik Kutu/lid ↔ Alt Elektronik Kutu/back finger_joint: verified CUT geometry and world-space mate",
+          "Alt Elektronik Kutu/lid ↔ Alt Elektronik Kutu/left finger_joint: verified CUT geometry and world-space mate",
+          "Alt Elektronik Kutu/lid ↔ Alt Elektronik Kutu/right finger_joint: verified CUT geometry and world-space mate"
+        ]
+      },
+      "HARDWARE_FIT": {
+        "status": "N/A",
+        "required": true,
+        "notes": [
+          "no hardware interface required"
+        ]
+      },
+      "COLLISIONS": {
+        "status": "WARNING",
+        "required": true,
+        "notes": [
+          "no panel/shaft clashes reported on the recipe",
+          "full 3D volume intersection is not simulated — first sheet is a prototype"
+        ]
+      },
+      "KINEMATICS": {
+        "status": "N/A",
+        "required": false,
+        "notes": []
+      },
+      "MOTION_CLEARANCE": {
+        "status": "N/A",
+        "required": false,
+        "notes": []
+      },
+      "FUNCTION": {
+        "status": "PASS",
+        "required": true,
+        "notes": [
+          "static assembly — enclose and lock",
+          "box walls and floor exist to form a body"
+        ]
+      },
+      "SVG_GEOMETRY": {
+        "status": "PASS",
+        "required": true,
+        "notes": [
+          "open CUT paths=0; holding nicks counted closed=0",
+          "duplicate CUT segments=0",
+          "self-intersections=0",
+          "33 CUT paths"
+        ]
+      },
+      "MANUFACTURING": {
+        "status": "PASS",
+        "required": true,
+        "notes": [
+          "units mm; operation groups are authoritative, colors are presentation",
+          "CUT loops close (nicks allowed)",
+          "every drawable has a resolved manufacturing operation"
+        ]
+      },
+      "SEMANTIC_CUT": {
+        "status": "PASS",
+        "required": true,
+        "notes": [
+          "semantic operations OUTER_CUT=12, INNER_CUT=21, SLOT=0, TAB=0, ENGRAVE=0"
+        ]
+      },
+      "ENGRAVE_GEOMETRY": {
+        "status": "N/A",
+        "required": false,
+        "notes": [
+          "standalone engraving gate not applicable"
+        ]
+      },
+      "OPERATION_SEPARATION": {
+        "status": "N/A",
+        "required": false,
+        "notes": [
+          "standalone engraving gate not applicable"
+        ]
+      },
+      "ASSEMBLY_MODE": {
+        "status": "PASS",
+        "required": true,
+        "notes": [
+          "mechanical validation required"
+        ]
+      },
+      "REFERENCE_FIDELITY": {
+        "status": "N/A",
+        "required": false,
+        "notes": [
+          "no structural reference"
+        ]
+      },
+      "OUTER_CUT_FIDELITY": {
+        "status": "N/A",
+        "required": false,
+        "notes": [
+          "no structural reference"
+        ]
+      },
+      "PART_MAPPING": {
+        "status": "N/A",
+        "required": false,
+        "notes": [
+          "no structural reference"
+        ]
+      },
+      "NESTING": {
+        "status": "PASS",
+        "required": true,
+        "notes": [
+          "12 parts nested, translation only, no rotate"
+        ]
+      },
+      "SAFETY": {
+        "status": "PASS",
+        "required": false,
+        "notes": [
+          "3 mm plywood, ~1 mm holding nicks on closed cuts",
+          "Static assembly."
+        ]
+      }
+    },
+    "scorecard": {
+      "digital": {
+        "Digital Geometry": "PASS",
+        "Part Completeness": "PASS",
+        "Connections": "FAIL",
+        "Assembly": "FAIL",
+        "Collision": "PASS",
+        "Kinematics": "N/A",
+        "Electrical Logic": "PASS",
+        "Safety": "PASS",
+        "BOM": "PASS",
+        "Text & Engraving": "PASS",
+        "Orientation & Y-Axis": "PASS",
+        "Illustration Quality": "PASS",
+        "Report Consistency": "PASS",
+        "SVG Geometry": "PASS",
+        "Manufacturing Geometry": "PASS",
+        "Reference Fidelity": "N/A",
+        "Outer Cut Fidelity": "N/A",
+        "Part Mapping": "N/A",
+        "Tab-Slot Geometry": "PASS",
+        "3D Assembly": "FAIL",
+        "Hardware Fit": "N/A",
+        "Motion Clearance": "N/A",
+        "Engrave Geometry": "N/A",
+        "Operation Separation": "N/A",
+        "Assembled Preview": "FAIL"
+      },
+      "physical": {
+        "Physical Kerf Test": "NOT_VERIFIED",
+        "Physical Engraving Test": "NOT_VERIFIED",
+        "Physical Assembly": "NOT_VERIFIED",
+        "Movement Test": "N/A",
+        "After Assembly Use": "N/A"
+      }
+    },
+    "gate_levels": {
+      "GEOMETRY VALID": "PASS",
+      "ASSEMBLY VALID": "FAIL",
+      "REFERENCE MATCH": "N/A",
+      "FUNCTION VALID": "PASS"
+    },
+    "mechanisms": {
+      "classifications": [],
+      "connection_graph": [],
+      "checks": []
+    },
+    "linear_motion": {
+      "active": false,
+      "slides": [],
+      "drives": [],
+      "status": "N/A"
+    },
+    "hardware_fit": [
+      {
+        "status": "N/A",
+        "note": "no hardware interface required"
+      }
+    ],
+    "reference_comparison": {
+      "active": false,
+      "fidelity": [],
+      "outer_cut": [],
+      "part_mapping": [],
+      "mapping": []
+    },
+    "physical": {
+      "kerf": "NOT_VERIFIED",
+      "assembly": "NOT_VERIFIED",
+      "movement": "N/A",
+      "use": "N/A",
+      "engraving": "NOT_VERIFIED",
+      "notes": {
+        "kerf": "cut the 100 mm coupon bar and pass measured_bar_mm",
+        "assembly": "dry-fit the prototype; pass physical_assembly=verified",
+        "movement": "no moving part — movement not applicable",
+        "use": "no powered function — use test not applicable"
+      },
+      "measured_bar_mm": null,
+      "nominal_bar_mm": 100.0,
+      "suggested_burn": 0.15,
+      "production_ok": false
+    },
+    "assembly_sheet": "ASSEMBLY SHEET:\nDry-fit before glue. Finger joints are Boxes.py f/F.\n1. Alt Elektronik Kutu/bottom (floor, structure)\n2. Alt Elektronik Kutu/lid (floor, structure)\n3. Alt Elektronik Kutu/back (wall, structure)\n4. Alt Elektronik Kutu/front (wall, structure)\n5. Alt Elektronik Kutu/left (wall, structure)\n6. Alt Elektronik Kutu/right (wall, structure)\n7. Sağ Çatı (panel, decorative)\n8. Sol Çatı (panel, decorative)\n9. Arka Ev (contour, functional)\n10. Sağ Yan (contour, functional)\n11. Sol Yan (contour, functional)\n12. Ön Ev (contour, functional)\nConnections recorded: 12\nDo not flip or rotate parts.",
+    "counts": {
+      "pass": 14,
+      "warning": 1,
+      "fail": 4,
+      "not_verified": 0
+    },
+    "look_again": [
+      "box assembly transform failed: PART_TRANSFORM Ön Ev",
+      "box assembly transform failed: PART_TRANSFORM Arka Ev",
+      "box assembly transform failed: PART_TRANSFORM Sol Yan",
+      "box assembly transform failed: PART_TRANSFORM Sağ Yan",
+      "box assembly transform failed: PART_TRANSFORM Sol Çatı",
+      "box assembly transform failed: PART_TRANSFORM Sağ Çatı",
+      "slot on Alt Elektronik Kutu/lid has no explicit matching tab",
+      "slot on Alt Elektronik Kutu/lid has no explicit matching tab",
+      "slot on Alt Elektronik Kutu/lid has no explicit matching tab",
+      "slot on Alt Elektronik Kutu/lid has no explicit matching tab",
+      "slot on Alt Elektronik Kutu/lid has no explicit matching tab",
+      "slot on Alt Elektronik Kutu/lid has no explicit matching tab",
+      "slot on Alt Elektronik Kutu/lid has no explicit matching tab",
+      "slot on Alt Elektronik Kutu/lid has no explicit matching tab",
+      "slot on Sol Çatı has no explicit matching tab",
+      "slot on Sol Çatı has no explicit matching tab",
+      "slot on Sol Çatı has no explicit matching tab",
+      "slot on Sol Çatı has no explicit matching tab",
+      "slot on Sağ Çatı has no explicit matching tab",
+      "slot on Sağ Çatı has no explicit matching tab",
+      "slot on Sağ Çatı has no explicit matching tab",
+      "slot on Sağ Çatı has no explicit matching tab",
+      "Ön Ev role=structural has mates=[]; placement is not connection evidence",
+      "Arka Ev role=structural has mates=[]; placement is not connection evidence",
+      "Sol Yan role=structural has mates=[]; placement is not connection evidence",
+      "Sağ Yan role=structural has mates=[]; placement is not connection evidence",
+      "Sol Çatı role=structural has mates=[]; placement is not connection evidence",
+      "Sağ Çatı role=structural has mates=[]; placement is not connection evidence",
+      "disconnected structural connection graph: 7 components",
+      "Ön Ev role=structural has mates=[]; placement is not connection evidence",
+      "Arka Ev role=structural has mates=[]; placement is not connection evidence",
+      "Sol Yan role=structural has mates=[]; placement is not connection evidence",
+      "Sağ Yan role=structural has mates=[]; placement is not connection evidence",
+      "Sol Çatı role=structural has mates=[]; placement is not connection evidence",
+      "Sağ Çatı role=structural has mates=[]; placement is not connection evidence",
+      "disconnected structural connection graph: 7 components",
+      "box assembly transform failed: PART_TRANSFORM Ön Ev",
+      "box assembly transform failed: PART_TRANSFORM Arka Ev",
+      "box assembly transform failed: PART_TRANSFORM Sol Yan",
+      "box assembly transform failed: PART_TRANSFORM Sağ Yan",
+      "box assembly transform failed: PART_TRANSFORM Sol Çatı",
+      "box assembly transform failed: PART_TRANSFORM Sağ Çatı",
+      "slot on Alt Elektronik Kutu/lid has no explicit matching tab",
+      "slot on Alt Elektronik Kutu/lid has no explicit matching tab",
+      "slot on Alt Elektronik Kutu/lid has no explicit matching tab",
+      "slot on Alt Elektronik Kutu/lid has no explicit matching tab",
+      "slot on Alt Elektronik Kutu/lid has no explicit matching tab",
+      "slot on Alt Elektronik Kutu/lid has no explicit matching tab",
+      "slot on Alt Elektronik Kutu/lid has no explicit matching tab",
+      "slot on Alt Elektronik Kutu/lid has no explicit matching tab",
+      "slot on Sol Çatı has no explicit matching tab",
+      "slot on Sol Çatı has no explicit matching tab",
+      "slot on Sol Çatı has no explicit matching tab",
+      "slot on Sol Çatı has no explicit matching tab",
+      "slot on Sağ Çatı has no explicit matching tab",
+      "slot on Sağ Çatı has no explicit matching tab",
+      "slot on Sağ Çatı has no explicit matching tab",
+      "slot on Sağ Çatı has no explicit matching tab",
+      "assembled preview rejected because geometric assembly checks failed"
+    ],
+    "blocking_checks": [
+      {
+        "category": "CONNECTIONS",
+        "status": "FAIL",
+        "note": "box assembly transform failed: PART_TRANSFORM Ön Ev"
+      },
+      {
+        "category": "CONNECTIONS",
+        "status": "FAIL",
+        "note": "box assembly transform failed: PART_TRANSFORM Arka Ev"
+      },
+      {
+        "category": "CONNECTIONS",
+        "status": "FAIL",
+        "note": "box assembly transform failed: PART_TRANSFORM Sol Yan"
+      },
+      {
+        "category": "CONNECTIONS",
+        "status": "FAIL",
+        "note": "box assembly transform failed: PART_TRANSFORM Sağ Yan"
+      },
+      {
+        "category": "CONNECTIONS",
+        "status": "FAIL",
+        "note": "box assembly transform failed: PART_TRANSFORM Sol Çatı"
+      },
+      {
+        "category": "CONNECTIONS",
+        "status": "FAIL",
+        "note": "box assembly transform failed: PART_TRANSFORM Sağ Çatı"
+      },
+      {
+        "category": "CONNECTIONS",
+        "status": "FAIL",
+        "note": "slot on Alt Elektronik Kutu/lid has no explicit matching tab"
+      },
+      {
+        "category": "CONNECTIONS",
+        "status": "FAIL",
+        "note": "slot on Alt Elektronik Kutu/lid has no explicit matching tab"
+      },
+      {
+        "category": "CONNECTIONS",
+        "status": "FAIL",
+        "note": "slot on Alt Elektronik Kutu/lid has no explicit matching tab"
+      },
+      {
+        "category": "CONNECTIONS",
+        "status": "FAIL",
+        "note": "slot on Alt Elektronik Kutu/lid has no explicit matching tab"
+      },
+      {
+        "category": "CONNECTIONS",
+        "status": "FAIL",
+        "note": "slot on Alt Elektronik Kutu/lid has no explicit matching tab"
+      },
+      {
+        "category": "CONNECTIONS",
+        "status": "FAIL",
+        "note": "slot on Alt Elektronik Kutu/lid has no explicit matching tab"
+      },
+      {
+        "category": "CONNECTIONS",
+        "status": "FAIL",
+        "note": "slot on Alt Elektronik Kutu/lid has no explicit matching tab"
+      },
+      {
+        "category": "CONNECTIONS",
+        "status": "FAIL",
+        "note": "slot on Alt Elektronik Kutu/lid has no explicit matching tab"
+      },
+      {
+        "category": "CONNECTIONS",
+        "status": "FAIL",
+        "note": "slot on Sol Çatı has no explicit matching tab"
+      },
+      {
+        "category": "CONNECTIONS",
+        "status": "FAIL",
+        "note": "slot on Sol Çatı has no explicit matching tab"
+      },
+      {
+        "category": "CONNECTIONS",
+        "status": "FAIL",
+        "note": "slot on Sol Çatı has no explicit matching tab"
+      },
+      {
+        "category": "CONNECTIONS",
+        "status": "FAIL",
+        "note": "slot on Sol Çatı has no explicit matching tab"
+      },
+      {
+        "category": "CONNECTIONS",
+        "status": "FAIL",
+        "note": "slot on Sağ Çatı has no explicit matching tab"
+      },
+      {
+        "category": "CONNECTIONS",
+        "status": "FAIL",
+        "note": "slot on Sağ Çatı has no explicit matching tab"
+      },
+      {
+        "category": "CONNECTIONS",
+        "status": "FAIL",
+        "note": "slot on Sağ Çatı has no explicit matching tab"
+      },
+      {
+        "category": "CONNECTIONS",
+        "status": "FAIL",
+        "note": "slot on Sağ Çatı has no explicit matching tab"
+      },
+      {
+        "category": "CONNECTIONS",
+        "status": "FAIL",
+        "note": "Ön Ev role=structural has mates=[]; placement is not connection evidence"
+      },
+      {
+        "category": "CONNECTIONS",
+        "status": "FAIL",
+        "note": "Arka Ev role=structural has mates=[]; placement is not connection evidence"
+      },
+      {
+        "category": "CONNECTIONS",
+        "status": "FAIL",
+        "note": "Sol Yan role=structural has mates=[]; placement is not connection evidence"
+      },
+      {
+        "category": "CONNECTIONS",
+        "status": "FAIL",
+        "note": "Sağ Yan role=structural has mates=[]; placement is not connection evidence"
+      },
+      {
+        "category": "CONNECTIONS",
+        "status": "FAIL",
+        "note": "Sol Çatı role=structural has mates=[]; placement is not connection evidence"
+      },
+      {
+        "category": "CONNECTIONS",
+        "status": "FAIL",
+        "note": "Sağ Çatı role=structural has mates=[]; placement is not connection evidence"
+      },
+      {
+        "category": "CONNECTIONS",
+        "status": "FAIL",
+        "note": "disconnected structural connection graph: 7 components"
+      },
+      {
+        "category": "CONNECTION_COVERAGE",
+        "status": "FAIL",
+        "note": "Ön Ev role=structural has mates=[]; placement is not connection evidence"
+      },
+      {
+        "category": "CONNECTION_COVERAGE",
+        "status": "FAIL",
+        "note": "Arka Ev role=structural has mates=[]; placement is not connection evidence"
+      },
+      {
+        "category": "CONNECTION_COVERAGE",
+        "status": "FAIL",
+        "note": "Sol Yan role=structural has mates=[]; placement is not connection evidence"
+      },
+      {
+        "category": "CONNECTION_COVERAGE",
+        "status": "FAIL",
+        "note": "Sağ Yan role=structural has mates=[]; placement is not connection evidence"
+      },
+      {
+        "category": "CONNECTION_COVERAGE",
+        "status": "FAIL",
+        "note": "Sol Çatı role=structural has mates=[]; placement is not connection evidence"
+      },
+      {
+        "category": "CONNECTION_COVERAGE",
+        "status": "FAIL",
+        "note": "Sağ Çatı role=structural has mates=[]; placement is not connection evidence"
+      },
+      {
+        "category": "CONNECTION_COVERAGE",
+        "status": "FAIL",
+        "note": "disconnected structural connection graph: 7 components"
+      },
+      {
+        "category": "ASSEMBLY",
+        "status": "FAIL",
+        "note": "box assembly transform failed: PART_TRANSFORM Ön Ev"
+      },
+      {
+        "category": "ASSEMBLY",
+        "status": "FAIL",
+        "note": "box assembly transform failed: PART_TRANSFORM Arka Ev"
+      },
+      {
+        "category": "ASSEMBLY",
+        "status": "FAIL",
+        "note": "box assembly transform failed: PART_TRANSFORM Sol Yan"
+      },
+      {
+        "category": "ASSEMBLY",
+        "status": "FAIL",
+        "note": "box assembly transform failed: PART_TRANSFORM Sağ Yan"
+      },
+      {
+        "category": "ASSEMBLY",
+        "status": "FAIL",
+        "note": "box assembly transform failed: PART_TRANSFORM Sol Çatı"
+      },
+      {
+        "category": "ASSEMBLY",
+        "status": "FAIL",
+        "note": "box assembly transform failed: PART_TRANSFORM Sağ Çatı"
+      },
+      {
+        "category": "ASSEMBLY",
+        "status": "FAIL",
+        "note": "slot on Alt Elektronik Kutu/lid has no explicit matching tab"
+      },
+      {
+        "category": "ASSEMBLY",
+        "status": "FAIL",
+        "note": "slot on Alt Elektronik Kutu/lid has no explicit matching tab"
+      },
+      {
+        "category": "ASSEMBLY",
+        "status": "FAIL",
+        "note": "slot on Alt Elektronik Kutu/lid has no explicit matching tab"
+      },
+      {
+        "category": "ASSEMBLY",
+        "status": "FAIL",
+        "note": "slot on Alt Elektronik Kutu/lid has no explicit matching tab"
+      },
+      {
+        "category": "ASSEMBLY",
+        "status": "FAIL",
+        "note": "slot on Alt Elektronik Kutu/lid has no explicit matching tab"
+      },
+      {
+        "category": "ASSEMBLY",
+        "status": "FAIL",
+        "note": "slot on Alt Elektronik Kutu/lid has no explicit matching tab"
+      },
+      {
+        "category": "ASSEMBLY",
+        "status": "FAIL",
+        "note": "slot on Alt Elektronik Kutu/lid has no explicit matching tab"
+      },
+      {
+        "category": "ASSEMBLY",
+        "status": "FAIL",
+        "note": "slot on Alt Elektronik Kutu/lid has no explicit matching tab"
+      },
+      {
+        "category": "ASSEMBLY",
+        "status": "FAIL",
+        "note": "slot on Sol Çatı has no explicit matching tab"
+      },
+      {
+        "category": "ASSEMBLY",
+        "status": "FAIL",
+        "note": "slot on Sol Çatı has no explicit matching tab"
+      },
+      {
+        "category": "ASSEMBLY",
+        "status": "FAIL",
+        "note": "slot on Sol Çatı has no explicit matching tab"
+      },
+      {
+        "category": "ASSEMBLY",
+        "status": "FAIL",
+        "note": "slot on Sol Çatı has no explicit matching tab"
+      },
+      {
+        "category": "ASSEMBLY",
+        "status": "FAIL",
+        "note": "slot on Sağ Çatı has no explicit matching tab"
+      },
+      {
+        "category": "ASSEMBLY",
+        "status": "FAIL",
+        "note": "slot on Sağ Çatı has no explicit matching tab"
+      },
+      {
+        "category": "ASSEMBLY",
+        "status": "FAIL",
+        "note": "slot on Sağ Çatı has no explicit matching tab"
+      },
+      {
+        "category": "ASSEMBLY",
+        "status": "FAIL",
+        "note": "slot on Sağ Çatı has no explicit matching tab"
+      },
+      {
+        "category": "3D_ASSEMBLY",
+        "status": "FAIL",
+        "note": "assembled preview rejected because geometric assembly checks failed"
+      }
+    ],
+    "compiler_error": null,
+    "warnings": [
+      "no panel/shaft clashes reported on the recipe",
+      "full 3D volume intersection is not simulated — first sheet is a prototype"
+    ],
+    "final_status": "BLOCKED",
+    "authorized_output": "None",
+    "production_export": "BLOCKED",
+    "ready_to_cut": false,
+    "speak": "FINAL STATUS: BLOCKED\n\nDigital Geometry        PASS\nPart Completeness       PASS\nConnections             FAIL\nAssembly                FAIL\nCollision               PASS\nKinematics              N/A\nSVG Geometry            PASS\nManufacturing Geometry  PASS\nReference Fidelity      N/A\nOuter Cut Fidelity      N/A\nPart Mapping            N/A\nTab-Slot Geometry       PASS\n3D Assembly             FAIL\nHardware Fit            N/A\nMotion Clearance        N/A\nEngrave Geometry        N/A\nOperation Separation    N/A\nAssembled Preview:      REQUIRED\nReference Comparison:   PASS\n\nPhysical Kerf Test      NOT VERIFIED\nPhysical Engraving Test NOT VERIFIED\nPhysical Assembly       NOT VERIFIED\nMovement Test           N/A\nAfter Assembly Use      N/A\n\nAUTHORIZED OUTPUT:\nNone\n\nPRODUCTION EXPORT:\nBLOCKED\n\nBLOCKING REASONS (MCP):\n- box assembly transform failed: PART_TRANSFORM Ön Ev\n- box assembly transform failed: PART_TRANSFORM Arka Ev\n- box assembly transform failed: PART_TRANSFORM Sol Yan\n- box assembly transform failed: PART_TRANSFORM Sağ Yan\n- box assembly transform failed: PART_TRANSFORM Sol Çatı\n- box assembly transform failed: PART_TRANSFORM Sağ Çatı\n- slot on Alt Elektronik Kutu/lid has no explicit matching tab\n- slot on Sol Çatı has no explicit matching tab\n- slot on Sağ Çatı has no explicit matching tab\n- Ön Ev role=structural has mates=[]; placement is not connection evidence\n- Arka Ev role=structural has mates=[]; placement is not connection evidence\n- Sol Yan role=structural has mates=[]; placement is not connection evidence\n- Sağ Yan role=structural has mates=[]; placement is not connection evidence\n- Sol Çatı role=structural has mates=[]; placement is not connection evidence\n- Sağ Çatı role=structural has mates=[]; placement is not connection evidence\n- disconnected structural connection graph: 7 components\n- assembled preview rejected because geometric assembly checks failed",
+    "production_summary": "FINAL STATUS: BLOCKED\n\nDigital Geometry        PASS\nPart Completeness       PASS\nConnections             FAIL\nAssembly                FAIL\nCollision               PASS\nKinematics              N/A\nSVG Geometry            PASS\nManufacturing Geometry  PASS\nReference Fidelity      N/A\nOuter Cut Fidelity      N/A\nPart Mapping            N/A\nTab-Slot Geometry       PASS\n3D Assembly             FAIL\nHardware Fit            N/A\nMotion Clearance        N/A\nEngrave Geometry        N/A\nOperation Separation    N/A\nAssembled Preview:      REQUIRED\nReference Comparison:   PASS\n\nPhysical Kerf Test      NOT VERIFIED\nPhysical Engraving Test NOT VERIFIED\nPhysical Assembly       NOT VERIFIED\nMovement Test           N/A\nAfter Assembly Use      N/A\n\nAUTHORIZED OUTPUT:\nNone\n\nPRODUCTION EXPORT:\nBLOCKED\n\nBLOCKING REASONS (MCP):\n- box assembly transform failed: PART_TRANSFORM Ön Ev\n- box assembly transform failed: PART_TRANSFORM Arka Ev\n- box assembly transform failed: PART_TRANSFORM Sol Yan\n- box assembly transform failed: PART_TRANSFORM Sağ Yan\n- box assembly transform failed: PART_TRANSFORM Sol Çatı\n- box assembly transform failed: PART_TRANSFORM Sağ Çatı\n- slot on Alt Elektronik Kutu/lid has no explicit matching tab\n- slot on Sol Çatı has no explicit matching tab\n- slot on Sağ Çatı has no explicit matching tab\n- Ön Ev role=structural has mates=[]; placement is not connection evidence\n- Arka Ev role=structural has mates=[]; placement is not connection evidence\n- Sol Yan role=structural has mates=[]; placement is not connection evidence\n- Sağ Yan role=structural has mates=[]; placement is not connection evidence\n- Sol Çatı role=structural has mates=[]; placement is not connection evidence\n- Sağ Çatı role=structural has mates=[]; placement is not connection evidence\n- disconnected structural connection graph: 7 components\n- assembled preview rejected because geometric assembly checks failed"
+  },
+  "assembly": {
+    "ok": false,
+    "structural_inference": {
+      "joints": [],
+      "inferred_mates": [],
+      "reciprocal_mates": {
+        "Ön Ev": [],
+        "Arka Ev": [],
+        "Sol Yan": [],
+        "Sağ Yan": [],
+        "Sol Çatı": [],
+        "Sağ Çatı": []
+      },
+      "errors": [],
+      "rejected_candidates": []
+    },
+    "canonical_mates": {
+      "active": false,
+      "connectors": [],
+      "connections": [],
+      "errors": [],
+      "joints": [],
+      "verified_slots": [],
+      "sequence": {
+        "status": "N/A",
+        "steps": []
+      }
+    },
+    "assembled_preview_diagnostics": {
+      "status": "PASS",
+      "missing_placement": [],
+      "missing_outline": [],
+      "invalid_placement": [],
+      "part_count": 12
+    },
+    "warnings": [],
+    "look_again": [
+      "box assembly transform failed: PART_TRANSFORM Ön Ev",
+      "box assembly transform failed: PART_TRANSFORM Arka Ev",
+      "box assembly transform failed: PART_TRANSFORM Sol Yan",
+      "box assembly transform failed: PART_TRANSFORM Sağ Yan",
+      "box assembly transform failed: PART_TRANSFORM Sol Çatı",
+      "box assembly transform failed: PART_TRANSFORM Sağ Çatı",
+      "slot on Alt Elektronik Kutu/lid has no explicit matching tab",
+      "slot on Alt Elektronik Kutu/lid has no explicit matching tab",
+      "slot on Alt Elektronik Kutu/lid has no explicit matching tab",
+      "slot on Alt Elektronik Kutu/lid has no explicit matching tab",
+      "slot on Alt Elektronik Kutu/lid has no explicit matching tab",
+      "slot on Alt Elektronik Kutu/lid has no explicit matching tab",
+      "slot on Alt Elektronik Kutu/lid has no explicit matching tab",
+      "slot on Alt Elektronik Kutu/lid has no explicit matching tab",
+      "slot on Sol Çatı has no explicit matching tab",
+      "slot on Sol Çatı has no explicit matching tab",
+      "slot on Sol Çatı has no explicit matching tab",
+      "slot on Sol Çatı has no explicit matching tab",
+      "slot on Sağ Çatı has no explicit matching tab",
+      "slot on Sağ Çatı has no explicit matching tab",
+      "slot on Sağ Çatı has no explicit matching tab",
+      "slot on Sağ Çatı has no explicit matching tab"
+    ],
+    "joints": [
+      {
+        "female": "Alt Elektronik Kutu/front",
+        "female_edge": "bottom",
+        "male": "Alt Elektronik Kutu/bottom",
+        "male_edge": "bottom",
+        "length_mm": null,
+        "result": "MATCH",
+        "via": "compiled composite CUT geometry + world-space transform",
+        "joint_type": "finger_joint",
+        "world_edge_error_mm": 0.0,
+        "edge_profiles": [
+          "f",
+          "F"
+        ]
+      },
+      {
+        "female": "Alt Elektronik Kutu/back",
+        "female_edge": "bottom",
+        "male": "Alt Elektronik Kutu/bottom",
+        "male_edge": "top",
+        "length_mm": null,
+        "result": "MATCH",
+        "via": "compiled composite CUT geometry + world-space transform",
+        "joint_type": "finger_joint",
+        "world_edge_error_mm": 0.0,
+        "edge_profiles": [
+          "f",
+          "F"
+        ]
+      },
+      {
+        "female": "Alt Elektronik Kutu/left",
+        "female_edge": "bottom",
+        "male": "Alt Elektronik Kutu/bottom",
+        "male_edge": "left",
+        "length_mm": null,
+        "result": "MATCH",
+        "via": "compiled composite CUT geometry + world-space transform",
+        "joint_type": "finger_joint",
+        "world_edge_error_mm": 0.0,
+        "edge_profiles": [
+          "f",
+          "F"
+        ]
+      },
+      {
+        "female": "Alt Elektronik Kutu/right",
+        "female_edge": "bottom",
+        "male": "Alt Elektronik Kutu/bottom",
+        "male_edge": "right",
+        "length_mm": null,
+        "result": "MATCH",
+        "via": "compiled composite CUT geometry + world-space transform",
+        "joint_type": "finger_joint",
+        "world_edge_error_mm": 0.0,
+        "edge_profiles": [
+          "f",
+          "F"
+        ]
+      },
+      {
+        "female": "Alt Elektronik Kutu/left",
+        "female_edge": "right",
+        "male": "Alt Elektronik Kutu/front",
+        "male_edge": "left",
+        "length_mm": null,
+        "result": "MATCH",
+        "via": "compiled composite CUT geometry + world-space transform",
+        "joint_type": "finger_joint",
+        "world_edge_error_mm": 0.0,
+        "edge_profiles": [
+          "F",
+          "f"
+        ]
+      },
+      {
+        "female": "Alt Elektronik Kutu/right",
+        "female_edge": "left",
+        "male": "Alt Elektronik Kutu/front",
+        "male_edge": "right",
+        "length_mm": null,
+        "result": "MATCH",
+        "via": "compiled composite CUT geometry + world-space transform",
+        "joint_type": "finger_joint",
+        "world_edge_error_mm": 0.0,
+        "edge_profiles": [
+          "F",
+          "f"
+        ]
+      },
+      {
+        "female": "Alt Elektronik Kutu/left",
+        "female_edge": "left",
+        "male": "Alt Elektronik Kutu/back",
+        "male_edge": "right",
+        "length_mm": null,
+        "result": "MATCH",
+        "via": "compiled composite CUT geometry + world-space transform",
+        "joint_type": "finger_joint",
+        "world_edge_error_mm": 0.0,
+        "edge_profiles": [
+          "F",
+          "f"
+        ]
+      },
+      {
+        "female": "Alt Elektronik Kutu/right",
+        "female_edge": "right",
+        "male": "Alt Elektronik Kutu/back",
+        "male_edge": "left",
+        "length_mm": null,
+        "result": "MATCH",
+        "via": "compiled composite CUT geometry + world-space transform",
+        "joint_type": "finger_joint",
+        "world_edge_error_mm": 0.0,
+        "edge_profiles": [
+          "F",
+          "f"
+        ]
+      },
+      {
+        "female": "Alt Elektronik Kutu/front",
+        "female_edge": "top",
+        "male": "Alt Elektronik Kutu/lid",
+        "male_edge": "bottom",
+        "length_mm": null,
+        "result": "MATCH",
+        "via": "compiled composite CUT geometry + world-space transform",
+        "joint_type": "finger_joint",
+        "world_edge_error_mm": 0.0,
+        "edge_profiles": [
+          "f",
+          "F"
+        ]
+      },
+      {
+        "female": "Alt Elektronik Kutu/back",
+        "female_edge": "top",
+        "male": "Alt Elektronik Kutu/lid",
+        "male_edge": "top",
+        "length_mm": null,
+        "result": "MATCH",
+        "via": "compiled composite CUT geometry + world-space transform",
+        "joint_type": "finger_joint",
+        "world_edge_error_mm": 0.0,
+        "edge_profiles": [
+          "f",
+          "F"
+        ]
+      },
+      {
+        "female": "Alt Elektronik Kutu/left",
+        "female_edge": "top",
+        "male": "Alt Elektronik Kutu/lid",
+        "male_edge": "left",
+        "length_mm": null,
+        "result": "MATCH",
+        "via": "compiled composite CUT geometry + world-space transform",
+        "joint_type": "finger_joint",
+        "world_edge_error_mm": 0.0,
+        "edge_profiles": [
+          "f",
+          "F"
+        ]
+      },
+      {
+        "female": "Alt Elektronik Kutu/right",
+        "female_edge": "top",
+        "male": "Alt Elektronik Kutu/lid",
+        "male_edge": "right",
+        "length_mm": null,
+        "result": "MATCH",
+        "via": "compiled composite CUT geometry + world-space transform",
+        "joint_type": "finger_joint",
+        "world_edge_error_mm": 0.0,
+        "edge_profiles": [
+          "f",
+          "F"
+        ]
+      }
+    ],
+    "roof_lock": [],
+    "finger_pairs": 12,
+    "tab_slot_pairs": 0,
+    "tab_slot_debug": [
+      {
+        "connection": "C01",
+        "tab_part": null,
+        "tab_id": null,
+        "slot_part": "Alt Elektronik Kutu/lid",
+        "result": "FAIL",
+        "world_center": {
+          "tab": null,
+          "slot": [
+            15.5,
+            3.0,
+            32.5
+          ]
+        },
+        "world_normal": {
+          "tab": null,
+          "slot": [
+            0,
+            0,
+            1
+          ]
+        },
+        "center_delta": null,
+        "slot_local_bbox": [
+          8.5,
+          1.5,
+          22.5,
+          4.5
+        ],
+        "reason": "no explicit matching tab"
+      },
+      {
+        "connection": "C02",
+        "tab_part": null,
+        "tab_id": null,
+        "slot_part": "Alt Elektronik Kutu/lid",
+        "result": "FAIL",
+        "world_center": {
+          "tab": null,
+          "slot": [
+            75.5,
+            3.0,
+            32.5
+          ]
+        },
+        "world_normal": {
+          "tab": null,
+          "slot": [
+            0,
+            0,
+            1
+          ]
+        },
+        "center_delta": null,
+        "slot_local_bbox": [
+          68.5,
+          1.5,
+          82.5,
+          4.5
+        ],
+        "reason": "no explicit matching tab"
+      },
+      {
+        "connection": "C03",
+        "tab_part": null,
+        "tab_id": null,
+        "slot_part": "Alt Elektronik Kutu/lid",
+        "result": "FAIL",
+        "world_center": {
+          "tab": null,
+          "slot": [
+            15.5,
+            69.0,
+            32.5
+          ]
+        },
+        "world_normal": {
+          "tab": null,
+          "slot": [
+            0,
+            0,
+            1
+          ]
+        },
+        "center_delta": null,
+        "slot_local_bbox": [
+          8.5,
+          67.5,
+          22.5,
+          70.5
+        ],
+        "reason": "no explicit matching tab"
+      },
+      {
+        "connection": "C04",
+        "tab_part": null,
+        "tab_id": null,
+        "slot_part": "Alt Elektronik Kutu/lid",
+        "result": "FAIL",
+        "world_center": {
+          "tab": null,
+          "slot": [
+            75.5,
+            69.0,
+            32.5
+          ]
+        },
+        "world_normal": {
+          "tab": null,
+          "slot": [
+            0,
+            0,
+            1
+          ]
+        },
+        "center_delta": null,
+        "slot_local_bbox": [
+          68.5,
+          67.5,
+          82.5,
+          70.5
+        ],
+        "reason": "no explicit matching tab"
+      },
+      {
+        "connection": "C05",
+        "tab_part": null,
+        "tab_id": null,
+        "slot_part": "Alt Elektronik Kutu/lid",
+        "result": "FAIL",
+        "world_center": {
+          "tab": null,
+          "slot": [
+            3.0,
+            13.0,
+            32.5
+          ]
+        },
+        "world_normal": {
+          "tab": null,
+          "slot": [
+            0,
+            0,
+            1
+          ]
+        },
+        "center_delta": null,
+        "slot_local_bbox": [
+          1.5,
+          6.0,
+          4.5,
+          20.0
+        ],
+        "reason": "no explicit matching tab"
+      },
+      {
+        "connection": "C06",
+        "tab_part": null,
+        "tab_id": null,
+        "slot_part": "Alt Elektronik Kutu/lid",
+        "result": "FAIL",
+        "world_center": {
+          "tab": null,
+          "slot": [
+            3.0,
+            48.0,
+            32.5
+          ]
+        },
+        "world_normal": {
+          "tab": null,
+          "slot": [
+            0,
+            0,
+            1
+          ]
+        },
+        "center_delta": null,
+        "slot_local_bbox": [
+          1.5,
+          41.0,
+          4.5,
+          55.0
+        ],
+        "reason": "no explicit matching tab"
+      },
+      {
+        "connection": "C07",
+        "tab_part": null,
+        "tab_id": null,
+        "slot_part": "Alt Elektronik Kutu/lid",
+        "result": "FAIL",
+        "world_center": {
+          "tab": null,
+          "slot": [
+            99.0,
+            13.0,
+            32.5
+          ]
+        },
+        "world_normal": {
+          "tab": null,
+          "slot": [
+            0,
+            0,
+            1
+          ]
+        },
+        "center_delta": null,
+        "slot_local_bbox": [
+          97.5,
+          6.0,
+          100.5,
+          20.0
+        ],
+        "reason": "no explicit matching tab"
+      },
+      {
+        "connection": "C08",
+        "tab_part": null,
+        "tab_id": null,
+        "slot_part": "Alt Elektronik Kutu/lid",
+        "result": "FAIL",
+        "world_center": {
+          "tab": null,
+          "slot": [
+            99.0,
+            48.0,
+            32.5
+          ]
+        },
+        "world_normal": {
+          "tab": null,
+          "slot": [
+            0,
+            0,
+            1
+          ]
+        },
+        "center_delta": null,
+        "slot_local_bbox": [
+          97.5,
+          41.0,
+          100.5,
+          55.0
+        ],
+        "reason": "no explicit matching tab"
+      },
+      {
+        "connection": "C09",
+        "tab_part": null,
+        "tab_id": null,
+        "slot_part": "Sol Çatı",
+        "result": "FAIL",
+        "world_center": {
+          "tab": null,
+          "slot": [
+            11.545108875730902,
+            2.5,
+            108.29145747925533
+          ]
+        },
+        "world_normal": {
+          "tab": null,
+          "slot": [
+            0.6060432182757687,
+            0.0,
+            -0.7954317177369463
+          ]
+        },
+        "center_delta": null,
+        "slot_local_bbox": [
+          1.5,
+          7.0,
+          4.5,
+          21.0
+        ],
+        "reason": "no explicit matching tab"
+      },
+      {
+        "connection": "C10",
+        "tab_part": null,
+        "tab_id": null,
+        "slot_part": "Sol Çatı",
+        "result": "FAIL",
+        "world_center": {
+          "tab": null,
+          "slot": [
+            30.63547010141761,
+            2.5,
+            122.83649471787378
+          ]
+        },
+        "world_normal": {
+          "tab": null,
+          "slot": [
+            0.6060432182757687,
+            0.0,
+            -0.7954317177369463
+          ]
+        },
+        "center_delta": null,
+        "slot_local_bbox": [
+          1.5,
+          31.0,
+          4.5,
+          45.0
+        ],
+        "reason": "no explicit matching tab"
+      },
+      {
+        "connection": "C11",
+        "tab_part": null,
+        "tab_id": null,
+        "slot_part": "Sol Çatı",
+        "result": "FAIL",
+        "world_center": {
+          "tab": null,
+          "slot": [
+            11.545108875730902,
+            69.5,
+            108.29145747925533
+          ]
+        },
+        "world_normal": {
+          "tab": null,
+          "slot": [
+            0.6060432182757687,
+            0.0,
+            -0.7954317177369463
+          ]
+        },
+        "center_delta": null,
+        "slot_local_bbox": [
+          68.5,
+          7.0,
+          71.5,
+          21.0
+        ],
+        "reason": "no explicit matching tab"
+      },
+      {
+        "connection": "C12",
+        "tab_part": null,
+        "tab_id": null,
+        "slot_part": "Sol Çatı",
+        "result": "FAIL",
+        "world_center": {
+          "tab": null,
+          "slot": [
+            30.63547010141761,
+            69.5,
+            122.83649471787378
+          ]
+        },
+        "world_normal": {
+          "tab": null,
+          "slot": [
+            0.6060432182757687,
+            0.0,
+            -0.7954317177369463
+          ]
+        },
+        "center_delta": null,
+        "slot_local_bbox": [
+          68.5,
+          31.0,
+          71.5,
+          45.0
+        ],
+        "reason": "no explicit matching tab"
+      },
+      {
+        "connection": "C13",
+        "tab_part": null,
+        "tab_id": null,
+        "slot_part": "Sağ Çatı",
+        "result": "FAIL",
+        "world_center": {
+          "tab": null,
+          "slot": [
+            95.27302077909641,
+            2.5,
+            110.67775263246618
+          ]
+        },
+        "world_normal": {
+          "tab": null,
+          "slot": [
+            0.6060432182757687,
+            -0.0,
+            0.7954317177369463
+          ]
+        },
+        "center_delta": null,
+        "slot_local_bbox": [
+          1.5,
+          7.0,
+          4.5,
+          21.0
+        ],
+        "reason": "no explicit matching tab"
+      },
+      {
+        "connection": "C14",
+        "tab_part": null,
+        "tab_id": null,
+        "slot_part": "Sağ Çatı",
+        "result": "FAIL",
+        "world_center": {
+          "tab": null,
+          "slot": [
+            76.1826595534097,
+            2.5,
+            125.22278987108463
+          ]
+        },
+        "world_normal": {
+          "tab": null,
+          "slot": [
+            0.6060432182757687,
+            -0.0,
+            0.7954317177369463
+          ]
+        },
+        "center_delta": null,
+        "slot_local_bbox": [
+          1.5,
+          31.0,
+          4.5,
+          45.0
+        ],
+        "reason": "no explicit matching tab"
+      },
+      {
+        "connection": "C15",
+        "tab_part": null,
+        "tab_id": null,
+        "slot_part": "Sağ Çatı",
+        "result": "FAIL",
+        "world_center": {
+          "tab": null,
+          "slot": [
+            95.27302077909641,
+            69.5,
+            110.67775263246618
+          ]
+        },
+        "world_normal": {
+          "tab": null,
+          "slot": [
+            0.6060432182757687,
+            -0.0,
+            0.7954317177369463
+          ]
+        },
+        "center_delta": null,
+        "slot_local_bbox": [
+          68.5,
+          7.0,
+          71.5,
+          21.0
+        ],
+        "reason": "no explicit matching tab"
+      },
+      {
+        "connection": "C16",
+        "tab_part": null,
+        "tab_id": null,
+        "slot_part": "Sağ Çatı",
+        "result": "FAIL",
+        "world_center": {
+          "tab": null,
+          "slot": [
+            76.1826595534097,
+            69.5,
+            125.22278987108463
+          ]
+        },
+        "world_normal": {
+          "tab": null,
+          "slot": [
+            0.6060432182757687,
+            -0.0,
+            0.7954317177369463
+          ]
+        },
+        "center_delta": null,
+        "slot_local_bbox": [
+          68.5,
+          31.0,
+          71.5,
+          45.0
+        ],
+        "reason": "no explicit matching tab"
+      }
+    ],
+    "placement_diagnostics": [
+      {
+        "status": "PASS",
+        "part": "Alt Elektronik Kutu/bottom",
+        "via": "explicit origin/u/v placement"
+      },
+      {
+        "status": "PASS",
+        "part": "Alt Elektronik Kutu/front",
+        "via": "explicit origin/u/v placement"
+      },
+      {
+        "status": "PASS",
+        "part": "Alt Elektronik Kutu/back",
+        "via": "explicit origin/u/v placement"
+      },
+      {
+        "status": "PASS",
+        "part": "Alt Elektronik Kutu/left",
+        "via": "explicit origin/u/v placement"
+      },
+      {
+        "status": "PASS",
+        "part": "Alt Elektronik Kutu/right",
+        "via": "explicit origin/u/v placement"
+      },
+      {
+        "status": "PASS",
+        "part": "Alt Elektronik Kutu/lid",
+        "via": "explicit origin/u/v placement"
+      },
+      {
+        "status": "PASS",
+        "part": "Ön Ev",
+        "via": "explicit origin/u/v placement"
+      },
+      {
+        "status": "PASS",
+        "part": "Arka Ev",
+        "via": "explicit origin/u/v placement"
+      },
+      {
+        "status": "PASS",
+        "part": "Sol Yan",
+        "via": "explicit origin/u/v placement"
+      },
+      {
+        "status": "PASS",
+        "part": "Sağ Yan",
+        "via": "explicit origin/u/v placement"
+      },
+      {
+        "status": "PASS",
+        "part": "Sol Çatı",
+        "via": "explicit origin/u/v placement"
+      },
+      {
+        "status": "PASS",
+        "part": "Sağ Çatı",
+        "via": "explicit origin/u/v placement"
+      }
+    ],
+    "physical_parts": [
+      {
+        "id": "Alt Elektronik Kutu/bottom",
+        "role": "structural",
+        "placement": {
+          "origin": [
+            0,
+            0,
+            0
+          ],
+          "u": [
+            1,
+            0,
+            0
+          ],
+          "v": [
+            0,
+            1,
+            0
+          ],
+          "source": "derived"
+        },
+        "normal": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "placement_source": "derived",
+        "outer_cut": {
+          "role": "OUTER_CUT",
+          "operation": "CUT",
+          "points": [
+            [
+              37.0,
+              -3.0
+            ],
+            [
+              31.0,
+              -3.0
+            ],
+            [
+              31.0,
+              0.0
+            ],
+            [
+              18.5,
+              0.0
+            ],
+            [
+              18.5,
+              -3.0
+            ],
+            [
+              12.5,
+              -3.0
+            ],
+            [
+              12.5,
+              0.0
+            ],
+            [
+              0.0,
+              0.0
+            ],
+            [
+              0.0,
+              10.2
+            ],
+            [
+              -3.0,
+              10.2
+            ],
+            [
+              -3.0,
+              16.2
+            ],
+            [
+              0.0,
+              16.2
+            ],
+            [
+              0.0,
+              26.4
+            ],
+            [
+              -3.0,
+              26.4
+            ],
+            [
+              -3.0,
+              32.4
+            ],
+            [
+              0.0,
+              32.4
+            ],
+            [
+              0.0,
+              42.6
+            ],
+            [
+              -3.0,
+              42.6
+            ],
+            [
+              -3.0,
+              48.6
+            ],
+            [
+              0.0,
+              48.6
+            ],
+            [
+              0.0,
+              58.8
+            ],
+            [
+              -3.0,
+              58.8
+            ],
+            [
+              -3.0,
+              64.8
+            ],
+            [
+              0.0,
+              64.8
+            ],
+            [
+              0.0,
+              75.0
+            ],
+            [
+              12.5,
+              75.0
+            ],
+            [
+              12.5,
+              78.0
+            ],
+            [
+              18.5,
+              78.0
+            ],
+            [
+              18.5,
+              75.0
+            ],
+            [
+              31.0,
+              75.0
+            ],
+            [
+              31.0,
+              78.0
+            ],
+            [
+              37.0,
+              78.0
+            ],
+            [
+              37.0,
+              75.0
+            ],
+            [
+              49.5,
+              75.0
+            ],
+            [
+              49.5,
+              78.0
+            ],
+            [
+              55.5,
+              78.0
+            ],
+            [
+              55.5,
+              75.0
+            ],
+            [
+              68.0,
+              75.0
+            ],
+            [
+              68.0,
+              78.0
+            ],
+            [
+              74.0,
+              78.0
+            ],
+            [
+              74.0,
+              75.0
+            ],
+            [
+              86.5,
+              75.0
+            ],
+            [
+              86.5,
+              78.0
+            ],
+            [
+              92.5,
+              78.0
+            ],
+            [
+              92.5,
+              75.0
+            ],
+            [
+              105.0,
+              75.0
+            ],
+            [
+              105.0,
+              64.8
+            ],
+            [
+              108.0,
+              64.8
+            ],
+            [
+              108.0,
+              58.8
+            ],
+            [
+              105.0,
+              58.8
+            ],
+            [
+              105.0,
+              48.6
+            ],
+            [
+              108.0,
+              48.6
+            ],
+            [
+              108.0,
+              42.6
+            ],
+            [
+              105.0,
+              42.6
+            ],
+            [
+              105.0,
+              32.4
+            ],
+            [
+              108.0,
+              32.4
+            ],
+            [
+              108.0,
+              26.4
+            ],
+            [
+              105.0,
+              26.4
+            ],
+            [
+              105.0,
+              16.2
+            ],
+            [
+              108.0,
+              16.2
+            ],
+            [
+              108.0,
+              10.2
+            ],
+            [
+              105.0,
+              10.2
+            ],
+            [
+              105.0,
+              0.0
+            ],
+            [
+              92.5,
+              0.0
+            ],
+            [
+              92.5,
+              -3.0
+            ],
+            [
+              86.5,
+              -3.0
+            ],
+            [
+              86.5,
+              0.0
+            ],
+            [
+              74.0,
+              0.0
+            ],
+            [
+              74.0,
+              -3.0
+            ],
+            [
+              68.0,
+              -3.0
+            ],
+            [
+              68.0,
+              0.0
+            ],
+            [
+              55.5,
+              0.0
+            ],
+            [
+              55.5,
+              -3.0
+            ],
+            [
+              49.5,
+              -3.0
+            ],
+            [
+              49.5,
+              0.0
+            ],
+            [
+              37.0,
+              0.0
+            ]
+          ],
+          "source": "boxes.py f/F compiled edge contract",
+          "edge_profiles": "ffff"
+        },
+        "inner_cuts": []
+      },
+      {
+        "id": "Alt Elektronik Kutu/front",
+        "role": "structural",
+        "placement": {
+          "origin": [
+            0,
+            0,
+            3.0
+          ],
+          "u": [
+            1,
+            0,
+            0
+          ],
+          "v": [
+            0,
+            0,
+            1
+          ],
+          "source": "derived"
+        },
+        "normal": [
+          0.0,
+          -1.0,
+          0.0
+        ],
+        "placement_source": "derived",
+        "outer_cut": {
+          "role": "OUTER_CUT",
+          "operation": "CUT",
+          "points": [
+            [
+              68.0,
+              0.0
+            ],
+            [
+              55.5,
+              0.0
+            ],
+            [
+              55.5,
+              3.0
+            ],
+            [
+              49.5,
+              3.0
+            ],
+            [
+              49.5,
+              0.0
+            ],
+            [
+              37.0,
+              0.0
+            ],
+            [
+              37.0,
+              3.0
+            ],
+            [
+              31.0,
+              3.0
+            ],
+            [
+              31.0,
+              0.0
+            ],
+            [
+              18.5,
+              0.0
+            ],
+            [
+              18.5,
+              3.0
+            ],
+            [
+              12.5,
+              3.0
+            ],
+            [
+              12.5,
+              0.0
+            ],
+            [
+              0.0,
+              0.0
+            ],
+            [
+              0.0,
+              11.0
+            ],
+            [
+              3.0,
+              11.0
+            ],
+            [
+              3.0,
+              17.0
+            ],
+            [
+              0.0,
+              17.0
+            ],
+            [
+              0.0,
+              28.0
+            ],
+            [
+              12.5,
+              28.0
+            ],
+            [
+              12.5,
+              25.0
+            ],
+            [
+              18.5,
+              25.0
+            ],
+            [
+              18.5,
+              28.0
+            ],
+            [
+              31.0,
+              28.0
+            ],
+            [
+              31.0,
+              25.0
+            ],
+            [
+              37.0,
+              25.0
+            ],
+            [
+              37.0,
+              28.0
+            ],
+            [
+              49.5,
+              28.0
+            ],
+            [
+              49.5,
+              25.0
+            ],
+            [
+              55.5,
+              25.0
+            ],
+            [
+              55.5,
+              28.0
+            ],
+            [
+              68.0,
+              28.0
+            ],
+            [
+              68.0,
+              25.0
+            ],
+            [
+              74.0,
+              25.0
+            ],
+            [
+              74.0,
+              28.0
+            ],
+            [
+              86.5,
+              28.0
+            ],
+            [
+              86.5,
+              25.0
+            ],
+            [
+              92.5,
+              25.0
+            ],
+            [
+              92.5,
+              28.0
+            ],
+            [
+              105.0,
+              28.0
+            ],
+            [
+              105.0,
+              17.0
+            ],
+            [
+              102.0,
+              17.0
+            ],
+            [
+              102.0,
+              11.0
+            ],
+            [
+              105.0,
+              11.0
+            ],
+            [
+              105.0,
+              0.0
+            ],
+            [
+              92.5,
+              0.0
+            ],
+            [
+              92.5,
+              3.0
+            ],
+            [
+              86.5,
+              3.0
+            ],
+            [
+              86.5,
+              0.0
+            ],
+            [
+              74.0,
+              0.0
+            ],
+            [
+              74.0,
+              3.0
+            ],
+            [
+              68.0,
+              3.0
+            ]
+          ],
+          "source": "boxes.py f/F compiled edge contract",
+          "edge_profiles": "FFFF"
+        },
+        "inner_cuts": [
+          {
+            "id": "",
+            "role": "SLOT",
+            "semantic_role": "slot",
+            "operation": "CUT",
+            "parent_part_id": "Alt Elektronik Kutu/front",
+            "points": [
+              [
+                40.5,
+                6.0
+              ],
+              [
+                52.5,
+                6.0
+              ],
+              [
+                52.5,
+                14.0
+              ],
+              [
+                40.5,
+                14.0
+              ]
+            ],
+            "clearance_mm": null
+          }
+        ]
+      },
+      {
+        "id": "Alt Elektronik Kutu/back",
+        "role": "structural",
+        "placement": {
+          "origin": [
+            105.0,
+            75.0,
+            3.0
+          ],
+          "u": [
+            -1,
+            0,
+            0
+          ],
+          "v": [
+            0,
+            0,
+            1
+          ],
+          "source": "derived"
+        },
+        "normal": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "placement_source": "derived",
+        "outer_cut": {
+          "role": "OUTER_CUT",
+          "operation": "CUT",
+          "points": [
+            [
+              68.0,
+              0.0
+            ],
+            [
+              55.5,
+              0.0
+            ],
+            [
+              55.5,
+              3.0
+            ],
+            [
+              49.5,
+              3.0
+            ],
+            [
+              49.5,
+              0.0
+            ],
+            [
+              37.0,
+              0.0
+            ],
+            [
+              37.0,
+              3.0
+            ],
+            [
+              31.0,
+              3.0
+            ],
+            [
+              31.0,
+              0.0
+            ],
+            [
+              18.5,
+              0.0
+            ],
+            [
+              18.5,
+              3.0
+            ],
+            [
+              12.5,
+              3.0
+            ],
+            [
+              12.5,
+              0.0
+            ],
+            [
+              0.0,
+              0.0
+            ],
+            [
+              0.0,
+              11.0
+            ],
+            [
+              3.0,
+              11.0
+            ],
+            [
+              3.0,
+              17.0
+            ],
+            [
+              0.0,
+              17.0
+            ],
+            [
+              0.0,
+              28.0
+            ],
+            [
+              12.5,
+              28.0
+            ],
+            [
+              12.5,
+              25.0
+            ],
+            [
+              18.5,
+              25.0
+            ],
+            [
+              18.5,
+              28.0
+            ],
+            [
+              31.0,
+              28.0
+            ],
+            [
+              31.0,
+              25.0
+            ],
+            [
+              37.0,
+              25.0
+            ],
+            [
+              37.0,
+              28.0
+            ],
+            [
+              49.5,
+              28.0
+            ],
+            [
+              49.5,
+              25.0
+            ],
+            [
+              55.5,
+              25.0
+            ],
+            [
+              55.5,
+              28.0
+            ],
+            [
+              68.0,
+              28.0
+            ],
+            [
+              68.0,
+              25.0
+            ],
+            [
+              74.0,
+              25.0
+            ],
+            [
+              74.0,
+              28.0
+            ],
+            [
+              86.5,
+              28.0
+            ],
+            [
+              86.5,
+              25.0
+            ],
+            [
+              92.5,
+              25.0
+            ],
+            [
+              92.5,
+              28.0
+            ],
+            [
+              105.0,
+              28.0
+            ],
+            [
+              105.0,
+              17.0
+            ],
+            [
+              102.0,
+              17.0
+            ],
+            [
+              102.0,
+              11.0
+            ],
+            [
+              105.0,
+              11.0
+            ],
+            [
+              105.0,
+              0.0
+            ],
+            [
+              92.5,
+              0.0
+            ],
+            [
+              92.5,
+              3.0
+            ],
+            [
+              86.5,
+              3.0
+            ],
+            [
+              86.5,
+              0.0
+            ],
+            [
+              74.0,
+              0.0
+            ],
+            [
+              74.0,
+              3.0
+            ],
+            [
+              68.0,
+              3.0
+            ]
+          ],
+          "source": "boxes.py f/F compiled edge contract",
+          "edge_profiles": "FFFF"
+        },
+        "inner_cuts": []
+      },
+      {
+        "id": "Alt Elektronik Kutu/left",
+        "role": "structural",
+        "placement": {
+          "origin": [
+            0,
+            75.0,
+            3.0
+          ],
+          "u": [
+            0,
+            -1,
+            0
+          ],
+          "v": [
+            0,
+            0,
+            1
+          ],
+          "source": "derived"
+        },
+        "normal": [
+          -1.0,
+          0.0,
+          0.0
+        ],
+        "placement_source": "derived",
+        "outer_cut": {
+          "role": "OUTER_CUT",
+          "operation": "CUT",
+          "points": [
+            [
+              48.6,
+              3.0
+            ],
+            [
+              42.6,
+              3.0
+            ],
+            [
+              42.6,
+              0.0
+            ],
+            [
+              32.4,
+              0.0
+            ],
+            [
+              32.4,
+              3.0
+            ],
+            [
+              26.4,
+              3.0
+            ],
+            [
+              26.4,
+              0.0
+            ],
+            [
+              16.2,
+              0.0
+            ],
+            [
+              16.2,
+              3.0
+            ],
+            [
+              10.2,
+              3.0
+            ],
+            [
+              10.2,
+              0.0
+            ],
+            [
+              0.0,
+              0.0
+            ],
+            [
+              0.0,
+              11.0
+            ],
+            [
+              -3.0,
+              11.0
+            ],
+            [
+              -3.0,
+              17.0
+            ],
+            [
+              0.0,
+              17.0
+            ],
+            [
+              0.0,
+              28.0
+            ],
+            [
+              10.2,
+              28.0
+            ],
+            [
+              10.2,
+              25.0
+            ],
+            [
+              16.2,
+              25.0
+            ],
+            [
+              16.2,
+              28.0
+            ],
+            [
+              26.4,
+              28.0
+            ],
+            [
+              26.4,
+              25.0
+            ],
+            [
+              32.4,
+              25.0
+            ],
+            [
+              32.4,
+              28.0
+            ],
+            [
+              42.6,
+              28.0
+            ],
+            [
+              42.6,
+              25.0
+            ],
+            [
+              48.6,
+              25.0
+            ],
+            [
+              48.6,
+              28.0
+            ],
+            [
+              58.8,
+              28.0
+            ],
+            [
+              58.8,
+              25.0
+            ],
+            [
+              64.8,
+              25.0
+            ],
+            [
+              64.8,
+              28.0
+            ],
+            [
+              75.0,
+              28.0
+            ],
+            [
+              75.0,
+              17.0
+            ],
+            [
+              78.0,
+              17.0
+            ],
+            [
+              78.0,
+              11.0
+            ],
+            [
+              75.0,
+              11.0
+            ],
+            [
+              75.0,
+              0.0
+            ],
+            [
+              64.8,
+              0.0
+            ],
+            [
+              64.8,
+              3.0
+            ],
+            [
+              58.8,
+              3.0
+            ],
+            [
+              58.8,
+              0.0
+            ],
+            [
+              48.6,
+              0.0
+            ]
+          ],
+          "source": "boxes.py f/F compiled edge contract",
+          "edge_profiles": "FfFf"
+        },
+        "inner_cuts": []
+      },
+      {
+        "id": "Alt Elektronik Kutu/right",
+        "role": "structural",
+        "placement": {
+          "origin": [
+            105.0,
+            0,
+            3.0
+          ],
+          "u": [
+            0,
+            1,
+            0
+          ],
+          "v": [
+            0,
+            0,
+            1
+          ],
+          "source": "derived"
+        },
+        "normal": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "placement_source": "derived",
+        "outer_cut": {
+          "role": "OUTER_CUT",
+          "operation": "CUT",
+          "points": [
+            [
+              48.6,
+              3.0
+            ],
+            [
+              42.6,
+              3.0
+            ],
+            [
+              42.6,
+              0.0
+            ],
+            [
+              32.4,
+              0.0
+            ],
+            [
+              32.4,
+              3.0
+            ],
+            [
+              26.4,
+              3.0
+            ],
+            [
+              26.4,
+              0.0
+            ],
+            [
+              16.2,
+              0.0
+            ],
+            [
+              16.2,
+              3.0
+            ],
+            [
+              10.2,
+              3.0
+            ],
+            [
+              10.2,
+              0.0
+            ],
+            [
+              0.0,
+              0.0
+            ],
+            [
+              0.0,
+              11.0
+            ],
+            [
+              -3.0,
+              11.0
+            ],
+            [
+              -3.0,
+              17.0
+            ],
+            [
+              0.0,
+              17.0
+            ],
+            [
+              0.0,
+              28.0
+            ],
+            [
+              10.2,
+              28.0
+            ],
+            [
+              10.2,
+              25.0
+            ],
+            [
+              16.2,
+              25.0
+            ],
+            [
+              16.2,
+              28.0
+            ],
+            [
+              26.4,
+              28.0
+            ],
+            [
+              26.4,
+              25.0
+            ],
+            [
+              32.4,
+              25.0
+            ],
+            [
+              32.4,
+              28.0
+            ],
+            [
+              42.6,
+              28.0
+            ],
+            [
+              42.6,
+              25.0
+            ],
+            [
+              48.6,
+              25.0
+            ],
+            [
+              48.6,
+              28.0
+            ],
+            [
+              58.8,
+              28.0
+            ],
+            [
+              58.8,
+              25.0
+            ],
+            [
+              64.8,
+              25.0
+            ],
+            [
+              64.8,
+              28.0
+            ],
+            [
+              75.0,
+              28.0
+            ],
+            [
+              75.0,
+              17.0
+            ],
+            [
+              78.0,
+              17.0
+            ],
+            [
+              78.0,
+              11.0
+            ],
+            [
+              75.0,
+              11.0
+            ],
+            [
+              75.0,
+              0.0
+            ],
+            [
+              64.8,
+              0.0
+            ],
+            [
+              64.8,
+              3.0
+            ],
+            [
+              58.8,
+              3.0
+            ],
+            [
+              58.8,
+              0.0
+            ],
+            [
+              48.6,
+              0.0
+            ]
+          ],
+          "source": "boxes.py f/F compiled edge contract",
+          "edge_profiles": "FfFf"
+        },
+        "inner_cuts": []
+      },
+      {
+        "id": "Alt Elektronik Kutu/lid",
+        "role": "structural",
+        "placement": {
+          "origin": [
+            0,
+            0,
+            31.0
+          ],
+          "u": [
+            1,
+            0,
+            0
+          ],
+          "v": [
+            0,
+            1,
+            0
+          ],
+          "source": "derived"
+        },
+        "normal": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "placement_source": "derived",
+        "outer_cut": {
+          "role": "OUTER_CUT",
+          "operation": "CUT",
+          "points": [
+            [
+              37.0,
+              -3.0
+            ],
+            [
+              31.0,
+              -3.0
+            ],
+            [
+              31.0,
+              0.0
+            ],
+            [
+              18.5,
+              0.0
+            ],
+            [
+              18.5,
+              -3.0
+            ],
+            [
+              12.5,
+              -3.0
+            ],
+            [
+              12.5,
+              0.0
+            ],
+            [
+              0.0,
+              0.0
+            ],
+            [
+              0.0,
+              10.2
+            ],
+            [
+              -3.0,
+              10.2
+            ],
+            [
+              -3.0,
+              16.2
+            ],
+            [
+              0.0,
+              16.2
+            ],
+            [
+              0.0,
+              26.4
+            ],
+            [
+              -3.0,
+              26.4
+            ],
+            [
+              -3.0,
+              32.4
+            ],
+            [
+              0.0,
+              32.4
+            ],
+            [
+              0.0,
+              42.6
+            ],
+            [
+              -3.0,
+              42.6
+            ],
+            [
+              -3.0,
+              48.6
+            ],
+            [
+              0.0,
+              48.6
+            ],
+            [
+              0.0,
+              58.8
+            ],
+            [
+              -3.0,
+              58.8
+            ],
+            [
+              -3.0,
+              64.8
+            ],
+            [
+              0.0,
+              64.8
+            ],
+            [
+              0.0,
+              75.0
+            ],
+            [
+              12.5,
+              75.0
+            ],
+            [
+              12.5,
+              78.0
+            ],
+            [
+              18.5,
+              78.0
+            ],
+            [
+              18.5,
+              75.0
+            ],
+            [
+              31.0,
+              75.0
+            ],
+            [
+              31.0,
+              78.0
+            ],
+            [
+              37.0,
+              78.0
+            ],
+            [
+              37.0,
+              75.0
+            ],
+            [
+              49.5,
+              75.0
+            ],
+            [
+              49.5,
+              78.0
+            ],
+            [
+              55.5,
+              78.0
+            ],
+            [
+              55.5,
+              75.0
+            ],
+            [
+              68.0,
+              75.0
+            ],
+            [
+              68.0,
+              78.0
+            ],
+            [
+              74.0,
+              78.0
+            ],
+            [
+              74.0,
+              75.0
+            ],
+            [
+              86.5,
+              75.0
+            ],
+            [
+              86.5,
+              78.0
+            ],
+            [
+              92.5,
+              78.0
+            ],
+            [
+              92.5,
+              75.0
+            ],
+            [
+              105.0,
+              75.0
+            ],
+            [
+              105.0,
+              64.8
+            ],
+            [
+              108.0,
+              64.8
+            ],
+            [
+              108.0,
+              58.8
+            ],
+            [
+              105.0,
+              58.8
+            ],
+            [
+              105.0,
+              48.6
+            ],
+            [
+              108.0,
+              48.6
+            ],
+            [
+              108.0,
+              42.6
+            ],
+            [
+              105.0,
+              42.6
+            ],
+            [
+              105.0,
+              32.4
+            ],
+            [
+              108.0,
+              32.4
+            ],
+            [
+              108.0,
+              26.4
+            ],
+            [
+              105.0,
+              26.4
+            ],
+            [
+              105.0,
+              16.2
+            ],
+            [
+              108.0,
+              16.2
+            ],
+            [
+              108.0,
+              10.2
+            ],
+            [
+              105.0,
+              10.2
+            ],
+            [
+              105.0,
+              0.0
+            ],
+            [
+              92.5,
+              0.0
+            ],
+            [
+              92.5,
+              -3.0
+            ],
+            [
+              86.5,
+              -3.0
+            ],
+            [
+              86.5,
+              0.0
+            ],
+            [
+              74.0,
+              0.0
+            ],
+            [
+              74.0,
+              -3.0
+            ],
+            [
+              68.0,
+              -3.0
+            ],
+            [
+              68.0,
+              0.0
+            ],
+            [
+              55.5,
+              0.0
+            ],
+            [
+              55.5,
+              -3.0
+            ],
+            [
+              49.5,
+              -3.0
+            ],
+            [
+              49.5,
+              0.0
+            ],
+            [
+              37.0,
+              0.0
+            ]
+          ],
+          "source": "boxes.py f/F compiled edge contract",
+          "edge_profiles": "ffff"
+        },
+        "inner_cuts": [
+          {
+            "id": "",
+            "role": "SLOT",
+            "semantic_role": "inner_cut",
+            "operation": "CUT",
+            "parent_part_id": "Alt Elektronik Kutu/lid",
+            "points": [
+              [
+                8.5,
+                1.5
+              ],
+              [
+                22.5,
+                1.5
+              ],
+              [
+                22.5,
+                4.5
+              ],
+              [
+                8.5,
+                4.5
+              ]
+            ],
+            "clearance_mm": null
+          },
+          {
+            "id": "",
+            "role": "SLOT",
+            "semantic_role": "inner_cut",
+            "operation": "CUT",
+            "parent_part_id": "Alt Elektronik Kutu/lid",
+            "points": [
+              [
+                68.5,
+                1.5
+              ],
+              [
+                82.5,
+                1.5
+              ],
+              [
+                82.5,
+                4.5
+              ],
+              [
+                68.5,
+                4.5
+              ]
+            ],
+            "clearance_mm": null
+          },
+          {
+            "id": "",
+            "role": "SLOT",
+            "semantic_role": "inner_cut",
+            "operation": "CUT",
+            "parent_part_id": "Alt Elektronik Kutu/lid",
+            "points": [
+              [
+                8.5,
+                67.5
+              ],
+              [
+                22.5,
+                67.5
+              ],
+              [
+                22.5,
+                70.5
+              ],
+              [
+                8.5,
+                70.5
+              ]
+            ],
+            "clearance_mm": null
+          },
+          {
+            "id": "",
+            "role": "SLOT",
+            "semantic_role": "inner_cut",
+            "operation": "CUT",
+            "parent_part_id": "Alt Elektronik Kutu/lid",
+            "points": [
+              [
+                68.5,
+                67.5
+              ],
+              [
+                82.5,
+                67.5
+              ],
+              [
+                82.5,
+                70.5
+              ],
+              [
+                68.5,
+                70.5
+              ]
+            ],
+            "clearance_mm": null
+          },
+          {
+            "id": "",
+            "role": "SLOT",
+            "semantic_role": "inner_cut",
+            "operation": "CUT",
+            "parent_part_id": "Alt Elektronik Kutu/lid",
+            "points": [
+              [
+                1.5,
+                6.0
+              ],
+              [
+                4.5,
+                6.0
+              ],
+              [
+                4.5,
+                20.0
+              ],
+              [
+                1.5,
+                20.0
+              ]
+            ],
+            "clearance_mm": null
+          },
+          {
+            "id": "",
+            "role": "SLOT",
+            "semantic_role": "inner_cut",
+            "operation": "CUT",
+            "parent_part_id": "Alt Elektronik Kutu/lid",
+            "points": [
+              [
+                1.5,
+                41.0
+              ],
+              [
+                4.5,
+                41.0
+              ],
+              [
+                4.5,
+                55.0
+              ],
+              [
+                1.5,
+                55.0
+              ]
+            ],
+            "clearance_mm": null
+          },
+          {
+            "id": "",
+            "role": "SLOT",
+            "semantic_role": "inner_cut",
+            "operation": "CUT",
+            "parent_part_id": "Alt Elektronik Kutu/lid",
+            "points": [
+              [
+                97.5,
+                6.0
+              ],
+              [
+                100.5,
+                6.0
+              ],
+              [
+                100.5,
+                20.0
+              ],
+              [
+                97.5,
+                20.0
+              ]
+            ],
+            "clearance_mm": null
+          },
+          {
+            "id": "",
+            "role": "SLOT",
+            "semantic_role": "inner_cut",
+            "operation": "CUT",
+            "parent_part_id": "Alt Elektronik Kutu/lid",
+            "points": [
+              [
+                97.5,
+                41.0
+              ],
+              [
+                100.5,
+                41.0
+              ],
+              [
+                100.5,
+                55.0
+              ],
+              [
+                97.5,
+                55.0
+              ]
+            ],
+            "clearance_mm": null
+          },
+          {
+            "id": "",
+            "role": "HARDWARE_HOLE",
+            "semantic_role": "hardware_hole",
+            "operation": "CUT",
+            "parent_part_id": "Alt Elektronik Kutu/lid",
+            "diameter_mm": 14.0,
+            "points": [
+              [
+                59.5,
+                37.5
+              ],
+              [
+                59.36549696282261,
+                38.865632254112896
+              ],
+              [
+                58.96715672757901,
+                40.178784026555626
+              ],
+              [
+                58.32028728611782,
+                41.388991631137216
+              ],
+              [
+                57.44974746830583,
+                42.44974746830583
+              ],
+              [
+                56.388991631137216,
+                43.32028728611782
+              ],
+              [
+                55.17878402655563,
+                43.96715672757901
+              ],
+              [
+                53.865632254112896,
+                44.36549696282261
+              ],
+              [
+                52.5,
+                44.5
+              ],
+              [
+                51.134367745887104,
+                44.36549696282261
+              ],
+              [
+                49.821215973444374,
+                43.96715672757901
+              ],
+              [
+                48.611008368862784,
+                43.32028728611782
+              ],
+              [
+                47.55025253169417,
+                42.44974746830583
+              ],
+              [
+                46.67971271388218,
+                41.388991631137216
+              ],
+              [
+                46.03284327242099,
+                40.17878402655563
+              ],
+              [
+                45.63450303717739,
+                38.8656322541129
+              ],
+              [
+                45.5,
+                37.5
+              ],
+              [
+                45.63450303717739,
+                36.134367745887104
+              ],
+              [
+                46.03284327242099,
+                34.821215973444374
+              ],
+              [
+                46.67971271388218,
+                33.611008368862784
+              ],
+              [
+                47.55025253169417,
+                32.55025253169417
+              ],
+              [
+                48.611008368862784,
+                31.679712713882182
+              ],
+              [
+                49.82121597344437,
+                31.032843272420994
+              ],
+              [
+                51.1343677458871,
+                30.63450303717739
+              ],
+              [
+                52.5,
+                30.5
+              ],
+              [
+                53.865632254112896,
+                30.63450303717739
+              ],
+              [
+                55.17878402655563,
+                31.032843272420994
+              ],
+              [
+                56.388991631137216,
+                31.679712713882182
+              ],
+              [
+                57.44974746830583,
+                32.55025253169417
+              ],
+              [
+                58.32028728611782,
+                33.611008368862784
+              ],
+              [
+                58.96715672757901,
+                34.82121597344437
+              ],
+              [
+                59.36549696282261,
+                36.1343677458871
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "id": "Ön Ev",
+        "role": "structural",
+        "placement": {
+          "origin": [
+            2.5,
+            2.5,
+            31
+          ],
+          "u": [
+            1,
+            0,
+            0
+          ],
+          "v": [
+            0,
+            0,
+            1
+          ],
+          "source": "explicit"
+        },
+        "normal": [
+          0.0,
+          -1.0,
+          0.0
+        ],
+        "placement_source": "explicit",
+        "outer_cut": {
+          "role": "OUTER_CUT",
+          "operation": "CUT",
+          "points": [
+            [
+              13.0,
+              -3.0
+            ],
+            [
+              27.0,
+              -3.0
+            ],
+            [
+              27.0,
+              0.0
+            ],
+            [
+              73.0,
+              0.0
+            ],
+            [
+              73.0,
+              -3.0
+            ],
+            [
+              87.0,
+              -3.0
+            ],
+            [
+              87.0,
+              0.0
+            ],
+            [
+              100.0,
+              0.0
+            ],
+            [
+              100.0,
+              18.0
+            ],
+            [
+              103.0,
+              18.0
+            ],
+            [
+              103.0,
+              32.0
+            ],
+            [
+              100.0,
+              32.0
+            ],
+            [
+              100.0,
+              46.0
+            ],
+            [
+              103.0,
+              46.0
+            ],
+            [
+              103.0,
+              60.0
+            ],
+            [
+              100.0,
+              60.0
+            ],
+            [
+              100.0,
+              70.0
+            ],
+            [
+              87.26,
+              79.68
+            ],
+            [
+              89.08,
+              82.07
+            ],
+            [
+              77.93,
+              90.54
+            ],
+            [
+              76.11,
+              88.15
+            ],
+            [
+              69.75,
+              92.99
+            ],
+            [
+              71.56,
+              95.38
+            ],
+            [
+              60.41,
+              103.85
+            ],
+            [
+              58.6,
+              101.46
+            ],
+            [
+              50.0,
+              108.0
+            ],
+            [
+              41.4,
+              101.46
+            ],
+            [
+              39.59,
+              103.85
+            ],
+            [
+              28.44,
+              95.38
+            ],
+            [
+              30.25,
+              92.99
+            ],
+            [
+              23.89,
+              88.15
+            ],
+            [
+              22.07,
+              90.54
+            ],
+            [
+              10.92,
+              82.07
+            ],
+            [
+              12.74,
+              79.68
+            ],
+            [
+              0.0,
+              70.0
+            ],
+            [
+              0.0,
+              60.0
+            ],
+            [
+              -3.0,
+              60.0
+            ],
+            [
+              -3.0,
+              46.0
+            ],
+            [
+              0.0,
+              46.0
+            ],
+            [
+              0.0,
+              32.0
+            ],
+            [
+              -3.0,
+              32.0
+            ],
+            [
+              -3.0,
+              18.0
+            ],
+            [
+              0.0,
+              18.0
+            ],
+            [
+              0.0,
+              0.0
+            ],
+            [
+              13.0,
+              0.0
+            ]
+          ]
+        },
+        "inner_cuts": [
+          {
+            "id": "",
+            "role": "SLOT",
+            "operation": "CUT",
+            "points": [
+              [
+                10.0,
+                16.0
+              ],
+              [
+                26.0,
+                16.0
+              ],
+              [
+                26.0,
+                40.0
+              ],
+              [
+                10.0,
+                40.0
+              ]
+            ],
+            "mate": null
+          },
+          {
+            "id": "",
+            "role": "SLOT",
+            "operation": "CUT",
+            "points": [
+              [
+                34.0,
+                16.0
+              ],
+              [
+                50.0,
+                16.0
+              ],
+              [
+                50.0,
+                40.0
+              ],
+              [
+                34.0,
+                40.0
+              ]
+            ],
+            "mate": null
+          },
+          {
+            "id": "",
+            "role": "SLOT",
+            "operation": "CUT",
+            "points": [
+              [
+                58.0,
+                16.0
+              ],
+              [
+                74.0,
+                16.0
+              ],
+              [
+                74.0,
+                40.0
+              ],
+              [
+                58.0,
+                40.0
+              ]
+            ],
+            "mate": null
+          }
+        ]
+      },
+      {
+        "id": "Arka Ev",
+        "role": "structural",
+        "placement": {
+          "origin": [
+            2.5,
+            72.5,
+            31
+          ],
+          "u": [
+            1,
+            0,
+            0
+          ],
+          "v": [
+            0,
+            0,
+            1
+          ],
+          "source": "explicit"
+        },
+        "normal": [
+          0.0,
+          -1.0,
+          0.0
+        ],
+        "placement_source": "explicit",
+        "outer_cut": {
+          "role": "OUTER_CUT",
+          "operation": "CUT",
+          "points": [
+            [
+              13.0,
+              -3.0
+            ],
+            [
+              27.0,
+              -3.0
+            ],
+            [
+              27.0,
+              0.0
+            ],
+            [
+              73.0,
+              0.0
+            ],
+            [
+              73.0,
+              -3.0
+            ],
+            [
+              87.0,
+              -3.0
+            ],
+            [
+              87.0,
+              0.0
+            ],
+            [
+              100.0,
+              0.0
+            ],
+            [
+              100.0,
+              18.0
+            ],
+            [
+              103.0,
+              18.0
+            ],
+            [
+              103.0,
+              32.0
+            ],
+            [
+              100.0,
+              32.0
+            ],
+            [
+              100.0,
+              46.0
+            ],
+            [
+              103.0,
+              46.0
+            ],
+            [
+              103.0,
+              60.0
+            ],
+            [
+              100.0,
+              60.0
+            ],
+            [
+              100.0,
+              70.0
+            ],
+            [
+              87.26,
+              79.68
+            ],
+            [
+              89.08,
+              82.07
+            ],
+            [
+              77.93,
+              90.54
+            ],
+            [
+              76.11,
+              88.15
+            ],
+            [
+              69.75,
+              92.99
+            ],
+            [
+              71.56,
+              95.38
+            ],
+            [
+              60.41,
+              103.85
+            ],
+            [
+              58.6,
+              101.46
+            ],
+            [
+              50.0,
+              108.0
+            ],
+            [
+              41.4,
+              101.46
+            ],
+            [
+              39.59,
+              103.85
+            ],
+            [
+              28.44,
+              95.38
+            ],
+            [
+              30.25,
+              92.99
+            ],
+            [
+              23.89,
+              88.15
+            ],
+            [
+              22.07,
+              90.54
+            ],
+            [
+              10.92,
+              82.07
+            ],
+            [
+              12.74,
+              79.68
+            ],
+            [
+              0.0,
+              70.0
+            ],
+            [
+              0.0,
+              60.0
+            ],
+            [
+              -3.0,
+              60.0
+            ],
+            [
+              -3.0,
+              46.0
+            ],
+            [
+              0.0,
+              46.0
+            ],
+            [
+              0.0,
+              32.0
+            ],
+            [
+              -3.0,
+              32.0
+            ],
+            [
+              -3.0,
+              18.0
+            ],
+            [
+              0.0,
+              18.0
+            ],
+            [
+              0.0,
+              0.0
+            ],
+            [
+              13.0,
+              0.0
+            ]
+          ]
+        },
+        "inner_cuts": []
+      },
+      {
+        "id": "Sol Yan",
+        "role": "structural",
+        "placement": {
+          "origin": [
+            2.5,
+            2.5,
+            31
+          ],
+          "u": [
+            0,
+            1,
+            0
+          ],
+          "v": [
+            0,
+            0,
+            1
+          ],
+          "source": "explicit"
+        },
+        "normal": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "placement_source": "explicit",
+        "outer_cut": {
+          "role": "OUTER_CUT",
+          "operation": "CUT",
+          "points": [
+            [
+              10.5,
+              -3.0
+            ],
+            [
+              24.5,
+              -3.0
+            ],
+            [
+              24.5,
+              0.0
+            ],
+            [
+              45.5,
+              0.0
+            ],
+            [
+              45.5,
+              -3.0
+            ],
+            [
+              59.5,
+              -3.0
+            ],
+            [
+              59.5,
+              0.0
+            ],
+            [
+              70.0,
+              0.0
+            ],
+            [
+              70.0,
+              18.0
+            ],
+            [
+              73.0,
+              18.0
+            ],
+            [
+              73.0,
+              32.0
+            ],
+            [
+              70.0,
+              32.0
+            ],
+            [
+              70.0,
+              46.0
+            ],
+            [
+              73.0,
+              46.0
+            ],
+            [
+              73.0,
+              60.0
+            ],
+            [
+              70.0,
+              60.0
+            ],
+            [
+              70.0,
+              70.0
+            ],
+            [
+              0.0,
+              70.0
+            ],
+            [
+              0.0,
+              60.0
+            ],
+            [
+              -3.0,
+              60.0
+            ],
+            [
+              -3.0,
+              46.0
+            ],
+            [
+              0.0,
+              46.0
+            ],
+            [
+              0.0,
+              32.0
+            ],
+            [
+              -3.0,
+              32.0
+            ],
+            [
+              -3.0,
+              18.0
+            ],
+            [
+              0.0,
+              18.0
+            ],
+            [
+              0.0,
+              0.0
+            ],
+            [
+              10.5,
+              0.0
+            ]
+          ]
+        },
+        "inner_cuts": []
+      },
+      {
+        "id": "Sağ Yan",
+        "role": "structural",
+        "placement": {
+          "origin": [
+            102.5,
+            2.5,
+            31
+          ],
+          "u": [
+            0,
+            1,
+            0
+          ],
+          "v": [
+            0,
+            0,
+            1
+          ],
+          "source": "explicit"
+        },
+        "normal": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "placement_source": "explicit",
+        "outer_cut": {
+          "role": "OUTER_CUT",
+          "operation": "CUT",
+          "points": [
+            [
+              10.5,
+              -3.0
+            ],
+            [
+              24.5,
+              -3.0
+            ],
+            [
+              24.5,
+              0.0
+            ],
+            [
+              45.5,
+              0.0
+            ],
+            [
+              45.5,
+              -3.0
+            ],
+            [
+              59.5,
+              -3.0
+            ],
+            [
+              59.5,
+              0.0
+            ],
+            [
+              70.0,
+              0.0
+            ],
+            [
+              70.0,
+              18.0
+            ],
+            [
+              73.0,
+              18.0
+            ],
+            [
+              73.0,
+              32.0
+            ],
+            [
+              70.0,
+              32.0
+            ],
+            [
+              70.0,
+              46.0
+            ],
+            [
+              73.0,
+              46.0
+            ],
+            [
+              73.0,
+              60.0
+            ],
+            [
+              70.0,
+              60.0
+            ],
+            [
+              70.0,
+              70.0
+            ],
+            [
+              0.0,
+              70.0
+            ],
+            [
+              0.0,
+              60.0
+            ],
+            [
+              -3.0,
+              60.0
+            ],
+            [
+              -3.0,
+              46.0
+            ],
+            [
+              0.0,
+              46.0
+            ],
+            [
+              0.0,
+              32.0
+            ],
+            [
+              -3.0,
+              32.0
+            ],
+            [
+              -3.0,
+              18.0
+            ],
+            [
+              0.0,
+              18.0
+            ],
+            [
+              0.0,
+              0.0
+            ],
+            [
+              10.5,
+              0.0
+            ]
+          ]
+        },
+        "inner_cuts": []
+      },
+      {
+        "id": "Sol Çatı",
+        "role": "structural",
+        "placement": {
+          "origin": [
+            -0.5,
+            -0.5,
+            101
+          ],
+          "u": [
+            0.0,
+            1.0,
+            0.0
+          ],
+          "v": [
+            0.7954317177369463,
+            0.0,
+            0.6060432182757687
+          ],
+          "source": "explicit"
+        },
+        "normal": [
+          0.6060432182757687,
+          0.0,
+          -0.7954317177369463
+        ],
+        "placement_source": "explicit",
+        "outer_cut": {
+          "role": "OUTER_CUT",
+          "operation": "CUT",
+          "points": [
+            [
+              76.0,
+              0.0
+            ],
+            [
+              76.0,
+              66.0
+            ],
+            [
+              0.0,
+              66.0
+            ],
+            [
+              0.0,
+              0.0
+            ]
+          ]
+        },
+        "inner_cuts": [
+          {
+            "id": "",
+            "role": "SLOT",
+            "operation": "CUT",
+            "points": [
+              [
+                1.5,
+                7.0
+              ],
+              [
+                4.5,
+                7.0
+              ],
+              [
+                4.5,
+                21.0
+              ],
+              [
+                1.5,
+                21.0
+              ]
+            ],
+            "mate": null
+          },
+          {
+            "id": "",
+            "role": "SLOT",
+            "operation": "CUT",
+            "points": [
+              [
+                1.5,
+                31.0
+              ],
+              [
+                4.5,
+                31.0
+              ],
+              [
+                4.5,
+                45.0
+              ],
+              [
+                1.5,
+                45.0
+              ]
+            ],
+            "mate": null
+          },
+          {
+            "id": "",
+            "role": "SLOT",
+            "operation": "CUT",
+            "points": [
+              [
+                68.5,
+                7.0
+              ],
+              [
+                71.5,
+                7.0
+              ],
+              [
+                71.5,
+                21.0
+              ],
+              [
+                68.5,
+                21.0
+              ]
+            ],
+            "mate": null
+          },
+          {
+            "id": "",
+            "role": "SLOT",
+            "operation": "CUT",
+            "points": [
+              [
+                68.5,
+                31.0
+              ],
+              [
+                71.5,
+                31.0
+              ],
+              [
+                71.5,
+                45.0
+              ],
+              [
+                68.5,
+                45.0
+              ]
+            ],
+            "mate": null
+          }
+        ]
+      },
+      {
+        "id": "Sağ Çatı",
+        "role": "structural",
+        "placement": {
+          "origin": [
+            105.5,
+            -0.5,
+            101
+          ],
+          "u": [
+            0.0,
+            1.0,
+            0.0
+          ],
+          "v": [
+            -0.7954317177369463,
+            0.0,
+            0.6060432182757687
+          ],
+          "source": "explicit"
+        },
+        "normal": [
+          0.6060432182757687,
+          -0.0,
+          0.7954317177369463
+        ],
+        "placement_source": "explicit",
+        "outer_cut": {
+          "role": "OUTER_CUT",
+          "operation": "CUT",
+          "points": [
+            [
+              76.0,
+              0.0
+            ],
+            [
+              76.0,
+              66.0
+            ],
+            [
+              0.0,
+              66.0
+            ],
+            [
+              0.0,
+              0.0
+            ]
+          ]
+        },
+        "inner_cuts": [
+          {
+            "id": "",
+            "role": "SLOT",
+            "operation": "CUT",
+            "points": [
+              [
+                1.5,
+                7.0
+              ],
+              [
+                4.5,
+                7.0
+              ],
+              [
+                4.5,
+                21.0
+              ],
+              [
+                1.5,
+                21.0
+              ]
+            ],
+            "mate": null
+          },
+          {
+            "id": "",
+            "role": "SLOT",
+            "operation": "CUT",
+            "points": [
+              [
+                1.5,
+                31.0
+              ],
+              [
+                4.5,
+                31.0
+              ],
+              [
+                4.5,
+                45.0
+              ],
+              [
+                1.5,
+                45.0
+              ]
+            ],
+            "mate": null
+          },
+          {
+            "id": "",
+            "role": "SLOT",
+            "operation": "CUT",
+            "points": [
+              [
+                68.5,
+                7.0
+              ],
+              [
+                71.5,
+                7.0
+              ],
+              [
+                71.5,
+                21.0
+              ],
+              [
+                68.5,
+                21.0
+              ]
+            ],
+            "mate": null
+          },
+          {
+            "id": "",
+            "role": "SLOT",
+            "operation": "CUT",
+            "points": [
+              [
+                68.5,
+                31.0
+              ],
+              [
+                71.5,
+                31.0
+              ],
+              [
+                71.5,
+                45.0
+              ],
+              [
+                68.5,
+                45.0
+              ]
+            ],
+            "mate": null
+          }
+        ]
+      }
+    ],
+    "logical_groups": [
+      {
+        "id": "Alt Elektronik Kutu",
+        "type": "box",
+        "physical_children": [
+          "Alt Elektronik Kutu/bottom",
+          "Alt Elektronik Kutu/front",
+          "Alt Elektronik Kutu/back",
+          "Alt Elektronik Kutu/left",
+          "Alt Elektronik Kutu/right",
+          "Alt Elektronik Kutu/lid"
+        ]
+      }
+    ],
+    "derived_constraints": [
+      {
+        "part_a": "Alt Elektronik Kutu/bottom",
+        "edge_a": "Alt Elektronik Kutu/bottom:bottom",
+        "part_b": "Alt Elektronik Kutu/front",
+        "edge_b": "Alt Elektronik Kutu/front:bottom",
+        "joint_type": "finger_joint",
+        "expected_transform": "orthogonal_edge_mate",
+        "tolerance": 0.05,
+        "result": "MATCH",
+        "world_edge_error_mm": 0.0,
+        "edge_length_delta_mm": 0.0,
+        "normal_angle_deg": 90.0,
+        "material_surface_offsets_mm": [
+          3.0,
+          0
+        ],
+        "edge_profiles": [
+          "f",
+          "F"
+        ],
+        "complementary_geometry": true
+      },
+      {
+        "part_a": "Alt Elektronik Kutu/bottom",
+        "edge_a": "Alt Elektronik Kutu/bottom:top",
+        "part_b": "Alt Elektronik Kutu/back",
+        "edge_b": "Alt Elektronik Kutu/back:bottom",
+        "joint_type": "finger_joint",
+        "expected_transform": "orthogonal_edge_mate",
+        "tolerance": 0.05,
+        "result": "MATCH",
+        "world_edge_error_mm": 0.0,
+        "edge_length_delta_mm": 0.0,
+        "normal_angle_deg": 90.0,
+        "material_surface_offsets_mm": [
+          3.0,
+          0
+        ],
+        "edge_profiles": [
+          "f",
+          "F"
+        ],
+        "complementary_geometry": true
+      },
+      {
+        "part_a": "Alt Elektronik Kutu/bottom",
+        "edge_a": "Alt Elektronik Kutu/bottom:left",
+        "part_b": "Alt Elektronik Kutu/left",
+        "edge_b": "Alt Elektronik Kutu/left:bottom",
+        "joint_type": "finger_joint",
+        "expected_transform": "orthogonal_edge_mate",
+        "tolerance": 0.05,
+        "result": "MATCH",
+        "world_edge_error_mm": 0.0,
+        "edge_length_delta_mm": 0.0,
+        "normal_angle_deg": 90.0,
+        "material_surface_offsets_mm": [
+          3.0,
+          0
+        ],
+        "edge_profiles": [
+          "f",
+          "F"
+        ],
+        "complementary_geometry": true
+      },
+      {
+        "part_a": "Alt Elektronik Kutu/bottom",
+        "edge_a": "Alt Elektronik Kutu/bottom:right",
+        "part_b": "Alt Elektronik Kutu/right",
+        "edge_b": "Alt Elektronik Kutu/right:bottom",
+        "joint_type": "finger_joint",
+        "expected_transform": "orthogonal_edge_mate",
+        "tolerance": 0.05,
+        "result": "MATCH",
+        "world_edge_error_mm": 0.0,
+        "edge_length_delta_mm": 0.0,
+        "normal_angle_deg": 90.0,
+        "material_surface_offsets_mm": [
+          3.0,
+          0
+        ],
+        "edge_profiles": [
+          "f",
+          "F"
+        ],
+        "complementary_geometry": true
+      },
+      {
+        "part_a": "Alt Elektronik Kutu/front",
+        "edge_a": "Alt Elektronik Kutu/front:left",
+        "part_b": "Alt Elektronik Kutu/left",
+        "edge_b": "Alt Elektronik Kutu/left:right",
+        "joint_type": "finger_joint",
+        "expected_transform": "orthogonal_edge_mate",
+        "tolerance": 0.05,
+        "result": "MATCH",
+        "world_edge_error_mm": 0.0,
+        "edge_length_delta_mm": 0.0,
+        "normal_angle_deg": 90.0,
+        "material_surface_offsets_mm": [
+          0,
+          0
+        ],
+        "edge_profiles": [
+          "F",
+          "f"
+        ],
+        "complementary_geometry": true
+      },
+      {
+        "part_a": "Alt Elektronik Kutu/front",
+        "edge_a": "Alt Elektronik Kutu/front:right",
+        "part_b": "Alt Elektronik Kutu/right",
+        "edge_b": "Alt Elektronik Kutu/right:left",
+        "joint_type": "finger_joint",
+        "expected_transform": "orthogonal_edge_mate",
+        "tolerance": 0.05,
+        "result": "MATCH",
+        "world_edge_error_mm": 0.0,
+        "edge_length_delta_mm": 0.0,
+        "normal_angle_deg": 90.0,
+        "material_surface_offsets_mm": [
+          0,
+          0
+        ],
+        "edge_profiles": [
+          "F",
+          "f"
+        ],
+        "complementary_geometry": true
+      },
+      {
+        "part_a": "Alt Elektronik Kutu/back",
+        "edge_a": "Alt Elektronik Kutu/back:right",
+        "part_b": "Alt Elektronik Kutu/left",
+        "edge_b": "Alt Elektronik Kutu/left:left",
+        "joint_type": "finger_joint",
+        "expected_transform": "orthogonal_edge_mate",
+        "tolerance": 0.05,
+        "result": "MATCH",
+        "world_edge_error_mm": 0.0,
+        "edge_length_delta_mm": 0.0,
+        "normal_angle_deg": 90.0,
+        "material_surface_offsets_mm": [
+          0,
+          0
+        ],
+        "edge_profiles": [
+          "F",
+          "f"
+        ],
+        "complementary_geometry": true
+      },
+      {
+        "part_a": "Alt Elektronik Kutu/back",
+        "edge_a": "Alt Elektronik Kutu/back:left",
+        "part_b": "Alt Elektronik Kutu/right",
+        "edge_b": "Alt Elektronik Kutu/right:right",
+        "joint_type": "finger_joint",
+        "expected_transform": "orthogonal_edge_mate",
+        "tolerance": 0.05,
+        "result": "MATCH",
+        "world_edge_error_mm": 0.0,
+        "edge_length_delta_mm": 0.0,
+        "normal_angle_deg": 90.0,
+        "material_surface_offsets_mm": [
+          0,
+          0
+        ],
+        "edge_profiles": [
+          "F",
+          "f"
+        ],
+        "complementary_geometry": true
+      },
+      {
+        "part_a": "Alt Elektronik Kutu/lid",
+        "edge_a": "Alt Elektronik Kutu/lid:bottom",
+        "part_b": "Alt Elektronik Kutu/front",
+        "edge_b": "Alt Elektronik Kutu/front:top",
+        "joint_type": "finger_joint",
+        "expected_transform": "orthogonal_edge_mate",
+        "tolerance": 0.05,
+        "result": "MATCH",
+        "world_edge_error_mm": 0.0,
+        "edge_length_delta_mm": 0.0,
+        "normal_angle_deg": 90.0,
+        "material_surface_offsets_mm": [
+          0,
+          0
+        ],
+        "edge_profiles": [
+          "f",
+          "F"
+        ],
+        "complementary_geometry": true
+      },
+      {
+        "part_a": "Alt Elektronik Kutu/lid",
+        "edge_a": "Alt Elektronik Kutu/lid:top",
+        "part_b": "Alt Elektronik Kutu/back",
+        "edge_b": "Alt Elektronik Kutu/back:top",
+        "joint_type": "finger_joint",
+        "expected_transform": "orthogonal_edge_mate",
+        "tolerance": 0.05,
+        "result": "MATCH",
+        "world_edge_error_mm": 0.0,
+        "edge_length_delta_mm": 0.0,
+        "normal_angle_deg": 90.0,
+        "material_surface_offsets_mm": [
+          0,
+          0
+        ],
+        "edge_profiles": [
+          "f",
+          "F"
+        ],
+        "complementary_geometry": true
+      },
+      {
+        "part_a": "Alt Elektronik Kutu/lid",
+        "edge_a": "Alt Elektronik Kutu/lid:left",
+        "part_b": "Alt Elektronik Kutu/left",
+        "edge_b": "Alt Elektronik Kutu/left:top",
+        "joint_type": "finger_joint",
+        "expected_transform": "orthogonal_edge_mate",
+        "tolerance": 0.05,
+        "result": "MATCH",
+        "world_edge_error_mm": 0.0,
+        "edge_length_delta_mm": 0.0,
+        "normal_angle_deg": 90.0,
+        "material_surface_offsets_mm": [
+          0,
+          0
+        ],
+        "edge_profiles": [
+          "f",
+          "F"
+        ],
+        "complementary_geometry": true
+      },
+      {
+        "part_a": "Alt Elektronik Kutu/lid",
+        "edge_a": "Alt Elektronik Kutu/lid:right",
+        "part_b": "Alt Elektronik Kutu/right",
+        "edge_b": "Alt Elektronik Kutu/right:top",
+        "joint_type": "finger_joint",
+        "expected_transform": "orthogonal_edge_mate",
+        "tolerance": 0.05,
+        "result": "MATCH",
+        "world_edge_error_mm": 0.0,
+        "edge_length_delta_mm": 0.0,
+        "normal_angle_deg": 90.0,
+        "material_surface_offsets_mm": [
+          0,
+          0
+        ],
+        "edge_profiles": [
+          "f",
+          "F"
+        ],
+        "complementary_geometry": true
+      }
+    ],
+    "transform_validation": {
+      "status": "FAIL",
+      "checks": [
+        {
+          "type": "PART_TRANSFORM",
+          "part": "Alt Elektronik Kutu/bottom",
+          "status": "PASS",
+          "origin": [
+            0,
+            0,
+            0
+          ],
+          "u": [
+            1,
+            0,
+            0
+          ],
+          "v": [
+            0,
+            1,
+            0
+          ],
+          "normal": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "expected_normal": [
+            0,
+            0,
+            1
+          ]
+        },
+        {
+          "type": "PART_TRANSFORM",
+          "part": "Alt Elektronik Kutu/front",
+          "status": "PASS",
+          "origin": [
+            0,
+            0,
+            3.0
+          ],
+          "u": [
+            1,
+            0,
+            0
+          ],
+          "v": [
+            0,
+            0,
+            1
+          ],
+          "normal": [
+            0.0,
+            -1.0,
+            0.0
+          ],
+          "expected_normal": [
+            0,
+            -1,
+            0
+          ]
+        },
+        {
+          "type": "PART_TRANSFORM",
+          "part": "Alt Elektronik Kutu/back",
+          "status": "PASS",
+          "origin": [
+            105.0,
+            75.0,
+            3.0
+          ],
+          "u": [
+            -1,
+            0,
+            0
+          ],
+          "v": [
+            0,
+            0,
+            1
+          ],
+          "normal": [
+            0.0,
+            1.0,
+            -0.0
+          ],
+          "expected_normal": [
+            0,
+            1,
+            0
+          ]
+        },
+        {
+          "type": "PART_TRANSFORM",
+          "part": "Alt Elektronik Kutu/left",
+          "status": "PASS",
+          "origin": [
+            0,
+            75.0,
+            3.0
+          ],
+          "u": [
+            0,
+            -1,
+            0
+          ],
+          "v": [
+            0,
+            0,
+            1
+          ],
+          "normal": [
+            -1.0,
+            0.0,
+            0.0
+          ],
+          "expected_normal": [
+            -1,
+            0,
+            0
+          ]
+        },
+        {
+          "type": "PART_TRANSFORM",
+          "part": "Alt Elektronik Kutu/right",
+          "status": "PASS",
+          "origin": [
+            105.0,
+            0,
+            3.0
+          ],
+          "u": [
+            0,
+            1,
+            0
+          ],
+          "v": [
+            0,
+            0,
+            1
+          ],
+          "normal": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "expected_normal": [
+            1,
+            0,
+            0
+          ]
+        },
+        {
+          "type": "PART_TRANSFORM",
+          "part": "Alt Elektronik Kutu/lid",
+          "status": "PASS",
+          "origin": [
+            0,
+            0,
+            31.0
+          ],
+          "u": [
+            1,
+            0,
+            0
+          ],
+          "v": [
+            0,
+            1,
+            0
+          ],
+          "normal": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "expected_normal": [
+            0,
+            0,
+            1
+          ]
+        },
+        {
+          "type": "PART_TRANSFORM",
+          "part": "Ön Ev",
+          "status": "FAIL",
+          "origin": [
+            2.5,
+            2.5,
+            31
+          ],
+          "u": [
+            1,
+            0,
+            0
+          ],
+          "v": [
+            0,
+            0,
+            1
+          ],
+          "normal": [
+            0.0,
+            -1.0,
+            0.0
+          ],
+          "expected_normal": null
+        },
+        {
+          "type": "PART_TRANSFORM",
+          "part": "Arka Ev",
+          "status": "FAIL",
+          "origin": [
+            2.5,
+            72.5,
+            31
+          ],
+          "u": [
+            1,
+            0,
+            0
+          ],
+          "v": [
+            0,
+            0,
+            1
+          ],
+          "normal": [
+            0.0,
+            -1.0,
+            0.0
+          ],
+          "expected_normal": null
+        },
+        {
+          "type": "PART_TRANSFORM",
+          "part": "Sol Yan",
+          "status": "FAIL",
+          "origin": [
+            2.5,
+            2.5,
+            31
+          ],
+          "u": [
+            0,
+            1,
+            0
+          ],
+          "v": [
+            0,
+            0,
+            1
+          ],
+          "normal": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "expected_normal": null
+        },
+        {
+          "type": "PART_TRANSFORM",
+          "part": "Sağ Yan",
+          "status": "FAIL",
+          "origin": [
+            102.5,
+            2.5,
+            31
+          ],
+          "u": [
+            0,
+            1,
+            0
+          ],
+          "v": [
+            0,
+            0,
+            1
+          ],
+          "normal": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "expected_normal": null
+        },
+        {
+          "type": "PART_TRANSFORM",
+          "part": "Sol Çatı",
+          "status": "FAIL",
+          "origin": [
+            -0.5,
+            -0.5,
+            101
+          ],
+          "u": [
+            0.0,
+            1.0,
+            0.0
+          ],
+          "v": [
+            0.7954317177369463,
+            0.0,
+            0.6060432182757687
+          ],
+          "normal": [
+            0.6060432182757687,
+            0.0,
+            -0.7954317177369463
+          ],
+          "expected_normal": null
+        },
+        {
+          "type": "PART_TRANSFORM",
+          "part": "Sağ Çatı",
+          "status": "FAIL",
+          "origin": [
+            105.5,
+            -0.5,
+            101
+          ],
+          "u": [
+            0.0,
+            1.0,
+            0.0
+          ],
+          "v": [
+            -0.7954317177369463,
+            0.0,
+            0.6060432182757687
+          ],
+          "normal": [
+            0.6060432182757687,
+            -0.0,
+            0.7954317177369463
+          ],
+          "expected_normal": null
+        },
+        {
+          "type": "JOINT_TRANSFORM",
+          "part_a": "Alt Elektronik Kutu/bottom",
+          "part_b": "Alt Elektronik Kutu/front",
+          "status": "PASS",
+          "world_edge_error_mm": 0.0,
+          "edge_length_delta_mm": 0.0,
+          "normal_angle_deg": 90.0,
+          "material_surface_offsets_mm": [
+            3.0,
+            0
+          ],
+          "edge_profiles": [
+            "f",
+            "F"
+          ],
+          "complementary_geometry": true
+        },
+        {
+          "type": "JOINT_TRANSFORM",
+          "part_a": "Alt Elektronik Kutu/bottom",
+          "part_b": "Alt Elektronik Kutu/back",
+          "status": "PASS",
+          "world_edge_error_mm": 0.0,
+          "edge_length_delta_mm": 0.0,
+          "normal_angle_deg": 90.0,
+          "material_surface_offsets_mm": [
+            3.0,
+            0
+          ],
+          "edge_profiles": [
+            "f",
+            "F"
+          ],
+          "complementary_geometry": true
+        },
+        {
+          "type": "JOINT_TRANSFORM",
+          "part_a": "Alt Elektronik Kutu/bottom",
+          "part_b": "Alt Elektronik Kutu/left",
+          "status": "PASS",
+          "world_edge_error_mm": 0.0,
+          "edge_length_delta_mm": 0.0,
+          "normal_angle_deg": 90.0,
+          "material_surface_offsets_mm": [
+            3.0,
+            0
+          ],
+          "edge_profiles": [
+            "f",
+            "F"
+          ],
+          "complementary_geometry": true
+        },
+        {
+          "type": "JOINT_TRANSFORM",
+          "part_a": "Alt Elektronik Kutu/bottom",
+          "part_b": "Alt Elektronik Kutu/right",
+          "status": "PASS",
+          "world_edge_error_mm": 0.0,
+          "edge_length_delta_mm": 0.0,
+          "normal_angle_deg": 90.0,
+          "material_surface_offsets_mm": [
+            3.0,
+            0
+          ],
+          "edge_profiles": [
+            "f",
+            "F"
+          ],
+          "complementary_geometry": true
+        },
+        {
+          "type": "JOINT_TRANSFORM",
+          "part_a": "Alt Elektronik Kutu/front",
+          "part_b": "Alt Elektronik Kutu/left",
+          "status": "PASS",
+          "world_edge_error_mm": 0.0,
+          "edge_length_delta_mm": 0.0,
+          "normal_angle_deg": 90.0,
+          "material_surface_offsets_mm": [
+            0,
+            0
+          ],
+          "edge_profiles": [
+            "F",
+            "f"
+          ],
+          "complementary_geometry": true
+        },
+        {
+          "type": "JOINT_TRANSFORM",
+          "part_a": "Alt Elektronik Kutu/front",
+          "part_b": "Alt Elektronik Kutu/right",
+          "status": "PASS",
+          "world_edge_error_mm": 0.0,
+          "edge_length_delta_mm": 0.0,
+          "normal_angle_deg": 90.0,
+          "material_surface_offsets_mm": [
+            0,
+            0
+          ],
+          "edge_profiles": [
+            "F",
+            "f"
+          ],
+          "complementary_geometry": true
+        },
+        {
+          "type": "JOINT_TRANSFORM",
+          "part_a": "Alt Elektronik Kutu/back",
+          "part_b": "Alt Elektronik Kutu/left",
+          "status": "PASS",
+          "world_edge_error_mm": 0.0,
+          "edge_length_delta_mm": 0.0,
+          "normal_angle_deg": 90.0,
+          "material_surface_offsets_mm": [
+            0,
+            0
+          ],
+          "edge_profiles": [
+            "F",
+            "f"
+          ],
+          "complementary_geometry": true
+        },
+        {
+          "type": "JOINT_TRANSFORM",
+          "part_a": "Alt Elektronik Kutu/back",
+          "part_b": "Alt Elektronik Kutu/right",
+          "status": "PASS",
+          "world_edge_error_mm": 0.0,
+          "edge_length_delta_mm": 0.0,
+          "normal_angle_deg": 90.0,
+          "material_surface_offsets_mm": [
+            0,
+            0
+          ],
+          "edge_profiles": [
+            "F",
+            "f"
+          ],
+          "complementary_geometry": true
+        },
+        {
+          "type": "JOINT_TRANSFORM",
+          "part_a": "Alt Elektronik Kutu/lid",
+          "part_b": "Alt Elektronik Kutu/front",
+          "status": "PASS",
+          "world_edge_error_mm": 0.0,
+          "edge_length_delta_mm": 0.0,
+          "normal_angle_deg": 90.0,
+          "material_surface_offsets_mm": [
+            0,
+            0
+          ],
+          "edge_profiles": [
+            "f",
+            "F"
+          ],
+          "complementary_geometry": true
+        },
+        {
+          "type": "JOINT_TRANSFORM",
+          "part_a": "Alt Elektronik Kutu/lid",
+          "part_b": "Alt Elektronik Kutu/back",
+          "status": "PASS",
+          "world_edge_error_mm": 0.0,
+          "edge_length_delta_mm": 0.0,
+          "normal_angle_deg": 90.0,
+          "material_surface_offsets_mm": [
+            0,
+            0
+          ],
+          "edge_profiles": [
+            "f",
+            "F"
+          ],
+          "complementary_geometry": true
+        },
+        {
+          "type": "JOINT_TRANSFORM",
+          "part_a": "Alt Elektronik Kutu/lid",
+          "part_b": "Alt Elektronik Kutu/left",
+          "status": "PASS",
+          "world_edge_error_mm": 0.0,
+          "edge_length_delta_mm": 0.0,
+          "normal_angle_deg": 90.0,
+          "material_surface_offsets_mm": [
+            0,
+            0
+          ],
+          "edge_profiles": [
+            "f",
+            "F"
+          ],
+          "complementary_geometry": true
+        },
+        {
+          "type": "JOINT_TRANSFORM",
+          "part_a": "Alt Elektronik Kutu/lid",
+          "part_b": "Alt Elektronik Kutu/right",
+          "status": "PASS",
+          "world_edge_error_mm": 0.0,
+          "edge_length_delta_mm": 0.0,
+          "normal_angle_deg": 90.0,
+          "material_surface_offsets_mm": [
+            0,
+            0
+          ],
+          "edge_profiles": [
+            "f",
+            "F"
+          ],
+          "complementary_geometry": true
+        },
+        {
+          "type": "INTERIOR_VOLUME",
+          "status": "PASS",
+          "inner_dimensions_mm": [
+            105.0,
+            75.0,
+            28.0
+          ]
+        }
+      ]
+    },
+    "intended_contacts": [
+      {
+        "part_a": "Alt Elektronik Kutu/bottom",
+        "part_b": "Alt Elektronik Kutu/front",
+        "penetration_mm": [
+          105.0,
+          3.0,
+          0.0
+        ],
+        "classification": "INTENDED_CONTACT"
+      },
+      {
+        "part_a": "Alt Elektronik Kutu/bottom",
+        "part_b": "Alt Elektronik Kutu/back",
+        "penetration_mm": [
+          105.0,
+          3.0,
+          0.0
+        ],
+        "classification": "INTENDED_CONTACT"
+      },
+      {
+        "part_a": "Alt Elektronik Kutu/bottom",
+        "part_b": "Alt Elektronik Kutu/left",
+        "penetration_mm": [
+          3.0,
+          81.0,
+          0.0
+        ],
+        "classification": "INTENDED_CONTACT"
+      },
+      {
+        "part_a": "Alt Elektronik Kutu/bottom",
+        "part_b": "Alt Elektronik Kutu/right",
+        "penetration_mm": [
+          3.0,
+          81.0,
+          0.0
+        ],
+        "classification": "INTENDED_CONTACT"
+      },
+      {
+        "part_a": "Alt Elektronik Kutu/front",
+        "part_b": "Alt Elektronik Kutu/left",
+        "penetration_mm": [
+          0.0,
+          3.0,
+          28.0
+        ],
+        "classification": "INTENDED_CONTACT"
+      },
+      {
+        "part_a": "Alt Elektronik Kutu/front",
+        "part_b": "Alt Elektronik Kutu/right",
+        "penetration_mm": [
+          0.0,
+          3.0,
+          28.0
+        ],
+        "classification": "INTENDED_CONTACT"
+      },
+      {
+        "part_a": "Alt Elektronik Kutu/front",
+        "part_b": "Alt Elektronik Kutu/lid",
+        "penetration_mm": [
+          105.0,
+          3.0,
+          0.0
+        ],
+        "classification": "INTENDED_CONTACT"
+      },
+      {
+        "part_a": "Alt Elektronik Kutu/back",
+        "part_b": "Alt Elektronik Kutu/left",
+        "penetration_mm": [
+          0.0,
+          3.0,
+          28.0
+        ],
+        "classification": "INTENDED_CONTACT"
+      },
+      {
+        "part_a": "Alt Elektronik Kutu/back",
+        "part_b": "Alt Elektronik Kutu/right",
+        "penetration_mm": [
+          0.0,
+          3.0,
+          28.0
+        ],
+        "classification": "INTENDED_CONTACT"
+      },
+      {
+        "part_a": "Alt Elektronik Kutu/back",
+        "part_b": "Alt Elektronik Kutu/lid",
+        "penetration_mm": [
+          105.0,
+          3.0,
+          0.0
+        ],
+        "classification": "INTENDED_CONTACT"
+      },
+      {
+        "part_a": "Alt Elektronik Kutu/left",
+        "part_b": "Alt Elektronik Kutu/lid",
+        "penetration_mm": [
+          3.0,
+          81.0,
+          0.0
+        ],
+        "classification": "INTENDED_CONTACT"
+      },
+      {
+        "part_a": "Alt Elektronik Kutu/right",
+        "part_b": "Alt Elektronik Kutu/lid",
+        "penetration_mm": [
+          3.0,
+          81.0,
+          0.0
+        ],
+        "classification": "INTENDED_CONTACT"
+      }
+    ],
+    "clearances": [
+      {
+        "part_a": "Alt Elektronik Kutu/bottom",
+        "part_b": "Alt Elektronik Kutu/lid",
+        "penetration_mm": [
+          111.0,
+          81.0,
+          -28.0
+        ],
+        "classification": "CLEARANCE"
+      },
+      {
+        "part_a": "Alt Elektronik Kutu/front",
+        "part_b": "Alt Elektronik Kutu/back",
+        "penetration_mm": [
+          105.0,
+          -75.0,
+          28.0
+        ],
+        "classification": "CLEARANCE"
+      },
+      {
+        "part_a": "Alt Elektronik Kutu/left",
+        "part_b": "Alt Elektronik Kutu/right",
+        "penetration_mm": [
+          -105.0,
+          81.0,
+          28.0
+        ],
+        "classification": "CLEARANCE"
+      }
+    ],
+    "illegal_collisions": [],
+    "ambiguous_parts": [],
+    "unresolved_parts": [],
+    "shaft_pairs": [],
+    "assembled_mm": [
+      111.0,
+      81.0,
+      31.0
+    ],
+    "sequence": [
+      "Stand the bottom panel; fingers point up.",
+      "Insert front wall fingers into matching F holes / floor edge.",
+      "Insert back wall fingers into matching F holes / floor edge.",
+      "Insert left wall fingers into matching F holes / floor edge.",
+      "Insert right wall fingers into matching F holes / floor edge."
+    ],
+    "parts": [
+      "Alt Elektronik Kutu/front",
+      "Alt Elektronik Kutu/back",
+      "Alt Elektronik Kutu/bottom",
+      "Alt Elektronik Kutu/left",
+      "Alt Elektronik Kutu/right",
+      "Alt Elektronik Kutu/lid",
+      "Ön Ev",
+      "Arka Ev",
+      "Sol Yan",
+      "Sağ Yan",
+      "Sol Çatı",
+      "Sağ Çatı"
+    ],
+    "graph": {
+      "nodes": [
+        {
+          "id": "Alt Elektronik Kutu/front",
+          "kind": "wall",
+          "w": 105.0,
+          "h": 28.0,
+          "d": null
+        },
+        {
+          "id": "Alt Elektronik Kutu/back",
+          "kind": "wall",
+          "w": 105.0,
+          "h": 28.0,
+          "d": null
+        },
+        {
+          "id": "Alt Elektronik Kutu/bottom",
+          "kind": "floor",
+          "w": 105.0,
+          "h": 75.0,
+          "d": null
+        },
+        {
+          "id": "Alt Elektronik Kutu/left",
+          "kind": "wall",
+          "w": 75.0,
+          "h": 28.0,
+          "d": null
+        },
+        {
+          "id": "Alt Elektronik Kutu/right",
+          "kind": "wall",
+          "w": 75.0,
+          "h": 28.0,
+          "d": null
+        },
+        {
+          "id": "Alt Elektronik Kutu/lid",
+          "kind": "floor",
+          "w": 105.0,
+          "h": 75.0,
+          "d": null
+        },
+        {
+          "id": "Ön Ev",
+          "kind": "contour",
+          "w": 106.0,
+          "h": 111.0,
+          "d": null
+        },
+        {
+          "id": "Arka Ev",
+          "kind": "contour",
+          "w": 106.0,
+          "h": 111.0,
+          "d": null
+        },
+        {
+          "id": "Sol Yan",
+          "kind": "contour",
+          "w": 76.0,
+          "h": 73.0,
+          "d": null
+        },
+        {
+          "id": "Sağ Yan",
+          "kind": "contour",
+          "w": 76.0,
+          "h": 73.0,
+          "d": null
+        },
+        {
+          "id": "Sol Çatı",
+          "kind": "panel",
+          "w": 76.0,
+          "h": 66.0,
+          "d": null
+        },
+        {
+          "id": "Sağ Çatı",
+          "kind": "panel",
+          "w": 76.0,
+          "h": 66.0,
+          "d": null
+        }
+      ],
+      "edges": [
+        {
+          "from": "Alt Elektronik Kutu/bottom",
+          "to": "Alt Elektronik Kutu/front",
+          "type": "finger",
+          "via": "compiled composite CUT geometry + world-space transform",
+          "length_mm": null,
+          "result": "MATCH"
+        },
+        {
+          "from": "Alt Elektronik Kutu/bottom",
+          "to": "Alt Elektronik Kutu/back",
+          "type": "finger",
+          "via": "compiled composite CUT geometry + world-space transform",
+          "length_mm": null,
+          "result": "MATCH"
+        },
+        {
+          "from": "Alt Elektronik Kutu/bottom",
+          "to": "Alt Elektronik Kutu/left",
+          "type": "finger",
+          "via": "compiled composite CUT geometry + world-space transform",
+          "length_mm": null,
+          "result": "MATCH"
+        },
+        {
+          "from": "Alt Elektronik Kutu/bottom",
+          "to": "Alt Elektronik Kutu/right",
+          "type": "finger",
+          "via": "compiled composite CUT geometry + world-space transform",
+          "length_mm": null,
+          "result": "MATCH"
+        },
+        {
+          "from": "Alt Elektronik Kutu/front",
+          "to": "Alt Elektronik Kutu/left",
+          "type": "finger",
+          "via": "compiled composite CUT geometry + world-space transform",
+          "length_mm": null,
+          "result": "MATCH"
+        },
+        {
+          "from": "Alt Elektronik Kutu/front",
+          "to": "Alt Elektronik Kutu/right",
+          "type": "finger",
+          "via": "compiled composite CUT geometry + world-space transform",
+          "length_mm": null,
+          "result": "MATCH"
+        },
+        {
+          "from": "Alt Elektronik Kutu/back",
+          "to": "Alt Elektronik Kutu/left",
+          "type": "finger",
+          "via": "compiled composite CUT geometry + world-space transform",
+          "length_mm": null,
+          "result": "MATCH"
+        },
+        {
+          "from": "Alt Elektronik Kutu/back",
+          "to": "Alt Elektronik Kutu/right",
+          "type": "finger",
+          "via": "compiled composite CUT geometry + world-space transform",
+          "length_mm": null,
+          "result": "MATCH"
+        },
+        {
+          "from": "Alt Elektronik Kutu/lid",
+          "to": "Alt Elektronik Kutu/front",
+          "type": "finger",
+          "via": "compiled composite CUT geometry + world-space transform",
+          "length_mm": null,
+          "result": "MATCH"
+        },
+        {
+          "from": "Alt Elektronik Kutu/lid",
+          "to": "Alt Elektronik Kutu/back",
+          "type": "finger",
+          "via": "compiled composite CUT geometry + world-space transform",
+          "length_mm": null,
+          "result": "MATCH"
+        },
+        {
+          "from": "Alt Elektronik Kutu/lid",
+          "to": "Alt Elektronik Kutu/left",
+          "type": "finger",
+          "via": "compiled composite CUT geometry + world-space transform",
+          "length_mm": null,
+          "result": "MATCH"
+        },
+        {
+          "from": "Alt Elektronik Kutu/lid",
+          "to": "Alt Elektronik Kutu/right",
+          "type": "finger",
+          "via": "compiled composite CUT geometry + world-space transform",
+          "length_mm": null,
+          "result": "MATCH"
+        }
+      ],
+      "node_count": 12,
+      "edge_count": 12
+    },
+    "thickness": 3.0,
+    "burn": 0.15,
+    "note": "Roof is locked only when gable bottom f mates wall top F and roof f mates gable hypotenuse F (Boxes.py FingerJoint). A sitting rectangle is not a lock.",
+    "explicit_panel_assembly": {
+      "active": false,
+      "status": "N/A",
+      "joints": [],
+      "errors": [],
+      "port_keepouts": [],
+      "port_inventory": {}
+    },
+    "linear_motion": {
+      "active": false,
+      "slides": [],
+      "drives": [],
+      "status": "N/A"
+    },
+    "connection_graph_summary": {
+      "nodes": 12,
+      "edges": 12,
+      "connected_components": 7,
+      "components": [
+        [
+          "Alt Elektronik Kutu/back",
+          "Alt Elektronik Kutu/bottom",
+          "Alt Elektronik Kutu/front",
+          "Alt Elektronik Kutu/left",
+          "Alt Elektronik Kutu/lid",
+          "Alt Elektronik Kutu/right"
+        ],
+        [
+          "Arka Ev"
+        ],
+        [
+          "Sağ Yan"
+        ],
+        [
+          "Sağ Çatı"
+        ],
+        [
+          "Sol Yan"
+        ],
+        [
+          "Sol Çatı"
+        ],
+        [
+          "Ön Ev"
+        ]
+      ]
+    }
+  }
+}
