@@ -17,7 +17,7 @@ KITS: list[dict[str, Any]] = [
         "title_tr": "Ev Kalemlik", "title_en": "House pencil holder",
         "blurb_tr": "130×90×180 mm · 2,7 mm · Noçsuz standart model",
         "blurb_en": "130×90×180 mm · 2.7 mm · No holding bridges",
-        "src": "house-pencil-holder.assembled.svg", "cut": "house-pencil-holder.svg",
+        "src": "house-pencil-holder.svg", "cut": "house-pencil-holder.svg",
         "model_url": "/models/house-pencil-holder", "dxf_url": "/demo/house-pencil-holder.dxf",
     },
     {

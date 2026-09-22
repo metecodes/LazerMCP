@@ -30,7 +30,8 @@ def get_standard_model(model_id=MODEL_ID, base_url=''):
     result.update(success=True, model_url=base+'/models/'+MODEL_ID,
                   svg_url=base+f'/demo/{MODEL_ID}.svg',
                   dxf_url=base+f'/demo/{MODEL_ID}.dxf',
-                  assembled_preview_url=base+f'/demo/{MODEL_ID}.assembled.svg',
+                  assembled_preview_url=(base+f'/demo/{MODEL_ID}.assembled.svg' if result.get('assembled_preview_available', True) else None),
+                  source_svg_url=base+f'/demo/{MODEL_ID}.source.svg',
                   recipe_url=base+f'/demo/{MODEL_ID}.recipe.json',
                   expires_at=None, storage='versioned_site_asset')
     return result

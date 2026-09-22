@@ -28,7 +28,7 @@ class StandardModelTests(unittest.TestCase):
         self.assertIsNone(model['expires_at'])
         self.assertEqual(model['thickness_mm'],2.7)
         self.assertEqual(model['production_export'],'BLOCKED')
-        for key in ('svg_url','dxf_url','assembled_preview_url','recipe_url'):
+        for key in ('svg_url','dxf_url','source_svg_url','recipe_url'):
             self.assertTrue(model[key].startswith('https://example.test/demo/'))
             self.assertTrue((ROOT/'web'/'demo'/model[key].rsplit('/',1)[1]).is_file())
         self.assertFalse(get_standard_model('../secret')['success'])
@@ -39,3 +39,38 @@ class StandardModelTests(unittest.TestCase):
         for thickness in (2.7,3):
             result = check_assembly(recipe(thickness=thickness),thickness=thickness)
             self.assertTrue(result['ok'],result['look_again'])
+
+
+class SourceModelTests(unittest.TestCase):
+    def test_source_geometry_is_preserved_and_only_gaps_are_added(self):
+        from tools.build_standard_models import SOURCE, remove_source_nicks
+        from collections import Counter
+        from svgpathtools import Line
+        original = SOURCE.read_bytes()
+        result, repairs = remove_source_nicks(original)
+        def segments(data):
+            rows=[]
+            for e in ET.fromstring(data).iter():
+                if not e.tag.endswith('path'): continue
+                for seg in parse_path(e.get('d')):
+                    self.assertIsInstance(seg,Line)
+                    rows.append(tuple(sorted(((round(seg.start.real,6),round(seg.start.imag,6)),(round(seg.end.real,6),round(seg.end.imag,6))))))
+            return Counter(rows)
+        before,after=segments(original),segments(result)
+        self.assertFalse(before-after, 'original segment removed or moved')
+        self.assertEqual(sum((after-before).values()),len(repairs))
+        self.assertEqual(len(repairs),79)
+        self.assertEqual(ET.fromstring(original).attrib,ET.fromstring(result).attrib)
+        for e in ET.fromstring(result).iter():
+            if e.tag.endswith('path'): self.assertTrue(parse_path(e.get('d')).isclosed())
+        self.assertEqual(result,(ROOT/'web/demo/house-pencil-holder.svg').read_bytes())
+
+    def test_no_unrelated_assembly_pass_or_preview_is_claimed(self):
+        result=get_standard_model()
+        self.assertEqual(result['source_type'],'user_supplied_svg')
+        self.assertIsNone(result['assembled_preview_url'])
+        self.assertEqual(result['assembly'],'NOT VERIFIED')
+        self.assertEqual(result['production_export'],'BLOCKED')
+        self.assertEqual(result['topology']['open_cuts'],[])
+        self.assertEqual(result['topology']['nicked_closed'],0)
+        self.assertTrue(result['topology']['self_intersections'])
