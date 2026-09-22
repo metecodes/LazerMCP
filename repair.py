@@ -76,6 +76,10 @@ def _props(parts: list[dict[str, Any]]) -> list[dict[str, Any]]:
 def repair_primitives(primitives: list[Any] | None, review: dict[str, Any] | None = None) -> tuple[list[Any], list[dict[str, Any]]]:
     """Return repaired primitives and the list of actions taken. Empty actions = cannot repair further."""
     parts: list[Any] = copy.deepcopy(list(primitives or []))
+    if (review or {}).get('canonical_mates',{}).get('active'):
+        # Connector failures require a targeted edit with renewed geometric
+        # evidence. Legacy product-wide heuristics must not move locked mates.
+        return parts, []
     actions: list[dict[str, Any]] = []
     looks = " ".join(str(x) for x in (review or {}).get("look_again") or [])
     looks += " " + " ".join(

@@ -163,6 +163,7 @@ def _edge_points(part,name,z):
 
 def validate_box_transforms(parts,constraints,thickness):
     """Prove compiler-derived box poses against the actual joint graph."""
+    parts=[p for p in parts if p.get('composite_parent')]
     lookup={str(p.get("physical_part_id")):p for p in parts};checks=[];tol=.05;t=float(thickness)
     expected={"bottom":[0,0,1],"lid":[0,0,1],"front":[0,-1,0],"back":[0,1,0],"left":[-1,0,0],"right":[1,0,0]}
     for part in parts:

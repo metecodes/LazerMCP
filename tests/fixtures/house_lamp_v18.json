@@ -1,0 +1,945 @@
+{
+  "primitives": [
+    {
+      "type": "box",
+      "label": "Alt Elektronik Kutu",
+      "part_id": "box",
+      "x": 105,
+      "y": 75,
+      "h": 28,
+      "bottom": true,
+      "lid": {
+        "type": "finger_joint",
+        "holes": [
+          {
+            "x": 52.5,
+            "y": 37.5,
+            "d": 14
+          }
+        ],
+        "slots": [
+          {
+            "x": 15.5,
+            "y": 3,
+            "w": 14,
+            "h": 3,
+            "operation": "CUT"
+          },
+          {
+            "x": 75.5,
+            "y": 3,
+            "w": 14,
+            "h": 3,
+            "operation": "CUT"
+          },
+          {
+            "x": 15.5,
+            "y": 69,
+            "w": 14,
+            "h": 3,
+            "operation": "CUT"
+          },
+          {
+            "x": 75.5,
+            "y": 69,
+            "w": 14,
+            "h": 3,
+            "operation": "CUT"
+          },
+          {
+            "x": 3,
+            "y": 13,
+            "w": 3,
+            "h": 14,
+            "operation": "CUT"
+          },
+          {
+            "x": 3,
+            "y": 48,
+            "w": 3,
+            "h": 14,
+            "operation": "CUT"
+          },
+          {
+            "x": 99,
+            "y": 13,
+            "w": 3,
+            "h": 14,
+            "operation": "CUT"
+          },
+          {
+            "x": 99,
+            "y": 48,
+            "w": 3,
+            "h": 14,
+            "operation": "CUT"
+          }
+        ]
+      },
+      "walls": {
+        "front": {
+          "slots": [
+            {
+              "x": 46.5,
+              "y": 10,
+              "w": 12,
+              "h": 8,
+              "operation": "CUT"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "contour",
+      "label": "Ön Ev",
+      "part_id": "front",
+      "role": "structural",
+      "operation": "CUT",
+      "points": [
+        [
+          13,
+          -3
+        ],
+        [
+          27,
+          -3
+        ],
+        [
+          27,
+          0
+        ],
+        [
+          73,
+          0
+        ],
+        [
+          73,
+          -3
+        ],
+        [
+          87,
+          -3
+        ],
+        [
+          87,
+          0
+        ],
+        [
+          100,
+          0
+        ],
+        [
+          100,
+          18
+        ],
+        [
+          103,
+          18
+        ],
+        [
+          103,
+          32
+        ],
+        [
+          100,
+          32
+        ],
+        [
+          100,
+          46
+        ],
+        [
+          103,
+          46
+        ],
+        [
+          103,
+          60
+        ],
+        [
+          100,
+          60
+        ],
+        [
+          100,
+          70
+        ],
+        [
+          87.26,
+          79.68
+        ],
+        [
+          89.08,
+          82.07
+        ],
+        [
+          77.93,
+          90.54
+        ],
+        [
+          76.11,
+          88.15
+        ],
+        [
+          69.75,
+          92.99
+        ],
+        [
+          71.56,
+          95.38
+        ],
+        [
+          60.41,
+          103.85
+        ],
+        [
+          58.6,
+          101.46
+        ],
+        [
+          50,
+          108
+        ],
+        [
+          41.4,
+          101.46
+        ],
+        [
+          39.59,
+          103.85
+        ],
+        [
+          28.44,
+          95.38
+        ],
+        [
+          30.25,
+          92.99
+        ],
+        [
+          23.89,
+          88.15
+        ],
+        [
+          22.07,
+          90.54
+        ],
+        [
+          10.92,
+          82.07
+        ],
+        [
+          12.74,
+          79.68
+        ],
+        [
+          0,
+          70
+        ],
+        [
+          0,
+          60
+        ],
+        [
+          -3,
+          60
+        ],
+        [
+          -3,
+          46
+        ],
+        [
+          0,
+          46
+        ],
+        [
+          0,
+          32
+        ],
+        [
+          -3,
+          32
+        ],
+        [
+          -3,
+          18
+        ],
+        [
+          0,
+          18
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          13,
+          0
+        ]
+      ],
+      "placement": {
+        "origin": [
+          2.5,
+          2.5,
+          31
+        ],
+        "u": [
+          1,
+          0,
+          0
+        ],
+        "v": [
+          0,
+          0,
+          1
+        ]
+      },
+      "slots": [
+        {
+          "x": 18,
+          "y": 28,
+          "w": 16,
+          "h": 24,
+          "operation": "CUT"
+        },
+        {
+          "x": 42,
+          "y": 28,
+          "w": 16,
+          "h": 24,
+          "operation": "CUT"
+        },
+        {
+          "x": 66,
+          "y": 28,
+          "w": 16,
+          "h": 24,
+          "operation": "CUT"
+        }
+      ]
+    },
+    {
+      "type": "contour",
+      "label": "Arka Ev",
+      "part_id": "back",
+      "role": "structural",
+      "operation": "CUT",
+      "points": [
+        [
+          13,
+          -3
+        ],
+        [
+          27,
+          -3
+        ],
+        [
+          27,
+          0
+        ],
+        [
+          73,
+          0
+        ],
+        [
+          73,
+          -3
+        ],
+        [
+          87,
+          -3
+        ],
+        [
+          87,
+          0
+        ],
+        [
+          100,
+          0
+        ],
+        [
+          100,
+          18
+        ],
+        [
+          103,
+          18
+        ],
+        [
+          103,
+          32
+        ],
+        [
+          100,
+          32
+        ],
+        [
+          100,
+          46
+        ],
+        [
+          103,
+          46
+        ],
+        [
+          103,
+          60
+        ],
+        [
+          100,
+          60
+        ],
+        [
+          100,
+          70
+        ],
+        [
+          87.26,
+          79.68
+        ],
+        [
+          89.08,
+          82.07
+        ],
+        [
+          77.93,
+          90.54
+        ],
+        [
+          76.11,
+          88.15
+        ],
+        [
+          69.75,
+          92.99
+        ],
+        [
+          71.56,
+          95.38
+        ],
+        [
+          60.41,
+          103.85
+        ],
+        [
+          58.6,
+          101.46
+        ],
+        [
+          50,
+          108
+        ],
+        [
+          41.4,
+          101.46
+        ],
+        [
+          39.59,
+          103.85
+        ],
+        [
+          28.44,
+          95.38
+        ],
+        [
+          30.25,
+          92.99
+        ],
+        [
+          23.89,
+          88.15
+        ],
+        [
+          22.07,
+          90.54
+        ],
+        [
+          10.92,
+          82.07
+        ],
+        [
+          12.74,
+          79.68
+        ],
+        [
+          0,
+          70
+        ],
+        [
+          0,
+          60
+        ],
+        [
+          -3,
+          60
+        ],
+        [
+          -3,
+          46
+        ],
+        [
+          0,
+          46
+        ],
+        [
+          0,
+          32
+        ],
+        [
+          -3,
+          32
+        ],
+        [
+          -3,
+          18
+        ],
+        [
+          0,
+          18
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          13,
+          0
+        ]
+      ],
+      "placement": {
+        "origin": [
+          2.5,
+          72.5,
+          31
+        ],
+        "u": [
+          1,
+          0,
+          0
+        ],
+        "v": [
+          0,
+          0,
+          1
+        ]
+      }
+    },
+    {
+      "type": "contour",
+      "label": "Sol Yan",
+      "part_id": "left",
+      "role": "structural",
+      "operation": "CUT",
+      "points": [
+        [
+          10.5,
+          -3
+        ],
+        [
+          24.5,
+          -3
+        ],
+        [
+          24.5,
+          0
+        ],
+        [
+          45.5,
+          0
+        ],
+        [
+          45.5,
+          -3
+        ],
+        [
+          59.5,
+          -3
+        ],
+        [
+          59.5,
+          0
+        ],
+        [
+          70,
+          0
+        ],
+        [
+          70,
+          18
+        ],
+        [
+          73,
+          18
+        ],
+        [
+          73,
+          32
+        ],
+        [
+          70,
+          32
+        ],
+        [
+          70,
+          46
+        ],
+        [
+          73,
+          46
+        ],
+        [
+          73,
+          60
+        ],
+        [
+          70,
+          60
+        ],
+        [
+          70,
+          70
+        ],
+        [
+          0,
+          70
+        ],
+        [
+          0,
+          60
+        ],
+        [
+          -3,
+          60
+        ],
+        [
+          -3,
+          46
+        ],
+        [
+          0,
+          46
+        ],
+        [
+          0,
+          32
+        ],
+        [
+          -3,
+          32
+        ],
+        [
+          -3,
+          18
+        ],
+        [
+          0,
+          18
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          10.5,
+          0
+        ]
+      ],
+      "placement": {
+        "origin": [
+          2.5,
+          2.5,
+          31
+        ],
+        "u": [
+          0,
+          1,
+          0
+        ],
+        "v": [
+          0,
+          0,
+          1
+        ]
+      }
+    },
+    {
+      "type": "contour",
+      "label": "Sağ Yan",
+      "part_id": "right",
+      "role": "structural",
+      "operation": "CUT",
+      "points": [
+        [
+          10.5,
+          -3
+        ],
+        [
+          24.5,
+          -3
+        ],
+        [
+          24.5,
+          0
+        ],
+        [
+          45.5,
+          0
+        ],
+        [
+          45.5,
+          -3
+        ],
+        [
+          59.5,
+          -3
+        ],
+        [
+          59.5,
+          0
+        ],
+        [
+          70,
+          0
+        ],
+        [
+          70,
+          18
+        ],
+        [
+          73,
+          18
+        ],
+        [
+          73,
+          32
+        ],
+        [
+          70,
+          32
+        ],
+        [
+          70,
+          46
+        ],
+        [
+          73,
+          46
+        ],
+        [
+          73,
+          60
+        ],
+        [
+          70,
+          60
+        ],
+        [
+          70,
+          70
+        ],
+        [
+          0,
+          70
+        ],
+        [
+          0,
+          60
+        ],
+        [
+          -3,
+          60
+        ],
+        [
+          -3,
+          46
+        ],
+        [
+          0,
+          46
+        ],
+        [
+          0,
+          32
+        ],
+        [
+          -3,
+          32
+        ],
+        [
+          -3,
+          18
+        ],
+        [
+          0,
+          18
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          10.5,
+          0
+        ]
+      ],
+      "placement": {
+        "origin": [
+          102.5,
+          2.5,
+          31
+        ],
+        "u": [
+          0,
+          1,
+          0
+        ],
+        "v": [
+          0,
+          0,
+          1
+        ]
+      }
+    },
+    {
+      "type": "panel",
+      "label": "Sol Çatı",
+      "part_id": "roofL",
+      "role": "structural",
+      "operation": "CUT",
+      "w": 76,
+      "h": 66,
+      "slots": [
+        {
+          "x": 3,
+          "y": 14,
+          "w": 3,
+          "h": 14,
+          "operation": "CUT"
+        },
+        {
+          "x": 3,
+          "y": 38,
+          "w": 3,
+          "h": 14,
+          "operation": "CUT"
+        },
+        {
+          "x": 70,
+          "y": 14,
+          "w": 3,
+          "h": 14,
+          "operation": "CUT"
+        },
+        {
+          "x": 70,
+          "y": 38,
+          "w": 3,
+          "h": 14,
+          "operation": "CUT"
+        }
+      ],
+      "placement": {
+        "origin": [
+          -0.5,
+          -0.5,
+          101
+        ],
+        "u": [
+          0,
+          1,
+          0
+        ],
+        "v": [
+          0.79543172,
+          0,
+          0.60604322
+        ]
+      }
+    },
+    {
+      "type": "panel",
+      "label": "Sağ Çatı",
+      "part_id": "roofR",
+      "role": "structural",
+      "operation": "CUT",
+      "w": 76,
+      "h": 66,
+      "slots": [
+        {
+          "x": 3,
+          "y": 14,
+          "w": 3,
+          "h": 14,
+          "operation": "CUT"
+        },
+        {
+          "x": 3,
+          "y": 38,
+          "w": 3,
+          "h": 14,
+          "operation": "CUT"
+        },
+        {
+          "x": 70,
+          "y": 14,
+          "w": 3,
+          "h": 14,
+          "operation": "CUT"
+        },
+        {
+          "x": 70,
+          "y": 38,
+          "w": 3,
+          "h": 14,
+          "operation": "CUT"
+        }
+      ],
+      "placement": {
+        "origin": [
+          105.5,
+          -0.5,
+          101
+        ],
+        "u": [
+          0,
+          1,
+          0
+        ],
+        "v": [
+          -0.79543172,
+          0,
+          0.60604322
+        ]
+      }
+    }
+  ],
+  "parameters": {
+    "project": "Ahşap Ev Lamba Alt Kutu Geri Eklendi v18",
+    "material": "poplar_3mm",
+    "thickness": 3,
+    "burn": 0.15,
+    "machine": "payas_workshop",
+    "format": "both",
+    "holding_nicks": false,
+    "surface_texts": [],
+    "what_you_see": "12 parçalık mimari korunur: Alt elektronik kutu 6 parça (taban, üst kapak, dört yan), ev gövdesi 4 parça, çatı 2 parça. Üst kapak aynı zamanda ev tabanıdır ve sekiz duvar geçme slotu ile merkez Ø14 duy deliği içerir. Alt kutunun ön duvarında 12x8 şalter deliği vardır. Ön/arka ve sağ/sol ev duvarlarında alt ve köşe geçmeleri; ön/arka gable eğimlerinde çatı geçme çıkıntıları; iki çatıda bunların slotları vardır.",
+    "assembly_request": "Öncelik fiziksel montajdır. 12 parçayı sırayla kontrol et: 6 parçalık alt kutu, üst kapaktaki sekiz slot üzerinden dört ev duvarı, duvarların köşe geçmeleri ve son olarak iki eğimli çatı. Üst kapak slotlarının panel sınırında kalmasını, Ø14 duy ve 12x8 şalter deliğini, çatıların son adımda takılabilirliğini kontrol et.",
+    "assembly_order": [
+      "Alt Elektronik Kutu",
+      "Ön Ev",
+      "Arka Ev",
+      "Sol Yan",
+      "Sağ Yan",
+      "Sol Çatı",
+      "Sağ Çatı"
+    ],
+    "assembly_notes": [
+      "Alt kutunun taban ve dört duvarını birleştir.",
+      "Üst kapağı kutuya tak.",
+      "Ön ve arka ev panellerini kapağın slotlarına geçir.",
+      "Sol ve sağ yanları kapağa geçirip köşe geçmelerini kilitle.",
+      "Sol ve sağ çatıyı gable geçmelerine takıp mahyada kapat."
+    ]
+  }
+}

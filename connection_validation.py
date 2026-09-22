@@ -24,6 +24,7 @@ def validate(primitives,parameters,assembly,linear,mechanism=None):
     def add(a,b,kind,status="PASS",evidence=""):
         if not a or not b or str(a)==str(b):return
         a,b,kind,status=str(a),str(b),str(kind),str(status)
+        kind={'tab-slot':'tab_slot','finger':'finger_joint'}.get(kind,kind)
         existing=next((e for e in edges if {e["part_a"],e["part_b"]}=={a,b} and e["type"]==kind),None)
         if existing:
             if status not in {"PASS","MATCH"}:existing.update(status=status,evidence=evidence)

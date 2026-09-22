@@ -34,6 +34,7 @@ _SKIP_KEYS = {
     "d",
     "closed",
     "rotation",
+    "axis",
     "u",
     "v",
     "angle",

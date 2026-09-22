@@ -293,9 +293,12 @@ def check_assembly(
     primitives: list[Any] | None,
     thickness: float | None = None,
     burn: float | None = None,
+    parameters: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Return mechanical pairs, shaft/slot fit, and a nominal assembly sequence."""
     from toolbox import _materialize_cut_geometry
+    from explicit_mates import prepare_parts, validate_connectors
+    primitives=prepare_parts(primitives or [])
     primitives=[_materialize_cut_geometry(p) if isinstance(p,dict) else p for p in (primitives or [])]
     t = float(thickness if thickness is not None else PAYAS_DEFAULTS["thickness"])
     from composite_assembly import expand as expand_composites, classify_contacts, _normal
@@ -515,6 +518,9 @@ def check_assembly(
     from assembled_view import validate, preview, preview_requirements
     contour_parts = [p for p in physical_parts if isinstance(p, dict) and (_kind(p) in {"polygon", "contour", "outline", "polyline", "panel"} or p.get('_cut_geometry') or p.get('tabs') or p.get('placement'))]
     from structural_mates import infer_structural_mates
+    canonical_mates=validate_connectors(physical_parts,t,parameters)
+    errors.extend(str(e['code'])+': '+str(e.get('connector_id') or e.get('part_id') or '') for e in canonical_mates['errors'])
+    joints.extend(canonical_mates['joints'])
     inference = infer_structural_mates(contour_parts, t, joints)
     inferred_slots = set()
     for row in inference['inferred_mates']:
@@ -522,6 +528,7 @@ def check_assembly(
             feature=row['feature_'+side]
             if feature.startswith('inner:'):
                 inferred_slots.add((row['part_'+side],int(feature.split(':')[1])))
+    inferred_slots.update(canonical_mates['verified_slots'])
     explicit_errors, explicit_joints, joint_debug = validate(contour_parts, t, inferred_slots)
     errors.extend(explicit_errors)
     errors.extend(inference['errors'])
@@ -539,6 +546,7 @@ def check_assembly(
     return {
         "ok": ok,
         "structural_inference": inference,
+        "canonical_mates": canonical_mates,
         "assembled_preview_svg": assembled_preview,
         "assembled_preview_diagnostics": preview_diagnostics,
         "warnings": warnings,

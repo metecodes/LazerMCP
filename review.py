@@ -323,11 +323,20 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
     for part in dmap.get("parts") or []:
         name=str(part.get('name') or '')
         source=next((p for p in primitives if str(p.get('label') or p.get('id') or '')==name),{})
+        part['part_id']=source.get('part_id') or name
+        part['placement']=source.get('placement') or part.get('placement')
+        part['connectors']=[c for c in (assembly.get('canonical_mates') or {}).get('connectors',[]) if c['part_id']==name]
         part['mates']=[]
         for edge in mates_by_name.get(name,[]):
             target=edge['part_b'] if edge['part_a']==name else edge['part_a']
             original=next((m for m in source.get('mates',[]) if isinstance(m,dict) and m.get('part')==target),{})
             part['mates'].append({**original,**edge,'part':target})
+        for row in (assembly.get('canonical_mates') or {}).get('connections',[]):
+            if row.get('status')!='PASS' or name not in {row['part_a'],row['part_b']}:continue
+            side='a' if name==row['part_a'] else 'b';other='b' if side=='a' else 'a'
+            part['mates']=[m for m in part['mates'] if m.get('connector_id') or m.get('part')!=row['part_'+other]]
+            part['mates'].append({'connector_id':row['connector_'+side],'target_part':row['part_'+other],'target_connector':row['connector_'+other],
+                                 'part':row['part_'+other],'type':'tab_slot','reciprocal':True,'geometry_verified':True,'source':'explicit_connectors','locked':True})
     required = list(_STANDALONE_CRITICAL if assembly_mode == "standalone" else (_COMPOSED_CRITICAL if job == "composed" or assembly_mode == "mechanical" else _FLAT_CRITICAL))
     if assembly_mode == "mechanical" and moving:
         required.append("KINEMATICS")
@@ -473,6 +482,8 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
         if explicit_slots:
             status=PASS if assembly.get('ok') is True and verified_slots==explicit_slots else FAIL
             tab_slot_c.append({'status':status,'note':f'geometric tab-slot matches {verified_slots}/{explicit_slots}; names alone are not evidence'})
+        elif (assembly.get('canonical_mates') or {}).get('active'):
+            tab_slot_c.append({'status':PASS if assembly.get('ok') else FAIL,'note':'explicit connector geometry, reciprocity and continuous insertion validation'})
         elif (assembly.get('structural_inference') or {}).get('inferred_mates'):
             tab_slot_c.append({'status':PASS if assembly.get('ok') else FAIL,'note':'contour interlocks verified from extruded CUT geometry and world-space placement'})
         else:tab_slot_c.append({'status':NA,'note':'no explicit tab-slot pairs'})
@@ -480,6 +491,9 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
             tab_slot_c.extend(required_connection_c)
             assembly_c.extend(c for c in required_connection_c if c.get('status')=='FAIL')
             assembly3d_c.extend(c for c in required_connection_c if c.get('status')=='FAIL')
+        for message in looks:
+            if any(term in str(message).lower() for term in ('slot','tab ','mate_','non_complementary')):
+                tab_slot_c.append({'status':FAIL,'note':str(message)})
 
         hardware=parameters.get('hardware_fits')
         if linear_report.get('active') and not nonprop_rotating:
@@ -542,13 +556,22 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
         if removable and any(c.get('status')=='FAIL' and 'remove/reinstall' in str(c.get('note')) for c in coverage_c):sequence_c.append({'status':FAIL,'note':'removable assembly dependency path is not geometrically verified'})
         elif sequence:sequence_c.append({'status':PASS,'note':'assembly order exists; removable paths verified where declared'})
         else:sequence_c.append({'status':NOT_VERIFIED,'note':'assembly dependency sequence is missing'})
+        canonical=(assembly.get('canonical_mates') or {})
+        if canonical.get('active'):
+            sequence_result=canonical.get('sequence') or {}
+            sequence_c=[{'status':PASS if sequence_result.get('status')=='PASS' else FAIL,
+                         'note':'continuous insertion sweep verified' if sequence_result.get('status')=='PASS' else str(sequence_result.get('reason') or 'insertion sequence not verified')}]
+            order_c=list(sequence_c)
 
-        clash_notes = [m for m in looks if "clash" in str(m).lower() or "hit the floor" in str(m).lower()]
+        clash_notes = [m for m in looks if "clash" in str(m).lower() or "hit the floor" in str(m).lower() or "collision" in str(m).lower()]
         if clash_notes:
             for msg in clash_notes:
                 collision_c.append({"status": FAIL, "note": str(msg)})
         else:
             collision_c.append({"status": PASS, "note": "no panel/shaft clashes reported on the recipe"})
+        for failure in canonical.get('errors',[]):
+            if 'COLLISION' in failure.get('code',''):
+                collision_c.append({'status':FAIL,'note':failure['code']})
             if (assembly.get("transform_validation") or {}).get("status")==PASS:
                 collision_c.append({"status":PASS,"note":"compiled composite 3D contacts and illegal penetrations verified"})
             else:
@@ -949,6 +972,7 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
         "canonical_connection_graph": coverage_report.get('connection_graph',[]),
         "connection_graph_summary": assembly.get('connection_graph_summary',{}),
         "structural_inference": assembly.get('structural_inference',{}),
+        "canonical_mates": assembly.get('canonical_mates',{}),
         "categories": {c["id"]: {k: c[k] for k in ("status", "required", "notes")} for c in cats},
         "scorecard": scorecard,
         "gate_levels":gate_levels,

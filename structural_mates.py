@@ -66,12 +66,12 @@ def contour_candidates(p):
         prev, a, b, c, d, nxt = [pts[(i+j) % len(pts)] for j in (-1, 0, 1, 2, 3, 4)]
         rise, along, fall = sub(b, a), sub(c, b), sub(d, c)
         width, depth = norm(along), norm(rise)
-        if min(width, depth) < 1e-6 or norm([x+y for x, y in zip(rise, fall)]) > 1e-6:
+        if min(width, depth) < 1e-6 or norm([x+y for x, y in zip(rise, fall)]) > .025:
             continue
-        if abs(dot(rise, along)) > 1e-6:
+        if abs(dot(rise, along))/(width*depth) > .002:
             continue
         before, after = sub(a, prev), sub(nxt, d)
-        parallel = lambda vec: abs(vec[0]*along[1]-vec[1]*along[0]) < 1e-6 and dot(vec, along) > 0
+        parallel = lambda vec: norm(vec)>1e-8 and abs(vec[0]*along[1]-vec[1]*along[0])/(norm(vec)*width) < .002 and dot(vec, along) > 0
         if not parallel(before) or not parallel(after):
             continue
         rect = Polygon([a, b, c, d])
@@ -136,7 +136,7 @@ def infer_structural_mates(parts, thickness=3, existing_joints=(), tolerance=.05
     tolerance = min(.05, max(0., float(tolerance)))
     rows, errors, rejected = [], [], []
     for p in parts:
-        if _role(p)[0] != 'structural' or p.get('composite_parent'):
+        if _role(p)[0] != 'structural' or p.get('connectors'):
             continue
         pid = str(p.get('physical_part_id') or p.get('label') or p.get('id') or '')
         try:
@@ -145,6 +145,10 @@ def infer_structural_mates(parts, thickness=3, existing_joints=(), tolerance=.05
             if not math.isfinite(t) or t <= 0:
                 raise ValueError('invalid thickness')
             candidates, poly = contour_candidates(p)
+            if p.get('composite_parent'):
+                # Existing box edge constraints stay authoritative; exposed
+                # inner slots may receive a separate contour's real tabs.
+                candidates=[c for c in candidates if c['kind']=='slot']
             if poly is not None:
                 rows.append((pid, p, t, candidates, poly))
         except (KeyError, TypeError, ValueError):
@@ -159,6 +163,11 @@ def infer_structural_mates(parts, thickness=3, existing_joints=(), tolerance=.05
         for af in ac:
             for bf in bc:
                 if (af['kind'] == 'tab') == (bf['kind'] == 'tab'):
+                    if af['kind']==bf['kind']=='tab' and abs(af['depth']-bt)<=tolerance and abs(bf['depth']-at)<=tolerance:
+                        av,bv=_corners(ap,af,at),_corners(bp,bf,bt)
+                        overlap_error=max(min(norm(sub(x,y)) for y in bv) for x in av)
+                        if overlap_error<=tolerance:
+                            errors.append(f'NON_COMPLEMENTARY_JOINT MATE_COLLISION: {aid} ↔ {bid}; coincident male tabs')
                     continue
                 # The entire tab and receiving void must represent the same
                 # world-space rectangular prism (not merely equal centres).
@@ -183,6 +192,8 @@ def infer_structural_mates(parts, thickness=3, existing_joints=(), tolerance=.05
                                  'world_position': [sum(v[i] for v in av)/len(av) for i in range(3)],
                                  'world_normals': [_frame(ap)[3],_frame(bp)[3]],
                                  'status': 'PASS', 'confidence': 1.0})
+                possible[-1]['discovery_status']='GEOMETRY_VERIFIED'
+                possible[-1]['insertion_status']='NOT_VERIFIED'
     counts = {}
     for c in possible:
         for side in ('a', 'b'):

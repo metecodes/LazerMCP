@@ -845,6 +845,10 @@ def render_toolbox(primitives: list[Any], parameters: dict[str, Any] | None = No
         raise ValueError("primitives is empty")
     from studio import prepare_parameters
     params = prepare_parameters(parameters)
+    from explicit_mates import prepare_parts as prepare_explicit_mates
+    aliases={str(p.get('label')):str(p.get('part_id')) for p in primitives if isinstance(p,dict) and p.get('part_id') and p.get('connectors')}
+    if isinstance(params.get('assembly_order'),list):params['assembly_order']=[aliases.get(x,x) for x in params['assembly_order']]
+    primitives=prepare_explicit_mates(primitives)
     from explicit_panel_assembly import compile_connections
     primitives, explicit_panel_assembly = compile_connections(
         primitives, params, float(params.get("thickness") or PAYAS_DEFAULTS["thickness"]),
@@ -897,7 +901,7 @@ def render_toolbox(primitives: list[Any], parameters: dict[str, Any] | None = No
     from nesting import nest_svg
     from topology import inspect_topology
 
-    assembly = check_assembly(parts, thickness=thickness, burn=effective_burn)
+    assembly = check_assembly(parts, thickness=thickness, burn=effective_burn, parameters=params)
     assembly["explicit_panel_assembly"] = explicit_panel_assembly
     from linear_motion import validate as validate_linear_motion
     physical_for_motion = assembly.pop("_physical_primitives", None) or parts

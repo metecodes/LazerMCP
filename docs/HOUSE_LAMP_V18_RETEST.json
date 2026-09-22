@@ -1,0 +1,669 @@
+{
+  "source": "user supplied v18 JSON; geometry unchanged",
+  "physical_parts": 12,
+  "final_status": "BLOCKED",
+  "scorecard": {
+    "digital": {
+      "Digital Geometry": "PASS",
+      "Part Completeness": "PASS",
+      "Connections": "FAIL",
+      "Assembly": "FAIL",
+      "Collision": "FAIL",
+      "Kinematics": "N/A",
+      "Electrical Logic": "PASS",
+      "Safety": "PASS",
+      "BOM": "PASS",
+      "Text & Engraving": "PASS",
+      "Orientation & Y-Axis": "PASS",
+      "Illustration Quality": "PASS",
+      "Report Consistency": "PASS",
+      "SVG Geometry": "PASS",
+      "Manufacturing Geometry": "PASS",
+      "Reference Fidelity": "N/A",
+      "Outer Cut Fidelity": "N/A",
+      "Part Mapping": "N/A",
+      "Tab-Slot Geometry": "FAIL",
+      "3D Assembly": "FAIL",
+      "Hardware Fit": "N/A",
+      "Motion Clearance": "N/A",
+      "Engrave Geometry": "N/A",
+      "Operation Separation": "N/A",
+      "Assembled Preview": "FAIL"
+    },
+    "physical": {
+      "Physical Kerf Test": "NOT_VERIFIED",
+      "Physical Engraving Test": "NOT_VERIFIED",
+      "Physical Assembly": "NOT_VERIFIED",
+      "Movement Test": "N/A",
+      "After Assembly Use": "N/A"
+    }
+  },
+  "box_transform_status": "PASS",
+  "blocking_reasons": [
+    "slot on Alt Elektronik Kutu/lid has no explicit matching tab",
+    "slot on Sol Çatı has no explicit matching tab",
+    "slot on Sağ Çatı has no explicit matching tab",
+    "NON_COMPLEMENTARY_JOINT MATE_COLLISION: Ön Ev ↔ Sağ Yan; coincident male tabs",
+    "Ön Ev role=structural has mates=[]; placement is not connection evidence",
+    "Arka Ev role=structural has mates=[]; placement is not connection evidence",
+    "Sol Yan role=structural has mates=[]; placement is not connection evidence",
+    "Sağ Yan role=structural has mates=[]; placement is not connection evidence",
+    "Sol Çatı role=structural has mates=[]; placement is not connection evidence",
+    "Sağ Çatı role=structural has mates=[]; placement is not connection evidence",
+    "disconnected structural connection graph: 7 components",
+    "assembled preview rejected because geometric assembly checks failed"
+  ],
+  "nearest_geometric_candidates": [
+    {
+      "part": "Ön Ev",
+      "feature": "contour:3",
+      "tab_width_mm": 14.0,
+      "tab_depth_mm": 3.0,
+      "tab_world_center": [
+        82.5,
+        1.0,
+        29.5
+      ],
+      "nearest_void_part": "Alt Elektronik Kutu/lid",
+      "nearest_void_world_center": [
+        80.25,
+        -1.5,
+        32.5
+      ],
+      "center_delta_mm": 4.5069390943299865,
+      "status": "UNVERIFIED_NEAREST_CANDIDATE"
+    },
+    {
+      "part": "Ön Ev",
+      "feature": "contour:8",
+      "tab_width_mm": 14.0,
+      "tab_depth_mm": 3.0,
+      "tab_world_center": [
+        104.0,
+        1.0,
+        56.0
+      ],
+      "nearest_void_part": "Sağ Yan",
+      "nearest_void_world_center": [
+        104.0,
+        1.0,
+        70.0
+      ],
+      "center_delta_mm": 14.0,
+      "status": "UNVERIFIED_NEAREST_CANDIDATE"
+    },
+    {
+      "part": "Ön Ev",
+      "feature": "contour:12",
+      "tab_width_mm": 14.0,
+      "tab_depth_mm": 3.0,
+      "tab_world_center": [
+        104.0,
+        1.0,
+        84.0
+      ],
+      "nearest_void_part": "Sağ Yan",
+      "nearest_void_world_center": [
+        104.0,
+        1.0,
+        70.0
+      ],
+      "center_delta_mm": 14.0,
+      "status": "UNVERIFIED_NEAREST_CANDIDATE"
+    },
+    {
+      "part": "Ön Ev",
+      "feature": "contour:17",
+      "tab_width_mm": 14.002264102637117,
+      "tab_depth_mm": 3.0040805581741497,
+      "tab_world_center": [
+        85.095,
+        1.0,
+        116.11
+      ],
+      "nearest_void_part": "Sağ Çatı",
+      "nearest_void_world_center": [
+        95.27302077909641,
+        2.5,
+        110.67775263246618
+      ],
+      "center_delta_mm": 11.634062851892992,
+      "status": "UNVERIFIED_NEAREST_CANDIDATE"
+    },
+    {
+      "part": "Ön Ev",
+      "feature": "contour:21",
+      "tab_width_mm": 14.00226410263712,
+      "tab_depth_mm": 2.9980326882807686,
+      "tab_world_center": [
+        67.58,
+        1.0,
+        129.42
+      ],
+      "nearest_void_part": "Sağ Çatı",
+      "nearest_void_world_center": [
+        76.1826595534097,
+        2.5,
+        125.22278987108463
+      ],
+      "center_delta_mm": 9.6887731038631,
+      "status": "UNVERIFIED_NEAREST_CANDIDATE"
+    },
+    {
+      "part": "Ön Ev",
+      "feature": "contour:26",
+      "tab_width_mm": 14.002264102637117,
+      "tab_depth_mm": 2.998032688280764,
+      "tab_world_center": [
+        37.42,
+        1.0,
+        129.42
+      ],
+      "nearest_void_part": "Sol Çatı",
+      "nearest_void_world_center": [
+        30.63547010141761,
+        2.5,
+        122.83649471787378
+      ],
+      "center_delta_mm": 9.571958406958428,
+      "status": "UNVERIFIED_NEAREST_CANDIDATE"
+    },
+    {
+      "part": "Ön Ev",
+      "feature": "contour:30",
+      "tab_width_mm": 14.002264102637124,
+      "tab_depth_mm": 3.004080558174165,
+      "tab_world_center": [
+        19.905,
+        1.0,
+        116.11
+      ],
+      "nearest_void_part": "Sol Çatı",
+      "nearest_void_world_center": [
+        11.545108875730902,
+        2.5,
+        108.29145747925533
+      ],
+      "center_delta_mm": 11.544149460151912,
+      "status": "UNVERIFIED_NEAREST_CANDIDATE"
+    },
+    {
+      "part": "Ön Ev",
+      "feature": "contour:35",
+      "tab_width_mm": 14.0,
+      "tab_depth_mm": 3.0,
+      "tab_world_center": [
+        1.0,
+        1.0,
+        84.0
+      ],
+      "nearest_void_part": "Sol Yan",
+      "nearest_void_world_center": [
+        4.0,
+        1.0,
+        70.0
+      ],
+      "center_delta_mm": 14.317821063276353,
+      "status": "UNVERIFIED_NEAREST_CANDIDATE"
+    },
+    {
+      "part": "Ön Ev",
+      "feature": "contour:39",
+      "tab_width_mm": 14.0,
+      "tab_depth_mm": 3.0,
+      "tab_world_center": [
+        1.0,
+        1.0,
+        56.0
+      ],
+      "nearest_void_part": "Sol Yan",
+      "nearest_void_world_center": [
+        4.0,
+        1.0,
+        70.0
+      ],
+      "center_delta_mm": 14.317821063276353,
+      "status": "UNVERIFIED_NEAREST_CANDIDATE"
+    },
+    {
+      "part": "Ön Ev",
+      "feature": "contour:44",
+      "tab_width_mm": 14.0,
+      "tab_depth_mm": 3.0,
+      "tab_world_center": [
+        22.5,
+        1.0,
+        29.5
+      ],
+      "nearest_void_part": "Alt Elektronik Kutu/lid",
+      "nearest_void_world_center": [
+        24.75,
+        -1.5,
+        32.5
+      ],
+      "center_delta_mm": 4.5069390943299865,
+      "status": "UNVERIFIED_NEAREST_CANDIDATE"
+    },
+    {
+      "part": "Arka Ev",
+      "feature": "contour:3",
+      "tab_width_mm": 14.0,
+      "tab_depth_mm": 3.0,
+      "tab_world_center": [
+        82.5,
+        71.0,
+        29.5
+      ],
+      "nearest_void_part": "Alt Elektronik Kutu/lid",
+      "nearest_void_world_center": [
+        80.25,
+        76.5,
+        32.5
+      ],
+      "center_delta_mm": 6.656763477847174,
+      "status": "UNVERIFIED_NEAREST_CANDIDATE"
+    },
+    {
+      "part": "Arka Ev",
+      "feature": "contour:8",
+      "tab_width_mm": 14.0,
+      "tab_depth_mm": 3.0,
+      "tab_world_center": [
+        104.0,
+        71.0,
+        56.0
+      ],
+      "nearest_void_part": "Sağ Yan",
+      "nearest_void_world_center": [
+        104.0,
+        74.0,
+        70.0
+      ],
+      "center_delta_mm": 14.317821063276353,
+      "status": "UNVERIFIED_NEAREST_CANDIDATE"
+    },
+    {
+      "part": "Arka Ev",
+      "feature": "contour:12",
+      "tab_width_mm": 14.0,
+      "tab_depth_mm": 3.0,
+      "tab_world_center": [
+        104.0,
+        71.0,
+        84.0
+      ],
+      "nearest_void_part": "Sağ Yan",
+      "nearest_void_world_center": [
+        104.0,
+        74.0,
+        70.0
+      ],
+      "center_delta_mm": 14.317821063276353,
+      "status": "UNVERIFIED_NEAREST_CANDIDATE"
+    },
+    {
+      "part": "Arka Ev",
+      "feature": "contour:17",
+      "tab_width_mm": 14.002264102637117,
+      "tab_depth_mm": 3.0040805581741497,
+      "tab_world_center": [
+        85.095,
+        71.0,
+        116.11
+      ],
+      "nearest_void_part": "Sağ Çatı",
+      "nearest_void_world_center": [
+        95.27302077909641,
+        69.5,
+        110.67775263246618
+      ],
+      "center_delta_mm": 11.634062851892992,
+      "status": "UNVERIFIED_NEAREST_CANDIDATE"
+    },
+    {
+      "part": "Arka Ev",
+      "feature": "contour:21",
+      "tab_width_mm": 14.00226410263712,
+      "tab_depth_mm": 2.9980326882807686,
+      "tab_world_center": [
+        67.58,
+        71.0,
+        129.42
+      ],
+      "nearest_void_part": "Sağ Çatı",
+      "nearest_void_world_center": [
+        76.1826595534097,
+        69.5,
+        125.22278987108463
+      ],
+      "center_delta_mm": 9.6887731038631,
+      "status": "UNVERIFIED_NEAREST_CANDIDATE"
+    },
+    {
+      "part": "Arka Ev",
+      "feature": "contour:26",
+      "tab_width_mm": 14.002264102637117,
+      "tab_depth_mm": 2.998032688280764,
+      "tab_world_center": [
+        37.42,
+        71.0,
+        129.42
+      ],
+      "nearest_void_part": "Sol Çatı",
+      "nearest_void_world_center": [
+        30.63547010141761,
+        69.5,
+        122.83649471787378
+      ],
+      "center_delta_mm": 9.571958406958428,
+      "status": "UNVERIFIED_NEAREST_CANDIDATE"
+    },
+    {
+      "part": "Arka Ev",
+      "feature": "contour:30",
+      "tab_width_mm": 14.002264102637124,
+      "tab_depth_mm": 3.004080558174165,
+      "tab_world_center": [
+        19.905,
+        71.0,
+        116.11
+      ],
+      "nearest_void_part": "Sol Çatı",
+      "nearest_void_world_center": [
+        11.545108875730902,
+        69.5,
+        108.29145747925533
+      ],
+      "center_delta_mm": 11.544149460151912,
+      "status": "UNVERIFIED_NEAREST_CANDIDATE"
+    },
+    {
+      "part": "Arka Ev",
+      "feature": "contour:35",
+      "tab_width_mm": 14.0,
+      "tab_depth_mm": 3.0,
+      "tab_world_center": [
+        1.0,
+        71.0,
+        84.0
+      ],
+      "nearest_void_part": "Sol Yan",
+      "nearest_void_world_center": [
+        4.0,
+        74.0,
+        70.0
+      ],
+      "center_delta_mm": 14.628738838327793,
+      "status": "UNVERIFIED_NEAREST_CANDIDATE"
+    },
+    {
+      "part": "Arka Ev",
+      "feature": "contour:39",
+      "tab_width_mm": 14.0,
+      "tab_depth_mm": 3.0,
+      "tab_world_center": [
+        1.0,
+        71.0,
+        56.0
+      ],
+      "nearest_void_part": "Sol Yan",
+      "nearest_void_world_center": [
+        4.0,
+        74.0,
+        70.0
+      ],
+      "center_delta_mm": 14.628738838327793,
+      "status": "UNVERIFIED_NEAREST_CANDIDATE"
+    },
+    {
+      "part": "Arka Ev",
+      "feature": "contour:44",
+      "tab_width_mm": 14.0,
+      "tab_depth_mm": 3.0,
+      "tab_world_center": [
+        22.5,
+        71.0,
+        29.5
+      ],
+      "nearest_void_part": "Alt Elektronik Kutu/lid",
+      "nearest_void_world_center": [
+        24.75,
+        76.5,
+        32.5
+      ],
+      "center_delta_mm": 6.656763477847174,
+      "status": "UNVERIFIED_NEAREST_CANDIDATE"
+    },
+    {
+      "part": "Sol Yan",
+      "feature": "contour:3",
+      "tab_width_mm": 14.0,
+      "tab_depth_mm": 3.0,
+      "tab_world_center": [
+        4.0,
+        55.0,
+        29.5
+      ],
+      "nearest_void_part": "Alt Elektronik Kutu/lid",
+      "nearest_void_world_center": [
+        -1.5,
+        53.7,
+        32.5
+      ],
+      "center_delta_mm": 6.398437309218556,
+      "status": "UNVERIFIED_NEAREST_CANDIDATE"
+    },
+    {
+      "part": "Sol Yan",
+      "feature": "contour:8",
+      "tab_width_mm": 14.0,
+      "tab_depth_mm": 3.0,
+      "tab_world_center": [
+        4.0,
+        74.0,
+        56.0
+      ],
+      "nearest_void_part": "Arka Ev",
+      "nearest_void_world_center": [
+        1.0,
+        71.0,
+        70.0
+      ],
+      "center_delta_mm": 14.628738838327793,
+      "status": "UNVERIFIED_NEAREST_CANDIDATE"
+    },
+    {
+      "part": "Sol Yan",
+      "feature": "contour:12",
+      "tab_width_mm": 14.0,
+      "tab_depth_mm": 3.0,
+      "tab_world_center": [
+        4.0,
+        74.0,
+        84.0
+      ],
+      "nearest_void_part": "Arka Ev",
+      "nearest_void_world_center": [
+        1.0,
+        71.0,
+        70.0
+      ],
+      "center_delta_mm": 14.628738838327793,
+      "status": "UNVERIFIED_NEAREST_CANDIDATE"
+    },
+    {
+      "part": "Sol Yan",
+      "feature": "contour:18",
+      "tab_width_mm": 14.0,
+      "tab_depth_mm": 3.0,
+      "tab_world_center": [
+        4.0,
+        1.0,
+        84.0
+      ],
+      "nearest_void_part": "Ön Ev",
+      "nearest_void_world_center": [
+        1.0,
+        1.0,
+        70.0
+      ],
+      "center_delta_mm": 14.317821063276353,
+      "status": "UNVERIFIED_NEAREST_CANDIDATE"
+    },
+    {
+      "part": "Sol Yan",
+      "feature": "contour:22",
+      "tab_width_mm": 14.0,
+      "tab_depth_mm": 3.0,
+      "tab_world_center": [
+        4.0,
+        1.0,
+        56.0
+      ],
+      "nearest_void_part": "Ön Ev",
+      "nearest_void_world_center": [
+        1.0,
+        1.0,
+        70.0
+      ],
+      "center_delta_mm": 14.317821063276353,
+      "status": "UNVERIFIED_NEAREST_CANDIDATE"
+    },
+    {
+      "part": "Sol Yan",
+      "feature": "contour:27",
+      "tab_width_mm": 14.0,
+      "tab_depth_mm": 3.0,
+      "tab_world_center": [
+        4.0,
+        20.0,
+        29.5
+      ],
+      "nearest_void_part": "Alt Elektronik Kutu/lid",
+      "nearest_void_world_center": [
+        -1.5,
+        21.299999999999997,
+        32.5
+      ],
+      "center_delta_mm": 6.398437309218556,
+      "status": "UNVERIFIED_NEAREST_CANDIDATE"
+    },
+    {
+      "part": "Sağ Yan",
+      "feature": "contour:3",
+      "tab_width_mm": 14.0,
+      "tab_depth_mm": 3.0,
+      "tab_world_center": [
+        104.0,
+        55.0,
+        29.5
+      ],
+      "nearest_void_part": "Alt Elektronik Kutu/lid",
+      "nearest_void_world_center": [
+        106.5,
+        53.7,
+        32.5
+      ],
+      "center_delta_mm": 4.115823125451334,
+      "status": "UNVERIFIED_NEAREST_CANDIDATE"
+    },
+    {
+      "part": "Sağ Yan",
+      "feature": "contour:8",
+      "tab_width_mm": 14.0,
+      "tab_depth_mm": 3.0,
+      "tab_world_center": [
+        104.0,
+        74.0,
+        56.0
+      ],
+      "nearest_void_part": "Arka Ev",
+      "nearest_void_world_center": [
+        104.0,
+        71.0,
+        70.0
+      ],
+      "center_delta_mm": 14.317821063276353,
+      "status": "UNVERIFIED_NEAREST_CANDIDATE"
+    },
+    {
+      "part": "Sağ Yan",
+      "feature": "contour:12",
+      "tab_width_mm": 14.0,
+      "tab_depth_mm": 3.0,
+      "tab_world_center": [
+        104.0,
+        74.0,
+        84.0
+      ],
+      "nearest_void_part": "Arka Ev",
+      "nearest_void_world_center": [
+        104.0,
+        71.0,
+        70.0
+      ],
+      "center_delta_mm": 14.317821063276353,
+      "status": "UNVERIFIED_NEAREST_CANDIDATE"
+    },
+    {
+      "part": "Sağ Yan",
+      "feature": "contour:18",
+      "tab_width_mm": 14.0,
+      "tab_depth_mm": 3.0,
+      "tab_world_center": [
+        104.0,
+        1.0,
+        84.0
+      ],
+      "nearest_void_part": "Ön Ev",
+      "nearest_void_world_center": [
+        104.0,
+        1.0,
+        70.0
+      ],
+      "center_delta_mm": 14.0,
+      "status": "UNVERIFIED_NEAREST_CANDIDATE"
+    },
+    {
+      "part": "Sağ Yan",
+      "feature": "contour:22",
+      "tab_width_mm": 14.0,
+      "tab_depth_mm": 3.0,
+      "tab_world_center": [
+        104.0,
+        1.0,
+        56.0
+      ],
+      "nearest_void_part": "Ön Ev",
+      "nearest_void_world_center": [
+        104.0,
+        1.0,
+        70.0
+      ],
+      "center_delta_mm": 14.0,
+      "status": "UNVERIFIED_NEAREST_CANDIDATE"
+    },
+    {
+      "part": "Sağ Yan",
+      "feature": "contour:27",
+      "tab_width_mm": 14.0,
+      "tab_depth_mm": 3.0,
+      "tab_world_center": [
+        104.0,
+        20.0,
+        29.5
+      ],
+      "nearest_void_part": "Alt Elektronik Kutu/lid",
+      "nearest_void_world_center": [
+        106.5,
+        21.299999999999997,
+        32.5
+      ],
+      "center_delta_mm": 4.115823125451334,
+      "status": "UNVERIFIED_NEAREST_CANDIDATE"
+    }
+  ],
+  "declared_connector_count": 0,
+  "declared_mate_count": 0,
+  "scope": "Exact supplied geometry; no connector declarations were invented. Local regression, not a remote deployment result."
+}

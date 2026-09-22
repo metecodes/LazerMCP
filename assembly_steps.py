@@ -19,11 +19,14 @@ def build_assembly_steps(primitives:list[Any]|None,assembly:dict[str,Any]|None,p
     params=parameters or {}; request=str(params.get('assembly_request') or params.get('user_request') or '').strip()
     if (assembly or {}).get('ok') is not True:
         return {'status':'NOT_AVAILABLE','reason':'Assembly steps require ASSEMBLY PASS.','request':request,'steps':[]}
+    canonical=(assembly or {}).get('canonical_mates') or {}
+    if canonical.get('active') and (canonical.get('sequence') or {}).get('status')!='PASS':
+        return {'status':'BLOCKED','reason':'Verified insertion sequence required.','steps':[]}
     parts=[p for p in (primitives or []) if isinstance(p,dict) and p.get('label') and p.get('placement') and outline(p)]
     if not parts or len(parts)!=len([p for p in (primitives or []) if isinstance(p,dict)]):
         return {'status':'NOT_AVAILABLE','reason':'Assembly drawings require an explicit placement and outline for every physical part. No orientation is guessed.','request':request,'steps':[]}
     labels=[str(p['label']) for p in parts]
-    requested=params.get('assembly_order')
+    requested=(canonical.get('sequence') or {}).get('order') if canonical.get('active') else params.get('assembly_order')
     if requested is not None:
         if not isinstance(requested,list) or len(requested)!=len(labels) or len(set(map(str,requested)))!=len(labels) or set(map(str,requested))!=set(labels):
             return {'status':'BLOCKED','reason':'parameters.assembly_order must contain every explicit part label exactly once.','request':request,'available_labels':labels,'steps':[]}
@@ -43,4 +46,7 @@ def build_assembly_steps(primitives:list[Any]|None,assembly:dict[str,Any]|None,p
         edges=[e for e in ((assembly or {}).get('graph') or {}).get('edges') or [] if label in {str(e.get('from')),str(e.get('to'))}]
         pose=next(p.get('placement') for p in parts if str(p.get('label'))==label)
         steps.append({'step':index,'part':label,'mates':[e.get('to') if str(e.get('from'))==label else e.get('from') for e in edges],'connection_types':[e.get('type') for e in edges],'orientation':{'u':pose.get('u'),'v':pose.get('v')},'assembly_direction':pose.get('normal') or 'along verified mate normal','instruction':instruction,'svg_bytes':svg.encode('utf-8')})
+        if canonical.get('active'):
+            proof=canonical['sequence']['steps'][index-1]
+            steps[-1].update(proof,assembly_direction=proof['insertion_direction'])
     return {'status':'AVAILABLE','legacy_status':'READY','request':request,'order':order,'steps':steps,'physical_fit':'NOT VERIFIED'}
