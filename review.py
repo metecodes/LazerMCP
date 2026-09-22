@@ -321,7 +321,13 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
         for name in (str(edge.get("part_a") or ""), str(edge.get("part_b") or "")):
             if name: mates_by_name.setdefault(name, []).append(edge)
     for part in dmap.get("parts") or []:
-        part["mates"] = mates_by_name.get(str(part.get("name") or ""), [])
+        name=str(part.get('name') or '')
+        source=next((p for p in primitives if str(p.get('label') or p.get('id') or '')==name),{})
+        part['mates']=[]
+        for edge in mates_by_name.get(name,[]):
+            target=edge['part_b'] if edge['part_a']==name else edge['part_a']
+            original=next((m for m in source.get('mates',[]) if isinstance(m,dict) and m.get('part')==target),{})
+            part['mates'].append({**original,**edge,'part':target})
     required = list(_STANDALONE_CRITICAL if assembly_mode == "standalone" else (_COMPOSED_CRITICAL if job == "composed" or assembly_mode == "mechanical" else _FLAT_CRITICAL))
     if assembly_mode == "mechanical" and moving:
         required.append("KINEMATICS")
@@ -467,6 +473,8 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
         if explicit_slots:
             status=PASS if assembly.get('ok') is True and verified_slots==explicit_slots else FAIL
             tab_slot_c.append({'status':status,'note':f'geometric tab-slot matches {verified_slots}/{explicit_slots}; names alone are not evidence'})
+        elif (assembly.get('structural_inference') or {}).get('inferred_mates'):
+            tab_slot_c.append({'status':PASS if assembly.get('ok') else FAIL,'note':'contour interlocks verified from extruded CUT geometry and world-space placement'})
         else:tab_slot_c.append({'status':NA,'note':'no explicit tab-slot pairs'})
         if required_connection_c:
             tab_slot_c.extend(required_connection_c)
@@ -839,6 +847,9 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
         bom_c.append({"status": NOT_VERIFIED, "note": "No BOM generated."})
         
     # Report Consistency
+    if assembly_mode != "standalone" and coverage_report.get('assembly_expected'):
+        connections_c.extend(coverage_c)
+        connections_c.extend(mate_geometry_c)
     report_c.append({"status": PASS, "note": "Internal reports match."})
     cats = [
         _cat("DESIGN_CONTRACT", [{"status": (built.get("design_contract") or {}).get("status", NA),
@@ -935,6 +946,9 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
         "assembly_mode_report": assembly_mode_report,
         "design_map": dmap,
         "connections": connections,
+        "canonical_connection_graph": coverage_report.get('connection_graph',[]),
+        "connection_graph_summary": assembly.get('connection_graph_summary',{}),
+        "structural_inference": assembly.get('structural_inference',{}),
         "categories": {c["id"]: {k: c[k] for k in ("status", "required", "notes")} for c in cats},
         "scorecard": scorecard,
         "gate_levels":gate_levels,

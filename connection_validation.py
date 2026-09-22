@@ -56,6 +56,10 @@ def validate(primitives,parameters,assembly,linear,mechanism=None):
             unsupported.append({"status":"FAIL","note":f"UNSUPPORTED_CONNECTION_TYPE: {typ or '<missing>'}; no geometric validator is registered"})
     lookup={r["id"]:r for r in inventory}
     for edge in edges:
+        evidence=next((m for m in (assembly.get('structural_inference') or {}).get('inferred_mates',[]) if {m['part_a'],m['part_b']}=={edge['part_a'],edge['part_b']}),None)
+        if evidence:
+            edge.update(source='inferred_geometry',verified=True,geometry_evidence=evidence)
+    for edge in edges:
         for key in ("part_a","part_b"):
             if edge[key] in lookup:lookup[edge[key]]["mates"].append(edge)
     expected=len([r for r in inventory if r["role"]!="decorative"])>1;checks=[];required_checks=[]
@@ -80,6 +84,21 @@ def validate(primitives,parameters,assembly,linear,mechanism=None):
         required_checks.append({"status":status,"note":f'{a} ↔ {b} {typ}: {reason}',"part_a":a,"part_b":b,"type":typ,"source":req["source"]})
     checks.extend(required_checks)
     checks.extend(unsupported)
+    adjacency={pid:set() for pid in inventory_ids}
+    for edge in edges:
+        if edge['status'] in {'PASS','MATCH'}:
+            a,b=edge['part_a'],edge['part_b']
+            adjacency.setdefault(a,set()).add(b);adjacency.setdefault(b,set()).add(a)
+    remaining={r['id'] for r in inventory if r['role']!='decorative'}
+    components=[]
+    while remaining:
+        todo=[min(remaining)];seen=set()
+        while todo:
+            pid=todo.pop()
+            if pid in seen:continue
+            seen.add(pid);todo.extend(adjacency.get(pid,set())-seen)
+        components.append(sorted(seen));remaining-=seen
+    assembly['connection_graph_summary']={'nodes':len(inventory),'edges':len(edges),'connected_components':len(components),'components':components}
     for item in inventory:
         role,mates=item["role"],item["mates"]
         if not expected or role=="decorative":continue
@@ -88,6 +107,8 @@ def validate(primitives,parameters,assembly,linear,mechanism=None):
         else:checks.append({"status":"PASS","note":f'{item["id"]} role={role} connection coverage PASS'})
         if role=="moving" and not any(e["type"] in {"linear_slide","removable_slide","shaft_hole","shaft_rotation","direct_motor_shaft"} for e in mates):checks.append({"status":"FAIL","note":f'{item["id"]} moving part has no motion connection'})
         if role=="removable" and not any(e["type"] in {"removable_slide","removable_lid"} and e["status"] in {"PASS","MATCH"} for e in mates):checks.append({"status":"FAIL","note":f'{item["id"]} removable part has no verified remove/reinstall path'})
+    if expected and len(components)>1:
+        checks.append({'status':'FAIL','note':f'disconnected structural connection graph: {len(components)} components'})
     covered=sum(1 for r in inventory if r["role"]=="decorative" or not expected or (r["mates"] and all(e["status"] in {"PASS","MATCH"} for e in r["mates"])))
     mate_checks=[{"status":e["status"],"note":f'{e["part_a"]} → {e["part_b"]} {e["type"]}: {e["evidence"]}'} for e in edges]+required_checks
     if expected and not edges:mate_checks=[{"status":"FAIL","note":"connection graph is empty; placement is not connection evidence"}]

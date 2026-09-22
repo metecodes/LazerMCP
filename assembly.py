@@ -514,9 +514,20 @@ def check_assembly(
 
     from assembled_view import validate, preview, preview_requirements
     contour_parts = [p for p in physical_parts if isinstance(p, dict) and (_kind(p) in {"polygon", "contour", "outline", "polyline", "panel"} or p.get('_cut_geometry') or p.get('tabs') or p.get('placement'))]
-    explicit_errors, explicit_joints, joint_debug = validate(contour_parts, t)
+    from structural_mates import infer_structural_mates
+    inference = infer_structural_mates(contour_parts, t, joints)
+    inferred_slots = set()
+    for row in inference['inferred_mates']:
+        for side in ('a','b'):
+            feature=row['feature_'+side]
+            if feature.startswith('inner:'):
+                inferred_slots.add((row['part_'+side],int(feature.split(':')[1])))
+    explicit_errors, explicit_joints, joint_debug = validate(contour_parts, t, inferred_slots)
     errors.extend(explicit_errors)
+    errors.extend(inference['errors'])
     joints.extend(explicit_joints)
+    explicit_pairs={frozenset((j.get('male'),j.get('female'))) for j in joints}
+    joints.extend(j for j in inference['joints'] if frozenset((j['male'],j['female'])) not in explicit_pairs)
     ok = not errors
     preview_diagnostics=preview_requirements(physical_parts)
     intended_contacts, clearances, illegal_collisions = classify_contacts(physical_parts, composite["derived_constraints"], t)
@@ -527,6 +538,7 @@ def check_assembly(
     graph = assembly_graph(faces, joints, shaft_pairs, roof_lock)
     return {
         "ok": ok,
+        "structural_inference": inference,
         "assembled_preview_svg": assembled_preview,
         "assembled_preview_diagnostics": preview_diagnostics,
         "warnings": warnings,

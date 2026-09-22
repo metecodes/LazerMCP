@@ -1,0 +1,660 @@
+{
+  "fixture": "synthetic legacy contour fixture; not unavailable remote project",
+  "remote_project": "create-design-20260922-160047-9334f8a1",
+  "remote_retest": "NOT VERIFIED: file endpoints returned 404",
+  "final_status": "PROTOTYPE READY",
+  "scorecard": {
+    "digital": {
+      "Digital Geometry": "PASS",
+      "Part Completeness": "PASS",
+      "Connections": "PASS",
+      "Assembly": "PASS",
+      "Collision": "PASS",
+      "Kinematics": "N/A",
+      "Electrical Logic": "PASS",
+      "Safety": "PASS",
+      "BOM": "PASS",
+      "Text & Engraving": "PASS",
+      "Orientation & Y-Axis": "PASS",
+      "Illustration Quality": "PASS",
+      "Report Consistency": "PASS",
+      "SVG Geometry": "PASS",
+      "Manufacturing Geometry": "PASS",
+      "Reference Fidelity": "N/A",
+      "Outer Cut Fidelity": "N/A",
+      "Part Mapping": "N/A",
+      "Tab-Slot Geometry": "PASS",
+      "3D Assembly": "PASS",
+      "Hardware Fit": "N/A",
+      "Motion Clearance": "N/A",
+      "Engrave Geometry": "N/A",
+      "Operation Separation": "N/A",
+      "Assembled Preview": "PASS"
+    },
+    "physical": {
+      "Physical Kerf Test": "NOT_VERIFIED",
+      "Physical Engraving Test": "NOT_VERIFIED",
+      "Physical Assembly": "NOT_VERIFIED",
+      "Movement Test": "N/A",
+      "After Assembly Use": "N/A"
+    }
+  },
+  "graph": {
+    "nodes": 5,
+    "edges": 8,
+    "connected_components": 1,
+    "components": [
+      [
+        "back-house-face",
+        "floor",
+        "front-house-face",
+        "left-side",
+        "right-side"
+      ]
+    ]
+  },
+  "inferred_mates": [
+    {
+      "part_a": "front-house-face",
+      "part_b": "left-side",
+      "feature_a": "inner:0",
+      "feature_b": "contour:11",
+      "type": "finger_joint",
+      "source": "inferred_geometry",
+      "geometry_source": "contour_geometry",
+      "joint_width": 24.0,
+      "joint_depth": 3.0,
+      "alignment_error_mm": 0.0,
+      "thickness_error_mm": 0.0,
+      "verified": true,
+      "world_position": [
+        4.5,
+        1.5,
+        65.0
+      ],
+      "world_normals": [
+        [
+          0.0,
+          -1.0,
+          0.0
+        ],
+        [
+          1.0,
+          0.0,
+          0.0
+        ]
+      ],
+      "status": "PASS",
+      "confidence": 1.0
+    },
+    {
+      "part_a": "front-house-face",
+      "part_b": "right-side",
+      "feature_a": "inner:1",
+      "feature_b": "contour:11",
+      "type": "finger_joint",
+      "source": "inferred_geometry",
+      "geometry_source": "contour_geometry",
+      "joint_width": 24.0,
+      "joint_depth": 3.0,
+      "alignment_error_mm": 0.0,
+      "thickness_error_mm": 0.0,
+      "verified": true,
+      "world_position": [
+        125.5,
+        1.5,
+        65.0
+      ],
+      "world_normals": [
+        [
+          0.0,
+          -1.0,
+          0.0
+        ],
+        [
+          1.0,
+          0.0,
+          0.0
+        ]
+      ],
+      "status": "PASS",
+      "confidence": 1.0
+    },
+    {
+      "part_a": "front-house-face",
+      "part_b": "floor",
+      "feature_a": "inner:2",
+      "feature_b": "contour:17",
+      "type": "finger_joint",
+      "source": "inferred_geometry",
+      "geometry_source": "contour_geometry",
+      "joint_width": 24.0,
+      "joint_depth": 3.0,
+      "alignment_error_mm": 0.0,
+      "thickness_error_mm": 0.0,
+      "verified": true,
+      "world_position": [
+        65.0,
+        1.5,
+        6.5
+      ],
+      "world_normals": [
+        [
+          0.0,
+          -1.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "status": "PASS",
+      "confidence": 1.0
+    },
+    {
+      "part_a": "back-house-face",
+      "part_b": "left-side",
+      "feature_a": "inner:0",
+      "feature_b": "contour:5",
+      "type": "finger_joint",
+      "source": "inferred_geometry",
+      "geometry_source": "contour_geometry",
+      "joint_width": 24.0,
+      "joint_depth": 3.0,
+      "alignment_error_mm": 0.0,
+      "thickness_error_mm": 0.0,
+      "verified": true,
+      "world_position": [
+        4.5,
+        88.5,
+        65.0
+      ],
+      "world_normals": [
+        [
+          0.0,
+          -1.0,
+          0.0
+        ],
+        [
+          1.0,
+          0.0,
+          0.0
+        ]
+      ],
+      "status": "PASS",
+      "confidence": 1.0
+    },
+    {
+      "part_a": "back-house-face",
+      "part_b": "right-side",
+      "feature_a": "inner:1",
+      "feature_b": "contour:5",
+      "type": "finger_joint",
+      "source": "inferred_geometry",
+      "geometry_source": "contour_geometry",
+      "joint_width": 24.0,
+      "joint_depth": 3.0,
+      "alignment_error_mm": 0.0,
+      "thickness_error_mm": 0.0,
+      "verified": true,
+      "world_position": [
+        125.5,
+        88.5,
+        65.0
+      ],
+      "world_normals": [
+        [
+          0.0,
+          -1.0,
+          0.0
+        ],
+        [
+          1.0,
+          0.0,
+          0.0
+        ]
+      ],
+      "status": "PASS",
+      "confidence": 1.0
+    },
+    {
+      "part_a": "back-house-face",
+      "part_b": "floor",
+      "feature_a": "inner:2",
+      "feature_b": "contour:7",
+      "type": "finger_joint",
+      "source": "inferred_geometry",
+      "geometry_source": "contour_geometry",
+      "joint_width": 24.0,
+      "joint_depth": 3.0,
+      "alignment_error_mm": 0.0,
+      "thickness_error_mm": 0.0,
+      "verified": true,
+      "world_position": [
+        65.0,
+        88.5,
+        6.5
+      ],
+      "world_normals": [
+        [
+          0.0,
+          -1.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "status": "PASS",
+      "confidence": 1.0
+    },
+    {
+      "part_a": "left-side",
+      "part_b": "floor",
+      "feature_a": "inner:0",
+      "feature_b": "contour:2",
+      "type": "finger_joint",
+      "source": "inferred_geometry",
+      "geometry_source": "contour_geometry",
+      "joint_width": 24.0,
+      "joint_depth": 3.0,
+      "alignment_error_mm": 0.0,
+      "thickness_error_mm": 0.0,
+      "verified": true,
+      "world_position": [
+        4.5,
+        45.0,
+        6.5
+      ],
+      "world_normals": [
+        [
+          1.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "status": "PASS",
+      "confidence": 1.0
+    },
+    {
+      "part_a": "right-side",
+      "part_b": "floor",
+      "feature_a": "inner:0",
+      "feature_b": "contour:12",
+      "type": "finger_joint",
+      "source": "inferred_geometry",
+      "geometry_source": "contour_geometry",
+      "joint_width": 24.0,
+      "joint_depth": 3.0,
+      "alignment_error_mm": 0.0,
+      "thickness_error_mm": 0.0,
+      "verified": true,
+      "world_position": [
+        125.5,
+        45.0,
+        6.5
+      ],
+      "world_normals": [
+        [
+          1.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "status": "PASS",
+      "confidence": 1.0
+    }
+  ],
+  "canonical_connection_graph": [
+    {
+      "part_a": "front-house-face",
+      "part_b": "left-side",
+      "type": "finger_joint",
+      "status": "PASS",
+      "evidence": "verified contour_geometry in assembly space",
+      "source": "inferred_geometry",
+      "verified": true,
+      "geometry_evidence": {
+        "part_a": "front-house-face",
+        "part_b": "left-side",
+        "feature_a": "inner:0",
+        "feature_b": "contour:11",
+        "type": "finger_joint",
+        "source": "inferred_geometry",
+        "geometry_source": "contour_geometry",
+        "joint_width": 24.0,
+        "joint_depth": 3.0,
+        "alignment_error_mm": 0.0,
+        "thickness_error_mm": 0.0,
+        "verified": true,
+        "world_position": [
+          4.5,
+          1.5,
+          65.0
+        ],
+        "world_normals": [
+          [
+            0.0,
+            -1.0,
+            0.0
+          ],
+          [
+            1.0,
+            0.0,
+            0.0
+          ]
+        ],
+        "status": "PASS",
+        "confidence": 1.0
+      }
+    },
+    {
+      "part_a": "front-house-face",
+      "part_b": "right-side",
+      "type": "finger_joint",
+      "status": "PASS",
+      "evidence": "verified contour_geometry in assembly space",
+      "source": "inferred_geometry",
+      "verified": true,
+      "geometry_evidence": {
+        "part_a": "front-house-face",
+        "part_b": "right-side",
+        "feature_a": "inner:1",
+        "feature_b": "contour:11",
+        "type": "finger_joint",
+        "source": "inferred_geometry",
+        "geometry_source": "contour_geometry",
+        "joint_width": 24.0,
+        "joint_depth": 3.0,
+        "alignment_error_mm": 0.0,
+        "thickness_error_mm": 0.0,
+        "verified": true,
+        "world_position": [
+          125.5,
+          1.5,
+          65.0
+        ],
+        "world_normals": [
+          [
+            0.0,
+            -1.0,
+            0.0
+          ],
+          [
+            1.0,
+            0.0,
+            0.0
+          ]
+        ],
+        "status": "PASS",
+        "confidence": 1.0
+      }
+    },
+    {
+      "part_a": "front-house-face",
+      "part_b": "floor",
+      "type": "finger_joint",
+      "status": "PASS",
+      "evidence": "verified contour_geometry in assembly space",
+      "source": "inferred_geometry",
+      "verified": true,
+      "geometry_evidence": {
+        "part_a": "front-house-face",
+        "part_b": "floor",
+        "feature_a": "inner:2",
+        "feature_b": "contour:17",
+        "type": "finger_joint",
+        "source": "inferred_geometry",
+        "geometry_source": "contour_geometry",
+        "joint_width": 24.0,
+        "joint_depth": 3.0,
+        "alignment_error_mm": 0.0,
+        "thickness_error_mm": 0.0,
+        "verified": true,
+        "world_position": [
+          65.0,
+          1.5,
+          6.5
+        ],
+        "world_normals": [
+          [
+            0.0,
+            -1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "status": "PASS",
+        "confidence": 1.0
+      }
+    },
+    {
+      "part_a": "back-house-face",
+      "part_b": "left-side",
+      "type": "finger_joint",
+      "status": "PASS",
+      "evidence": "verified contour_geometry in assembly space",
+      "source": "inferred_geometry",
+      "verified": true,
+      "geometry_evidence": {
+        "part_a": "back-house-face",
+        "part_b": "left-side",
+        "feature_a": "inner:0",
+        "feature_b": "contour:5",
+        "type": "finger_joint",
+        "source": "inferred_geometry",
+        "geometry_source": "contour_geometry",
+        "joint_width": 24.0,
+        "joint_depth": 3.0,
+        "alignment_error_mm": 0.0,
+        "thickness_error_mm": 0.0,
+        "verified": true,
+        "world_position": [
+          4.5,
+          88.5,
+          65.0
+        ],
+        "world_normals": [
+          [
+            0.0,
+            -1.0,
+            0.0
+          ],
+          [
+            1.0,
+            0.0,
+            0.0
+          ]
+        ],
+        "status": "PASS",
+        "confidence": 1.0
+      }
+    },
+    {
+      "part_a": "back-house-face",
+      "part_b": "right-side",
+      "type": "finger_joint",
+      "status": "PASS",
+      "evidence": "verified contour_geometry in assembly space",
+      "source": "inferred_geometry",
+      "verified": true,
+      "geometry_evidence": {
+        "part_a": "back-house-face",
+        "part_b": "right-side",
+        "feature_a": "inner:1",
+        "feature_b": "contour:5",
+        "type": "finger_joint",
+        "source": "inferred_geometry",
+        "geometry_source": "contour_geometry",
+        "joint_width": 24.0,
+        "joint_depth": 3.0,
+        "alignment_error_mm": 0.0,
+        "thickness_error_mm": 0.0,
+        "verified": true,
+        "world_position": [
+          125.5,
+          88.5,
+          65.0
+        ],
+        "world_normals": [
+          [
+            0.0,
+            -1.0,
+            0.0
+          ],
+          [
+            1.0,
+            0.0,
+            0.0
+          ]
+        ],
+        "status": "PASS",
+        "confidence": 1.0
+      }
+    },
+    {
+      "part_a": "back-house-face",
+      "part_b": "floor",
+      "type": "finger_joint",
+      "status": "PASS",
+      "evidence": "verified contour_geometry in assembly space",
+      "source": "inferred_geometry",
+      "verified": true,
+      "geometry_evidence": {
+        "part_a": "back-house-face",
+        "part_b": "floor",
+        "feature_a": "inner:2",
+        "feature_b": "contour:7",
+        "type": "finger_joint",
+        "source": "inferred_geometry",
+        "geometry_source": "contour_geometry",
+        "joint_width": 24.0,
+        "joint_depth": 3.0,
+        "alignment_error_mm": 0.0,
+        "thickness_error_mm": 0.0,
+        "verified": true,
+        "world_position": [
+          65.0,
+          88.5,
+          6.5
+        ],
+        "world_normals": [
+          [
+            0.0,
+            -1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "status": "PASS",
+        "confidence": 1.0
+      }
+    },
+    {
+      "part_a": "left-side",
+      "part_b": "floor",
+      "type": "finger_joint",
+      "status": "PASS",
+      "evidence": "verified contour_geometry in assembly space",
+      "source": "inferred_geometry",
+      "verified": true,
+      "geometry_evidence": {
+        "part_a": "left-side",
+        "part_b": "floor",
+        "feature_a": "inner:0",
+        "feature_b": "contour:2",
+        "type": "finger_joint",
+        "source": "inferred_geometry",
+        "geometry_source": "contour_geometry",
+        "joint_width": 24.0,
+        "joint_depth": 3.0,
+        "alignment_error_mm": 0.0,
+        "thickness_error_mm": 0.0,
+        "verified": true,
+        "world_position": [
+          4.5,
+          45.0,
+          6.5
+        ],
+        "world_normals": [
+          [
+            1.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "status": "PASS",
+        "confidence": 1.0
+      }
+    },
+    {
+      "part_a": "right-side",
+      "part_b": "floor",
+      "type": "finger_joint",
+      "status": "PASS",
+      "evidence": "verified contour_geometry in assembly space",
+      "source": "inferred_geometry",
+      "verified": true,
+      "geometry_evidence": {
+        "part_a": "right-side",
+        "part_b": "floor",
+        "feature_a": "inner:0",
+        "feature_b": "contour:12",
+        "type": "finger_joint",
+        "source": "inferred_geometry",
+        "geometry_source": "contour_geometry",
+        "joint_width": 24.0,
+        "joint_depth": 3.0,
+        "alignment_error_mm": 0.0,
+        "thickness_error_mm": 0.0,
+        "verified": true,
+        "world_position": [
+          125.5,
+          45.0,
+          6.5
+        ],
+        "world_normals": [
+          [
+            1.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "status": "PASS",
+        "confidence": 1.0
+      }
+    }
+  ]
+}

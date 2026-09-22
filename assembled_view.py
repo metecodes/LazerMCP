@@ -36,7 +36,7 @@ def _tab_on_outer_cut(poly, tab_box, w, h, tolerance=.02):
     return shared >= max(min(abs(w), abs(h)) * .8, tolerance * 2)
 
 
-def validate(parts,t):
+def validate(parts,t,inferred_slots=()):
     errors=[]; joints=[];debug=[]
     lookup={p.get('label'):p for p in parts if isinstance(p,dict)}
     if len(lookup)!=len(parts):
@@ -61,7 +61,7 @@ def validate(parts,t):
         for hole in p.get('holes') or []:
             if not poly.contains(Point(float(hole['x']),float(hole['y'])).buffer(float(hole.get('d',0))/2)):
                 errors.append(f"hole on {p.get('label')} leaves its actual outline")
-        for s in p.get('slots') or []:
+        for slot_index,s in enumerate(p.get('slots') or []):
             rec={'connection':f'C{len(debug)+1:02d}','tab_part':None,'tab_id':None,'slot_part':p.get('label'),'result':'FAIL',
                  'world_center':{'tab':None,'slot':None},'world_normal':{'tab':None,'slot':None},'center_delta':None}
             x,y,w,h=[float(s.get(k) or 0) for k in ('x','y','w','h')]
@@ -79,6 +79,10 @@ def validate(parts,t):
             if not any(row.get('role')=='SLOT' and row.get('operation')=='CUT' and row.get('points')==[[x-w/2,y-h/2],[x+w/2,y-h/2],[x+w/2,y+h/2],[x-w/2,y+h/2]] for row in actual if isinstance(row,dict)):
                 rec['reason']='slot is metadata only; no closed INNER_CUT geometry';debug.append(rec);errors.append(f"slot on {p.get('label')} is missing from actual INNER_CUT geometry");continue
             if min(w,h)>t+.6: continue
+            if not s.get('mate') and (p.get('physical_part_id') or p.get('label'),slot_index) in inferred_slots:
+                # The contour inference independently checked the complete
+                # extruded tab/void volumes, thickness and solid collision.
+                continue
             mate=s.get('mate') or {}; other=lookup.get(mate.get('part'))
             tab=next((a for a in (other or {}).get('tabs',[]) if a.get('id')==mate.get('tab')),None)
             rec.update({'tab_part':mate.get('part'),'tab_id':mate.get('tab')})
