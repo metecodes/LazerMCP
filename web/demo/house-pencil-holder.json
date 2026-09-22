@@ -1,6 +1,6 @@
 {
   "id": "house-pencil-holder",
-  "version": 2,
+  "version": 3,
   "title": "Ev Kalemlik",
   "source_type": "user_supplied_svg",
   "dimensions_mm": {
@@ -17,7 +17,7 @@
   "holding_nicks": false,
   "surface_texts": [],
   "source_sha256": "fa0cfedce0eedc3f2cf22488a516ee823dd59aca6387ad726a00546acbedf3a1",
-  "svg_sha256": "a5e39c6166ce886f4bd507172037da957936334fb908d16959b5c2e49da83b2e",
+  "svg_sha256": "57e80d0a8f8e9ea7554ae0bd4ae64b92dcc25428a8f4f844ebcb5a3739e61cbe",
   "closed_gap_count": 79,
   "gap_repairs": [
     {
@@ -891,34 +891,13 @@
     }
   ],
   "topology": {
-    "ok": false,
+    "ok": true,
     "cut_paths": 43,
     "closed": 43,
     "nicked_closed": 0,
     "open_cuts": [],
     "duplicates": [],
-    "self_intersections": [
-      {
-        "path": 1,
-        "subpath": 1,
-        "note": "Self-intersection[270.775 269.875]"
-      },
-      {
-        "path": 4,
-        "subpath": 1,
-        "note": "Self-intersection[259.475 165.725]"
-      },
-      {
-        "path": 7,
-        "subpath": 1,
-        "note": "Self-intersection[199.9 94.075]"
-      },
-      {
-        "path": 27,
-        "subpath": 1,
-        "note": "Self-intersection[125.05 165.9]"
-      }
-    ]
+    "self_intersections": []
   },
   "final_status": "NOT VERIFIED",
   "production_export": "BLOCKED",
@@ -930,5 +909,5 @@
     "CUT": "#FF0000",
     "ENGRAVE": "#000000"
   },
-  "note": "Kullanıcının SVG çizimi korunmuştur. Yalnız uçlar arasındaki noç boşlukları kapatıldı. Ölçek, geçmeler ve mevcut çizgiler değiştirilmedi. Kaynaktaki mikro taşmalar korunmuştur; montaj doğrulaması yapılmadı."
+  "note": "Kaynak SVG ölçüsü ve geçmeleri korunmuştur. Noç boşlukları kapatıldı; yatay/dikey kenarlardaki bağlantılar dik açılı yapıldı. Sıfır alanlı geri dönüşler en fazla 0,03 mm sınırla temizlendi. Montaj doğrulaması yapılmadı."
 }

@@ -47,7 +47,7 @@ class SourceModelTests(unittest.TestCase):
         from collections import Counter
         from svgpathtools import Line
         original = SOURCE.read_bytes()
-        result, repairs = remove_source_nicks(original)
+        result, repairs = remove_source_nicks(original, straighten=False)
         def segments(data):
             rows=[]
             for e in ET.fromstring(data).iter():
@@ -63,7 +63,7 @@ class SourceModelTests(unittest.TestCase):
         self.assertEqual(ET.fromstring(original).attrib,ET.fromstring(result).attrib)
         for e in ET.fromstring(result).iter():
             if e.tag.endswith('path'): self.assertTrue(parse_path(e.get('d')).isclosed())
-        self.assertEqual(result,(ROOT/'web/demo/house-pencil-holder.svg').read_bytes())
+
 
     def test_no_unrelated_assembly_pass_or_preview_is_claimed(self):
         result=get_standard_model()
@@ -73,4 +73,32 @@ class SourceModelTests(unittest.TestCase):
         self.assertEqual(result['production_export'],'BLOCKED')
         self.assertEqual(result['topology']['open_cuts'],[])
         self.assertEqual(result['topology']['nicked_closed'],0)
-        self.assertTrue(result['topology']['self_intersections'])
+        self.assertEqual(result['topology']['self_intersections'],[])
+
+
+    def test_square_gap_repairs_keep_real_slopes(self):
+        from tools.build_standard_models import gap_segments
+        from svgpathtools import Line
+        spans=gap_segments(complex(169.3,105.55),complex(169,106.2),Line(180+105.55j,169.3+105.55j),Line(169+106.2j,153+106.2j))
+        self.assertEqual(len(spans),3)
+        self.assertTrue(all(abs((q.end-q.start).real)<1e-8 or abs((q.end-q.start).imag)<1e-8 for q in spans))
+        self.assertEqual(len(gap_segments(1+1j,2+2j,Line(0j,1+1j),Line(2+2j,3+3j))),1)
+
+    def test_clean_svg_and_dxf_have_identical_vertices_in_mm(self):
+        from tools.build_standard_models import SOURCE,remove_source_nicks
+        from collections import Counter
+        svg=(ROOT/'web/demo/house-pencil-holder.svg').read_bytes()
+        self.assertEqual(remove_source_nicks(SOURCE.read_bytes())[0],svg)
+        expected=[]
+        for e in ET.fromstring(svg).iter():
+            if e.tag.endswith('path'):
+                for q in parse_path(e.get('d')):
+                    expected.append((round(q.start.real+5,4),round(309.6-(q.start.imag+5),4)))
+        lines=(ROOT/'web/demo/house-pencil-holder.dxf').read_text().splitlines()
+        pairs=list(zip(lines[::2],lines[1::2]));actual=[];point=None
+        for code,value in pairs:
+            if code=='0':
+                if point is not None:actual.append((point['10'],point['20']))
+                point={} if value=='VERTEX' else None
+            elif point is not None and code in ('10','20'):point[code]=round(float(value),4)
+        self.assertEqual(Counter(expected),Counter(actual))
