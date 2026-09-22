@@ -1,0 +1,256 @@
+{
+  "endpoint": "https://mcp.metehanavci.com/mcp",
+  "tool": "validate_assembly",
+  "deployed_commit": "c684498",
+  "tested_at": "2026-09-23",
+  "cases": {
+    "valid": {
+      "final_status": "PROTOTYPE READY",
+      "digital": {
+        "Digital Geometry": "PASS",
+        "Part Completeness": "PASS",
+        "Connections": "PASS",
+        "Assembly": "PASS",
+        "Collision": "PASS",
+        "Kinematics": "N/A",
+        "Electrical Logic": "PASS",
+        "Safety": "PASS",
+        "BOM": "PASS",
+        "Text & Engraving": "PASS",
+        "Orientation & Y-Axis": "PASS",
+        "Illustration Quality": "PASS",
+        "Report Consistency": "PASS",
+        "SVG Geometry": "PASS",
+        "Manufacturing Geometry": "PASS",
+        "Reference Fidelity": "N/A",
+        "Outer Cut Fidelity": "N/A",
+        "Part Mapping": "N/A",
+        "Tab-Slot Geometry": "PASS",
+        "3D Assembly": "PASS",
+        "Hardware Fit": "N/A",
+        "Motion Clearance": "N/A",
+        "Engrave Geometry": "N/A",
+        "Operation Separation": "N/A",
+        "Assembled Preview": "PASS"
+      },
+      "physical": {
+        "Physical Kerf Test": "NOT_VERIFIED",
+        "Physical Engraving Test": "NOT_VERIFIED",
+        "Physical Assembly": "NOT_VERIFIED",
+        "Movement Test": "N/A",
+        "After Assembly Use": "N/A"
+      },
+      "physical_part_count": 2,
+      "transform_validation": "N/A",
+      "canonical_mates": {
+        "active": true,
+        "connectors": [
+          {
+            "id": "a",
+            "type": "tab",
+            "part_id": "alpha",
+            "mate_id": "b",
+            "position": [
+              11.5,
+              22,
+              1.5
+            ],
+            "axis": [
+              1,
+              0,
+              0
+            ],
+            "width_mm": 24,
+            "depth_mm": 3,
+            "thickness_mm": 3
+          },
+          {
+            "id": "b",
+            "type": "slot",
+            "part_id": "beta",
+            "mate_id": "a",
+            "position": [
+              22,
+              1.5,
+              1.5
+            ],
+            "axis": [
+              0,
+              0,
+              1
+            ],
+            "width_mm": 24,
+            "depth_mm": 3,
+            "thickness_mm": 3
+          }
+        ],
+        "connections": [
+          {
+            "id": "mate:a:b",
+            "connector_a": "a",
+            "connector_b": "b",
+            "part_a": "alpha",
+            "part_b": "beta",
+            "status": "PASS",
+            "checks": {
+              "Reciprocal Mate": "PASS",
+              "Tab Geometry": "PASS",
+              "Slot Geometry": "PASS",
+              "World Alignment": "PASS",
+              "Collision": "PASS",
+              "Insertion": "PASS"
+            },
+            "locked": true,
+            "world_position_a": [
+              11.5,
+              22,
+              1.5
+            ],
+            "world_position_b": [
+              11.5,
+              22,
+              1.5
+            ],
+            "alignment_error_mm": 0,
+            "axis_a": [
+              1,
+              0,
+              0
+            ],
+            "axis_b": [
+              1,
+              0,
+              0
+            ],
+            "feature_a": "contour:4",
+            "feature_b": "contour:4",
+            "male": "alpha",
+            "insertion_axis": [
+              1,
+              0,
+              0
+            ],
+            "reciprocal": true,
+            "geometry_verified": true
+          }
+        ],
+        "joints": [
+          {
+            "id": "mate:a:b",
+            "male": "alpha",
+            "female": "beta",
+            "kind": "tab-slot",
+            "joint_type": "tab_slot",
+            "result": "MATCH",
+            "via": "explicit reciprocal connectors + CUT geometry + continuous insertion sweep",
+            "source": "explicit_connectors",
+            "connector_ids": [
+              "a",
+              "b"
+            ]
+          }
+        ],
+        "verified_slots": [],
+        "sequence": {
+          "status": "PASS",
+          "order": [
+            "beta",
+            "alpha"
+          ],
+          "steps": [
+            {
+              "step_number": 1,
+              "inserted_part": "beta",
+              "connected_to": [],
+              "mate_ids": [],
+              "insertion_direction": null,
+              "assembled_parts": [
+                "beta"
+              ]
+            },
+            {
+              "step_number": 2,
+              "inserted_part": "alpha",
+              "connected_to": [
+                "beta"
+              ],
+              "mate_ids": [
+                "mate:a:b"
+              ],
+              "insertion_direction": [
+                1,
+                0,
+                0
+              ],
+              "assembled_parts": [
+                "beta",
+                "alpha"
+              ]
+            }
+          ]
+        },
+        "repair_scope": {
+          "locked_mates": [
+            "mate:a:b"
+          ],
+          "failed_connectors": [],
+          "automatic_geometry_rewrite": false
+        }
+      },
+      "blocking_reasons": []
+    },
+    "v18": {
+      "final_status": "BLOCKED",
+      "digital": {
+        "Digital Geometry": "PASS",
+        "Part Completeness": "PASS",
+        "Connections": "FAIL",
+        "Assembly": "FAIL",
+        "Collision": "FAIL",
+        "Kinematics": "N/A",
+        "Electrical Logic": "PASS",
+        "Safety": "PASS",
+        "BOM": "PASS",
+        "Text & Engraving": "PASS",
+        "Orientation & Y-Axis": "PASS",
+        "Illustration Quality": "PASS",
+        "Report Consistency": "PASS",
+        "SVG Geometry": "PASS",
+        "Manufacturing Geometry": "PASS",
+        "Reference Fidelity": "N/A",
+        "Outer Cut Fidelity": "N/A",
+        "Part Mapping": "N/A",
+        "Tab-Slot Geometry": "FAIL",
+        "3D Assembly": "FAIL",
+        "Hardware Fit": "N/A",
+        "Motion Clearance": "N/A",
+        "Engrave Geometry": "N/A",
+        "Operation Separation": "N/A",
+        "Assembled Preview": "FAIL"
+      },
+      "physical": {
+        "Physical Kerf Test": "NOT_VERIFIED",
+        "Physical Engraving Test": "NOT_VERIFIED",
+        "Physical Assembly": "NOT_VERIFIED",
+        "Movement Test": "N/A",
+        "After Assembly Use": "N/A"
+      },
+      "physical_part_count": 12,
+      "transform_validation": "PASS",
+      "blocking_reasons": [
+        "slot on Alt Elektronik Kutu/lid has no explicit matching tab",
+        "slot on Sol Çatı has no explicit matching tab",
+        "slot on Sağ Çatı has no explicit matching tab",
+        "NON_COMPLEMENTARY_JOINT MATE_COLLISION: Ön Ev ↔ Sağ Yan; coincident male tabs",
+        "Ön Ev role=structural has mates=[]; placement is not connection evidence",
+        "Arka Ev role=structural has mates=[]; placement is not connection evidence",
+        "Sol Yan role=structural has mates=[]; placement is not connection evidence",
+        "Sağ Yan role=structural has mates=[]; placement is not connection evidence",
+        "Sol Çatı role=structural has mates=[]; placement is not connection evidence",
+        "Sağ Çatı role=structural has mates=[]; placement is not connection evidence",
+        "disconnected structural connection graph: 7 components",
+        "assembled preview rejected because geometric assembly checks failed"
+      ]
+    }
+  }
+}
