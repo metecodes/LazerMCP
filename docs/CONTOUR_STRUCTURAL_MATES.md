@@ -38,6 +38,12 @@ plain placement, misalignment/thickness/depth, collision, explicit preservation,
 nonreciprocity, ambiguity, disconnected parts, full Final Gate, box and modern
 11-pair tab-slot regression. Full suite: 365 tests PASS.
 
+Live validation after deployment: the authenticated MCP `validate_assembly`
+returned PROTOTYPE READY for the same synthetic fixture, 5 nodes / 8 edges /
+1 component, no blocking reasons. Connections, Assembly, Tab-Slot Geometry,
+3D Assembly, Collision and Assembled Preview all PASS. Physical tests remain
+NOT VERIFIED. This is a remote tool result, not only a local test.
+
 ## Requested existing project
 
 `create-design-20260922-160047-9334f8a1` was unavailable locally; remote SVG and
@@ -45,3 +51,4 @@ JSON URLs returned HTTP 404. Its exact geometry was not changed or regenerated.
 That specific historical project's retest remains NOT VERIFIED pending its
 original recipe/record. The synthetic fixture result must not be described as
 that remote project's result.
+The authenticated MCP validator also returned `file not found` for that ID.
