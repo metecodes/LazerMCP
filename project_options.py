@@ -41,9 +41,11 @@ def apply_holding_nicks(svg_bytes, parameters=None, preserve_source_geometry=Fal
     if not enabled:
         if params.get('holding_nicks') is False:
             from cut_gap_repair import repair_cut_gaps
-            return repair_cut_gaps(svg_bytes,explicit=params.get('repair_cut_gaps',False))
-        return svg_bytes
-    width = float(params.get('holding_nick_mm', NICK_MM))
-    if not math.isfinite(width) or width <= 0:
-        raise ValueError('holding_nick_mm must be positive and finite; use holding_nicks=false to disable')
-    return nick_cut_svg(svg_bytes, width) or svg_bytes
+            svg_bytes = repair_cut_gaps(svg_bytes,explicit=params.get('repair_cut_gaps',False))
+    else:
+        width = float(params.get('holding_nick_mm', NICK_MM))
+        if not math.isfinite(width) or width <= 0:
+            raise ValueError('holding_nick_mm must be positive and finite; use holding_nicks=false to disable')
+        svg_bytes = nick_cut_svg(svg_bytes, width) or svg_bytes
+    from contour_precision import cleanup_cut_contours
+    return cleanup_cut_contours(svg_bytes)
