@@ -902,6 +902,14 @@ def save_generated_svg(
     extra["assembly_steps"]=assembly_plan
     result["assembly_steps"]=assembly_plan
     result["assembly_step_ids"]=[row["file_id"] for row in step_rows]
+    try:
+        from assembly_result import build as build_assembly_result
+        assembly_result = build_assembly_result(extra.get("assembly"), file_id=file_id)
+    except Exception:
+        assembly_result = None
+    if assembly_result:
+        extra["assembly_result"] = assembly_result
+        result["assembly_result"] = assembly_result
     side = f"{stem}.json"
     payload = {
         "file_id": file_id,
@@ -918,6 +926,7 @@ def save_generated_svg(
         "authorized_output": extra.get("authorized_output"),
         "production_export": extra.get("production_export") or "BLOCKED",
         "assembly": extra.get("assembly"),
+        "assembly_result": extra.get("assembly_result"),
         "nesting": extra.get("nesting"),
         "topology": extra.get("topology"),
         "review": extra.get("review"),

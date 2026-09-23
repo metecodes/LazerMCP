@@ -34,6 +34,12 @@ def save_version(parameters: dict[str, Any] | None, result: dict[str, Any] | Non
     store = {} if remote else _load()
     if not pid:
         pid = _slug(name or str(data.get("product") or "design")) + "-" + secrets.token_hex(2)
+    # The assembly result is written by the Automatic Assembly stage before
+    # the project id may exist.  Bind both durable identifiers before storing
+    # this version so previews can consume the exact verified result later.
+    if isinstance(data.get("assembly_result"), dict):
+        data["assembly_result"].setdefault("project_id", pid)
+        data["assembly_result"].setdefault("file_id", data.get("file_id"))
     project = store.get(pid) or {"id": pid, "name": name or pid, "created": now_iso(), "versions": []}
     if name:
         project["name"] = name
@@ -60,6 +66,7 @@ def save_version(parameters: dict[str, Any] | None, result: dict[str, Any] | Non
         "preflight": data.get("preflight") if isinstance(data.get("preflight"), dict) else None,
         "feedback": data.get("feedback") if isinstance(data.get("feedback"), dict) else None,
         "approved": bool(data.get("approved")),
+        "assembly_result": data.get("assembly_result") if isinstance(data.get("assembly_result"), dict) else None,
     }
     if remote:
         return rest("rpc/append_lasermcp_version", method="POST", body={
@@ -151,5 +158,35 @@ def project_by_file(file_id: str) -> dict[str, Any] | None:
                 "material": ver.get("material"),
                 "machine": ver.get("machine"),
                 "parameters": dict(ver.get("parameters") or {}),
+                "assembly_result": ver.get("assembly_result") if isinstance(ver.get("assembly_result"), dict) else None,
             }
     return None
+
+
+def attach_assembly_result(file_id: str, assembly_result: dict[str, Any]) -> bool:
+    """Persist a fallback Automatic Assembly run on its existing version.
+
+    This deliberately updates the same project version: opening an old design
+    for an assembled preview must not create a cosmetic design revision.
+    """
+    needle = str(file_id or "").replace("\\", "/").split("/")[-1].strip()
+    if not needle or not isinstance(assembly_result, dict):
+        return False
+    store = _load()
+    for pid, project in store.items():
+        if not isinstance(project, dict):
+            continue
+        for version in reversed(project.get("versions") or []):
+            if not isinstance(version, dict):
+                continue
+            fid = str(version.get("file_id") or "").replace("\\", "/").split("/")[-1].strip()
+            if fid != needle:
+                continue
+            saved = dict(assembly_result)
+            saved.setdefault("project_id", pid)
+            saved.setdefault("file_id", needle)
+            version["assembly_result"] = saved
+            project["updated"] = now_iso()
+            _save_store(store)
+            return True
+    return False

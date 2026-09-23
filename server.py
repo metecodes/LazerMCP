@@ -967,21 +967,21 @@ def validate_assembly(
     return payas_cad.validate_assembly(file_id=file_id, primitives=primitives, parameters=parameters)
 
 
-@mcp.tool(description="Return a mechanical preview. view must be nested, assembled or exploded. nested shows the laser sheet; assembled uses explicit origin/u/v placements; exploded separates those same verified placements for debugging.")
-def render_preview(file_id: str, view: str = "cut") -> dict[str, Any]:
+@mcp.tool(description="Return a preview. view=nested shows the laser sheet. view=assembled or exploded first consumes the persisted Automatic Assembly Result from create_design; it does not re-solve placements. If an older project has no result, Automatic Assembly + validation runs once from its saved primitives and the result is returned with diagnostic counts.")
+def render_preview(file_id: str, view: str = "nested") -> dict[str, Any]:
+    if view == "cut":
+        view = "nested"  # legacy alias
     if view in {"assembled","exploded"}:
         from workshop import editor_context
         data = editor_context(file_id)
-        if not data.get("assembled_preview_svg"):
-            return {"success": False, "look_again": ["Monte görünüm için doğrulanmış parça konumları ve geçme eşleri gerekli."]}
-        if view == "exploded":
-            from assembled_view import exploded_preview
-            svg=exploded_preview(data.get('primitives') or [],float((data.get('parameters') or {}).get('thickness') or 3))
-            if not svg:return {"success":False,"look_again":["Exploded görünüm için bütün fiziksel parçalarda placement gerekli."]}
-            return {"success":True,"preview_kind":"exploded","svg":svg,"note":"Debug exploded view from explicit placements."}
-        return {"success": True, "preview_kind": "assembled", "preview_url": _tool_public_base().rstrip("/") + "/out/" + quote(file_id, safe="") + "?view=assembled", "note": "Nominal digital assembly; physical dry-fit is not verified."}
-    if view not in {"cut","nested"}:
-        return {"success":False,"look_again":["view must be nested, assembled or exploded"]}
+        from assembly_result import render as render_assembly_result
+        rendered = render_assembly_result(data.get("assembly_result"), view)
+        if not rendered.get("success"):
+            return {"success": False, "code": rendered.get("code"), "debug": rendered.get("debug"),
+                    "look_again": [str(rendered.get("code") or "RENDER_FAILED")]}
+        return rendered
+    if view != "nested":
+        return {"success":False,"code":"RENDER_FAILED","look_again":["view must be nested, assembled or exploded"]}
     try:
         return payas_cad._mcp(boxespy.render_preview(file_id, public_base_url=_tool_public_base()))
     except Exception as exc:

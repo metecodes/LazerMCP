@@ -238,7 +238,18 @@ def editor_context(file_id: str) -> dict[str, Any]:
             }
         )
     from assembly import check_assembly
-    assembly = check_assembly(primitives, thickness=float((hit.get("parameters") or {}).get("thickness") or 3)) if primitives else {}
+    parameters = dict(hit.get("parameters") or {})
+    assembly_result = hit.get("assembly_result") if isinstance(hit.get("assembly_result"), dict) else None
+    assembly = {}
+    if primitives and not assembly_result:
+        assembly = check_assembly(primitives, thickness=float(parameters.get("thickness") or 3), parameters=parameters)
+        from assembly_result import build as build_assembly_result
+        assembly_result = build_assembly_result(assembly, file_id=str(file_id or ""), project_id=hit.get("project_id"))
+        # Old project versions did not contain an assembly hand-off.  Resolve
+        # it once, retain it on that version, then let all future previews use
+        # the stored transforms without invoking the solver again.
+        from projects import attach_assembly_result
+        attach_assembly_result(str(file_id or ""), assembly_result)
     return {
         "success": True,
         "file_id": str(file_id or ""),
@@ -249,11 +260,12 @@ def editor_context(file_id: str) -> dict[str, Any]:
         "version": hit.get("version"),
         "material": hit.get("material") or "",
         "machine": hit.get("machine") or "",
-        "parameters": dict(hit.get("parameters") or {}),
+        "parameters": parameters,
         "primitives": primitives,
         "parts": parts,
         "editable": bool(primitives),
-        "assembled_preview_svg": assembly.get("assembled_preview_svg"),
+        "assembly_result": assembly_result,
+        "assembled_preview_svg": assembly.get("assembled_preview_svg") if assembly else None,
         "look_again": (
             []
             if primitives
