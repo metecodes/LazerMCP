@@ -86,6 +86,10 @@
         <div><span>05</span><b id="p5">Kesim SVG</b></div>
       </div>
       <p class="lede" id="hat-note">Basit kutu hızlı. Kompakt makette parçaları yaz. Fotoğraf 3D olmaz.</p>
+      <div class="hide" id="approval-box">
+        <p class="kicker">HESAP İNCELEMESİ</p>
+        <p class="warn" id="approval-note"></p>
+      </div>
       <div class="row"><span id="kind-lab">Tür</span><b id="kind">—</b></div>
       <div class="row" id="use-row"><span id="use-lab">Kullanım</span><b id="usage">—</b></div>
       <p class="lede" id="org-note"></p>
@@ -210,16 +214,23 @@
       lede.textContent = user.email || "";
       lede.classList.toggle("mail", Boolean(user.email));
       const model = user.account_model || user.kind || "user";
+      const approved = data.access_ready !== false && user.approval_status !== "pending" && user.approval_status !== "denied";
       const kinds = lang === "en"
         ? { org: "organization", dealer: "dealer", user: "individual", individual: "individual" }
         : { org: "kurumsal", dealer: "bayi", user: "bireysel", individual: "bireysel" };
       document.getElementById("kind").textContent = kinds[model] || kinds.user;
-      document.getElementById("org-note").textContent = data.can_mint_keys ? T.orgYes : T.orgNo;
+      const approvalBox = document.getElementById("approval-box");
+      const approvalNote = document.getElementById("approval-note");
+      approvalBox.classList.toggle("hide", approved);
+      approvalNote.textContent = user.approval_status === "denied"
+        ? (lang === "en" ? "This account was not approved. Please contact the workshop." : "Bu hesap onaylanmadı. Lütfen işletme ile iletişime geç.")
+        : (lang === "en" ? "Your account is awaiting operator approval. Access opens after payment and account review." : "Hesabın operatör onayını bekliyor. Ödeme ve hesap kontrolü tamamlanınca erişimin açılacak.");
+      document.getElementById("org-note").textContent = approved ? (data.can_mint_keys ? T.orgYes : T.orgNo) : "";
       const reqBox = document.getElementById("request-box");
       const reqLede = document.getElementById("request-lede");
       if (reqLede) reqLede.textContent = T.reqLede;
       document.getElementById("request-go").textContent = T.reqGo;
-      if (reqBox) reqBox.classList.toggle("hide", Boolean(data.can_mint_keys));
+      if (reqBox) reqBox.classList.toggle("hide", !approved || Boolean(data.can_mint_keys));
       if (data.key_request && data.key_request.status === "open") {
         document.getElementById("request-note-out").textContent = T.reqOpen;
       }
@@ -232,7 +243,7 @@
       } else {
         useRow.classList.add("hide");
       }
-      document.getElementById("keys-box").classList.toggle("hide", !data.can_mint_keys);
+      document.getElementById("keys-box").classList.toggle("hide", !approved || !data.can_mint_keys);
       const adminLink = document.getElementById("to-admin");
       if (adminLink) adminLink.classList.toggle("hide", !data.admin);
       const keys = data.keys || [];
@@ -276,7 +287,7 @@
       const data = await sync();
       if (data && data.user) {
         showUser(data);
-        if (next && location.pathname === "/auth/callback") location.replace(next);
+        if (next && data.access_ready !== false && location.pathname === "/auth/callback") location.replace(next);
         if (location.hash) history.replaceState({}, "", location.pathname + location.search);
         return;
       }

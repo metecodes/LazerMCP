@@ -57,6 +57,9 @@
     .then(function (r) { return r.json(); })
     .then(function (data) {
       if (!data || !data.user) return;
+      // Keep a pending customer visibly signed in, but never present the
+      // workshop as if it were already accessible.
+      const accessReady = data.access_ready !== false && data.user.approval_status !== "pending" && data.user.approval_status !== "denied";
       document.body.classList.add("signed-in");
       if (signin) signin.classList.add("hide");
       if (google) google.classList.add("hide");
@@ -88,6 +91,7 @@
         if (n > 0) use.textContent = n + " " + jobs;
         else use.remove();
       }
+      if (!accessReady && connect) connect.classList.add("hide");
     })
     .catch(function () {});
 })();

@@ -110,3 +110,22 @@ class AdminGrantTests(unittest.TestCase):
         self.assertEqual(search_users(""), [])
         self.assertEqual(search_users("g"), [])
         self.assertEqual(search_users("gizli")[0]["email"], "gizli@ornek.com")
+
+    def test_new_account_waits_for_operator_approval(self):
+        from supabase_auth import (
+            account_is_approved,
+            pending_users,
+            set_account_approval,
+            upsert_user,
+        )
+
+        fresh = upsert_user({"id": "u-pending", "email": "odeme@ornek.com", "name": "Ödeme"})
+        self.assertEqual(fresh["approval_status"], "pending")
+        self.assertFalse(account_is_approved(fresh))
+        self.assertEqual(pending_users()[0]["email"], "odeme@ornek.com")
+        approved = set_account_approval("odeme@ornek.com", approve=True, by="metehan1387@gmail.com")
+        self.assertTrue(approved["approved"])
+        self.assertTrue(account_is_approved(approved))
+        denied = set_account_approval("odeme@ornek.com", approve=False, by="metehan1387@gmail.com")
+        self.assertEqual(denied["approval_status"], "denied")
+        self.assertFalse(account_is_approved(denied))

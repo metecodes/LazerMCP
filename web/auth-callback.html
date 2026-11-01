@@ -41,7 +41,9 @@
     });
     const data = await response.json();
     if (!response.ok || !data.user) throw new Error("session");
-    location.replace(next);
+    // A new account is intentionally held on the account page until an
+    // operator confirms payment and access. Do not send it on to the studio.
+    location.replace(data.access_ready === false ? "/account" : next);
   } catch (error) {
     document.getElementById("title").textContent = "Giriş tamamlanamadı";
     document.getElementById("status").textContent = failed

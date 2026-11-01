@@ -425,6 +425,33 @@ class BearerGate:
             await send({"type": "http.response.start", "status": 401, "headers": headers})
             await send({"type": "http.response.body", "body": body})
             return
+        # OAuth tokens contain the identity captured when they were issued.
+        # Re-read the account record so a later admin decision applies to an
+        # already-issued token too.
+        if key.get("provider") == "google" and not key.get("approval_status"):
+            try:
+                from supabase_auth import approval_status_of, user_by_id
+
+                reviewed = user_by_id(str(key.get("id") or ""))
+                if reviewed:
+                    key = {**key, "approval_status": approval_status_of(reviewed)}
+            except Exception:
+                pass
+        # Browser sessions carry their review state. API keys issued before a
+        # review decision remain usable; newly signed-in people do not reach
+        # workshop or MCP endpoints until an operator approves the account.
+        if str(key.get("approval_status") or "").lower() in {"pending", "denied"}:
+            state = str(key.get("approval_status") or "").lower()
+            note = (
+                "Hesabın admin onayını bekliyor. Ödeme ve hesap kontrolü tamamlanınca erişim açılacak."
+                if state == "pending"
+                else "Bu hesap admin tarafından onaylanmadı. Lütfen işletme ile iletişime geç."
+            )
+            body = json.dumps({"success": False, "error": "account_" + state, "look_again": [note]}).encode("utf-8")
+            headers = [(b"content-type", b"application/json; charset=utf-8"), (b"content-length", str(len(body)).encode("ascii"))]
+            await send({"type": "http.response.start", "status": 403, "headers": headers})
+            await send({"type": "http.response.body", "body": body})
+            return
         if (scope.get("method") or "GET").upper() in {"POST", "PUT"} and (
             path.startswith("/mcp") or path.startswith("/api/generate") or path.startswith("/api/cad/") or (path.startswith("/api/editor/") and path.endswith(("/preview", "/save")))
         ):
@@ -1277,13 +1304,15 @@ async def oauth_register(request: Request) -> Response:
 @mcp.custom_route("/oauth/authorize", methods=["GET"])
 async def oauth_authorize(request: Request) -> Response:
     from oauth_mcp import authorize_redirect, issue_code
-    from supabase_auth import session_user
+    from supabase_auth import account_is_approved, session_user
 
     q = request.query_params
     nxt = _safe_next(str(request.url), request)
     user = session_user(request.cookies.get("lmcp_sid"))
     if not user:
         return _redirect("/account?next=" + quote(nxt or "/connect", safe=""))
+    if not account_is_approved(user):
+        return _redirect("/account")
     try:
         code = issue_code(
             client_id=str(q.get("client_id") or ""),
@@ -1321,6 +1350,7 @@ async def api_auth_config(request: Request) -> Response:
 @mcp.custom_route("/api/auth/session", methods=["POST"])
 async def api_auth_session(request: Request) -> Response:
     from supabase_auth import (
+        account_is_approved,
         can_mint_keys,
         configured,
         new_session,
@@ -1362,6 +1392,7 @@ async def api_auth_session(request: Request) -> Response:
             "success": True,
             "user": principal,
             "can_mint_keys": can_mint_keys(stored),
+            "access_ready": account_is_approved(stored),
             "configured": True,
         }
     )
@@ -1398,7 +1429,7 @@ def _account_usage(user_id: str) -> dict[str, Any]:
 @mcp.custom_route("/api/account", methods=["GET"])
 async def api_account(request: Request) -> Response:
     from keys import current_auth, list_keys
-    from supabase_auth import can_mint_keys, is_admin, session_user, user_by_id
+    from supabase_auth import account_is_approved, can_mint_keys, is_admin, public_user, session_user, user_by_id
 
     key = current_auth.get() or session_user(request.cookies.get("lmcp_sid"))
     if not key:
@@ -1408,16 +1439,13 @@ async def api_account(request: Request) -> Response:
     from access_requests import open_request_for
 
     email = str(key.get("email") or stored.get("email") or "")
+    user = public_user({**key, **stored, "email": email})
+    approved = account_is_approved(stored or key)
     return JSONResponse(
         {
             "success": True,
-            "user": {
-                "id": key.get("id"),
-                "name": key.get("name") or stored.get("name"),
-                "email": email,
-                "kind": stored.get("kind") or key.get("kind") or "individual",
-                "account_model": stored.get("account_model") or key.get("account_model") or "user",
-            },
+            "user": user,
+            "access_ready": approved,
             "can_mint_keys": can_mint_keys(stored or key),
             "admin": is_admin(stored) or is_admin(key),
             "keys": list_keys(owner=uid),
@@ -1432,12 +1460,14 @@ async def api_account_key_request(request: Request) -> Response:
     from access_requests import submit_key_request
     from keys import current_auth
     from persist.rate_limit import check
-    from supabase_auth import session_user, user_by_id
+    from supabase_auth import account_is_approved, session_user, user_by_id
 
     key = current_auth.get() or session_user(request.cookies.get("lmcp_sid"))
     if not key:
         return JSONResponse({"success": True, "look_again": ["Google ile gir, sonra talep aç."]}, status_code=401)
     stored = user_by_id(str(key.get("id") or "")) or key
+    if not account_is_approved(stored):
+        return JSONResponse({"success": False, "look_again": ["Hesabın admin onayını bekliyor."]}, status_code=403)
     ident = str(stored.get("email") or stored.get("id") or "user")
     if not check("key-request", ident, limit=8, window_sec=3600):
         return JSONResponse({"success": True, "look_again": ["Rate limit. Try again later."]}, status_code=429)
@@ -1457,12 +1487,14 @@ async def api_account_key_request(request: Request) -> Response:
 @mcp.custom_route("/api/account/keys", methods=["POST"])
 async def api_account_keys(request: Request) -> Response:
     from keys import create_key, current_auth
-    from supabase_auth import can_mint_keys, session_user, user_by_id
+    from supabase_auth import account_is_approved, can_mint_keys, session_user, user_by_id
 
     key = current_auth.get() or session_user(request.cookies.get("lmcp_sid"))
     if not key:
         return JSONResponse({"success": True, "look_again": ["Sign in with Google."]}, status_code=401)
     stored = user_by_id(str(key.get("id") or "")) or key
+    if not account_is_approved(stored):
+        return JSONResponse({"success": False, "look_again": ["Hesabın admin onayını bekliyor."]}, status_code=403)
     if not can_mint_keys(stored):
         return JSONResponse(
             {
@@ -1493,11 +1525,14 @@ async def api_account_keys(request: Request) -> Response:
 @mcp.custom_route("/api/account/keys/revoke", methods=["POST"])
 async def api_account_keys_revoke(request: Request) -> Response:
     from keys import current_auth, revoke_key
-    from supabase_auth import session_user
+    from supabase_auth import account_is_approved, session_user, user_by_id
 
     key = current_auth.get() or session_user(request.cookies.get("lmcp_sid"))
     if not key:
         return JSONResponse({"success": True, "look_again": ["Sign in with Google."]}, status_code=401)
+    stored = user_by_id(str(key.get("id") or "")) or key
+    if not account_is_approved(stored):
+        return JSONResponse({"success": False, "look_again": ["Hesabın admin onayını bekliyor."]}, status_code=403)
     try:
         body = await request.json()
     except Exception:
@@ -1521,7 +1556,7 @@ def _admin_actor(request: Request):
 
 @mcp.custom_route("/api/admin/overview", methods=["GET"])
 async def api_admin_overview(request: Request) -> Response:
-    from supabase_auth import session_ready, user_stats
+    from supabase_auth import pending_users, session_ready, user_stats
 
     actor, deny = _admin_actor(request)
     if deny:
@@ -1536,6 +1571,7 @@ async def api_admin_overview(request: Request) -> Response:
             "admin": actor.get("email"),
             "session_ready": session_ready(),
             "requests": pending,
+            "pending_accounts": pending_users(),
             **stats,
         }
     )
@@ -1604,6 +1640,34 @@ async def api_admin_set_model(request: Request) -> Response:
                 "models": list(ACCOUNT_MODELS),
             }
         )
+    return JSONResponse({"success": True, "user": user})
+
+
+@mcp.custom_route("/api/admin/users/approval", methods=["POST"])
+async def api_admin_set_approval(request: Request) -> Response:
+    from persist.rate_limit import check
+    from supabase_auth import set_account_approval
+
+    actor, deny = _admin_actor(request)
+    if deny:
+        return deny
+    ident = str(actor.get("email") or actor.get("id") or "admin")
+    if not check("admin-approval", ident, limit=60, window_sec=3600):
+        return JSONResponse({"success": True, "look_again": ["Rate limit. Try again later."]}, status_code=429)
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    decision = str((body or {}).get("decision") or "").strip().lower()
+    if decision not in {"approve", "deny"}:
+        return JSONResponse({"success": False, "look_again": ["Karar approve veya deny olmalı."]}, status_code=400)
+    user = set_account_approval(
+        str((body or {}).get("email") or ""),
+        approve=decision == "approve",
+        by=str(actor.get("email") or ""),
+    )
+    if not user:
+        return JSONResponse({"success": True, "look_again": ["Bu e-posta ile kullanıcı bulunamadı."]})
     return JSONResponse({"success": True, "user": user})
 
 

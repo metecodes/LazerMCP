@@ -59,6 +59,13 @@
       <div class="row"><span>Bireysel</span><b id="users">—</b></div>
       <div class="row"><span>Bayi</span><b id="dealers">—</b></div>
       <div class="row"><span>Kurumsal</span><b id="orgs">—</b></div>
+      <div class="row"><span>Onay bekleyen</span><b id="pending-count">—</b></div>
+    </div>
+
+    <div class="card hide" id="approval-box">
+      <p class="kicker">Yeni hesap onayları</p>
+      <p class="lede">Elden ödeme ve hesap kontrolünden sonra erişimi aç. Reddedilen hesap stüdyoya ve MCP araçlarına erişemez.</p>
+      <div id="pending-accounts"></div>
     </div>
 
     <div class="card hide" id="requests-box">
@@ -114,6 +121,51 @@
       });
     }
 
+    function esc(value) {
+      const node = document.createElement("span");
+      node.textContent = String(value || "");
+      return node.innerHTML;
+    }
+
+    function approvalLabel(user) {
+      const state = (user && user.approval_status) || "approved";
+      return state === "pending" ? "onay bekliyor" : state === "denied" ? "reddedildi" : "onaylı";
+    }
+
+    function renderPendingAccounts(rows) {
+      const box = document.getElementById("pending-accounts");
+      if (!rows || !rows.length) {
+        box.innerHTML = "<p class='lede'>Onay bekleyen yeni hesap yok.</p>";
+        return;
+      }
+      box.innerHTML = rows.map(function (u) {
+        const email = esc(u.email || "");
+        const name = esc(u.name || "");
+        const created = esc(u.approval_requested_at || u.created || "—");
+        return "<div class='row'><span>" + email + (name ? "<br>" + name : "") + "<br>" + created +
+          "</span><div class='actions'><button class='btn cut' type='button' data-approval-email='" + email + "' data-approval='approve'>Onayla</button>" +
+          "<button class='btn ghost' type='button' data-approval-email='" + email + "' data-approval='deny'>Reddet</button></div></div>";
+      }).join("");
+      box.querySelectorAll("button[data-approval-email]").forEach(function (btn) {
+        btn.onclick = function () { setApproval(btn.getAttribute("data-approval-email"), btn.getAttribute("data-approval")); };
+      });
+    }
+
+    async function setApproval(email, decision) {
+      const { status, data } = await api("/api/admin/users/approval", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email: email, decision: decision })
+      });
+      if (status === 401) { location.replace("/account?next=/admin"); return; }
+      if (status === 404) { document.getElementById("denied").classList.remove("hide"); return; }
+      if (data.user) {
+        showNote((data.user.email || email) + " → " + approvalLabel(data.user), true);
+        loadOverview();
+        return;
+      }
+      showNote((data.look_again || []).join(" ") || "Hesap bulunamadı.");
+    }
+
     async function decideRequest(id, decision, model) {
       const { status, data } = await api("/api/admin/requests", {
         method: "POST",
@@ -152,7 +204,7 @@
           const disabled = model === id ? " disabled" : "";
           return "<button class='btn" + on + "' type='button' data-email='" + email + "' data-model='" + id + "'" + disabled + ">" + label + "</button>";
         }
-        return "<div class='row'><span>" + email + "<br>" + modelLabel(u) + " · " + seen +
+        return "<div class='row'><span>" + email + "<br>" + modelLabel(u) + " · " + approvalLabel(u) + " · " + seen +
           "</span><div class='actions'>" + btn("user", "Bireysel") + btn("dealer", "Bayi") + btn("org", "Kurumsal") + "</div></div>";
       }).join("");
       box.querySelectorAll("button[data-email]").forEach(function (btn) {
@@ -187,7 +239,9 @@
       document.getElementById("panel").classList.remove("hide");
       document.getElementById("search-box").classList.remove("hide");
       document.getElementById("requests-box").classList.remove("hide");
+      document.getElementById("approval-box").classList.remove("hide");
       renderRequests(data.requests || []);
+      renderPendingAccounts(data.pending_accounts || []);
       document.getElementById("who").textContent = data.admin || "";
       document.getElementById("active").textContent = String(data.active_users ?? "—");
       document.getElementById("window").textContent = "Son " + (data.active_window_days || 30) + " günde görülen kullanıcı";
@@ -195,6 +249,7 @@
       document.getElementById("users").textContent = String(data.user_users ?? "—");
       document.getElementById("dealers").textContent = String(data.dealer_users ?? "—");
       document.getElementById("orgs").textContent = String(data.org_users ?? "—");
+      document.getElementById("pending-count").textContent = String(data.pending_users ?? "—");
       return true;
     }
 

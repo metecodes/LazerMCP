@@ -71,6 +71,7 @@ def is_admin(user: dict[str, Any] | None) -> bool:
 
 
 ACCOUNT_MODELS = ("user", "dealer", "org")
+APPROVAL_STATUSES = ("pending", "approved", "denied")
 _MODEL_ALIASES = {
     "user": "user",
     "individual": "user",
@@ -102,6 +103,23 @@ def account_model_of(user: dict[str, Any] | None) -> str:
     if str(user.get("kind") or "").strip().lower() == "dealer":
         return "dealer"
     return "user"
+
+
+def approval_status_of(user: dict[str, Any] | None) -> str:
+    """Return the stored account review state.
+
+    Records created before manual review was introduced are deliberately
+    treated as approved so deploying this change does not lock out customers
+    who already had an account.
+    """
+    if is_admin(user):
+        return "approved"
+    raw = str((user or {}).get("approval_status") or "").strip().lower()
+    return raw if raw in APPROVAL_STATUSES else "approved"
+
+
+def account_is_approved(user: dict[str, Any] | None) -> bool:
+    return approval_status_of(user) == "approved"
 
 
 def _apply_account_model(row: dict[str, Any], model: str) -> dict[str, Any]:
@@ -225,6 +243,8 @@ def upsert_user(identity: dict[str, Any], *, kind: str | None = None) -> dict[st
             "name": identity.get("name"),
             "account_model": "user",
             "kind": "individual",
+            "approval_status": "approved" if is_admin(identity) else "pending",
+            "approval_requested_at": now_iso(),
             "created": now_iso(),
         }
         rows.append(hit)
@@ -254,11 +274,11 @@ def user_by_id(uid: str) -> dict[str, Any] | None:
 
 
 def can_mint_keys(user: dict[str, Any] | None) -> bool:
-    return user_is_org(user)
+    return account_is_approved(user) and user_is_org(user)
 
 
 def can_mint_activation(user: dict[str, Any] | None) -> bool:
-    return user_is_org(user) or user_is_dealer(user) or is_admin(user)
+    return account_is_approved(user) and (user_is_org(user) or user_is_dealer(user) or is_admin(user))
 
 
 def public_user(row: dict[str, Any]) -> dict[str, Any]:
@@ -270,6 +290,9 @@ def public_user(row: dict[str, Any]) -> dict[str, Any]:
         "account_model": model,
         "kind": _KIND_FOR_MODEL[model],
         "org_grant": model == "org",
+        "approval_status": approval_status_of(row),
+        "approved": account_is_approved(row),
+        "approval_requested_at": row.get("approval_requested_at"),
         "last_seen": row.get("last_seen"),
         "created": row.get("created"),
     }
@@ -300,6 +323,9 @@ def user_stats(*, active_days: int = 30) -> dict[str, Any]:
     org = 0
     dealer = 0
     users = 0
+    pending = 0
+    approved = 0
+    denied = 0
     for row in rows:
         model = account_model_of(row)
         if model == "org":
@@ -308,6 +334,13 @@ def user_stats(*, active_days: int = 30) -> dict[str, Any]:
             dealer += 1
         else:
             users += 1
+        status = approval_status_of(row)
+        if status == "pending":
+            pending += 1
+        elif status == "denied":
+            denied += 1
+        else:
+            approved += 1
         seen = _seen_at(str(row.get("last_seen") or ""))
         if seen and now - seen <= window:
             active += 1
@@ -318,6 +351,9 @@ def user_stats(*, active_days: int = 30) -> dict[str, Any]:
         "org_users": org,
         "dealer_users": dealer,
         "user_users": users,
+        "pending_users": pending,
+        "approved_users": approved,
+        "denied_users": denied,
     }
 
 
@@ -348,6 +384,9 @@ def grant_org(email: str, *, by: str) -> dict[str, Any] | None:
     if hit is None:
         return None
     _apply_account_model(hit, "org")
+    hit["approval_status"] = "approved"
+    hit["approved_at"] = now_iso()
+    hit["approved_by"] = str(by or "")[:120]
     hit["org_granted_at"] = now_iso()
     hit["org_granted_by"] = str(by or "")[:120]
     try:
@@ -373,11 +412,39 @@ def set_account_model(email: str, model: str, *, by: str) -> dict[str, Any] | No
     if hit is None:
         return None
     _apply_account_model(hit, resolved)
+    # Selecting a model in the operator panel is also an explicit approval.
+    hit["approval_status"] = "approved"
+    hit["approved_at"] = now_iso()
+    hit["approved_by"] = str(by or "")[:120]
     hit["model_set_at"] = now_iso()
     hit["model_set_by"] = str(by or "")[:120]
     if resolved == "org":
         hit["org_granted_at"] = now_iso()
         hit["org_granted_by"] = str(by or "")[:120]
+    try:
+        write_json("users.json", rows)
+    except Exception:
+        return None
+    return public_user(hit)
+
+
+def pending_users(*, limit: int = 40) -> list[dict[str, Any]]:
+    rows = [row for row in _users() if approval_status_of(row) == "pending"]
+    rows.sort(key=lambda row: str(row.get("approval_requested_at") or row.get("created") or ""), reverse=True)
+    return [public_user(row) for row in rows[: max(1, int(limit))]]
+
+
+def set_account_approval(email: str, *, approve: bool, by: str) -> dict[str, Any] | None:
+    needle = str(email or "").strip().lower()
+    if "@" not in needle:
+        return None
+    rows = _users()
+    hit = next((row for row in rows if str(row.get("email") or "").strip().lower() == needle), None)
+    if hit is None:
+        return None
+    hit["approval_status"] = "approved" if approve else "denied"
+    hit["approved_at" if approve else "denied_at"] = now_iso()
+    hit["approved_by" if approve else "denied_by"] = str(by or "")[:120]
     try:
         write_json("users.json", rows)
     except Exception:
@@ -426,6 +493,7 @@ def new_session(user: dict[str, Any]) -> str:
         "name": user.get("name"),
         "account_model": account_model_of(user),
         "kind": _KIND_FOR_MODEL[account_model_of(user)],
+        "approval_status": approval_status_of(user),
         "organization_id": user.get("organization_id") or "",
         "exp": int(time.time()) + 30 * 24 * 3600,
     }
@@ -477,6 +545,8 @@ def _parse_signed_session(raw: str) -> dict[str, Any] | None:
         "name": str(payload.get("name") or email or "user"),
         "account_model": model,
         "kind": kind,
+        "approval_status": approval_status_of(stored or payload),
+        "provider": "google",
         "organization_id": org_id,
     }
 
@@ -517,6 +587,8 @@ def principal_from_identity(identity: dict[str, Any], stored: dict[str, Any] | N
         "plan": "maker" if model == "org" else ("pro" if model == "dealer" else "free"),
         "account_model": model,
         "kind": kind,
+        "approval_status": approval_status_of(row or identity),
+        "approved": account_is_approved(row or identity),
         "provider": "google",
         "organization_id": org_id,
     }
