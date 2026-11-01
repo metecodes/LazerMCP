@@ -59,12 +59,12 @@
       <div class="row"><span>Bireysel</span><b id="users">—</b></div>
       <div class="row"><span>Bayi</span><b id="dealers">—</b></div>
       <div class="row"><span>Kurumsal</span><b id="orgs">—</b></div>
-      <div class="row"><span>Onay bekleyen</span><b id="pending-count">—</b></div>
+      <div class="row"><span>İşlem bekleyen</span><b id="pending-count">—</b></div>
     </div>
 
     <div class="card hide" id="approval-box">
-      <p class="kicker">Yeni hesap onayları</p>
-      <p class="lede">Elden ödeme ve hesap kontrolünden sonra erişimi aç. Reddedilen hesap stüdyoya ve MCP araçlarına erişemez.</p>
+      <p class="kicker">Hesap ve üyelik onayları</p>
+      <p class="lede">İlk onay 3 günlük test erişimini başlatır. Test bitince devam eden üyelik için yeniden onay ver. Reddedilen hesap stüdyoya ve MCP araçlarına erişemez.</p>
       <div id="pending-accounts"></div>
     </div>
 
@@ -129,21 +129,25 @@
 
     function approvalLabel(user) {
       const state = (user && user.approval_status) || "approved";
+      if (user && user.access_state === "trial_expired") return "deneme bitti · üyelik onayı bekliyor";
+      if (user && user.access_state === "trial") return "3 günlük denemede";
       return state === "pending" ? "onay bekliyor" : state === "denied" ? "reddedildi" : "onaylı";
     }
 
     function renderPendingAccounts(rows) {
       const box = document.getElementById("pending-accounts");
       if (!rows || !rows.length) {
-        box.innerHTML = "<p class='lede'>Onay bekleyen yeni hesap yok.</p>";
+        box.innerHTML = "<p class='lede'>İşlem bekleyen hesap yok.</p>";
         return;
       }
       box.innerHTML = rows.map(function (u) {
         const email = esc(u.email || "");
         const name = esc(u.name || "");
         const created = esc(u.approval_requested_at || u.created || "—");
+        const expired = u.access_state === "trial_expired";
+        const approveLabel = expired ? "Üyeliği sürdür" : "3 gün denemeyi başlat";
         return "<div class='row'><span>" + email + (name ? "<br>" + name : "") + "<br>" + created +
-          "</span><div class='actions'><button class='btn cut' type='button' data-approval-email='" + email + "' data-approval='approve'>Onayla</button>" +
+          "<br>" + approvalLabel(u) + "</span><div class='actions'><button class='btn cut' type='button' data-approval-email='" + email + "' data-approval='approve'>" + approveLabel + "</button>" +
           "<button class='btn ghost' type='button' data-approval-email='" + email + "' data-approval='deny'>Reddet</button></div></div>";
       }).join("");
       box.querySelectorAll("button[data-approval-email]").forEach(function (btn) {
@@ -249,7 +253,7 @@
       document.getElementById("users").textContent = String(data.user_users ?? "—");
       document.getElementById("dealers").textContent = String(data.dealer_users ?? "—");
       document.getElementById("orgs").textContent = String(data.org_users ?? "—");
-      document.getElementById("pending-count").textContent = String(data.pending_users ?? "—");
+      document.getElementById("pending-count").textContent = String(data.review_users ?? "—");
       return true;
     }
 

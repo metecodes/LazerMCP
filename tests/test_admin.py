@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import tempfile
 import unittest
+from datetime import datetime, timedelta, timezone
 
 
 class AdminGrantTests(unittest.TestCase):
@@ -113,6 +114,7 @@ class AdminGrantTests(unittest.TestCase):
 
     def test_new_account_waits_for_operator_approval(self):
         from supabase_auth import (
+            account_access_state,
             account_is_approved,
             pending_users,
             set_account_approval,
@@ -129,3 +131,23 @@ class AdminGrantTests(unittest.TestCase):
         denied = set_account_approval("odeme@ornek.com", approve=False, by="metehan1387@gmail.com")
         self.assertEqual(denied["approval_status"], "denied")
         self.assertFalse(account_is_approved(denied))
+
+    def test_first_approval_is_three_day_trial_then_needs_membership_approval(self):
+        from studio_store import read_json, write_json
+        from supabase_auth import account_access_state, account_is_approved, set_account_approval, upsert_user
+
+        upsert_user({"id": "u-trial", "email": "trial@ornek.com", "name": "Trial"})
+        trial = set_account_approval("trial@ornek.com", approve=True, by="metehan1387@gmail.com")
+        self.assertEqual(trial["access_state"], "trial")
+        self.assertTrue(account_is_approved(trial))
+        expires = datetime.fromisoformat(trial["trial_expires_at"])
+        self.assertLessEqual(expires - datetime.now(timezone.utc), timedelta(days=3, seconds=2))
+        rows = read_json("users.json", [])
+        rows[0]["trial_expires_at"] = (datetime.now(timezone.utc) - timedelta(seconds=1)).isoformat()
+        write_json("users.json", rows)
+        expired = next(row for row in read_json("users.json", []) if row["id"] == "u-trial")
+        self.assertEqual(account_access_state(expired), "trial_expired")
+        self.assertFalse(account_is_approved(expired))
+        continued = set_account_approval("trial@ornek.com", approve=True, by="metehan1387@gmail.com")
+        self.assertEqual(continued["access_state"], "approved")
+        self.assertTrue(account_is_approved(continued))

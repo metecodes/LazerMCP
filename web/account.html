@@ -214,7 +214,8 @@
       lede.textContent = user.email || "";
       lede.classList.toggle("mail", Boolean(user.email));
       const model = user.account_model || user.kind || "user";
-      const approved = data.access_ready !== false && user.approval_status !== "pending" && user.approval_status !== "denied";
+      const accessState = user.access_state || user.approval_status || "approved";
+      const approved = data.access_ready !== false && !["pending", "denied", "trial_expired"].includes(accessState);
       const kinds = lang === "en"
         ? { org: "organization", dealer: "dealer", user: "individual", individual: "individual" }
         : { org: "kurumsal", dealer: "bayi", user: "bireysel", individual: "bireysel" };
@@ -222,10 +223,15 @@
       const approvalBox = document.getElementById("approval-box");
       const approvalNote = document.getElementById("approval-note");
       approvalBox.classList.toggle("hide", approved);
-      approvalNote.textContent = user.approval_status === "denied"
+      approvalNote.textContent = accessState === "denied"
         ? (lang === "en" ? "This account was not approved. Please contact the workshop." : "Bu hesap onaylanmadı. Lütfen işletme ile iletişime geç.")
+        : accessState === "trial_expired"
+        ? (lang === "en" ? "Your 3-day trial has ended. Your membership is awaiting operator approval." : "3 günlük deneme süren bitti. Üyeliğinin devamı için operatör onayı bekleniyor.")
         : (lang === "en" ? "Your account is awaiting operator approval. Access opens after payment and account review." : "Hesabın operatör onayını bekliyor. Ödeme ve hesap kontrolü tamamlanınca erişimin açılacak.");
-      document.getElementById("org-note").textContent = approved ? (data.can_mint_keys ? T.orgYes : T.orgNo) : "";
+      const trialNote = accessState === "trial" && user.trial_expires_at
+        ? (lang === "en" ? "3-day test access ends: " : "3 günlük test erişimi bitişi: ") + new Date(user.trial_expires_at).toLocaleString()
+        : "";
+      document.getElementById("org-note").textContent = approved ? (trialNote || (data.can_mint_keys ? T.orgYes : T.orgNo)) : "";
       const reqBox = document.getElementById("request-box");
       const reqLede = document.getElementById("request-lede");
       if (reqLede) reqLede.textContent = T.reqLede;

@@ -428,23 +428,32 @@ class BearerGate:
         # OAuth tokens contain the identity captured when they were issued.
         # Re-read the account record so a later admin decision applies to an
         # already-issued token too.
-        if key.get("provider") == "google" and not key.get("approval_status"):
+        if key.get("provider") == "google":
             try:
                 from supabase_auth import approval_status_of, user_by_id
 
                 reviewed = user_by_id(str(key.get("id") or ""))
                 if reviewed:
-                    key = {**key, "approval_status": approval_status_of(reviewed)}
+                    key = {**key, "approval_status": approval_status_of(reviewed), "trial_expires_at": reviewed.get("trial_expires_at") or ""}
             except Exception:
                 pass
         # Browser sessions carry their review state. API keys issued before a
         # review decision remain usable; newly signed-in people do not reach
         # workshop or MCP endpoints until an operator approves the account.
-        if str(key.get("approval_status") or "").lower() in {"pending", "denied"}:
-            state = str(key.get("approval_status") or "").lower()
+        if key.get("provider") == "google":
+            from supabase_auth import account_access_state, account_is_approved
+
+            state = account_access_state(key)
+            allowed = account_is_approved(key)
+        else:
+            state = str(key.get("approval_status") or "approved").lower()
+            allowed = state not in {"pending", "denied", "trial_expired"}
+        if not allowed:
             note = (
                 "Hesabın admin onayını bekliyor. Ödeme ve hesap kontrolü tamamlanınca erişim açılacak."
                 if state == "pending"
+                else "3 günlük deneme süresi bitti. Devam etmek için admin üyelik onayı bekleniyor."
+                if state == "trial_expired"
                 else "Bu hesap admin tarafından onaylanmadı. Lütfen işletme ile iletişime geç."
             )
             body = json.dumps({"success": False, "error": "account_" + state, "look_again": [note]}).encode("utf-8")
@@ -1556,7 +1565,7 @@ def _admin_actor(request: Request):
 
 @mcp.custom_route("/api/admin/overview", methods=["GET"])
 async def api_admin_overview(request: Request) -> Response:
-    from supabase_auth import pending_users, session_ready, user_stats
+    from supabase_auth import review_users, session_ready, user_stats
 
     actor, deny = _admin_actor(request)
     if deny:
@@ -1571,7 +1580,7 @@ async def api_admin_overview(request: Request) -> Response:
             "admin": actor.get("email"),
             "session_ready": session_ready(),
             "requests": pending,
-            "pending_accounts": pending_users(),
+            "pending_accounts": review_users(),
             **stats,
         }
     )

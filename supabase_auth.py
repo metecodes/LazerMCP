@@ -11,6 +11,7 @@ import re
 import time
 import urllib.error
 import urllib.request
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from urllib.parse import urlparse
 
@@ -72,6 +73,7 @@ def is_admin(user: dict[str, Any] | None) -> bool:
 
 ACCOUNT_MODELS = ("user", "dealer", "org")
 APPROVAL_STATUSES = ("pending", "approved", "denied")
+TRIAL_DAYS = 3
 _MODEL_ALIASES = {
     "user": "user",
     "individual": "user",
@@ -118,8 +120,49 @@ def approval_status_of(user: dict[str, Any] | None) -> str:
     return raw if raw in APPROVAL_STATUSES else "approved"
 
 
+def _stamp(raw: str | None) -> datetime | None:
+    text = str(raw or "").replace("Z", "+00:00")
+    if not text:
+        return None
+    try:
+        value = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    return value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value
+
+
+def account_access_state(user: dict[str, Any] | None, *, now: datetime | None = None) -> str:
+    """The current usable state, including a time-limited first approval."""
+    status = approval_status_of(user)
+    if status != "approved":
+        return status
+    expires = _stamp((user or {}).get("trial_expires_at"))
+    current = now or datetime.now(timezone.utc)
+    if expires and current >= expires:
+        return "trial_expired"
+    return "trial" if expires else "approved"
+
+
 def account_is_approved(user: dict[str, Any] | None) -> bool:
-    return approval_status_of(user) == "approved"
+    return account_access_state(user) in {"approved", "trial"}
+
+
+def _approve_for_access(row: dict[str, Any], *, by: str) -> None:
+    """First approval is a three-day trial; expiry needs a second approval."""
+    prior = account_access_state(row)
+    row["approval_status"] = "approved"
+    actor = str(by or "")[:120]
+    if prior == "trial_expired":
+        row.pop("trial_expires_at", None)
+        row["membership_approved_at"] = now_iso()
+        row["membership_approved_by"] = actor
+    elif prior in {"pending", "denied"}:
+        started = datetime.now(timezone.utc).replace(microsecond=0)
+        row["trial_started_at"] = started.isoformat()
+        row["trial_expires_at"] = (started + timedelta(days=TRIAL_DAYS)).isoformat()
+        row["trial_approved_by"] = actor
+    row["approved_at"] = now_iso()
+    row["approved_by"] = actor
 
 
 def _apply_account_model(row: dict[str, Any], model: str) -> dict[str, Any]:
@@ -283,6 +326,7 @@ def can_mint_activation(user: dict[str, Any] | None) -> bool:
 
 def public_user(row: dict[str, Any]) -> dict[str, Any]:
     model = account_model_of(row)
+    access_state = account_access_state(row)
     return {
         "id": row.get("id"),
         "email": row.get("email"),
@@ -292,25 +336,17 @@ def public_user(row: dict[str, Any]) -> dict[str, Any]:
         "org_grant": model == "org",
         "approval_status": approval_status_of(row),
         "approved": account_is_approved(row),
+        "access_state": access_state,
         "approval_requested_at": row.get("approval_requested_at"),
+        "trial_started_at": row.get("trial_started_at"),
+        "trial_expires_at": row.get("trial_expires_at"),
         "last_seen": row.get("last_seen"),
         "created": row.get("created"),
     }
 
 
 def _seen_at(raw: str):
-    from datetime import datetime, timezone
-
-    text = str(raw or "").replace("Z", "+00:00")
-    if not text:
-        return None
-    try:
-        stamp = datetime.fromisoformat(text)
-    except ValueError:
-        return None
-    if stamp.tzinfo is None:
-        stamp = stamp.replace(tzinfo=timezone.utc)
-    return stamp
+    return _stamp(raw)
 
 
 def user_stats(*, active_days: int = 30) -> dict[str, Any]:
@@ -326,6 +362,8 @@ def user_stats(*, active_days: int = 30) -> dict[str, Any]:
     pending = 0
     approved = 0
     denied = 0
+    trial = 0
+    trial_expired = 0
     for row in rows:
         model = account_model_of(row)
         if model == "org":
@@ -334,11 +372,15 @@ def user_stats(*, active_days: int = 30) -> dict[str, Any]:
             dealer += 1
         else:
             users += 1
-        status = approval_status_of(row)
-        if status == "pending":
+        state = account_access_state(row)
+        if state == "pending":
             pending += 1
-        elif status == "denied":
+        elif state == "denied":
             denied += 1
+        elif state == "trial_expired":
+            trial_expired += 1
+        elif state == "trial":
+            trial += 1
         else:
             approved += 1
         seen = _seen_at(str(row.get("last_seen") or ""))
@@ -354,6 +396,9 @@ def user_stats(*, active_days: int = 30) -> dict[str, Any]:
         "pending_users": pending,
         "approved_users": approved,
         "denied_users": denied,
+        "trial_users": trial,
+        "trial_expired_users": trial_expired,
+        "review_users": pending + trial_expired,
     }
 
 
@@ -384,9 +429,7 @@ def grant_org(email: str, *, by: str) -> dict[str, Any] | None:
     if hit is None:
         return None
     _apply_account_model(hit, "org")
-    hit["approval_status"] = "approved"
-    hit["approved_at"] = now_iso()
-    hit["approved_by"] = str(by or "")[:120]
+    _approve_for_access(hit, by=by)
     hit["org_granted_at"] = now_iso()
     hit["org_granted_by"] = str(by or "")[:120]
     try:
@@ -413,9 +456,7 @@ def set_account_model(email: str, model: str, *, by: str) -> dict[str, Any] | No
         return None
     _apply_account_model(hit, resolved)
     # Selecting a model in the operator panel is also an explicit approval.
-    hit["approval_status"] = "approved"
-    hit["approved_at"] = now_iso()
-    hit["approved_by"] = str(by or "")[:120]
+    _approve_for_access(hit, by=by)
     hit["model_set_at"] = now_iso()
     hit["model_set_by"] = str(by or "")[:120]
     if resolved == "org":
@@ -434,6 +475,15 @@ def pending_users(*, limit: int = 40) -> list[dict[str, Any]]:
     return [public_user(row) for row in rows[: max(1, int(limit))]]
 
 
+def review_users(*, limit: int = 40) -> list[dict[str, Any]]:
+    rows = [row for row in _users() if account_access_state(row) in {"pending", "trial_expired"}]
+    rows.sort(
+        key=lambda row: str(row.get("trial_expires_at") or row.get("approval_requested_at") or row.get("created") or ""),
+        reverse=True,
+    )
+    return [public_user(row) for row in rows[: max(1, int(limit))]]
+
+
 def set_account_approval(email: str, *, approve: bool, by: str) -> dict[str, Any] | None:
     needle = str(email or "").strip().lower()
     if "@" not in needle:
@@ -442,9 +492,13 @@ def set_account_approval(email: str, *, approve: bool, by: str) -> dict[str, Any
     hit = next((row for row in rows if str(row.get("email") or "").strip().lower() == needle), None)
     if hit is None:
         return None
-    hit["approval_status"] = "approved" if approve else "denied"
-    hit["approved_at" if approve else "denied_at"] = now_iso()
-    hit["approved_by" if approve else "denied_by"] = str(by or "")[:120]
+    if approve:
+        _approve_for_access(hit, by=by)
+    else:
+        hit["approval_status"] = "denied"
+        hit.pop("trial_expires_at", None)
+        hit["denied_at"] = now_iso()
+        hit["denied_by"] = str(by or "")[:120]
     try:
         write_json("users.json", rows)
     except Exception:
@@ -494,6 +548,7 @@ def new_session(user: dict[str, Any]) -> str:
         "account_model": account_model_of(user),
         "kind": _KIND_FOR_MODEL[account_model_of(user)],
         "approval_status": approval_status_of(user),
+        "trial_expires_at": user.get("trial_expires_at") or "",
         "organization_id": user.get("organization_id") or "",
         "exp": int(time.time()) + 30 * 24 * 3600,
     }
@@ -546,6 +601,7 @@ def _parse_signed_session(raw: str) -> dict[str, Any] | None:
         "account_model": model,
         "kind": kind,
         "approval_status": approval_status_of(stored or payload),
+        "trial_expires_at": (stored or payload).get("trial_expires_at") or "",
         "provider": "google",
         "organization_id": org_id,
     }
@@ -589,6 +645,8 @@ def principal_from_identity(identity: dict[str, Any], stored: dict[str, Any] | N
         "kind": kind,
         "approval_status": approval_status_of(row or identity),
         "approved": account_is_approved(row or identity),
+        "access_state": account_access_state(row or identity),
+        "trial_expires_at": (row or identity).get("trial_expires_at") or "",
         "provider": "google",
         "organization_id": org_id,
     }
