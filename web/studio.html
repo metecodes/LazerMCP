@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LaserMCP — Stüdyo</title>
+  <meta name="description" content="Parametrik kutu ve AI tasarım. 3D montaj önizleme. SVG/DXF. Fiziksel PASS uydurulmaz.">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/site.webmanifest">
+  <meta name="theme-color" content="#0f1419">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0f1419; --panel: #171e26; --ink: #e8eef4; --mute: #8b98a8;
+      --line: #2a3542; --cut: #e10600; --accent: #3d8bfd; --wood: #c4a574;
+      --mono: "IBM Plex Mono", monospace; --sans: "IBM Plex Sans", "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; color: var(--ink); font: 14px/1.45 var(--sans); background: var(--bg); }
+    a { color: inherit; }
+    .app { display: grid; grid-template-rows: 52px 1fr; height: 100%; position: relative; }
+    nav {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      padding: 0 16px; border-bottom: 1px solid var(--line); background: #12181f;
+    }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; text-decoration: none; letter-spacing: -0.03em; }
+    .mark { width: 16px; height: 16px; border: 1.5px solid var(--ink); position: relative; }
+    .mark::after { content: ""; position: absolute; left: 3px; right: 3px; top: 7px; height: 1.5px; background: var(--cut); }
+    .links { display: flex; align-items: center; gap: 14px; font-size: 13px; color: var(--mute); }
+    .links a { text-decoration: none; }
+    .workspace { display: grid; grid-template-columns: 300px minmax(0, 1fr) 260px; min-height: 0; }
+    aside, .summary {
+      background: var(--panel); border-color: var(--line); overflow: auto;
+      padding: 16px; min-height: 0;
+    }
+    aside { border-right: 1px solid var(--line); }
+    .summary { border-left: 1px solid var(--line); }
+    .kicker { font: 11px/1 var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--cut); margin: 0 0 10px; }
+    h1 { font-size: 18px; margin: 0 0 6px; letter-spacing: -0.02em; }
+    h2 { font-size: 12px; margin: 18px 0 8px; color: var(--mute); font: 11px var(--mono); letter-spacing: 0.1em; text-transform: uppercase; }
+    .hint { color: var(--mute); font-size: 12px; margin: 0 0 14px; }
+    label { display: block; font: 11px var(--mono); color: var(--mute); margin: 10px 0 4px; }
+    input, select, textarea, button {
+      width: 100%; background: #0f1419; color: var(--ink); border: 1px solid var(--line);
+      border-radius: 0; padding: 9px 10px; font: inherit;
+    }
+    textarea { min-height: 72px; resize: vertical; }
+    .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .seg { display: flex; border: 1px solid var(--line); margin-top: 6px; }
+    .seg button { border: 0; background: transparent; cursor: pointer; }
+    .seg button.on { background: var(--ink); color: #0f1419; font-weight: 600; }
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      margin-top: 12px; padding: 11px 14px; border: 1px solid var(--ink);
+      background: var(--ink); color: #0f1419; font-weight: 650; cursor: pointer; text-decoration: none;
+    }
+    .btn.ghost { background: transparent; color: var(--ink); }
+    .btn.cut { background: var(--cut); border-color: var(--cut); color: #fff; }
+    .btn:disabled { opacity: 0.5; cursor: wait; }
+    .tabs { display: flex; border: 1px solid var(--line); margin-bottom: 12px; }
+    .tabs button { flex: 1; border: 0; background: transparent; color: var(--mute); cursor: pointer; padding: 9px; font: 12px var(--mono); }
+    .tabs button.on { background: #222b36; color: var(--ink); }
+    .pane { display: none; }
+    .pane.on { display: block; }
+    .stage {
+      position: relative; min-height: 0; background:
+        radial-gradient(ellipse at center, #1a222c 0%, #0f1419 70%);
+    }
+    #viewport { width: 100%; height: 100%; display: block; }
+    .stage-loading {
+      position: absolute; inset: 0; z-index: 4;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+      background: rgba(15, 20, 25, 0.55); backdrop-filter: blur(2px);
+      color: var(--ink); font: 13px var(--mono); pointer-events: all;
+    }
+    .stage-loading.hide { display: none !important; }
+    .spinner {
+      width: 36px; height: 36px; border: 2px solid var(--line);
+      border-top-color: var(--cut); border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .hud {
+      position: absolute; left: 12px; bottom: 12px; right: 12px;
+      display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+      pointer-events: none;
+    }
+    .hud > * { pointer-events: auto; }
+    .scrub {
+      flex: 1; min-width: 160px; display: flex; align-items: center; gap: 8px;
+      background: rgba(15,20,25,0.85); border: 1px solid var(--line); padding: 8px 10px;
+      font: 11px var(--mono); color: var(--mute);
+    }
+    .scrub input { accent-color: var(--cut); }
+    .status {
+      margin-top: 12px; font-size: 12px; color: var(--mute); white-space: pre-wrap;
+      min-height: 1.2em;
+    }
+    .status.bad { color: #ff7b72; }
+    .status.ok { color: #3fb950; }
+    .kv { display: flex; justify-content: space-between; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); font: 12px var(--mono); }
+    .kv b { font-weight: 600; color: var(--ink); }
+    .guest-banner {
+      margin: 0 0 12px; padding: 10px; border: 1px solid var(--line); color: var(--mute); font-size: 12px;
+    }
+    .hide { display: none !important; }
+    .check { display: flex; align-items: center; gap: 8px; margin-top: 10px; font: 12px var(--sans); color: var(--mute); }
+    .check input { width: auto; }
+    .dim-pop {
+      position: absolute; right: 280px; top: 72px; z-index: 5; width: 220px;
+      background: var(--panel); border: 1px solid var(--line); padding: 12px;
+    }
+    @media (max-width: 960px) {
+      .workspace { grid-template-columns: 1fr; grid-template-rows: auto 50vh auto; }
+      aside, .summary { border: 0; border-bottom: 1px solid var(--line); }
+      .dim-pop { right: 12px; left: 12px; width: auto; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <nav>
+      <a class="brand" href="/"><span class="mark"></span>LaserMCP Stüdyo</a>
+      <div class="links">
+        <a href="/">Ana sayfa</a>
+        <a href="/dashboard">Makine</a>
+        <a href="/account#keys">API anahtarı</a>
+        <a href="/connect">MCP (ücretsiz)</a>
+        <a href="/account" id="nav-account">Hesap</a>
+      </div>
+    </nav>
+    <div class="workspace">
+      <aside>
+        <p class="kicker">Tasarım</p>
+        <h1>3D montaj stüdyosu</h1>
+        <p class="hint">Ölçüyü değiştir = eşleşen paneller yeniden kesilir. Tüm modeli ölçekleme. Kalınlık malzeme; X/Y/H ile büyümez.</p>
+        <div class="guest-banner guest-only" id="guest-note">
+          İndirmek için <a href="/account?next=/studio">Google ile gir</a>. Parametrik önizleme açıktır.
+        </div>
+        <div class="tabs" role="tablist">
+          <button type="button" class="on" data-tab="box">Kutu</button>
+          <button type="button" data-tab="ai">AI</button>
+          <button type="button" data-tab="stl">STL</button>
+        </div>
+        <div class="pane on" id="pane-box">
+          <div class="row2">
+            <label>Birim
+              <select id="box-unit">
+                <option value="mm" selected>mm</option>
+                <option value="in">inch</option>
+              </select>
+            </label>
+            <label>Ölçü referansı
+              <select id="box-dims">
+                <option value="internal" selected>İç ölçü</option>
+                <option value="external">Dış ölçü</option>
+              </select>
+            </label>
+          </div>
+          <label>Kapak
+            <select id="box-lid">
+              <option value="open" selected>Açık</option>
+              <option value="finger">Finger-joint kapak</option>
+              <option value="removable">Çıkarılabilir</option>
+              <option value="sliding">Kayar</option>
+              <option value="hinged">Menteşeli</option>
+              <option value="double_door">Çift kapı</option>
+            </select>
+          </label>
+          <div class="row2">
+            <label>Genişlik X<input id="box-x" type="number" value="180" min="20" step="1"></label>
+            <label>Derinlik Y<input id="box-y" type="number" value="120" min="20" step="1"></label>
+          </div>
+          <label>Yükseklik H<input id="box-h" type="number" value="70" min="10" step="1"></label>
+          <label>Kalınlık — malzeme (mm)<input id="box-t" type="number" value="3" min="1" step="0.1" title="Finger/slot bu değere kilitli; X/Y/H ile ölçeklenmez"></label>
+          <div class="row2">
+            <label>Finger (×kalınlık)<input id="box-finger" type="number" value="2" min="0.8" max="6" step="0.1"></label>
+            <label>Kerf / burn<input id="box-burn" type="number" step="0.01" placeholder="ölçülmediyse boş"></label>
+          </div>
+          <label class="check"><input id="box-bumps" type="checkbox"> Press-fit bump (yaylı finger)</label>
+          <div class="row2">
+            <label>Bölücü X<input id="box-dx" type="number" value="0" min="0" max="8" step="1"></label>
+            <label>Bölücü Y<input id="box-dy" type="number" value="0" min="0" max="8" step="1"></label>
+          </div>
+          <label>Yükseltilmiş taban (mm)<input id="box-lift" type="number" value="0" min="0" step="0.5"></label>
+          <p class="hint" id="link-hint">X→ön/arka/taban · Y→sol/sağ/taban · H→duvarlar · Kalınlık→eklemler. Temas etmeyen parça bu ölçüyle büyümez.</p>
+          <div class="row2">
+            <button class="btn ghost" type="button" id="undo-box">Geri al</button>
+            <button class="btn cut" type="button" id="make-box">Yeniden üret</button>
+          </div>
+        </div>
+        <div class="pane" id="pane-ai">
+          <label>Ne keseceksin?<textarea id="ai-prompt" placeholder="Örn: 180×120×80 açık finger-joint kutu, 3 mm kavak — veya dosya yükle"></textarea></label>
+          <label>Dosya (foto / SVG / PLT / DXF)
+            <input id="ai-file" type="file" accept="image/*,.svg,.plt,.hpgl,.dxf,image/svg+xml">
+          </label>
+          <p class="hint" id="ai-file-name">Dosya yok — yalnız prompt da olur.</p>
+          <div class="row2">
+            <label>Kalınlık (mm)<input id="ai-t" type="number" value="3" min="1" step="0.1"></label>
+            <label>Foto genişlik (mm)<input id="ai-w" type="number" value="200" min="20" step="1"></label>
+          </div>
+          <label>Maliyet modeli
+            <select id="ai-model">
+              <option value="gpt-4o-mini" selected>GPT-4o mini</option>
+              <option value="gpt-4o">GPT-4o</option>
+              <option value="claude-haiku-4.5">Claude Haiku</option>
+              <option value="claude-sonnet-4.5">Claude Sonnet</option>
+            </select>
+          </label>
+          <div class="row2">
+            <button class="btn ghost" type="button" id="ai-cost-btn">Maliyet tahmin</button>
+            <button class="btn cut" type="button" id="make-ai">AI ile üret</button>
+          </div>
+          <p class="hint" id="ai-cost-out">Stüdyo AI yerel planner → API $0. MCP/ChatGPT maliyeti tahminle görünür.</p>
+          <p class="hint" id="ai-gate">Maker/Pro gerekir. Kota dolunca kesilir. Parametrik kutu API harcamaz.</p>
+        </div>
+        <div class="pane" id="pane-stl">
+          <p class="hint">2D SVG kesim konturları mm ölçeğinde ekstrüde edilir. Genişlik/derinlik SVG’den gelir — AI uydurmaz.</p>
+          <label>Ekstrüzyon yüksekliği (mm)<input id="stl-h" type="number" value="3" min="0.4" max="40" step="0.1"></label>
+          <label>AI ipucu (opsiyonel yükseklik)<textarea id="stl-hint" placeholder="Örn: 2 mm ince duvar / 4 mm kalın"></textarea></label>
+          <button class="btn cut" type="button" id="make-stl">STL üret</button>
+          <a class="btn ghost hide" id="dl-stl" href="#" download>STL indir</a>
+          <p class="hint" id="stl-note">Birim: mm. Baskı büzülmesi NOT_VERIFIED.</p>
+        </div>
+        <p class="status" id="status"></p>
+        <h2>Çıktı</h2>
+        <a class="btn ghost hide" id="dl-svg" href="#" download>SVG indir</a>
+        <a class="btn ghost hide" id="dl-dxf" href="#" download>DXF indir</a>
+        <a class="btn ghost hide" id="open-edit" href="#">2D editör</a>
+      </aside>
+      <main class="stage">
+        <canvas id="viewport"></canvas>
+        <div class="stage-loading hide" id="stage-loading" aria-live="polite">
+          <div class="spinner" aria-hidden="true"></div>
+          <span id="stage-loading-text">Kapak / ölçü güncelleniyor…</span>
+        </div>
+        <div class="hud">
+          <div class="scrub">
+            <span>Montaj</span>
+            <input id="explode" type="range" min="0" max="100" value="0">
+            <span id="explode-lab">0%</span>
+          </div>
+          <span style="font:11px var(--mono);color:var(--mute)">Sürükle: döndür · Sağ: kaydır · Tekerlek: zoom</span>
+        </div>
+      </main>
+      <aside class="summary">
+        <p class="kicker">Özet</p>
+        <div class="kv"><span>Dosya</span><b id="sum-file">—</b></div>
+        <div class="kv"><span>Paneller</span><b id="sum-panels">0</b></div>
+        <div class="kv"><span>Kalınlık</span><b id="sum-t">—</b></div>
+        <div class="kv"><span>İç (mm)</span><b id="sum-inner">—</b></div>
+        <div class="kv"><span>Dış (mm)</span><b id="sum-outer">—</b></div>
+        <div class="kv"><span>Hacim</span><b id="sum-vol">—</b></div>
+        <div class="kv"><span>Seçili</span><b id="sum-sel">—</b></div>
+        <div class="kv"><span>Bağlı ölçü</span><b id="sum-dims">—</b></div>
+        <div class="kv"><span>Doğrulama</span><b id="sum-val">—</b></div>
+        <div class="kv"><span>Plan</span><b id="sum-plan">—</b></div>
+        <div class="kv"><span>Kota</span><b id="sum-quota">—</b></div>
+        <h2>Not</h2>
+        <p class="hint" id="sum-note">3D’de panele tıkla. Zoom ile incele. Ölçü değişince yalnız temas eden paneller yeniden kesilir; kalınlık sabit kalır.</p>
+      </aside>
+      <div id="dim-pop" class="dim-pop hide">
+        <p class="kicker">Panel ölçüsü</p>
+        <p id="dim-pop-label" class="hint"></p>
+        <label>Değer (mm)<input id="dim-pop-val" type="number" step="1"></label>
+        <div class="row2">
+          <button type="button" class="btn ghost" id="dim-pop-cancel">Kapat</button>
+          <button type="button" class="btn cut" id="dim-pop-apply">Uygula</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script type="module" src="/studio-3d.js?v=5"></script>
+  <script src="/nav-auth.js?v=5"></script>
+</body>
+</html>

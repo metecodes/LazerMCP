@@ -383,6 +383,9 @@ def estimate_cost(body: dict[str, Any] | None = None) -> dict[str, Any]:
     from bom import _area_m2
 
     payload = body or {}
+    # Prompt / LLM API quote (no network call)
+    if payload.get("prompt") or payload.get("ai_prompt") or payload.get("kind") in {"ai", "llm", "prompt"}:
+        return estimate_ai_prompt_cost(payload)
     primitives = [p for p in (payload.get("primitives") or []) if isinstance(p, dict)]
     material = resolve_material(payload)
     machine = resolve_machine(payload)
@@ -400,6 +403,7 @@ def estimate_cost(body: dict[str, Any] | None = None) -> dict[str, Any]:
             pass
     return {
         "success": True,
+        "kind": "material",
         "parts": parts,
         "area_m2": area_m2,
         "sheet_m2": round(sheet_m2, 4),
@@ -409,6 +413,48 @@ def estimate_cost(body: dict[str, Any] | None = None) -> dict[str, Any]:
         "material": material.get("name"),
         "machine": machine.get("name"),
         "note": "Estimate from part area and sheet size. Not a quote.",
+    }
+
+
+def estimate_ai_prompt_cost(body: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Dry-run LLM $ estimate for a prompt. Studio AI local path is $0 API."""
+    from ai_cost import estimate_prompt_cost, list_models
+    from plans import gate_job
+
+    payload = body or {}
+    prompt = str(payload.get("prompt") or payload.get("ai_prompt") or payload.get("text") or "")
+    model = str(payload.get("model") or "gpt-4o-mini")
+    mode = str(payload.get("mode") or "mcp_thin")
+    # Studio AI tab uses in-process planner — surface both quotes
+    local = estimate_prompt_cost(
+        prompt,
+        model=model,
+        mode="studio_local",
+        photo=bool(payload.get("has_photo") or payload.get("photo")),
+    )
+    mcp = estimate_prompt_cost(
+        prompt,
+        model=model,
+        mode=mode if mode != "studio_local" else "mcp_thin",
+        photo=bool(payload.get("has_photo") or payload.get("photo")),
+    )
+    gate = gate_job("platform_ai")
+    return {
+        "success": True,
+        "kind": "ai_prompt",
+        "prompt_preview": prompt[:240],
+        "studio_ai": {
+            **local,
+            "quota": {"used": gate.get("used"), "limit": gate.get("quota"), "plan": gate.get("plan_name")},
+            "note": "Stüdyo AI şu an yerel plan_laser_job kullanır → harici API $0. Aylık tasarım kotasına 1 sayılabilir.",
+        },
+        "mcp_host_ai": mcp,
+        "models": list_models(),
+        "recommendation": (
+            "Basit kutu/kapak/bölücü → parametrik Stüdyo ($0 API). "
+            "Karmaşık maket / serbest form → MCP ile Claude/ChatGPT; önce mcp_host_ai.usd.total’a bak."
+        ),
+        "look_again": list(mcp.get("look_again") or []),
     }
 
 
@@ -469,6 +515,334 @@ def approve_prototype(body: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def create_studio_box(body: dict[str, Any] | None = None, *, public_base_url: str | None = None) -> dict[str, Any]:
+    """Parametric finger-joint box for the platform 3D studio. No AI cost.
+
+    body.preview=true → fast path: compile + 3D panels only (no DXF/project persist).
+    Use for live lid/dimension scrubbing; call without preview to export.
+    """
+    from assembly_result import build as build_assembly_result
+    from assembly_result import panels_for_viewer
+    from plans import gate_job
+    from studio_box import build_studio_box
+    from toolbox import render_toolbox
+    import payas_cad
+
+    gate = gate_job("design")
+    if not gate.get("ok"):
+        return gate
+    payload = body or {}
+    try:
+        built = build_studio_box(payload)
+    except (TypeError, ValueError) as exc:
+        return {
+            "success": False,
+            "ok": False,
+            "look_again": [str(exc)],
+            "plan": gate,
+        }
+
+    preview = bool(payload.get("preview") or payload.get("fast"))
+    if preview:
+        try:
+            params = dict(built["parameters"] or {})
+            params["studio_preview"] = True
+            rendered = render_toolbox(built["primitives"], params)
+        except (TypeError, ValueError) as exc:
+            return {"success": False, "ok": False, "look_again": [str(exc)], "plan": gate}
+        assembly = rendered.get("assembly") if isinstance(rendered.get("assembly"), dict) else {}
+        thickness = float((built.get("parameters") or {}).get("thickness") or 3)
+        result_blob = build_assembly_result(
+            {**assembly, "thickness": thickness},
+            file_id="studio-preview.svg",
+            project_id="studio-preview",
+        )
+        viewer = panels_for_viewer(result_blob)
+        return {
+            "success": bool(viewer.get("success")),
+            "preview": True,
+            "file_id": None,
+            "assembly": viewer,
+            "summary": built.get("summary"),
+            "look_again": [
+                "Live preview — SVG/DXF not saved yet. Click Yeniden üret to export.",
+                "3D view is a nominal digital assembly. Measure kerf and dry-fit before production.",
+            ],
+            "plan": gate,
+        }
+
+    result = payas_cad.create_design(
+        primitives=built["primitives"],
+        parameters=built["parameters"],
+        public_base_url=public_base_url or "",
+    )
+    viewer = panels_for_viewer(result.get("assembly_result"))
+    return {
+        "success": bool(result.get("success")),
+        "file_id": result.get("file_id"),
+        "svg_url": result.get("svg_url"),
+        "dxf_id": result.get("dxf_id"),
+        "dxf_url": result.get("dxf_url"),
+        "project": result.get("project"),
+        "final_status": result.get("final_status"),
+        "speak": result.get("speak"),
+        "assembly": viewer,
+        "summary": built.get("summary"),
+        "look_again": list(result.get("look_again") or [])
+        + ["3D view is a nominal digital assembly. Measure kerf and dry-fit before production."],
+        "plan": gate,
+    }
+
+
+def create_studio_stl(body: dict[str, Any] | None = None, *, public_base_url: str | None = None) -> dict[str, Any]:
+    """Extrude a generated SVG (mm) to STL. XY scale comes from the SVG — never invented."""
+    from boxes_adapter import OUTPUT_DIR, _file_url, _safe_output_file
+    from plans import gate_job
+    from svg_to_stl import svg_bytes_to_stl
+
+    gate = gate_job("design")
+    if not gate.get("ok"):
+        return gate
+    payload = body or {}
+    file_id = str(payload.get("file_id") or "").strip()
+    if not file_id:
+        return {"success": False, "ok": False, "look_again": ["file_id required"], "plan": gate}
+    try:
+        path = _safe_output_file(file_id)
+        svg_bytes = path.read_bytes()
+    except (OSError, ValueError):
+        return {"success": False, "ok": False, "look_again": ["SVG not found for STL export"], "plan": gate}
+    height = payload.get("height_mm") or payload.get("extrude_mm") or payload.get("thickness")
+    try:
+        stl = svg_bytes_to_stl(
+            svg_bytes,
+            height_mm=float(height) if height not in (None, "") else None,
+            ai_hint=str(payload.get("prompt") or payload.get("ai_hint") or ""),
+            default_thickness_mm=float(payload.get("default_thickness") or 3),
+        )
+    except (TypeError, ValueError) as exc:
+        return {"success": False, "ok": False, "look_again": [str(exc)], "plan": gate}
+    stl_id = path.stem + ".stl"
+    out = OUTPUT_DIR / stl_id
+    out.write_bytes(stl["stl_bytes"])
+    base = public_base_url or ""
+    return {
+        "success": True,
+        "file_id": path.name,
+        "stl_id": stl_id,
+        "stl_url": _file_url(base, stl_id) if base else f"/files/{stl_id}",
+        "units": "mm",
+        "scale": stl.get("scale"),
+        "height_mm": stl.get("height_mm"),
+        "part_count": stl.get("part_count"),
+        "triangle_count": stl.get("triangle_count"),
+        "ai": stl.get("ai"),
+        "look_again": [
+            "STL XY comes from SVG millimetres. Physical print shrink/tolerance is NOT_VERIFIED.",
+            "AI only suggests extrusion height when you ask; it does not invent width/depth.",
+        ],
+        "plan": gate,
+    }
+
+
+def _studio_ai_result(result: dict[str, Any], *, cost: dict[str, Any] | None = None, extra_look: list[str] | None = None, plan: dict[str, Any] | None = None, plan_job: dict[str, Any] | None = None, source: str = "prompt") -> dict[str, Any]:
+    from assembly_result import panels_for_viewer
+
+    viewer = panels_for_viewer(result.get("assembly_result"))
+    looks = list(result.get("look_again") or [])
+    looks.extend(extra_look or [])
+    return {
+        "success": bool(result.get("success")),
+        "file_id": result.get("file_id"),
+        "svg_url": result.get("svg_url"),
+        "dxf_id": result.get("dxf_id"),
+        "dxf_url": result.get("dxf_url"),
+        "project": result.get("project"),
+        "final_status": result.get("final_status"),
+        "speak": result.get("speak"),
+        "source": source,
+        "plan_job": plan_job,
+        "assembly": viewer,
+        "cost": cost,
+        "look_again": looks,
+        "plan": plan,
+    }
+
+
+def create_studio_ai(body: dict[str, Any] | None = None, *, public_base_url: str | None = None) -> dict[str, Any]:
+    """Studio AI: prompt and/or uploaded photo|svg|plt|dxf → 3D panels. Gated by platform_ai + quota."""
+    from job_planner import plan_laser_job
+    from plans import entitled, gate_job
+    import payas_cad
+
+    gate = gate_job("platform_ai")
+    if not gate.get("ok"):
+        return gate
+    if not entitled("platform_ai"):
+        return {
+            "success": True,
+            "ok": False,
+            "look_again": ["Platform AI is on Maker/Pro. Use parametric box for free, or upgrade."],
+            "plan": gate,
+        }
+    payload = body or {}
+    request = str(payload.get("prompt") or payload.get("name") or payload.get("what_you_see") or "").strip()
+    kind = str(payload.get("file_kind") or payload.get("attach_kind") or "").strip().lower()
+    has_image = bool(payload.get("image_base64") or payload.get("photo_base64"))
+    has_svg = bool(payload.get("svg") or payload.get("svg_text") or (kind == "svg" and payload.get("file_text")))
+    has_plt = bool(payload.get("plt") or payload.get("plt_base64") or (kind == "plt" and (payload.get("file_text") or payload.get("file_base64"))))
+    has_dxf = bool(payload.get("dxf") or payload.get("dxf_text") or (kind == "dxf" and payload.get("file_text")))
+    if not request and not (has_image or has_svg or has_plt or has_dxf):
+        return {
+            "success": True,
+            "ok": False,
+            "look_again": ["Write a prompt and/or upload a photo, SVG, PLT or DXF."],
+            "plan": gate,
+        }
+
+    design_gate = gate_job("design")
+    if not design_gate.get("ok"):
+        return design_gate
+
+    base = public_base_url or ""
+    thickness = payload.get("thickness")
+    parameters: dict[str, Any] = {
+        "project": (request or "studio-upload")[:48],
+        "what_you_see": request or "studio upload",
+    }
+    if thickness not in (None, ""):
+        parameters["thickness"] = float(thickness)
+    if payload.get("material"):
+        parameters["material"] = payload["material"]
+    if payload.get("machine"):
+        parameters["machine"] = payload["machine"]
+
+    cost = estimate_ai_prompt_cost(
+        {
+            "prompt": request or f"upload:{kind or 'file'}",
+            "model": payload.get("model") or "gpt-4o-mini",
+            "has_photo": has_image,
+            "mode": "studio_local",
+        }
+    )
+
+    # --- Photo / image → trace ---
+    if has_image:
+        photo_gate = gate_job("photo")
+        if not photo_gate.get("ok"):
+            return {**photo_gate, "ok": False, "success": True}
+        image_b64 = str(payload.get("image_base64") or payload.get("photo_base64") or "")
+        # strip data-url prefix if present
+        if "," in image_b64 and image_b64.strip().lower().startswith("data:"):
+            image_b64 = image_b64.split(",", 1)[1]
+        result = payas_cad.create_from_reference(
+            image_base64=image_b64,
+            width_mm=float(payload.get("width_mm") or 200),
+            height_mm=float(payload["height_mm"]) if payload.get("height_mm") not in (None, "", 0, "0") else None,
+            style=str(payload.get("style") or "cut_and_etch"),
+            threshold=int(payload.get("threshold") or 0),
+            layout=str(payload.get("layout") or "trace"),
+            format="svg",
+            parameters=parameters,
+            public_base_url=base,
+        )
+        return _studio_ai_result(
+            result,
+            cost=cost,
+            plan=design_gate,
+            source="photo",
+            extra_look=[
+                "Photo was traced to CUT/ENGRAVE — not a parametric 3D box kit.",
+                "Digital only. Measure kerf before production.",
+            ],
+        )
+
+    # --- SVG import ---
+    if has_svg:
+        svg_text = str(payload.get("svg") or payload.get("svg_text") or payload.get("file_text") or "")
+        result = payas_cad.create_design(svg=svg_text, parameters=parameters, public_base_url=base)
+        return _studio_ai_result(
+            result,
+            cost=cost,
+            plan=design_gate,
+            source="svg",
+            extra_look=["SVG imported as design source. Joints are not invented from paths."],
+        )
+
+    # --- PLT / HP-GL ---
+    if has_plt:
+        plt_text = payload.get("plt") or payload.get("file_text")
+        plt_b64 = payload.get("plt_base64") or (payload.get("file_base64") if kind == "plt" else None)
+        result = payas_cad.create_design(
+            plt=str(plt_text) if plt_text else None,
+            plt_base64=str(plt_b64) if plt_b64 else None,
+            parameters=parameters,
+            public_base_url=base,
+        )
+        return _studio_ai_result(
+            result,
+            cost=cost,
+            plan=design_gate,
+            source="plt",
+            extra_look=["PLT/HP-GL imported. Pen mapping from profile; physical PASS not claimed."],
+        )
+
+    # --- DXF → SVG → design ---
+    if has_dxf:
+        from dxf_import import dxf_to_svg
+
+        dxf_text = str(payload.get("dxf") or payload.get("dxf_text") or payload.get("file_text") or "")
+        try:
+            svg_text = dxf_to_svg(dxf_text)
+        except Exception as exc:
+            return {"success": False, "ok": False, "look_again": [f"DXF import failed: {exc}"], "plan": design_gate}
+        result = payas_cad.create_design(svg=svg_text, parameters=parameters, public_base_url=base)
+        return _studio_ai_result(
+            result,
+            cost=cost,
+            plan=design_gate,
+            source="dxf",
+            extra_look=["DXF converted to SVG millimetres. Layer ops preserved when named CUT/ENGRAVE."],
+        )
+
+    # --- Text prompt → local planner primitives ---
+    plan = plan_laser_job(
+        request,
+        what_you_see=str(payload.get("what_you_see") or request),
+        has_photo=False,
+    )
+    args = plan.get("next_arguments") if isinstance(plan.get("next_arguments"), dict) else {}
+    primitives = args.get("primitives") if isinstance(args.get("primitives"), list) else []
+    if not primitives:
+        return {
+            "success": True,
+            "ok": False,
+            "plan_job": plan,
+            "cost": cost,
+            "look_again": list(plan.get("look_again") or [])
+            or ["Could not draft primitives. Try a simpler box description, or upload SVG/PLT/DXF/photo."],
+            "plan": gate,
+        }
+    merged = dict(args.get("parameters") or {}) if isinstance(args.get("parameters"), dict) else {}
+    merged.update(parameters)
+    result = payas_cad.create_design(
+        primitives=primitives,
+        parameters=merged,
+        public_base_url=base,
+    )
+    return _studio_ai_result(
+        result,
+        cost=cost,
+        plan=design_gate,
+        plan_job={k: plan.get(k) for k in ("summary", "next_tool", "method", "look_again") if k in plan},
+        source="prompt",
+        extra_look=[
+            "AI draft is digital only. Confirm joints and dry-fit before cutting.",
+            "Studio AI used the local planner — no external LLM API charge from LaserMCP.",
+        ],
+    )
+
+
 def workshop_action(action: str, body: dict[str, Any], principal: dict[str, Any] | None = None) -> dict[str, Any]:
     verb = str(action or "").strip().lower()
     if verb in {"onboard", "onboarding"}:
@@ -499,6 +873,10 @@ def workshop_action(action: str, body: dict[str, Any], principal: dict[str, Any]
         return estimate_cost(body)
     if verb in {"make", "make_this", "structure"}:
         return make_this(body)
+    if verb in {"box", "studio_box", "parametric"}:
+        return create_studio_box(body)
+    if verb in {"ai", "studio_ai", "design_ai"}:
+        return create_studio_ai(body)
     if verb in {"approve"}:
         return approve_prototype(body)
     if verb in {"activate", "redeem"}:
@@ -518,6 +896,6 @@ def workshop_action(action: str, body: dict[str, Any], principal: dict[str, Any]
     return {
         "success": True,
         "look_again": [
-            "action=onboard|catalog|machines|batch|feedback|preflight|editor|revise|cost|make_this|approve|activate|mint"
+            "action=onboard|catalog|machines|batch|feedback|preflight|editor|revise|cost|make_this|box|ai|approve|activate|mint"
         ],
     }

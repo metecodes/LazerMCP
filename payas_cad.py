@@ -594,7 +594,7 @@ def create_design(
     result.setdefault("final_status", extra.get("final_status") or "BLOCKED")
     result.setdefault("speak", extra.get("speak") or "")
     if (built.get("assembly") or {}).get("assembled_preview_svg") and result.get("file_id"):
-        result["assembled_preview_url"] = public_base_url.rstrip("/") + "/out/" + result["file_id"] + "?view=assembled"
+        result["assembled_preview_url"] = (public_base_url or "").rstrip("/") + "/out/" + result["file_id"] + "?view=assembled"
     return _mcp(result)
 
 

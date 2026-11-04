@@ -64,14 +64,13 @@ def authorize_customer_file(filename: str, principal: dict[str, Any] | None, *, 
                 return {"allow": False, "reason": "expired", "artifact": artifact}
             return {"allow": True, "reason": "owner", "artifact": artifact}
         return {"allow": False, "reason": "forbidden", "artifact": artifact}
-    if not auth_on:
-        # Local output copies must not resurrect a cleaned-up artifact.
-        from boxes_adapter import _safe_output_file
-        try:
-            source = _safe_output_file(name)
-        except (FileNotFoundError, ValueError):
-            return {"allow": False, "reason": "unknown"}
-        if datetime.fromtimestamp(source.stat().st_mtime, timezone.utc) + timedelta(hours=24) <= datetime.now(timezone.utc):
-            return {"allow": False, "reason": "expired"}
-        return {"allow": True, "reason": "workshop", "workshop": True}
-    return {"allow": False, "reason": "unknown"}
+    # Local workshop output without a durable org artifact: allow 24h read so
+    # Studio parametric / 3D preview works for guests and local files.
+    from boxes_adapter import _safe_output_file
+    try:
+        source = _safe_output_file(name)
+    except (FileNotFoundError, ValueError):
+        return {"allow": False, "reason": "unknown"}
+    if datetime.fromtimestamp(source.stat().st_mtime, timezone.utc) + timedelta(hours=24) <= datetime.now(timezone.utc):
+        return {"allow": False, "reason": "expired"}
+    return {"allow": True, "reason": "workshop", "workshop": True}

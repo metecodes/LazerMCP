@@ -55,11 +55,13 @@ BRAND_FILES = {
     "/styles.css": ("styles.css", "text/css; charset=utf-8"),
     "/ui.js": ("ui.js", "text/javascript; charset=utf-8"),
     "/editor.js": ("editor.js", "text/javascript; charset=utf-8"),
+    "/studio-3d.js": ("studio-3d.js", "text/javascript; charset=utf-8"),
 }
 PUBLIC_PATHS = {
     "/",
     "/health",
     "/dashboard",
+    "/studio",
     "/app",
     "/workshop",
     "/account",
@@ -77,10 +79,14 @@ PUBLIC_PATHS = {
     "/api/account",
     "/api/account/key-request",
     "/api/catalog",
+    "/api/studio/box",
+    "/api/studio/stl",
+    "/api/studio/cost",
+    "/api/studio/ai_cost",
     "/styles.css",
     *BRAND_FILES,
 }
-PUBLIC_PREFIXES = ("/demo/", "/oauth/", "/.well-known/", "/auth/", "/files/", "/out/", "/edit/")
+PUBLIC_PREFIXES = ("/demo/", "/oauth/", "/.well-known/", "/auth/", "/files/", "/out/", "/edit/", "/api/assembly/")
 MCP_TOOLS = [
     "plan_laser_job",
     "create_from_reference",
@@ -560,6 +566,10 @@ def create_design(
                 'questions':[{'field':'text_placement', 'question':'İçe aktarılan çizimde veya hazır paftada yazılar hangi yüzeye/konuma eklensin?'}],
                 'instruction':'Keep the requested text. For engraving_layout put it in parameters.items with positions; for SVG/PLT use compose_source_sheet. Once included in the source, pass surface_texts=[] to avoid adding it twice.',
                 'requested_texts':parameters['surface_texts'], 'resolved_parameters':parameters}
+    from plans import gate_mcp_tool
+    gate = gate_mcp_tool("create_design")
+    if not gate.get("ok"):
+        return gate
     return payas_cad.create_design(
         preset=preset,
         primitives=primitives,
@@ -598,6 +608,10 @@ def create_from_reference(
     reference_markings: list[dict[str, Any]] | None = None,
     parameters: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    from plans import gate_mcp_tool
+    gate = gate_mcp_tool("create_from_reference")
+    if not gate.get("ok"):
+        return gate
     try:
         if reference_upload_id:
             from reference_upload import read_reference_upload
@@ -1179,6 +1193,15 @@ async def dashboard(request: Request) -> Response:
     return FileResponse(WEB_DIR / "dashboard.html", media_type="text/html; charset=utf-8")
 
 
+@mcp.custom_route("/studio", methods=["GET"])
+async def studio_page(request: Request) -> Response:
+    return FileResponse(
+        WEB_DIR / "studio.html",
+        media_type="text/html; charset=utf-8",
+        headers={"Cache-Control": "private, no-store"},
+    )
+
+
 @mcp.custom_route("/favicon.svg", methods=["GET"])
 @mcp.custom_route("/favicon.ico", methods=["GET"])
 @mcp.custom_route("/favicon-32.png", methods=["GET"])
@@ -1189,6 +1212,7 @@ async def dashboard(request: Request) -> Response:
 @mcp.custom_route("/nav-auth.js", methods=["GET"])
 @mcp.custom_route("/styles.css", methods=["GET"])
 @mcp.custom_route("/editor.js", methods=["GET"])
+@mcp.custom_route("/studio-3d.js", methods=["GET"])
 @mcp.custom_route("/ui.js", methods=["GET"])
 async def brand_asset(request: Request) -> Response:
     spec = BRAND_FILES.get(request.url.path)
@@ -1242,10 +1266,11 @@ async def api_status(request: Request) -> Response:
             "name": "LaserMCP",
             "status": health["status"],
             "mcp": "/mcp",
-            "ui": "/dashboard",
+            "ui": "/studio",
             "landing": "/",
             "auth_required": _auth_on(),
             "dashboard": "/dashboard",
+            "studio": "/studio",
             "boxes": health["boxes"],
             "generator_count": health["generator_count"],
             "defaults": boxespy.PAYAS_DEFAULTS,
@@ -1830,6 +1855,7 @@ async def api_studio(request: Request) -> Response:
 @mcp.custom_route("/api/studio/{action}", methods=["GET", "POST"])
 async def api_studio_action(request: Request) -> Response:
     from studio import studio_action
+    from workshop import create_studio_ai, create_studio_box
 
     action = request.path_params.get("action") or "profiles"
     body: dict[str, Any] = {}
@@ -1840,6 +1866,21 @@ async def api_studio_action(request: Request) -> Response:
                 body = raw
         except Exception:
             body = {}
+    verb = str(action or "").strip().lower()
+    if verb in {"box", "studio_box", "parametric"}:
+        return JSONResponse(create_studio_box(body, public_base_url=_public_base(request)))
+    if verb in {"ai", "studio_ai", "design_ai"}:
+        return JSONResponse(create_studio_ai(body, public_base_url=_public_base(request)))
+    if verb in {"stl", "to_stl", "svg_to_stl"}:
+        from workshop import create_studio_stl
+
+        return JSONResponse(create_studio_stl(body, public_base_url=_public_base(request)))
+    if verb in {"cost", "ai_cost", "quote"}:
+        from workshop import estimate_ai_prompt_cost, estimate_cost
+
+        if body.get("prompt") or body.get("ai_prompt") or verb == "ai_cost":
+            return JSONResponse(estimate_ai_prompt_cost(body))
+        return JSONResponse(estimate_cost(body))
     return JSONResponse(
         studio_action(
             action,
@@ -1849,6 +1890,38 @@ async def api_studio_action(request: Request) -> Response:
             payload=body,
         )
     )
+
+
+@mcp.custom_route("/api/assembly/{filename}", methods=["GET"])
+async def api_assembly(request: Request) -> Response:
+    from assembly_result import panels_for_viewer
+    from workshop import editor_context
+
+    filename = _safe_download_name(request.path_params["filename"])
+    decision, principal = _authorize_output_file(request, filename)
+    if not decision.get("allow"):
+        return _editor_denied(decision, principal, filename)
+    try:
+        artifact = decision.get("artifact")
+        source = str(artifact.get("source_file_id") or filename) if artifact else filename
+        context = editor_context(source)
+        payload = panels_for_viewer(context.get("assembly_result"))
+        payload["file_id"] = context.get("file_id") or source
+        payload["project_id"] = context.get("project_id")
+        payload["svg_url"] = f"/files/{quote(str(payload.get('file_id') or source), safe='')}"
+        if context.get("dxf_id"):
+            payload["dxf_id"] = context.get("dxf_id")
+            payload["dxf_url"] = f"/files/{quote(str(context.get('dxf_id')), safe='')}"
+        payload["final_status"] = (context.get("review") or {}).get("final_status") if isinstance(context.get("review"), dict) else None
+        return JSONResponse(payload, headers={"Cache-Control": "private, no-store"})
+    except FileNotFoundError:
+        return _editor_denied({"reason": "unknown"}, True, filename)
+    except (OSError, ValueError):
+        return JSONResponse(
+            {"success": False, "code": "temporarily_unavailable", "look_again": ["Assembly şu an açılamıyor."]},
+            status_code=503,
+            headers={"Retry-After": "3", "Cache-Control": "no-store"},
+        )
 
 
 @mcp.custom_route("/api/cad/products", methods=["GET"])

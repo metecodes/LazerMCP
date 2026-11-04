@@ -73,7 +73,29 @@ def _geometry_from_transform(row: dict[str, Any]) -> dict[str, Any] | None:
 def build(assembly: dict[str, Any] | None, *, file_id: str | None = None, project_id: str | None = None) -> dict[str, Any]:
     """Create the durable Automatic Assembly result from one completed run."""
     assembly = assembly or {}
-    source = [deepcopy(part) for part in (assembly.get("_physical_primitives") or []) if isinstance(part, dict)]
+    source = [
+        deepcopy(part)
+        for part in (assembly.get("_physical_primitives") or assembly.get("physical_parts") or [])
+        if isinstance(part, dict)
+    ]
+    # Normalize toolbox physical_parts (outer_cut at top level) to renderer geometry.
+    normalized = []
+    for part in source:
+        row = deepcopy(part)
+        if not isinstance(row.get("_cut_geometry"), dict):
+            outer = row.get("outer_cut")
+            if isinstance(outer, dict) and outer.get("points"):
+                row["_cut_geometry"] = {
+                    "outer_cut": outer,
+                    "inner_cuts": list(row.get("inner_cuts") or []),
+                }
+        part_id = str(row.get("physical_part_id") or row.get("part_id") or row.get("id") or row.get("label") or "")
+        if part_id:
+            row.setdefault("physical_part_id", part_id)
+            row.setdefault("label", part_id)
+            row.setdefault("part_id", part_id)
+        normalized.append(row)
+    source = normalized
     joints = [deepcopy(row) for row in (assembly.get("joints") or []) if isinstance(row, dict)]
     connections = []
     for index, joint in enumerate(joints, 1):
@@ -92,7 +114,7 @@ def build(assembly: dict[str, Any] | None, *, file_id: str | None = None, projec
     parts = []
     missing = []
     for index, part in enumerate(source, 1):
-        part_id = str(part.get("physical_part_id") or part.get("part_id") or part.get("label") or f"part-{index}")
+        part_id = str(part.get("physical_part_id") or part.get("part_id") or part.get("id") or part.get("label") or f"part-{index}")
         transform = _transform(part)
         if transform is None:
             missing.append(part_id)
@@ -100,7 +122,7 @@ def build(assembly: dict[str, Any] | None, *, file_id: str | None = None, projec
             "part_id": part_id,
             "parent_part_id": part.get("composite_parent"),
             "geometry": part,
-            "geometry_reference": {"outer_cut": (part.get("_cut_geometry") or {}).get("outer_cut"), "physical_part_id": part.get("physical_part_id")},
+            "geometry_reference": {"outer_cut": (part.get("_cut_geometry") or {}).get("outer_cut") or part.get("outer_cut"), "physical_part_id": part.get("physical_part_id") or part_id},
             "transform": transform,
             "connected_part_ids": sorted({row["part_b"] if row["part_a"] == part_id else row["part_a"] for row in connections if part_id in {row["part_a"], row["part_b"]}}),
         })
@@ -117,6 +139,80 @@ def build(assembly: dict[str, Any] | None, *, file_id: str | None = None, projec
             "validation_state": "PASS" if validated else "FAIL", "parts": parts, "connections": connections,
             "assembly_order": list((assembly.get("canonical_mates") or {}).get("sequence", {}).get("order") or []) or [row["part_id"] for row in parts],
             "thickness": assembly.get("thickness"), "debug": debug, "source": "automatic_assembly"}
+
+
+def panels_for_viewer(result: dict[str, Any] | None) -> dict[str, Any]:
+    """JSON mesh payload for Three.js. Never invents placements; dry-fit stays NOT_VERIFIED."""
+    from assembled_view import outline
+
+    data = result or {}
+    if not data:
+        return {
+            "success": False,
+            "code": "ASSEMBLY_RESULT_NOT_FOUND",
+            "panels": [],
+            "look_again": ["No automatic assembly result. Create a design with panel placements first."],
+        }
+    thickness = float(data.get("thickness") or 3)
+    panels: list[dict[str, Any]] = []
+    for row in data.get("parts") or []:
+        if not isinstance(row, dict):
+            continue
+        geom = _geometry_from_transform(row)
+        if geom is None:
+            continue
+        pts = outline(geom)
+        if len(pts) < 3:
+            continue
+        cut = (geom.get("_cut_geometry") or {}) if isinstance(geom.get("_cut_geometry"), dict) else {}
+        inners = []
+        for inner in cut.get("inner_cuts") or []:
+            if not isinstance(inner, dict):
+                continue
+            ip = inner.get("points") or []
+            if isinstance(ip, list) and len(ip) >= 3:
+                inners.append({"role": inner.get("role") or "INNER_CUT", "points": [[float(a), float(b)] for a, b in ip]})
+        transform = row.get("transform") or {}
+        placement = geom.get("placement") or {}
+        panels.append(
+            {
+                "part_id": row.get("part_id"),
+                "parent_part_id": row.get("parent_part_id"),
+                "label": geom.get("label") or row.get("part_id"),
+                "role": geom.get("role") or "structural",
+                "outline_local_mm": [[float(a), float(b)] for a, b in pts],
+                "inner_cuts": inners,
+                "transform": transform,
+                "placement": {
+                    "origin": placement.get("origin"),
+                    "u": placement.get("u"),
+                    "v": placement.get("v"),
+                    "source": placement.get("source"),
+                },
+                "connected_part_ids": list(row.get("connected_part_ids") or []),
+            }
+        )
+    if not panels:
+        return {
+            "success": False,
+            "code": "PART_TRANSFORM_MISSING",
+            "panels": [],
+            "thickness_mm": thickness,
+            "look_again": ["Assembly has no extrudable panel outlines."],
+        }
+    return {
+        "success": True,
+        "file_id": data.get("file_id"),
+        "project_id": data.get("project_id"),
+        "thickness_mm": thickness,
+        "validated": bool(data.get("validated")),
+        "validation_state": data.get("validation_state") or "NOT_VERIFIED",
+        "panels": panels,
+        "connections": list(data.get("connections") or []),
+        "assembly_order": list(data.get("assembly_order") or []),
+        "debug": dict(data.get("debug") or {}),
+        "note": "Nominal digital assembly for zoom/pan. Physical dry-fit remains NOT_VERIFIED.",
+    }
 
 
 def render(result: dict[str, Any] | None, view: str = "assembled") -> dict[str, Any]:

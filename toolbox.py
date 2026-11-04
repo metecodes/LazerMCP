@@ -762,61 +762,213 @@ class PayasToolbox(Boxes):
         h = _num(part.get("h") or part.get("height"), 80)
         if min(x, y, h) < 8:
             raise ValueError("box x, y, h must be at least 8 mm inner")
+        t = float(self.thickness)
+        raised = max(0.0, _num(part.get("bottom_lift") or part.get("raised_bottom"), 0.0))
         top = str(part.get("top") or "e")[:1]
         if top not in _EDGE_OK:
             top = "e"
         gable_top = bool(part.get("gable_top") or part.get("lock_roof"))
         wall_top = "F" if gable_top else top
         side_top = "e" if gable_top else top
-        bottom_value=part.get("bottom", True);lid_value=part.get("lid", False)
+        bottom_value = part.get("bottom", True)
+        lid_value = part.get("lid", False)
         bottom_on = bottom_value is not False
         lid_on = bool(lid_value)
-        lid_type=str(lid_value.get("type") if isinstance(lid_value,dict) else "finger_joint").lower()
-        lid_edges=str(lid_value.get("edges") or "ffff")[:4] if isinstance(lid_value,dict) else "ffff"
-        if lid_on and lid_type in {"finger","finger_joint","fixed"}:wall_top=side_top="F"
-        b = "F" if bottom_on else "e"
+        lid_type = str(lid_value.get("type") if isinstance(lid_value, dict) else "finger_joint").lower()
+        lid_edges = str(lid_value.get("edges") or "ffff")[:4] if isinstance(lid_value, dict) else "ffff"
+        doors = _int(lid_value.get("doors") if isinstance(lid_value, dict) else 1, 1, lo=1, hi=2)
+        handle_on = bool(isinstance(lid_value, dict) and lid_value.get("handle"))
+        handle_w = _num(lid_value.get("handle_w") if isinstance(lid_value, dict) else 40, min(40.0, x * 0.35))
+        handle_h = _num(lid_value.get("handle_h") if isinstance(lid_value, dict) else 18, min(18.0, y * 0.25))
+        if lid_on and lid_type in {"finger", "finger_joint", "fixed"}:
+            wall_top = side_top = "F"
+        elif lid_on and lid_type in {"sliding", "slide"}:
+            wall_top = side_top = "e"
+        elif lid_on and lid_type in {"removable", "drop", "friction", "hinged"}:
+            wall_top = side_top = "e"
+        # Raised bottom: wall floor edge is straight; bottom inserts into finger holes at lift.
+        raised_active = bottom_on and raised > 0.05
+        b = "e" if raised_active else ("F" if bottom_on else "e")
         walls = part.get("walls") if isinstance(part.get("walls"), dict) else {}
-        ignore = [1, 6] if bottom_on else []
+        ignore = [] if raised_active else ([1, 6] if bottom_on else [])
+
+        from studio_box import divider_positions
+
+        sx = part.get("sx") if isinstance(part.get("sx"), list) and part.get("sx") else [x]
+        sy = part.get("sy") if isinstance(part.get("sy"), list) and part.get("sy") else [y]
+        x_div_pos = divider_positions([float(v) for v in sx], t) if len(sx) > 1 else []
+        y_div_pos = divider_positions([float(v) for v in sy], t) if len(sy) > 1 else []
+        joint_walls = bool(part.get("divider_joint_walls", True))
+        joint_bottom = bool(part.get("divider_joint_bottom", True))
+        div_h = max(8.0, h - raised - (t if lid_on and lid_type in {"finger", "finger_joint", "fixed"} else 0.0))
 
         def wall(name: str) -> dict[str, Any]:
             raw = walls.get(name) if isinstance(walls.get(name), dict) else {}
-            if name=="bottom" and isinstance(bottom_value,dict):raw={**bottom_value,**raw}
-            if name in {"top","lid"} and isinstance(lid_value,dict):raw={**lid_value,**raw}
+            if name == "bottom" and isinstance(bottom_value, dict):
+                raw = {**bottom_value, **raw}
+            if name in {"top", "lid"} and isinstance(lid_value, dict):
+                raw = {**lid_value, **raw}
             return _features(raw)
+
+        def _pack_edge0(*items: Any):
+            """Boxes rectangularWall edge-0 callback list: one combined face drawer."""
+            fns: list[Any] = []
+            for item in items:
+                if item is None:
+                    continue
+                if isinstance(item, list):
+                    fns.extend(x for x in item if x)
+                else:
+                    fns.append(item)
+            if not fns:
+                return None
+
+            def _combined() -> None:
+                for fn in fns:
+                    fn()
+
+            return [_combined]
+
+        def _raised_fn(length: float):
+            if not raised_active:
+                return None
+
+            def _cb() -> None:
+                self.fingerHolesAt(0, raised, length, 0)
+
+            return _cb
+
+        def _x_div_wall_fn():
+            if not (joint_walls and x_div_pos):
+                return None
+
+            def _cb() -> None:
+                for pos in x_div_pos:
+                    self.fingerHolesAt(pos, raised, div_h, 90)
+
+            return _cb
+
+        def _y_div_wall_fn():
+            if not (joint_walls and y_div_pos):
+                return None
+
+            def _cb() -> None:
+                for pos in y_div_pos:
+                    self.fingerHolesAt(pos, raised, div_h, 90)
+
+            return _cb
+
+        def _bottom_div_fn():
+            def _cb() -> None:
+                if joint_bottom:
+                    for pos in x_div_pos:
+                        self.fingerHolesAt(pos, 0, y, 90)
+                    for pos in y_div_pos:
+                        self.fingerHolesAt(0, pos, x, 0)
+
+            return _cb if (x_div_pos or y_div_pos) else None
+
+        def _lid_handle_fn(w: float, d: float, doors_n: int = 1):
+            if not handle_on:
+                return None
+
+            def _cb() -> None:
+                if doors_n <= 1:
+                    self.rectangularHole(w / 2, d * 0.72, handle_w, handle_h, r=min(handle_h / 2, 6))
+                else:
+                    self.rectangularHole(w * 0.28, d * 0.72, handle_w, handle_h, r=min(handle_h / 2, 6))
+                    self.rectangularHole(w * 0.72, d * 0.72, handle_w, handle_h, r=min(handle_h / 2, 6))
+
+            return _cb
+
+        def _sliding_rail_fn(length: float):
+            if lid_type not in {"sliding", "slide"}:
+                return None
+            rail_y = max(raised + t, h - 1.5 * t)
+
+            def _cb() -> None:
+                self.fingerHolesAt(0, rail_y, length, 0)
+
+            return _cb
 
         self.rectangularWall(
             x, h, f"{b}F{wall_top}F", ignore_widths=ignore,
-            callback=self._wall_cb(wall("front")), move="up", label="front",
+            callback=_pack_edge0(self._wall_cb(wall("front")), _raised_fn(x), _x_div_wall_fn(), _sliding_rail_fn(x)),
+            move="up", label="front",
         )
         self._note_part("front")
         self.rectangularWall(
             x, h, f"{b}F{wall_top}F", ignore_widths=ignore,
-            callback=self._wall_cb(wall("back")), move="up", label="back",
+            callback=_pack_edge0(self._wall_cb(wall("back")), _raised_fn(x), _x_div_wall_fn(), _sliding_rail_fn(x)),
+            move="up", label="back",
         )
         self._note_part("back")
         if bottom_on:
             self.rectangularWall(
-                x, y, "ffff", callback=self._wall_cb(wall("bottom")), move="up", label="bottom",
+                x, y, "ffff",
+                callback=_pack_edge0(self._wall_cb(wall("bottom")), _bottom_div_fn()),
+                move="up", label="bottom",
             )
             self._note_part("bottom")
         self.rectangularWall(
             y, h, f"{b}f{side_top}f", ignore_widths=ignore,
-            callback=self._wall_cb(wall("left")), move="up", label="left",
+            callback=_pack_edge0(self._wall_cb(wall("left")), _raised_fn(y), _y_div_wall_fn(), _sliding_rail_fn(y)),
+            move="up", label="left",
         )
         self._note_part("left")
         self.rectangularWall(
             y, h, f"{b}f{side_top}f", ignore_widths=ignore,
-            callback=self._wall_cb(wall("right")), move="up", label="right",
+            callback=_pack_edge0(self._wall_cb(wall("right")), _raised_fn(y), _y_div_wall_fn(), _sliding_rail_fn(y)),
+            move="up", label="right",
         )
         self._note_part("right")
+
+        # Dividers: panels that seat into bottom + wall finger holes.
+        for i, _pos in enumerate(x_div_pos, 1):
+            self.rectangularWall(y, div_h, "fefe", move="up", label=f"divider-x-{i}")
+            self._note_part(f"divider-x-{i}")
+        for i, _pos in enumerate(y_div_pos, 1):
+            self.rectangularWall(x, div_h, "fefe", move="up", label=f"divider-y-{i}")
+            self._note_part(f"divider-y-{i}")
+
         if lid_on:
-            self.rectangularWall(
-                x, y, lid_edges if lid_type in {"finger","finger_joint","fixed"} else "eeee",
-                callback=self._wall_cb(wall("lid")),
-                move="up",
-                label="lid",
-            )
-            self._note_part("lid")
+            if lid_type in {"finger", "finger_joint", "fixed"}:
+                self.rectangularWall(
+                    x, y, lid_edges if lid_edges else "ffff",
+                    callback=self._wall_cb(wall("lid")), move="up", label="lid",
+                )
+                self._note_part("lid")
+            elif lid_type in {"sliding", "slide"}:
+                margin = max(0.2, 0.1 * t)
+                lw, ld = max(8.0, x - 2 * margin), max(8.0, y - margin)
+                self.rectangularWall(
+                    lw, ld, "eeee",
+                    callback=_pack_edge0(self._wall_cb(wall("lid")), _lid_handle_fn(lw, ld)),
+                    move="up", label="lid",
+                )
+                self._note_part("lid")
+            elif lid_type in {"hinged"} and doors >= 2:
+                half = max(8.0, (x - t) / 2)
+                self.rectangularWall(
+                    half, y, "efee",
+                    callback=_pack_edge0(self._wall_cb(wall("lid")), _lid_handle_fn(half, y)),
+                    move="up", label="lid-left",
+                )
+                self._note_part("lid-left")
+                self.rectangularWall(
+                    half, y, "eefe",
+                    callback=_pack_edge0(self._wall_cb(wall("lid")), _lid_handle_fn(half, y)),
+                    move="up", label="lid-right",
+                )
+                self._note_part("lid-right")
+            else:
+                edges = "feee" if lid_type == "hinged" else "eeee"
+                self.rectangularWall(
+                    x, y, edges,
+                    callback=_pack_edge0(self._wall_cb(wall("lid")), _lid_handle_fn(x, y, doors)),
+                    move="up", label="lid",
+                )
+                self._note_part("lid")
 
     def _coupon(self, part: dict[str, Any]) -> None:
         """Dry-fit FingerJoint pair + 100 mm bar (Boxes.py rectangularWall, not hand-drawn)."""
@@ -881,18 +1033,29 @@ def render_toolbox(primitives: list[Any], parameters: dict[str, Any] | None = No
     if not 0.05 <= effective_burn <= 0.60:
         raise ValueError("kerf plus joint_clearance_mm must be between 0.05 and 0.60 mm")
     box = PayasToolbox()
-    box.parseArgs(
-        [
-            f"--thickness={thickness}",
-            f"--burn={effective_burn}",
-            "--format=svg",
-            "--labels=0",
-            "--reference=0",
-            "--tabs=0",
-            "--inner_corners=corner",
-            "--qr_code=0",
-        ]
-    )
+    cli = [
+        f"--thickness={thickness}",
+        f"--burn={effective_burn}",
+        "--format=svg",
+        "--labels=0",
+        "--reference=0",
+        "--tabs=0",
+        "--inner_corners=corner",
+        "--qr_code=0",
+    ]
+    # Optional FingerJoint overrides from studio / parameters (multiples of thickness).
+    for key in (
+        "FingerJoint_finger",
+        "FingerJoint_space",
+        "FingerJoint_style",
+        "FingerJoint_play",
+        "FingerJoint_surroundingspaces",
+        "FingerJoint_width",
+        "FingerJoint_edge_width",
+    ):
+        if key in params and params[key] not in (None, ""):
+            cli.append(f"--{key}={params[key]}")
+    box.parseArgs(cli)
     box.parts_spec = parts
     box.open()
     box.render()
@@ -918,34 +1081,38 @@ def render_toolbox(primitives: list[Any], parameters: dict[str, Any] | None = No
     if roof_lock:
         assembly["roof_lock"] = assembly.get("roof_lock") or roof_lock
     machine = params.get("_machine") or {}
-    svg_bytes, nesting = nest_svg(
-        svg_bytes,
-        bed_width=machine.get("bed_w"),
-        bed_height=machine.get("bed_h"),
-        gap=float(machine.get("gap_mm") or 3.0),
-        panel_names=list(box.drawn_labels),
-        allow_rotation=bool(params.get("allow_part_rotation", True)),
-    )
-    try:
-        from text_path import prepare_lasercad_svg
-
-        prepared = prepare_lasercad_svg(svg_bytes)
-        if prepared:
-            svg_bytes = prepared
-    except Exception:
-        pass
+    studio_preview = bool(params.get("studio_preview") or params.get("_studio_preview"))
+    nesting = None
     manufacturing = None
-    try:
-        from manufacturing import finish_manufacturing_svg
+    topology = {"ok": True, "cut_paths": 0, "preview_skipped": True} if studio_preview else None
+    if not studio_preview:
+        svg_bytes, nesting = nest_svg(
+            svg_bytes,
+            bed_width=machine.get("bed_w"),
+            bed_height=machine.get("bed_h"),
+            gap=float(machine.get("gap_mm") or 3.0),
+            panel_names=list(box.drawn_labels),
+            allow_rotation=bool(params.get("allow_part_rotation", True)),
+        )
+        try:
+            from text_path import prepare_lasercad_svg
 
-        stamped, manufacturing = finish_manufacturing_svg(svg_bytes, parts)
-        if stamped:
-            svg_bytes = stamped
-    except Exception:
-        manufacturing = None
-    from project_options import apply_holding_nicks
-    svg_bytes = apply_holding_nicks(svg_bytes, params)
-    topology = inspect_topology(svg_bytes)
+            prepared = prepare_lasercad_svg(svg_bytes)
+            if prepared:
+                svg_bytes = prepared
+        except Exception:
+            pass
+        try:
+            from manufacturing import finish_manufacturing_svg
+
+            stamped, manufacturing = finish_manufacturing_svg(svg_bytes, parts)
+            if stamped:
+                svg_bytes = stamped
+        except Exception:
+            manufacturing = None
+        from project_options import apply_holding_nicks
+        svg_bytes = apply_holding_nicks(svg_bytes, params)
+        topology = inspect_topology(svg_bytes)
     metrics = _svg_metrics(svg_bytes.decode("utf-8", errors="replace"))
     return {
         "svg_bytes": svg_bytes,

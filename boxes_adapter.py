@@ -100,8 +100,8 @@ _LATEST_ALIASES = {
 def _file_url(public_base_url: str, file_id: str) -> str:
     name = quote(file_id)
     if str(file_id).lower().endswith(".svg"):
-        return f"{public_base_url.rstrip('/')}/out/{name}"
-    return f"{public_base_url.rstrip('/')}/files/{name}"
+        return f"{(public_base_url or '').rstrip('/')}/out/{name}"
+    return f"{(public_base_url or '').rstrip('/')}/files/{name}"
 
 
 def _blob_url(file_id: str, data: bytes, content_type: str = "image/svg+xml") -> str | None:

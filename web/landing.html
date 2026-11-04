@@ -166,25 +166,27 @@
         <a href="#how" data-i="nav_how">Nasıl</a>
         <a href="#gate" data-i="nav_gate">Kontrol</a>
         <a href="#beta" data-i="nav_beta">Beta</a>
-        <a href="/dashboard" data-i="nav_workshop">Stüdyo</a>
+        <a href="/studio" data-i="nav_workshop">Stüdyo</a>
+        <a href="/account#keys" data-i="nav_keys">API anahtarı</a>
         <a href="/account" id="nav-signin" data-i="nav_account">Giriş</a>
         <a class="profile hide" id="nav-profile" href="/account"><span class="ava" aria-hidden="true"></span><span class="who"></span><span class="use"></span></a>
         <div class="lang" role="group" aria-label="Language">
           <button type="button" id="lang-tr" class="on">TR</button>
           <button type="button" id="lang-en">EN</button>
         </div>
-        <a class="btn" href="/connect" id="nav-connect" data-i="nav_connect">Bağla</a>
+        <a class="btn cut" href="/studio" id="nav-studio" data-i="cta_workshop">Stüdyo</a>
       </div>
     </nav>
 
     <header class="hero">
       <div>
-        <p class="kicker" data-i="hero_kicker">ChatGPT · Claude · Cursor</p>
+        <p class="kicker" data-i="hero_kicker">Stüdyo · 3D montaj · MCP</p>
         <h1 data-i="hero_h1">Tarif et. Kes. Kur.</h1>
-        <p class="lede" style="margin-top:16px" data-i="hero_lede">Asistanına ne istediğini söyle. LaserMCP parçaları üretir, montajı denetler, prototip SVG verir. Resim çizmez.</p>
+        <p class="lede" style="margin-top:16px" data-i="hero_lede">Kaliteli iş Stüdyo’da: 3D montaj, parametrik kutu, AI. MCP linki ücretsiz ve ince kalır; isteyen asistanına bağlar.</p>
         <div class="ctas">
-          <a class="btn cut" href="/connect" id="copy-mcp" data-i="cta_connect">MCP’yi bağla</a>
-          <a class="btn ghost" href="#wow" data-i="cta_wow">Birini kesime çevir</a>
+          <a class="btn cut" href="/studio" data-i="cta_workshop">Stüdyoyu aç</a>
+          <a class="btn ghost" href="/connect" data-i="cta_connect">MCP’yi bağla</a>
+          <a class="btn ghost" href="/account#keys" data-i="cta_keys">API anahtarı</a>
         </div>
         <div class="legend">
           <div><b data-i="cut_lab">KESİM</b><span data-i="cut_note">#FF0000</span><div class="swatch cut"></div></div>
@@ -193,10 +195,10 @@
       </div>
       <aside class="flow">
         <p class="kicker" data-i="flow_kicker">Bağlantı</p>
-        <pre class="mono">{
+        <pre class="mono" id="mcp-snippet">{
   "mcpServers": {
     "lasermcp": {
-      "url": "https://mcp.metehanavci.com/mcp"
+      "url": "https://mcp.lasermcp.com/mcp"
     }
   }
 }</pre>
@@ -208,8 +210,30 @@ validate_assembly
 payas_defaults
 studio</pre>
         <div class="status-box" data-i="flow_note">Kök siteye değil, /mcp yoluna bağlan.</div>
+        <p style="margin-top:12px">
+          <button class="btn ghost" type="button" id="copy-mcp" data-i="cta_copy_mcp">MCP URL kopyala</button>
+        </p>
       </aside>
     </header>
+
+    <section class="block" id="start">
+      <p class="kicker" data-i="start_kicker">Giriş</p>
+      <h2 data-i="start_h2">Nereden başlanır?</h2>
+      <div class="use-row">
+        <a class="card" href="/studio" style="text-decoration:none;color:inherit">
+          <h3 data-i="start_s_h">1 · Stüdyo</h3>
+          <p data-i="start_s_p">Tarayıcıda 3D kutu, kapak, AI, SVG/DXF. Ana ürün burası.</p>
+        </a>
+        <a class="card" href="/account#keys" style="text-decoration:none;color:inherit">
+          <h3 data-i="start_k_h">2 · API anahtarı</h3>
+          <p data-i="start_k_p">Google ile gir → Hesap. Kurumsal onaylıysa anahtar üret; değilse talep aç. Cursor/otomasyon Bearer ile kullanır.</p>
+        </a>
+        <a class="card" href="/connect" style="text-decoration:none;color:inherit">
+          <h3 data-i="start_m_h">3 · MCP bağla</h3>
+          <p data-i="start_m_p">ChatGPT / Claude OAuth. Cursor için API anahtarı. Ücretsiz ince katman.</p>
+        </a>
+      </div>
+    </section>
 
     <section class="block" id="wow">
       <p><a class="btn" href="/models/house-pencil-holder">Standart model: Ev Kalemlik · SVG + DXF</a></p>
@@ -361,9 +385,10 @@ studio</pre>
       <p class="kicker" data-i="dev_kicker">MCP</p>
       <h2 data-i="dev_h2">Link yetmez. Giriş gerekir.</h2>
       <p class="lede" data-i="dev_lede">Bireysel Google. Kurumsal API anahtarı. Adres yalnız başına MCP açmaz.</p>
-      <pre class="card" style="margin-top:20px;font:13px/1.5 var(--mono);overflow:auto">https://mcp.metehanavci.com/mcp</pre>
+      <pre class="card" id="mcp-url-line" style="margin-top:20px;font:13px/1.5 var(--mono);overflow:auto">https://mcp.lasermcp.com/mcp</pre>
       <p style="margin-top:18px">
         <a class="btn cut" href="/connect" data-i="dev_steps">ChatGPT ve Claude adımları</a>
+        <a class="btn ghost" href="/account#keys" data-i="cta_keys">API anahtarı</a>
         <a class="btn-google guest-only" href="/account" id="mid-google"><svg viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg><span data-i="dev_google">Google ile gir</span></a>
       </p>
     </section>
@@ -399,8 +424,12 @@ studio</pre>
 
     <section class="final">
       <h2 data-i="final_h2">Bir şey kes.</h2>
-      <p class="lede" data-i="final_p">Asistanını bağla. Çıktı prototip SVG.</p>
-      <a class="btn cut" href="/connect" data-i="final_cta">MCP’yi bağla</a>
+      <p class="lede" data-i="final_p">Stüdyoda 3D gör. İstersen MCP’yi ücretsiz bağla.</p>
+      <div class="ctas" style="justify-content:center">
+        <a class="btn cut" href="/studio" data-i="final_cta">Stüdyoyu aç</a>
+        <a class="btn ghost" href="/account#keys" data-i="cta_keys">API anahtarı</a>
+        <a class="btn ghost" href="/connect" data-i="cta_connect">MCP’yi bağla</a>
+      </div>
       <p style="margin-top:16px;font:12px var(--mono);color:var(--mute)">MCP · Boxes.py · SVG / DXF</p>
     </section>
 
@@ -412,8 +441,13 @@ studio</pre>
   <script>
     const I = {
       tr: {
-        nav_wow: "Dene", nav_mcp: "MCP", nav_how: "Nasıl", nav_gate: "Kontrol", nav_beta: "Beta", nav_workshop: "Stüdyo", nav_account: "Giriş", nav_connect: "Bağla",
-        cta_wow: "Birini kesime çevir",
+        nav_wow: "Dene", nav_mcp: "MCP", nav_how: "Nasıl", nav_gate: "Kontrol", nav_beta: "Beta", nav_workshop: "Stüdyo", nav_keys: "API anahtarı", nav_account: "Giriş", nav_connect: "Bağla",
+        cta_wow: "Birini kesime çevir", cta_keys: "API anahtarı", cta_copy_mcp: "MCP URL kopyala",
+        start_kicker: "Giriş", start_h2: "Nereden başlanır?",
+        start_s_h: "1 · Stüdyo", start_s_p: "Tarayıcıda 3D kutu, kapak, AI, SVG/DXF. Ana ürün burası.",
+        start_k_h: "2 · API anahtarı", start_k_p: "Google ile gir → Hesap. Kurumsal onaylıysa anahtar üret; değilse talep aç. Cursor/otomasyon Bearer ile kullanır.",
+        start_m_h: "3 · MCP bağla", start_m_p: "ChatGPT / Claude OAuth. Cursor için API anahtarı. Ücretsiz ince katman.",
+
         wow_kicker: "3 saniye", wow_h2: "Seç. Kesim SVG’si gelsin.",
         wow_lede: "Yükleme yok. Üç gerçek Payas işinden birini seç. Parçalar hemen gelir.",
         wow_src: "ÖNCE", wow_cut: "SONRA", wow_go: "Kesime çevir",
@@ -423,10 +457,11 @@ studio</pre>
         wow_t1: "Trafik lambası", wow_b1: "3 şalter, 3 LED. Her şartel kendi lambasını yakar.",
         wow_t2: "Ağzı açık kutu", wow_b2: "Dört duvar + taban. Kapak yok. Parmak eklem.",
         wow_t3: "Robot kumbara", wow_b3: "Para atılınca LED. Arka kapak vida ile açılır.",
-        hero_kicker: "ChatGPT · Claude · Cursor",
+        hero_kicker: "Stüdyo · 3D montaj · MCP",
         hero_h1: "Tarif et. Kes. Kur.",
-        hero_lede: "Asistanına ne istediğini söyle. LaserMCP parçaları üretir, montajı denetler, prototip SVG verir. Resim çizmez.",
-        cta_connect: "MCP’yi bağla", cta_workshop: "Stüdyo",
+        hero_lede: "Kaliteli iş Stüdyo’da: 3D montaj, parametrik kutu, AI. MCP linki ücretsiz ve ince kalır; isteyen asistanına bağlar.",
+        cta_connect: "MCP’yi bağla", cta_workshop: "Stüdyoyu aç",
+        final_cta: "Stüdyoyu aç",
         cut_note: "#FF0000", etch_note: "#000000",
         flow_kicker: "Bağlantı", tools_kicker: "MCP araçları",
         flow_note: "Kök siteye değil, /mcp yoluna bağlan.",
@@ -477,11 +512,16 @@ studio</pre>
         beta_h2: "Beta açık. Ücret yok.",
         beta_lede: "Şimdi herkes keser. Kota sonra gelir. Fiyat bu sayfada yok.",
         inc: "var", beta_val: "Doğrulama", email: "E-posta", use: "Ne keseceksin?", beta_cta: "Listeye yazıl",
-        final_h2: "Bir şey kes.", final_p: "Asistanını bağla. Çıktı prototip SVG.", final_cta: "MCP’yi bağla"
+        final_h2: "Bir şey kes.", final_p: "Stüdyoda 3D gör. İstersen MCP’yi ücretsiz bağla."
       },
       en: {
-        nav_wow: "Try it", nav_mcp: "MCP", nav_how: "How", nav_gate: "Check", nav_beta: "Beta", nav_workshop: "Studio", nav_account: "Sign in", nav_connect: "Connect",
-        cta_wow: "Turn one into a cut",
+        nav_wow: "Try it", nav_mcp: "MCP", nav_how: "How", nav_gate: "Check", nav_beta: "Beta", nav_workshop: "Studio", nav_keys: "API key", nav_account: "Sign in", nav_connect: "Connect",
+        cta_wow: "Turn one into a cut", cta_keys: "API key", cta_copy_mcp: "Copy MCP URL",
+        start_kicker: "Start", start_h2: "Where do I begin?",
+        start_s_h: "1 · Studio", start_s_p: "Browser 3D boxes, lids, AI, SVG/DXF. This is the main product.",
+        start_k_h: "2 · API key", start_k_p: "Sign in with Google → Account. Mint a key if approved, or open a request. Cursor/automation use Bearer.",
+        start_m_h: "3 · Connect MCP", start_m_p: "ChatGPT / Claude OAuth. Cursor needs an API key. Free thin layer.",
+
         wow_kicker: "3 seconds", wow_h2: "Pick one. Get the cut SVG.",
         wow_lede: "No upload. Three real Payas jobs. Parts appear at once.",
         wow_src: "BEFORE", wow_cut: "AFTER", wow_go: "Convert to cut",
@@ -491,10 +531,10 @@ studio</pre>
         wow_t1: "Traffic light", wow_b1: "3 switches, 3 LEDs. Each switch lights its lamp.",
         wow_t2: "Open finger-joint box", wow_b2: "Four walls + floor. No lid. Finger joints.",
         wow_t3: "Robot bank", wow_b3: "Coin in, LED on. Rear door opens with screws.",
-        hero_kicker: "ChatGPT · Claude · Cursor",
+        hero_kicker: "Studio · 3D assembly · MCP",
         hero_h1: "Describe it. Cut it. Build it.",
-        hero_lede: "Tell your assistant what you want. LaserMCP makes the parts, checks the fit, and returns a prototype SVG. It does not draw a picture.",
-        cta_connect: "Connect MCP", cta_workshop: "Studio",
+        hero_lede: "Quality work lives in Studio: 3D assembly, parametric boxes, AI. The MCP link stays free and thin for assistants.",
+        cta_connect: "Connect MCP", cta_workshop: "Open Studio",
         cut_note: "#FF0000", etch_note: "#000000",
         flow_kicker: "Connect", tools_kicker: "MCP tools",
         flow_note: "Connect to /mcp, not the site root.",
@@ -545,7 +585,7 @@ studio</pre>
         beta_h2: "Beta is open. No fee.",
         beta_lede: "Everyone can cut now. Quotas come later. No prices on this page.",
         inc: "yes", beta_val: "Checks", email: "Email", use: "What will you cut?", beta_cta: "Join the list",
-        final_h2: "Cut something.", final_p: "Connect your assistant. The output is a prototype SVG.", final_cta: "Connect MCP"
+        final_h2: "Cut something.", final_p: "See it in 3D in Studio. Or connect free MCP to your assistant.", final_cta: "Open Studio"
       }
     };
 
@@ -665,10 +705,24 @@ studio</pre>
       }, 680);
     });
 
+    function mcpBase() {
+      return (window.location && window.location.origin ? window.location.origin : "https://mcp.lasermcp.com") + "/mcp";
+    }
+    function paintMcpUrls() {
+      const url = mcpBase();
+      const snip = document.getElementById("mcp-snippet");
+      if (snip) {
+        snip.textContent =
+          '{\n  "mcpServers": {\n    "lasermcp": {\n      "url": "' + url + '"\n    }\n  }\n}';
+      }
+      const line = document.getElementById("mcp-url-line");
+      if (line) line.textContent = url;
+    }
     document.getElementById("copy-mcp").addEventListener("click", async () => {
-      try { await navigator.clipboard.writeText("https://mcp.metehanavci.com/mcp"); } catch (_) {}
+      try { await navigator.clipboard.writeText(mcpBase()); } catch (_) {}
     });
 
+    paintMcpUrls();
     applyLang();
   </script>
   <script src="/nav-auth.js?v=4"></script>
