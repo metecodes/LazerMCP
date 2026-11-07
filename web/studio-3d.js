@@ -151,6 +151,34 @@ function assemblyAnchor() {
   return null;
 }
 
+function assemblySeatedBounds() {
+  // World AABB of panels in their seated pose (ignore explode / assembly scrub).
+  const box = new THREE.Box3();
+  let any = false;
+  for (const g of state.meshes || []) {
+    if (!g.userData || !g.userData.baseMatrix) continue;
+    const prev = g.matrix.clone();
+    g.matrix.copy(g.userData.baseMatrix);
+    g.updateMatrixWorld(true);
+    const b = new THREE.Box3().setFromObject(g);
+    g.matrix.copy(prev);
+    g.updateMatrixWorld(true);
+    if (b.isEmpty()) continue;
+    if (!any) {
+      box.copy(b);
+      any = true;
+    } else {
+      box.union(b);
+    }
+  }
+  return any ? box : null;
+}
+
+function handlesWanted() {
+  const el = $("box-handles-3d");
+  return !!(el && el.checked);
+}
+
 function showOptimisticLid() {
   clearGhostLid();
   const lid = ($("box-lid") && $("box-lid").value) || "open";
@@ -622,17 +650,20 @@ function boxFootprintMm() {
 function rebuildResizeHandles() {
   clearResizeHandles();
   if (!view.root) return;
+  // Off by default — mis-anchored blue grips read as loose CAD parts.
+  if (!handlesWanted()) return;
+  const bounds = assemblySeatedBounds();
+  if (!bounds) return;
   const lid = ($("box-lid") && $("box-lid").value) || "open";
-  // Handles sit on lid plane; if open, on the top rim so sides are still grabable.
-  const { xi, yi, hi, t } = boxFootprintMm();
   if (!state.handleMat) {
     state.handleMat = new THREE.MeshStandardMaterial({
-      color: 0x6aa4ff,
-      emissive: 0x0d2744,
+      color: 0x8eb6ff,
+      emissive: 0x0a1e33,
       roughness: 0.55,
-      metalness: 0.15,
+      metalness: 0.12,
       transparent: true,
-      opacity: 0.82,
+      opacity: 0.55,
+      depthWrite: false,
     });
   }
   if (!state.handleMatHot) {
@@ -641,36 +672,42 @@ function rebuildResizeHandles() {
       emissive: 0x5a3a00,
       roughness: 0.4,
       metalness: 0.15,
+      transparent: true,
+      opacity: 0.95,
     });
   }
   const root = new THREE.Group();
   root.userData.handles = true;
-  const z = hi + t + 1.2;
-  // Thin axis bars — not chunky cubes that read as loose parts.
-  const bar = Math.max(3.2, Math.min(5.5, Math.min(xi, yi) * 0.028));
-  const stick = Math.max(16, Math.min(34, Math.min(xi, yi) * 0.16));
+  const min = bounds.min;
+  const max = bounds.max;
+  const cx = (min.x + max.x) / 2;
+  const cy = (min.y + max.y) / 2;
+  const cz = (min.z + max.z) / 2;
+  const sx = Math.max(8, max.x - min.x);
+  const sy = Math.max(8, max.y - min.y);
+  const sz = Math.max(8, max.z - min.z);
+  const bar = Math.max(2.8, Math.min(4.5, Math.min(sx, sy) * 0.02));
+  const stick = Math.max(14, Math.min(28, Math.min(sx, sy) * 0.12));
+  const pad = bar * 0.6;
+  // World-space grips on the seated AABB — no footprint/anchor mismatch.
   const specs = [
-    { field: "box-x", axis: "x", sign: 1, pos: [xi + stick / 2, yi / 2, z], size: [stick, bar, bar], cursor: "ew-resize" },
-    { field: "box-x", axis: "x", sign: -1, pos: [-stick / 2, yi / 2, z], size: [stick, bar, bar], cursor: "ew-resize" },
-    { field: "box-y", axis: "y", sign: 1, pos: [xi / 2, yi + stick / 2, z], size: [bar, stick, bar], cursor: "ns-resize" },
-    { field: "box-y", axis: "y", sign: -1, pos: [xi / 2, -stick / 2, z], size: [bar, stick, bar], cursor: "ns-resize" },
+    { field: "box-x", axis: "x", sign: 1, pos: [max.x + stick / 2 + pad, cy, max.z], size: [stick, bar, bar] },
+    { field: "box-x", axis: "x", sign: -1, pos: [min.x - stick / 2 - pad, cy, max.z], size: [stick, bar, bar] },
+    { field: "box-y", axis: "y", sign: 1, pos: [cx, max.y + stick / 2 + pad, max.z], size: [bar, stick, bar] },
+    { field: "box-y", axis: "y", sign: -1, pos: [cx, min.y - stick / 2 - pad, max.z], size: [bar, stick, bar] },
   ];
   if (lid !== "open") {
-    specs.push(
-      { field: "box-h", axis: "z", sign: 1, pos: [xi / 2, yi / 2, z + stick / 2], size: [bar, bar, stick], cursor: "ns-resize", plane: "z" }
-    );
+    specs.push({
+      field: "box-h", axis: "z", sign: 1,
+      pos: [cx, cy, max.z + stick / 2 + pad],
+      size: [bar, bar, stick], plane: "z",
+    });
   }
-  const lift = Number(($("box-lift") && $("box-lift").value) || 0);
-  const liftZ = Math.max(lift, 2) + t / 2;
   specs.push({
-    field: "box-lift",
-    axis: "z",
-    sign: 1,
-    pos: [xi / 2, bar * 0.4, liftZ],
-    size: [Math.min(xi * 0.4, 42), bar * 0.85, bar * 0.85],
-    cursor: "ns-resize",
-    plane: "z",
-    lift: true,
+    field: "box-lift", axis: "z", sign: 1,
+    pos: [cx, min.y + bar, min.z + Math.max(Number(($("box-lift") && $("box-lift").value) || 0), bar)],
+    size: [Math.min(sx * 0.35, 36), bar * 0.8, bar * 0.8],
+    plane: "z", lift: true,
   });
   specs.forEach((s) => {
     const geom = new THREE.BoxGeometry(s.size[0], s.size[1], s.size[2]);
@@ -682,17 +719,9 @@ function rebuildResizeHandles() {
     mesh.userData.sign = s.sign;
     mesh.userData.plane = s.plane || "xy";
     mesh.userData.lift = !!s.lift;
-    const edges = new THREE.LineSegments(
-      new THREE.EdgesGeometry(geom),
-      new THREE.LineBasicMaterial({ color: s.lift ? 0xffe0a0 : 0xd7ebff })
-    );
-    mesh.add(edges);
     root.add(mesh);
     state.handles.push(mesh);
   });
-  const anchor = assemblyAnchor();
-  if (anchor) root.position.set(anchor.x, anchor.y, anchor.z);
-  else root.position.set(-xi / 2, -yi / 2, 0);
   view.root.add(root);
   state.handleRoot = root;
   syncHandleVisibility();
@@ -704,8 +733,7 @@ function syncHandleVisibility() {
   const guide = state.assemblyGuide;
   const total = ((guide && guide.assembly_order) || []).length;
   const full = !total || Number(state.asmStep || 0) >= total;
-  // Handles only on the seated, fully assembled edit pose — never as floating “parts”.
-  state.handleRoot.visible = explode < 6 && full && !state.asmPlaying;
+  state.handleRoot.visible = handlesWanted() && explode < 6 && full && !state.asmPlaying;
 }
 
 function applyLiveResizePreview(field, fromVal, toVal) {
@@ -1291,7 +1319,7 @@ function loadAssembly(assembly) {
   rebuildResizeHandles();
   syncHandleVisibility();
   fitCamera();
-  setStatus("İnce tutamaç / bölücü tut-çek · ▶ Oynat = montaj sırası.", "ok");
+  setStatus("Bölücü tut-çek · panele tıkla = ölçü · ▶ Oynat = montaj sırası.", "ok");
   $("sum-panels").textContent = String(panels.length);
   $("sum-t").textContent = thickness + " mm";
   $("sum-val").textContent = assembly.validation_state || "—";
@@ -2159,6 +2187,17 @@ function wireUi() {
   ["box-handle", "box-div-walls", "box-div-bottom"].forEach((id) => {
     if ($(id)) $(id).onchange = () => { pushUndo(); scheduleRebuild(true); };
   });
+  if ($("box-handles-3d")) {
+    $("box-handles-3d").onchange = () => {
+      rebuildResizeHandles();
+      setStatus(
+        $("box-handles-3d").checked
+          ? "3D tutamaçlar açık — yalnız tam montajda görünür."
+          : "3D tutamaçlar kapalı — temiz montaj görünümü.",
+        "ok"
+      );
+    };
+  }
   $("explode").oninput = () => {
     stopAssemblyPlay();
     // Restore all panels visible when scrubbing explode

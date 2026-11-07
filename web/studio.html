@@ -371,8 +371,10 @@
             <label class="check"><input id="box-div-bottom" type="checkbox" checked> Bölücü→taban eklemi</label>
           </div>
           <p class="hint">Bölücü = dikey hücre (tut-çek / Del = birleştir). Ara raf = yatay kat. Hücreye tıkla = ölçü kilitle.</p>
-          <label>Yükseltilmiş taban (mm)<input id="box-lift" type="number" value="0" min="0" step="0.5" title="3D’de taban kenarını yukarı çek"></label>
-          <p class="hint" id="link-hint">Vector Painter parity: kapak / bölücü / raf / kerf / bump / 3D düzenleme / SVG+DXF.</p>
+          <label>Yükseltilmiş taban (mm)<input id="box-lift" type="number" value="0" min="0" step="0.5" title="Formdan ayarla; 3D tutamaç opsiyonel"></label>
+          <label class="check"><input id="box-handles-3d" type="checkbox"> 3D ölçü tutamaçları (X/Y/H)</label>
+          <p class="hint">Varsayılan kapalı — tutamaçlar yanlışlıkla “parça” gibi görünmesin. Ölçü: form veya panele tıkla.</p>
+          <p class="hint" id="link-hint">Kapak / bölücü / raf / kerf / bump / SVG+DXF.</p>
           <div class="row2">
             <button class="btn ghost" type="button" id="undo-box">Geri al</button>
             <button class="btn cut" type="button" id="make-box">Kaydet ve indir</button>
@@ -573,7 +575,7 @@
     }
   }
   </script>
-  <script type="module" src="/studio-3d.js?v=19"></script>
+  <script type="module" src="/studio-3d.js?v=20"></script>
   <script src="/nav-auth.js?v=5"></script>
 </body>
 </html>
