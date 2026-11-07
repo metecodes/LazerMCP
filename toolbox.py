@@ -244,7 +244,7 @@ HINT = (
 
 # e/E straight, f/F fingers, h hole, s/S stackable, l/L slide lid, X living hinge.
 _EDGE_OK = set("eEfFhHsSlLxX")
-_MAX_PARTS = 48
+_MAX_PARTS = 120
 
 # Incoming AIs send these as parts. They are features on a wall, not a part type.
 _NOT_A_PART = {
@@ -953,46 +953,144 @@ class PayasToolbox(Boxes):
         # X-dividers cut the lower half; Y-dividers cut the upper half.
         cross_lap = bool(x_div_pos and y_div_pos)
         half_h = max(t * 2, div_h / 2.0)
+        # Shelf height on divider local Y (divider origin sits on raised floor).
+        shelf_local_z = [max(t, z - raised) for z in shelf_z]
+
+        def _divider_edges() -> str:
+            # edge0 bottom → bottom panel; edge1 right / edge3 left → walls; edge2 top open.
+            # Was "fefe" (straight wall sides) = glue look. Use fingers into fingerHolesAt.
+            b_e = "f" if joint_bottom else "e"
+            w_e = "f" if joint_walls else "e"
+            return f"{b_e}{w_e}e{w_e}"
 
         def _crosslap_x_cb():
-            if not cross_lap:
+            if not (cross_lap or shelf_local_z):
                 return None
 
             def _cb() -> None:
-                for pos in y_div_pos:
-                    self.rectangularHole(pos, half_h / 2.0, t, half_h, r=0)
+                if cross_lap:
+                    for pos in y_div_pos:
+                        self.rectangularHole(pos, half_h / 2.0, t, half_h, r=0)
+                # Shelf geçme: horizontal through-slots in the X-divider
+                for z_loc in shelf_local_z:
+                    if t < z_loc < div_h - t:
+                        self.rectangularHole(y / 2.0, z_loc, y, t, r=0)
 
             return _cb
 
         def _crosslap_y_cb():
-            if not cross_lap:
+            if not (cross_lap or shelf_local_z):
                 return None
 
             def _cb() -> None:
-                for pos in x_div_pos:
-                    self.rectangularHole(pos, div_h - half_h / 2.0, t, half_h, r=0)
+                if cross_lap:
+                    for pos in x_div_pos:
+                        self.rectangularHole(pos, div_h - half_h / 2.0, t, half_h, r=0)
+                for z_loc in shelf_local_z:
+                    if t < z_loc < div_h - t:
+                        self.rectangularHole(x / 2.0, z_loc, x, t, r=0)
 
             return _cb
 
-        # Dividers: panels that seat into bottom + wall finger holes.
+        def _shelf_divider_slots_cb():
+            if not (x_div_pos or y_div_pos):
+                return None
+
+            def _cb() -> None:
+                # Through-slots so vertical dividers lock through each shelf (geçme, not glue).
+                for pos in x_div_pos:
+                    self.rectangularHole(pos, y / 2.0, t, y, r=0)
+                for pos in y_div_pos:
+                    self.rectangularHole(x / 2.0, pos, x, t, r=0)
+
+            return _cb
+
+        div_edges = _divider_edges()
+        # Dividers: finger into bottom + wall fingerHolesAt (geçmeli).
         for i, _pos in enumerate(x_div_pos, 1):
             self.rectangularWall(
-                y, div_h, "fefe",
+                y, div_h, div_edges,
                 callback=_pack_edge0(_crosslap_x_cb()),
                 move="up", label=f"divider-x-{i}",
             )
             self._note_part(f"divider-x-{i}")
         for i, _pos in enumerate(y_div_pos, 1):
             self.rectangularWall(
-                x, div_h, "fefe",
+                x, div_h, div_edges,
                 callback=_pack_edge0(_crosslap_y_cb()),
                 move="up", label=f"divider-y-{i}",
             )
             self._note_part(f"divider-y-{i}")
-        # Horizontal shelves (drawer-like intermediate floors)
+        # Horizontal shelves: finger into walls + slots for vertical dividers.
         for i, _z in enumerate(shelf_z, 1):
-            self.rectangularWall(x, y, "ffff", move="up", label=f"shelf-{i}")
+            self.rectangularWall(
+                x, y, "ffff",
+                callback=_pack_edge0(_shelf_divider_slots_cb()),
+                move="up", label=f"shelf-{i}",
+            )
             self._note_part(f"shelf-{i}")
+
+        # Open tray drawers sized to each cubby — nest-only (not glued into the carcass).
+        drawer_specs = part.get("drawer_specs") if isinstance(part.get("drawer_specs"), list) else []
+        for spec in drawer_specs:
+            if not isinstance(spec, dict):
+                continue
+            dw = float(spec.get("w_mm") or 0)
+            dd = float(spec.get("d_mm") or 0)
+            dh = float(spec.get("h_mm") or 0)
+            if dw < 14 or dd < 14 or dh < 10:
+                continue
+            did = str(spec.get("id") or "drawer")
+            pull_r = float(spec.get("pull_r_mm") or min(12.0, dw * 0.16, dh * 0.38))
+            label_txt = str(spec.get("label_mm") or f"{dw:.0f}×{dd:.0f}×{dh:.0f}")
+
+            def _front_pull_cb(w=dw, h=dh, r=pull_r):
+                def _cb() -> None:
+                    # Circle centered on the top edge → half-circle finger pull into the panel.
+                    self.hole(w / 2.0, h, r=r)
+
+                return _cb
+
+            def _bottom_label_cb(w=dw, d=dd, text=label_txt):
+                def _cb() -> None:
+                    from markings import draw_markings
+
+                    draw_markings(
+                        self,
+                        [
+                            {
+                                "kind": "text",
+                                "value": text,
+                                "x": w / 2.0,
+                                "y": d / 2.0,
+                                "height": max(3.5, min(7.0, min(w, d) * 0.08)),
+                                "align": "center",
+                                "operation": "engrave",
+                            }
+                        ],
+                        (0.0, 0.0),
+                    )
+
+                return _cb
+
+            self.rectangularWall(
+                dw, dd, "ffff",
+                callback=_pack_edge0(_bottom_label_cb()),
+                move="up", label=f"{did}-bottom",
+            )
+            self._note_part(f"{did}-bottom")
+            self.rectangularWall(
+                dw, dh, "FfFf",
+                callback=_pack_edge0(_front_pull_cb()),
+                move="up", label=f"{did}-front",
+            )
+            self._note_part(f"{did}-front")
+            self.rectangularWall(dw, dh, "FfFf", move="up", label=f"{did}-back")
+            self._note_part(f"{did}-back")
+            self.rectangularWall(dd, dh, "ffFf", move="up", label=f"{did}-left")
+            self._note_part(f"{did}-left")
+            self.rectangularWall(dd, dh, "ffFf", move="up", label=f"{did}-right")
+            self._note_part(f"{did}-right")
 
         if lid_on:
             if lid_type in {"finger", "finger_joint", "fixed"}:

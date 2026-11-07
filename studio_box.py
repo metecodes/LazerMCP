@@ -35,6 +35,59 @@ def equal_cells(inner: float, dividers: int, thickness: float) -> list[float]:
     return [round(cell, 3)] * (n + 1)
 
 
+def drawer_cell_heights(h: float, raised: float, shelves: int, thickness: float, lid_eat: float = 0.0) -> list[float]:
+    """Clear opening height of each shelf bay (shelf plate thickness removed)."""
+    span = max(0.0, float(h) - float(raised) - float(lid_eat))
+    n = max(1, int(shelves) + 1)
+    step = span / n
+    clear = max(0.0, step - float(thickness))
+    return [round(clear, 3)] * n
+
+
+def build_drawer_specs(
+    *,
+    sx: list[float],
+    sy: list[float],
+    cell_heights: list[float],
+    thickness: float,
+    clearance: float = 1.0,
+    pull_r: float | None = None,
+    max_drawers: int = 12,
+) -> list[dict[str, Any]]:
+    """One open tray drawer per cubby. Sizes are outer cut mm after clearance."""
+    t = float(thickness)
+    play = max(0.4, min(3.0, float(clearance)))
+    specs: list[dict[str, Any]] = []
+    for zi, ch in enumerate(cell_heights):
+        for yi, dy in enumerate(sy):
+            for xi, dx in enumerate(sx):
+                if len(specs) >= max_drawers:
+                    return specs
+                w = round(float(dx) - play, 2)
+                d = round(float(dy) - play, 2)
+                h = round(float(ch) - play, 2)
+                if w < 14 or d < 14 or h < 10:
+                    continue
+                r = float(pull_r) if pull_r not in (None, "") else min(12.0, w * 0.16, h * 0.38)
+                r = max(4.0, min(r, w / 2 - 2, h * 0.45))
+                specs.append(
+                    {
+                        "id": f"drawer-{len(specs) + 1}",
+                        "col": xi,
+                        "row_y": yi,
+                        "row_z": zi,
+                        "w_mm": w,
+                        "d_mm": d,
+                        "h_mm": h,
+                        "pull_r_mm": round(r, 2),
+                        "label_mm": f"{w:.0f}×{d:.0f}×{h:.0f}",
+                        "thickness_mm": t,
+                        "clearance_mm": play,
+                    }
+                )
+    return specs
+
+
 def _parse_locks(raw: Any, cell_count: int) -> dict[int, float]:
     """Map of cell index → locked width mm."""
     out: dict[int, float] = {}
@@ -295,12 +348,33 @@ def build_studio_box(payload: dict[str, Any] | None = None) -> dict[str, Any]:
     play = _f(body.get("play") or body.get("joint_play"), 0.0)
     bump_d = _f(body.get("bump_diameter") or body.get("bump_d"), 0.5)
 
-    shelves = _i(body.get("shelves") or body.get("drawers") or body.get("araf"), 0, lo=0, hi=6)
+    shelves = _i(body.get("shelves") or body.get("araf"), 0, lo=0, hi=6)
     # Usable inner height for shelf spacing (below lid / above raised floor)
     lid_eat = 0.0 if lid_raw == "open" else thickness
     shelf_span = hi - raised - lid_eat
     if shelves and shelf_span < (shelves + 1) * 12:
         raise ValueError("too many shelves for this box height — reduce shelves or grow H")
+
+    drawers_flag = body.get("drawers")
+    if drawers_flag is None:
+        # Auto: produce drawers when there is a bay grid (shelves and/or X dividers).
+        make_drawers = bool(shelves > 0 or dx > 0)
+    else:
+        make_drawers = bool(drawers_flag)
+    drawer_clearance = _f(body.get("drawer_clearance") or body.get("drawer_play"), 1.0)
+    cell_h = drawer_cell_heights(hi, raised, shelves, thickness, lid_eat)
+    drawer_specs = (
+        build_drawer_specs(
+            sx=sx,
+            sy=sy,
+            cell_heights=cell_h,
+            thickness=thickness,
+            clearance=drawer_clearance,
+            pull_r=_f(body.get("drawer_pull_r"), 0) or None,
+        )
+        if make_drawers
+        else []
+    )
 
     box: dict[str, Any] = {
         "type": "box",
@@ -316,6 +390,9 @@ def build_studio_box(payload: dict[str, Any] | None = None) -> dict[str, Any]:
         "sx": sx,
         "sy": sy,
         "shelves": shelves,
+        "drawers": make_drawers,
+        "drawer_specs": drawer_specs,
+        "drawer_clearance": drawer_clearance,
         "divider_joint_walls": bool(body.get("divider_joint_walls", True)),
         "divider_joint_bottom": bool(body.get("divider_joint_bottom", True)),
     }
@@ -347,6 +424,22 @@ def build_studio_box(payload: dict[str, Any] | None = None) -> dict[str, Any]:
         "divider_y_pos": divider_positions(sy, thickness) if dy else [],
         "locked_cells_x": locks_x or {},
         "locked_cells_y": locks_y or {},
+        "cell_heights_mm": cell_h,
+        "drawers": make_drawers,
+        "drawer_count": len(drawer_specs),
+        "drawer_clearance_mm": round(drawer_clearance, 3),
+        "drawers_mm": [
+            {
+                "id": d["id"],
+                "cell": f"c{d['col']+1}-y{d['row_y']+1}-z{d['row_z']+1}",
+                "w": d["w_mm"],
+                "d": d["d_mm"],
+                "h": d["h_mm"],
+                "pull_r": d["pull_r_mm"],
+                "label": d["label_mm"],
+            }
+            for d in drawer_specs
+        ],
         "finger_mult": round(finger_mult, 3),
         "press_fit": press_fit,
         "handle": handle,

@@ -170,6 +170,58 @@ class StudioBoxFeaturesTests(unittest.TestCase):
         # Cross-lap half-slots appear as extra cut geometry on both divider panels
         self.assertGreater(svg.lower().count("path"), 8)
 
+    def test_divider_wall_edges_are_finger_not_butt(self):
+        from toolbox import render_toolbox
+
+        built = build_studio_box(
+            {
+                "x": 150,
+                "y": 120,
+                "h": 90,
+                "thickness": 3,
+                "lid": "open",
+                "dividers_x": 1,
+                "dividers_y": 1,
+                "shelves": 1,
+                "drawers": False,
+                "divider_joint_walls": True,
+                "divider_joint_bottom": True,
+            }
+        )
+        out = render_toolbox(built["primitives"], built["parameters"])
+        svg = out["svg_bytes"].decode("utf-8", errors="ignore")
+        self.assertIn("divider-x-1", svg)
+        self.assertIn("divider-y-1", svg)
+        self.assertIn("shelf-1", svg)
+        # Finger edges + shelf/divider slots produce denser cut paths than butt panels.
+        self.assertGreater(svg.lower().count("path"), 14)
+
+    def test_drawers_with_pull_and_size_label(self):
+        from toolbox import render_toolbox
+
+        built = build_studio_box(
+            {
+                "x": 180,
+                "y": 100,
+                "h": 120,
+                "thickness": 3,
+                "lid": "open",
+                "dividers_x": 2,
+                "shelves": 2,
+                "drawers": True,
+            }
+        )
+        self.assertTrue(built["summary"]["drawers"])
+        self.assertGreaterEqual(built["summary"]["drawer_count"], 6)
+        spec = built["summary"]["drawers_mm"][0]
+        self.assertGreater(spec["w"], 20)
+        self.assertGreater(spec["h"], 10)
+        self.assertIn("×", spec["label"])
+        out = render_toolbox(built["primitives"], built["parameters"])
+        svg = out["svg_bytes"].decode("utf-8", errors="ignore")
+        self.assertIn("drawer-1-front", svg)
+        self.assertIn("drawer-1-bottom", svg)
+
     def test_assembly_guide_open_box(self):
         built = build_studio_box({"x": 120, "y": 80, "h": 40, "thickness": 3, "lid": "open"})
         guide = built["assembly_guide"]

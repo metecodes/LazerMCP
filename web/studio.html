@@ -367,10 +367,11 @@
             </div>
           </label>
           <div class="row2">
-            <label class="check"><input id="box-div-walls" type="checkbox" checked> Bölücü→duvar eklemi</label>
-            <label class="check"><input id="box-div-bottom" type="checkbox" checked> Bölücü→taban eklemi</label>
+            <label class="check"><input id="box-div-walls" type="checkbox" checked> Bölücü→duvar geçme</label>
+            <label class="check"><input id="box-div-bottom" type="checkbox" checked> Bölücü→taban geçme</label>
           </div>
-          <p class="hint">Bölücü = dikey hücre (tut-çek / Del = birleştir). Ara raf = yatay kat. Hücreye tıkla = ölçü kilitle.</p>
+          <label class="check"><input id="box-drawers" type="checkbox" checked> Çekmeceleri üret (hücreye sığan)</label>
+          <p class="hint">Bölücü/raf = finger geçme. Çekmece = açık tepsi + üst kenarda yarım daire tutamak; tabanda W×D×H kazıma. Max 12.</p>
           <label>Yükseltilmiş taban (mm)<input id="box-lift" type="number" value="0" min="0" step="0.5" title="Formdan ayarla; 3D tutamaç opsiyonel"></label>
           <label class="check"><input id="box-handles-3d" type="checkbox"> 3D ölçü tutamaçları (X/Y/H)</label>
           <p class="hint">Varsayılan kapalı — tutamaçlar yanlışlıkla “parça” gibi görünmesin. Ölçü: form veya panele tıkla.</p>
@@ -532,6 +533,7 @@
         <div class="kv"><span>İç (mm)</span><b id="sum-inner">—</b></div>
         <div class="kv"><span>Dış (mm)</span><b id="sum-outer">—</b></div>
         <div class="kv"><span>Hacim</span><b id="sum-vol">—</b></div>
+        <div class="kv"><span>Çekmece</span><b id="sum-drawers">—</b></div>
         <div class="kv"><span>Seçili</span><b id="sum-sel">—</b></div>
         <div class="kv"><span>Bağlı ölçü</span><b id="sum-dims">—</b></div>
         <div class="kv"><span>Doğrulama</span><b id="sum-val">—</b></div>
@@ -575,7 +577,7 @@
     }
   }
   </script>
-  <script type="module" src="/studio-3d.js?v=20"></script>
+  <script type="module" src="/studio-3d.js?v=21"></script>
   <script src="/nav-auth.js?v=5"></script>
 </body>
 </html>

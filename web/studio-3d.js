@@ -932,6 +932,18 @@ function paintSummary(summary) {
   $("sum-outer").textContent =
     summary.x_outer_mm + " × " + summary.y_outer_mm + " × " + summary.h_outer_mm;
   $("sum-vol").textContent = (summary.volume_l != null ? summary.volume_l + " L" : "—");
+  if ($("sum-drawers")) {
+    const rows = summary.drawers_mm || [];
+    if (!summary.drawers || !rows.length) {
+      $("sum-drawers").textContent = "kapalı";
+    } else {
+      const first = rows[0];
+      const same = rows.every((r) => r.label === first.label);
+      $("sum-drawers").textContent = same
+        ? (rows.length + " × " + first.label + " mm")
+        : (rows.length + " adet (farklı hücre)");
+    }
+  }
 }
 
 function stopAssemblyPlay() {
@@ -1621,6 +1633,7 @@ function snapshotForm() {
     dividers_x: $("box-dx").value,
     dividers_y: $("box-dy").value,
     shelves: $("box-shelves") ? $("box-shelves").value : "0",
+    drawers: $("box-drawers") ? $("box-drawers").checked : true,
     div_walls: $("box-div-walls") ? $("box-div-walls").checked : true,
     div_bottom: $("box-div-bottom") ? $("box-div-bottom").checked : true,
     bottom_lift: $("box-lift").value,
@@ -1657,6 +1670,7 @@ function restoreForm(snap) {
   $("box-dx").value = snap.dividers_x || 0;
   $("box-dy").value = snap.dividers_y || 0;
   if ($("box-shelves") && snap.shelves != null) $("box-shelves").value = snap.shelves;
+  if ($("box-drawers") && snap.drawers != null) $("box-drawers").checked = !!snap.drawers;
   if ($("box-div-walls") && snap.div_walls != null) $("box-div-walls").checked = !!snap.div_walls;
   if ($("box-div-bottom") && snap.div_bottom != null) $("box-div-bottom").checked = !!snap.div_bottom;
   $("box-lift").value = snap.bottom_lift || 0;
@@ -1691,6 +1705,7 @@ function boxBody() {
   const burn = $("box-burn").value;
   if (burn !== "") body.burn = Number(burn);
   if ($("box-shelves")) body.shelves = Number($("box-shelves").value) || 0;
+  if ($("box-drawers")) body.drawers = !!$("box-drawers").checked;
   if ($("box-handle")) body.handle = !!$("box-handle").checked;
   if ($("box-handle-w")) body.handle_w = Number($("box-handle-w").value) || 40;
   if ($("box-lid-r")) body.lid_radius = Number($("box-lid-r").value) || 0;
@@ -2184,7 +2199,7 @@ function wireUi() {
     });
   });
   $("box-bumps").onchange = () => { pushUndo(); scheduleRebuild(true); };
-  ["box-handle", "box-div-walls", "box-div-bottom"].forEach((id) => {
+  ["box-handle", "box-div-walls", "box-div-bottom", "box-drawers"].forEach((id) => {
     if ($(id)) $(id).onchange = () => { pushUndo(); scheduleRebuild(true); };
   });
   if ($("box-handles-3d")) {
