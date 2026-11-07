@@ -44,6 +44,113 @@ def drawer_cell_heights(h: float, raised: float, shelves: int, thickness: float,
     return [round(clear, 3)] * n
 
 
+def cell_starts(cells: list[float], thickness: float) -> list[float]:
+    """Inner-edge start of each cell along one axis (0 at the box inner origin)."""
+    starts: list[float] = []
+    cursor = 0.0
+    t = float(thickness)
+    for cell in cells:
+        starts.append(round(cursor, 3))
+        cursor += float(cell) + t
+    return starts
+
+
+def drawer_bay_floors(h: float, raised: float, shelves: int, thickness: float, lid_eat: float = 0.0) -> list[float]:
+    """World Z of the usable floor under each drawer bay."""
+    span = max(0.0, float(h) - float(raised) - float(lid_eat))
+    n = max(1, int(shelves) + 1)
+    step = span / n if n else span
+    t = float(thickness)
+    floors: list[float] = []
+    for zi in range(n):
+        if zi == 0:
+            floors.append(round(float(raised), 3))
+        else:
+            # Sit on top of shelf plate at raised + step*zi (thickness +Z).
+            floors.append(round(float(raised) + step * zi + t, 3))
+    return floors
+
+
+def drawer_front_openings(
+    *,
+    sx: list[float],
+    cell_heights: list[float],
+    bay_floors: list[float],
+    thickness: float,
+    wall_z0: float,
+    clearance: float = 1.0,
+    margin: float = 0.6,
+) -> list[dict[str, Any]]:
+    """Front-wall slot rectangles (local wall coords) so cubbies open for drawers."""
+    t = float(thickness)
+    play = max(0.4, min(3.0, float(clearance)))
+    starts = cell_starts(sx, t)
+    slots: list[dict[str, Any]] = []
+    m = max(0.4, float(margin))
+    for zi, ch in enumerate(cell_heights):
+        if zi >= len(bay_floors):
+            break
+        for xi, cw in enumerate(sx):
+            ow = max(8.0, float(cw) - 2 * m)
+            oh = max(8.0, float(ch) - 2 * m)
+            cx = float(starts[xi]) + float(cw) / 2.0
+            # Front wall local Y = world Z - wall_z0 (wall origin sits at z=wall_z0).
+            z_mid = float(bay_floors[zi]) + float(ch) / 2.0
+            cy = z_mid - float(wall_z0)
+            if cy - oh / 2.0 < 1.0:
+                continue
+            slots.append(
+                {
+                    "id": f"drawer-open-c{xi+1}-z{zi+1}",
+                    "x": round(cx, 3),
+                    "y": round(cy, 3),
+                    "w": round(ow, 3),
+                    "h": round(oh, 3),
+                    "semantic_role": "drawer_opening",
+                    "clearance_mm": play,
+                }
+            )
+    return slots
+
+
+def seat_drawer_specs(
+    specs: list[dict[str, Any]],
+    *,
+    sx: list[float],
+    sy: list[float],
+    raised: float,
+    shelves: int,
+    h: float,
+    thickness: float,
+    lid_eat: float = 0.0,
+) -> list[dict[str, Any]]:
+    """Attach world seat origins so assembly can place each open tray in its cubby."""
+    t = float(thickness)
+    x_starts = cell_starts(sx, t)
+    y_starts = cell_starts(sy, t)
+    floors = drawer_bay_floors(h, raised, shelves, t, lid_eat)
+    out: list[dict[str, Any]] = []
+    for spec in specs:
+        if not isinstance(spec, dict):
+            continue
+        row = dict(spec)
+        xi = int(row.get("col") or 0)
+        yi = int(row.get("row_y") or 0)
+        zi = int(row.get("row_z") or 0)
+        play = float(row.get("clearance_mm") or 1.0)
+        ox = float(x_starts[xi]) + play / 2.0 if xi < len(x_starts) else play / 2.0
+        oy = float(y_starts[yi]) + play / 2.0 if yi < len(y_starts) else play / 2.0
+        # Front-bay drawers (yi==0) sit flush with the front opening (world y≈0).
+        if yi == 0:
+            oy = 0.0
+        oz = float(floors[zi]) if zi < len(floors) else float(raised)
+        row["ox_mm"] = round(ox, 3)
+        row["oy_mm"] = round(oy, 3)
+        row["oz_mm"] = round(oz, 3)
+        out.append(row)
+    return out
+
+
 def build_drawer_specs(
     *,
     sx: list[float],
@@ -58,33 +165,34 @@ def build_drawer_specs(
     t = float(thickness)
     play = max(0.4, min(3.0, float(clearance)))
     specs: list[dict[str, Any]] = []
+    # Only the front depth cell (yi=0) gets pull-out drawers through the front face.
+    front_depth = float(sy[0]) if sy else 0.0
     for zi, ch in enumerate(cell_heights):
-        for yi, dy in enumerate(sy):
-            for xi, dx in enumerate(sx):
-                if len(specs) >= max_drawers:
-                    return specs
-                w = round(float(dx) - play, 2)
-                d = round(float(dy) - play, 2)
-                h = round(float(ch) - play, 2)
-                if w < 14 or d < 14 or h < 10:
-                    continue
-                r = float(pull_r) if pull_r not in (None, "") else min(12.0, w * 0.16, h * 0.38)
-                r = max(4.0, min(r, w / 2 - 2, h * 0.45))
-                specs.append(
-                    {
-                        "id": f"drawer-{len(specs) + 1}",
-                        "col": xi,
-                        "row_y": yi,
-                        "row_z": zi,
-                        "w_mm": w,
-                        "d_mm": d,
-                        "h_mm": h,
-                        "pull_r_mm": round(r, 2),
-                        "label_mm": f"{w:.0f}×{d:.0f}×{h:.0f}",
-                        "thickness_mm": t,
-                        "clearance_mm": play,
-                    }
-                )
+        for xi, dx in enumerate(sx):
+            if len(specs) >= max_drawers:
+                return specs
+            w = round(float(dx) - play, 2)
+            d = round(front_depth - play, 2)
+            h = round(float(ch) - play, 2)
+            if w < 14 or d < 14 or h < 10:
+                continue
+            r = float(pull_r) if pull_r not in (None, "") else min(12.0, w * 0.16, h * 0.38)
+            r = max(4.0, min(r, w / 2 - 2, h * 0.45))
+            specs.append(
+                {
+                    "id": f"drawer-{len(specs) + 1}",
+                    "col": xi,
+                    "row_y": 0,
+                    "row_z": zi,
+                    "w_mm": w,
+                    "d_mm": d,
+                    "h_mm": h,
+                    "pull_r_mm": round(r, 2),
+                    "label_mm": f"{w:.0f}×{d:.0f}×{h:.0f}",
+                    "thickness_mm": t,
+                    "clearance_mm": play,
+                }
+            )
     return specs
 
 
@@ -364,15 +472,37 @@ def build_studio_box(payload: dict[str, Any] | None = None) -> dict[str, Any]:
     drawer_clearance = _f(body.get("drawer_clearance") or body.get("drawer_play"), 1.0)
     cell_h = drawer_cell_heights(hi, raised, shelves, thickness, lid_eat)
     drawer_specs = (
-        build_drawer_specs(
+        seat_drawer_specs(
+            build_drawer_specs(
+                sx=sx,
+                sy=sy,
+                cell_heights=cell_h,
+                thickness=thickness,
+                clearance=drawer_clearance,
+                pull_r=_f(body.get("drawer_pull_r"), 0) or None,
+            ),
             sx=sx,
             sy=sy,
-            cell_heights=cell_h,
+            raised=raised,
+            shelves=shelves,
+            h=hi,
             thickness=thickness,
-            clearance=drawer_clearance,
-            pull_r=_f(body.get("drawer_pull_r"), 0) or None,
+            lid_eat=lid_eat,
         )
         if make_drawers
+        else []
+    )
+    bay_floors = drawer_bay_floors(hi, raised, shelves, thickness, lid_eat) if make_drawers else []
+    front_openings = (
+        drawer_front_openings(
+            sx=sx,
+            cell_heights=cell_h,
+            bay_floors=bay_floors,
+            thickness=thickness,
+            wall_z0=thickness,
+            clearance=drawer_clearance,
+        )
+        if make_drawers and drawer_specs
         else []
     )
 
@@ -396,6 +526,18 @@ def build_studio_box(payload: dict[str, Any] | None = None) -> dict[str, Any]:
         "divider_joint_walls": bool(body.get("divider_joint_walls", True)),
         "divider_joint_bottom": bool(body.get("divider_joint_bottom", True)),
     }
+    if front_openings:
+        walls = box.setdefault("walls", {})
+        if not isinstance(walls, dict):
+            walls = {}
+            box["walls"] = walls
+        front = walls.setdefault("front", {})
+        if not isinstance(front, dict):
+            front = {}
+            walls["front"] = front
+        slots = list(front.get("slots") or [])
+        slots.extend(front_openings)
+        front["slots"] = slots
     if lid_raw == "open":
         box["top"] = False
         box["lid"] = False

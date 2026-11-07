@@ -40,6 +40,9 @@ const state = {
   asmTimer: null,
   asmAnim: null,
   asmPlayToken: 0,
+  videoExporting: false,
+  videoRecorder: null,
+  videoChunks: null,
   woodMate: null,
   histAbort: null,
   histLoading: false,
@@ -334,7 +337,12 @@ let view = {};
 
 function buildScene() {
   const canvas = $("viewport");
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+  const renderer = new THREE.WebGLRenderer({
+    canvas,
+    antialias: true,
+    alpha: false,
+    preserveDrawingBuffer: true, // MediaRecorder / canvas capture for video export
+  });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.setClearColor(document.documentElement.getAttribute("data-theme") === "light" ? 0xd9d3c8 : 0x0f1419, 1);
   const scene = new THREE.Scene();
@@ -1260,6 +1268,249 @@ async function playAssemblyAnimation() {
   await setAssemblyStep(total, false);
   fitCamera();
   setStatus("Montaj animasyonu bitti — dijital sıra. Fiziksel NOT_VERIFIED.", "ok");
+}
+
+function pickVideoMime() {
+  if (typeof MediaRecorder === "undefined") return "";
+  const candidates = [
+    "video/webm;codecs=vp9",
+    "video/webm;codecs=vp8",
+    "video/webm",
+    "video/mp4",
+  ];
+  for (const type of candidates) {
+    try {
+      if (MediaRecorder.isTypeSupported(type)) return type;
+    } catch (_) { /* ignore */ }
+  }
+  return "";
+}
+
+function videoFileExt(mime) {
+  if (String(mime || "").includes("mp4")) return "mp4";
+  return "webm";
+}
+
+function setVideoExportUi(busy) {
+  ["export-video", "export-video-hud"].forEach((id) => {
+    const el = $(id);
+    if (!el) return;
+    el.disabled = !!busy;
+    el.textContent = busy ? (id === "export-video-hud" ? "■ Dur" : "Video kaydediliyor…") : "Video indir";
+  });
+}
+
+function stopVideoRecorder(save) {
+  const rec = state.videoRecorder;
+  state.videoRecorder = null;
+  if (!rec) {
+    state.videoExporting = false;
+    setVideoExportUi(false);
+    return Promise.resolve(null);
+  }
+  return new Promise((resolve) => {
+    rec.onstop = () => {
+      const chunks = state.videoChunks || [];
+      state.videoChunks = null;
+      state.videoExporting = false;
+      setVideoExportUi(false);
+      if (!save || !chunks.length) {
+        resolve(null);
+        return;
+      }
+      const mime = rec.mimeType || "video/webm";
+      resolve(new Blob(chunks, { type: mime }));
+    };
+    try {
+      if (rec.state !== "inactive") rec.stop();
+      else {
+        state.videoExporting = false;
+        setVideoExportUi(false);
+        resolve(null);
+      }
+    } catch (_) {
+      state.videoExporting = false;
+      setVideoExportUi(false);
+      resolve(null);
+    }
+  });
+}
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+
+async function orbitTurntable(seconds, token) {
+  if (!view.camera || !view.controls) return;
+  const cam = view.camera;
+  const controls = view.controls;
+  const target = controls.target.clone();
+  const offset = cam.position.clone().sub(target);
+  const radius = Math.max(40, offset.length());
+  const baseTheta = Math.atan2(offset.x, offset.z);
+  const elev = offset.y;
+  const start = performance.now();
+  const dur = Math.max(400, seconds * 1000);
+  await new Promise((resolve) => {
+    const tick = (now) => {
+      if (!state.videoExporting || state.asmPlayToken !== token) {
+        resolve();
+        return;
+      }
+      const u = Math.min(1, (now - start) / dur);
+      const theta = baseTheta + u * Math.PI * 2;
+      cam.position.set(
+        target.x + Math.sin(theta) * radius,
+        target.y + elev,
+        target.z + Math.cos(theta) * radius
+      );
+      cam.lookAt(target);
+      controls.update();
+      if (u < 1) requestAnimationFrame(tick);
+      else resolve();
+    };
+    requestAnimationFrame(tick);
+  });
+}
+
+async function runAssemblyForVideo(token) {
+  const guide = state.assemblyGuide;
+  const total = ((guide && guide.assembly_order) || []).length;
+  const controlsOn = view.controls ? view.controls.enabled : true;
+  if (view.controls) view.controls.enabled = false;
+
+  try {
+    state.meshes.forEach((g) => setPanelMaterial(g, "seated"));
+    if ($("explode")) {
+      $("explode").value = "60";
+      $("explode-lab").textContent = "60%";
+    }
+    applyExplode(0.6);
+    fitCamera();
+    await sleep(700);
+    if (!state.videoExporting || state.asmPlayToken !== token) return false;
+
+    state.asmPlaying = true;
+    if (total > 0) {
+      await setAssemblyStep(0, false);
+      fitCameraSoon();
+      await sleep(400);
+      for (let step = 1; step <= total; step += 1) {
+        if (!state.videoExporting || state.asmPlayToken !== token) return false;
+        await setAssemblyStep(step, true);
+        fitCameraSoon();
+        if (step < total) await sleep(550);
+      }
+      if (!state.videoExporting || state.asmPlayToken !== token) return false;
+      await setAssemblyStep(total, false);
+    }
+    if ($("explode")) {
+      $("explode").value = "0";
+      $("explode-lab").textContent = "0%";
+    }
+    applyExplode(0);
+    fitCamera();
+    await sleep(600);
+    if (!state.videoExporting || state.asmPlayToken !== token) return false;
+    await orbitTurntable(4.5, token);
+    if (!state.videoExporting || state.asmPlayToken !== token) return false;
+    await sleep(500);
+    return true;
+  } finally {
+    if (view.controls) view.controls.enabled = controlsOn;
+  }
+}
+
+async function exportProjectVideo() {
+  if (state.videoExporting) {
+    state.videoExporting = false;
+    stopAssemblyPlay();
+    await stopVideoRecorder(false);
+    setStatus("Video kaydı iptal edildi.", "bad");
+    return;
+  }
+  if (!view.canvas || !state.assembly || !(state.assembly.panels || []).length) {
+    setStatus("Önce kutu üret — 3D montaj yok, video alınamaz.", "bad");
+    return;
+  }
+  if (typeof MediaRecorder === "undefined" || typeof view.canvas.captureStream !== "function") {
+    setStatus("Bu tarayıcı video kaydını desteklemiyor (MediaRecorder).", "bad");
+    return;
+  }
+  const mime = pickVideoMime();
+  if (!mime) {
+    setStatus("Desteklenen video formatı yok (WebM/MP4).", "bad");
+    return;
+  }
+
+  stopAssemblyPlay();
+  const token = (state.asmPlayToken || 0) + 1;
+  state.asmPlayToken = token;
+  state.videoExporting = true;
+  state.videoChunks = [];
+  setVideoExportUi(true);
+  setStatus("Video kaydı başladı — montaj + tur…", "ok");
+
+  let stream;
+  try {
+    stream = view.canvas.captureStream(30);
+  } catch (err) {
+    state.videoExporting = false;
+    setVideoExportUi(false);
+    setStatus("Canvas yakalanamadı: " + (err && err.message ? err.message : err), "bad");
+    return;
+  }
+
+  let recorder;
+  try {
+    recorder = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 6_000_000 });
+  } catch (_) {
+    try {
+      recorder = new MediaRecorder(stream);
+    } catch (err) {
+      state.videoExporting = false;
+      setVideoExportUi(false);
+      stream.getTracks().forEach((t) => t.stop());
+      setStatus("MediaRecorder açılamadı: " + (err && err.message ? err.message : err), "bad");
+      return;
+    }
+  }
+  state.videoRecorder = recorder;
+  recorder.ondataavailable = (ev) => {
+    if (ev.data && ev.data.size > 0) (state.videoChunks || []).push(ev.data);
+  };
+  try {
+    recorder.start(250);
+  } catch (err) {
+    state.videoExporting = false;
+    state.videoRecorder = null;
+    setVideoExportUi(false);
+    stream.getTracks().forEach((t) => t.stop());
+    setStatus("Kayıt başlatılamadı: " + (err && err.message ? err.message : err), "bad");
+    return;
+  }
+
+  const ok = await runAssemblyForVideo(token);
+  stopAssemblyPlay();
+  const blob = await stopVideoRecorder(ok);
+  stream.getTracks().forEach((t) => t.stop());
+
+  if (!ok || !blob || blob.size < 64) {
+    setStatus(ok ? "Video boş kaldı — tekrar dene." : "Video kaydı yarıda kesildi.", "bad");
+    return;
+  }
+  const base = String(state.fileId || "studio-box").replace(/\.(svg|dxf|stl)$/i, "");
+  const name = base + "-montaj." + videoFileExt(blob.type || mime);
+  downloadBlob(blob, name);
+  setStatus("Video indirildi: " + name + " — dijital montaj. Fiziksel NOT_VERIFIED.", "ok");
+  if ($("sum-export")) $("sum-export").textContent = "video + svg";
 }
 
 function loadAssembly(assembly) {
@@ -2227,6 +2478,9 @@ function wireUi() {
     fitCamera();
   };
   if ($("asm-play")) $("asm-play").onclick = () => playAssemblyAnimation();
+  const onExportVideo = () => exportProjectVideo();
+  if ($("export-video")) $("export-video").onclick = onExportVideo;
+  if ($("export-video-hud")) $("export-video-hud").onclick = onExportVideo;
   if ($("asm-prev")) {
     $("asm-prev").onclick = () => {
       stopAssemblyPlay();

@@ -380,7 +380,8 @@
             <button class="btn ghost" type="button" id="undo-box">Geri al</button>
             <button class="btn cut" type="button" id="make-box">Kaydet ve indir</button>
           </div>
-          <p class="hint" id="export-hint">Canlı önizleme kaydetmez. Çıktı için «Kaydet ve indir».</p>
+          <button class="btn cut" type="button" id="export-video" title="3D montaj + tur videosu (WebM)" style="width:100%;margin-top:8px">Video indir</button>
+          <p class="hint" id="export-hint">Canlı önizleme kaydetmez. «Kaydet ve indir» = SVG/DXF · «Video indir» = 3D montaj WebM.</p>
         </div>
         <div class="pane" id="pane-makers">
           <p class="hint">Hazır parametrik süs / kuş evi. Ürün bunları biliyor — AI yok, prompt yok, API $0.</p>
@@ -494,6 +495,7 @@
         <a class="btn ghost hide" id="dl-svg" href="#" download>SVG indir</a>
         <a class="btn ghost hide" id="dl-dxf" href="#" download>DXF indir</a>
         <a class="btn ghost hide" id="open-edit" href="#">2D editör</a>
+        <p class="hint" id="video-hint">Video = sol paneldeki «Video indir» veya 3D HUD’daki 🎬. Fiziksel NOT_VERIFIED.</p>
         <label style="margin-top:12px">MCP dosya kimliği
           <input id="mcp-file-id" type="text" placeholder="create-design-….svg">
         </label>
@@ -518,10 +520,11 @@
               <button type="button" class="btn ghost" id="asm-prev" title="Önceki adım">◀</button>
               <button type="button" class="btn cut" id="asm-play" title="Montaj animasyonu">▶ Oynat</button>
               <button type="button" class="btn ghost" id="asm-next" title="Sonraki adım">▶</button>
+              <button type="button" class="btn cut" id="export-video-hud" title="Montaj videosu indir">Video indir</button>
               <input id="asm-step" type="range" min="0" max="1" value="0" style="width:110px">
               <span id="asm-step-lab" class="hud-note">0/0</span>
             </div>
-            <span class="hud-note">Oynat = montaj · Explode = ayrıştır / düz nest</span>
+            <span class="hud-note">Oynat = montaj · Video = WebM indir · Explode = ayrıştır</span>
           </div>
         </div>
       </main>
@@ -577,7 +580,7 @@
     }
   }
   </script>
-  <script type="module" src="/studio-3d.js?v=21"></script>
+  <script type="module" src="/studio-3d.js?v=23"></script>
   <script src="/nav-auth.js?v=5"></script>
 </body>
 </html>

@@ -846,7 +846,13 @@ class PayasToolbox(Boxes):
 
             return _cb
 
-        def _x_div_wall_fn():
+        drawer_specs = part.get("drawer_specs") if isinstance(part.get("drawer_specs"), list) else []
+        drawers_on = bool(part.get("drawers")) and bool(drawer_specs)
+
+        def _x_div_wall_fn(*, for_front: bool = False):
+            # Front face with drawers uses full cubby openings instead of finger strips.
+            if for_front and drawers_on:
+                return None
             if not (joint_walls and x_div_pos):
                 return None
 
@@ -899,7 +905,9 @@ class PayasToolbox(Boxes):
 
             return _cb
 
-        def _shelf_wall_fn(length: float):
+        def _shelf_wall_fn(length: float, *, for_front: bool = False):
+            if for_front and drawers_on:
+                return None
             if not shelf_z:
                 return None
 
@@ -909,10 +917,38 @@ class PayasToolbox(Boxes):
 
             return _cb
 
+        def _drawer_opening_fn():
+            if not drawers_on:
+                return None
+            slots = []
+            front_wall = wall("front")
+            for slot in front_wall.get("slots") or []:
+                if isinstance(slot, dict) and str(slot.get("semantic_role") or "") == "drawer_opening":
+                    slots.append(slot)
+            if not slots:
+                return None
+
+            def _cb() -> None:
+                for slot in slots:
+                    self.rectangularHole(
+                        float(slot["x"]),
+                        float(slot["y"]),
+                        float(slot["w"]),
+                        float(slot["h"]),
+                        r=0,
+                    )
+
+            return _cb
+
         self.rectangularWall(
             x, h, f"{b}F{wall_top}F", ignore_widths=ignore,
             callback=_pack_edge0(
-                self._wall_cb(wall("front")), _raised_fn(x), _x_div_wall_fn(), _sliding_rail_fn(x), _shelf_wall_fn(x)
+                self._wall_cb(wall("front")),
+                _raised_fn(x),
+                _x_div_wall_fn(for_front=True),
+                _sliding_rail_fn(x),
+                _shelf_wall_fn(x, for_front=True),
+                _drawer_opening_fn(),
             ),
             move="up", label="front",
         )
@@ -920,7 +956,7 @@ class PayasToolbox(Boxes):
         self.rectangularWall(
             x, h, f"{b}F{wall_top}F", ignore_widths=ignore,
             callback=_pack_edge0(
-                self._wall_cb(wall("back")), _raised_fn(x), _x_div_wall_fn(), _sliding_rail_fn(x), _shelf_wall_fn(x)
+                self._wall_cb(wall("back")), _raised_fn(x), _x_div_wall_fn(for_front=False), _sliding_rail_fn(x), _shelf_wall_fn(x)
             ),
             move="up", label="back",
         )
@@ -957,9 +993,13 @@ class PayasToolbox(Boxes):
         shelf_local_z = [max(t, z - raised) for z in shelf_z]
 
         def _divider_edges() -> str:
-            # edge0 bottom → bottom panel; edge1 right / edge3 left → walls; edge2 top open.
+            # edge0 bottom → bottom panel; edge1 right=back / edge3 left=front; edge2 top open.
             # Was "fefe" (straight wall sides) = glue look. Use fingers into fingerHolesAt.
             b_e = "f" if joint_bottom else "e"
+            if drawers_on:
+                # Open cubbies: no front finger strip — back wall still geçme.
+                back_e = "f" if joint_walls else "e"
+                return f"{b_e}{back_e}ee"
             w_e = "f" if joint_walls else "e"
             return f"{b_e}{w_e}e{w_e}"
 
@@ -1022,16 +1062,17 @@ class PayasToolbox(Boxes):
             )
             self._note_part(f"divider-y-{i}")
         # Horizontal shelves: finger into walls + slots for vertical dividers.
+        # With drawers, front edge is open so cubby mouths stay clear.
+        shelf_edges = "efff" if drawers_on else "ffff"
         for i, _z in enumerate(shelf_z, 1):
             self.rectangularWall(
-                x, y, "ffff",
+                x, y, shelf_edges,
                 callback=_pack_edge0(_shelf_divider_slots_cb()),
                 move="up", label=f"shelf-{i}",
             )
             self._note_part(f"shelf-{i}")
 
-        # Open tray drawers sized to each cubby — nest-only (not glued into the carcass).
-        drawer_specs = part.get("drawer_specs") if isinstance(part.get("drawer_specs"), list) else []
+        # Open tray drawers sized to each cubby — seated in assembly; nest on the sheet.
         for spec in drawer_specs:
             if not isinstance(spec, dict):
                 continue
