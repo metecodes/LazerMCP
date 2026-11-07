@@ -15,6 +15,16 @@ const state = {
   woodHi: null,
   woodGhost: null,
   ghostLid: null,
+  ghostLidAnim: null,
+  edgeGhost: null,
+  handles: [],
+  handleRoot: null,
+  handleMat: null,
+  handleMatHot: null,
+  drag: null,
+  dividerDrag: null,
+  sx: null,
+  sy: null,
   undo: [],
   flatLayouts: [],
   summary: null,
@@ -48,8 +58,19 @@ function panelRole(partId) {
   for (const key of Object.keys(PANEL_DIMS)) {
     if (leaf.includes(key)) return key;
   }
-  if (leaf.includes("divider")) return "other";
+  if (/divider-x/.test(leaf)) return "divider-x";
+  if (/divider-y/.test(leaf)) return "divider-y";
+  if (leaf.includes("divider")) return "divider";
   return "other";
+}
+
+function parseDividerMeta(partId) {
+  const leaf = String(partId || "").toLowerCase().split("/").pop() || "";
+  let m = leaf.match(/divider-x-(\d+)/);
+  if (m) return { axis: "x", index: Number(m[1]) - 1 };
+  m = leaf.match(/divider-y-(\d+)/);
+  if (m) return { axis: "y", index: Number(m[1]) - 1 };
+  return null;
 }
 
 function linkedDims(partId) {
@@ -75,6 +96,10 @@ function setLoading(on, text) {
 }
 
 function clearGhostLid() {
+  if (state.ghostLidAnim) {
+    cancelAnimationFrame(state.ghostLidAnim);
+    state.ghostLidAnim = null;
+  }
   if (!state.ghostLid || !view.root) return;
   view.root.remove(state.ghostLid);
   state.ghostLid.traverse((obj) => {
@@ -83,10 +108,29 @@ function clearGhostLid() {
   state.ghostLid = null;
 }
 
+function assemblyAnchor() {
+  // Prefer bottom panel world pose so ghost lid sits on the live box, not a guess origin.
+  let bottom = null;
+  for (const g of state.meshes || []) {
+    if (g.userData && g.userData.role === "bottom") {
+      bottom = g;
+      break;
+    }
+  }
+  if (bottom && bottom.userData.baseMatrix) {
+    const pos = new THREE.Vector3().setFromMatrixPosition(bottom.userData.baseMatrix);
+    return { x: pos.x, y: pos.y, z: pos.z };
+  }
+  return null;
+}
+
 function showOptimisticLid() {
   clearGhostLid();
   const lid = ($("box-lid") && $("box-lid").value) || "open";
-  if (lid === "open") return;
+  if (lid === "open") {
+    // Open = hide any prior ghost immediately so the viewport feels responsive.
+    return;
+  }
   const x = Number($("box-x").value) || 100;
   const y = Number($("box-y").value) || 80;
   const h = Number($("box-h").value) || 40;
@@ -97,35 +141,88 @@ function showOptimisticLid() {
   const hi = mode === "external" ? Math.max(8, h - t) : h;
   if (!state.woodGhost) {
     state.woodGhost = new THREE.MeshStandardMaterial({
-      color: 0x3d8bfd,
+      color: 0x2f6fed,
       transparent: true,
-      opacity: 0.45,
-      roughness: 0.7,
-      metalness: 0.05,
+      opacity: 0.55,
+      roughness: 0.65,
+      metalness: 0.08,
       depthWrite: false,
     });
+  }
+  if (!state.edgeGhost) {
+    state.edgeGhost = new THREE.LineBasicMaterial({ color: 0x9ec1ff, transparent: true, opacity: 0.9 });
   }
   const doors = lid === "double_door" ? 2 : 1;
   const group = new THREE.Group();
   group.userData.ghost = true;
-  if (doors === 1) {
-    const geom = new THREE.BoxGeometry(xi, yi, t);
+  group.userData.lidType = lid;
+
+  function addPlate(w, d, cx, cy, cz) {
+    const holder = new THREE.Group();
+    holder.position.set(cx, cy, cz);
+    holder.userData.base = { x: cx, y: cy, z: cz, w, d };
+    const geom = new THREE.BoxGeometry(w, d, t);
     const mesh = new THREE.Mesh(geom, state.woodGhost);
-    mesh.position.set(xi / 2, yi / 2, hi + t / 2);
-    group.add(mesh);
-  } else {
-    const half = (xi - t) / 2;
-    const left = new THREE.Mesh(new THREE.BoxGeometry(half, yi, t), state.woodGhost);
-    left.position.set(half / 2, yi / 2, hi + t / 2);
-    const right = new THREE.Mesh(new THREE.BoxGeometry(half, yi, t), state.woodGhost);
-    right.position.set(half + t + half / 2, yi / 2, hi + t / 2);
-    group.add(left);
-    group.add(right);
+    const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geom), state.edgeGhost);
+    holder.add(mesh);
+    holder.add(edges);
+    group.add(holder);
+    return holder;
   }
-  // Align ghost with typical assembly origin (bottom front-left-ish)
-  group.position.set(-xi / 2, -yi / 2, 0);
+
+  const zClosed = hi + t / 2;
+  const plates = [];
+  if (doors === 1) {
+    plates.push(addPlate(xi, yi, xi / 2, yi / 2, zClosed));
+  } else {
+    const half = Math.max(8, (xi - t) / 2);
+    plates.push(addPlate(half, yi, half / 2, yi / 2, zClosed));
+    plates.push(addPlate(half, yi, half + t + half / 2, yi / 2, zClosed));
+  }
+
+  const anchor = assemblyAnchor();
+  if (anchor) {
+    group.position.set(anchor.x, anchor.y, anchor.z);
+  } else {
+    group.position.set(-xi / 2, -yi / 2, 0);
+  }
   view.root.add(group);
   state.ghostLid = group;
+  rebuildResizeHandles();
+
+  // Per-type motion so lid change is readable before the SVG rebuild returns.
+  const start = performance.now();
+  const duration = 420;
+  const tick = (now) => {
+    if (!state.ghostLid) return;
+    const u = Math.min(1, (now - start) / duration);
+    const e = 1 - Math.pow(1 - u, 3);
+    plates.forEach((holder) => {
+      const b = holder.userData.base;
+      holder.rotation.set(0, 0, 0);
+      holder.position.set(b.x, b.y, b.z);
+      if (lid === "hinged" || lid === "double_door") {
+        const angle = -e * (Math.PI / 2.4);
+        // Pivot around back edge (local +Y)
+        holder.position.set(b.x, yi, zClosed);
+        holder.rotation.x = angle;
+        const child = holder.children[0];
+        if (child) child.position.set(0, b.y - yi, 0);
+        holder.children.forEach((c) => {
+          if (c !== child) c.position.set(0, b.y - yi, 0);
+        });
+      } else if (lid === "sliding") {
+        holder.position.set(b.x, b.y + e * (yi * 0.55), b.z + e * (t * 0.4));
+      } else if (lid === "removable") {
+        holder.position.set(b.x, b.y, b.z + e * (t * 4 + 8));
+      } else {
+        holder.position.set(b.x, b.y, b.z + e * (t * 1.6));
+      }
+    });
+    if (u < 1) state.ghostLidAnim = requestAnimationFrame(tick);
+    else state.ghostLidAnim = null;
+  };
+  state.ghostLidAnim = requestAnimationFrame(tick);
 }
 
 async function api(url, opts) {
@@ -217,12 +314,65 @@ function buildScene() {
 
   const ray = new THREE.Raycaster();
   const mouse = new THREE.Vector2();
-  canvas.addEventListener("pointerdown", (ev) => {
-    if (ev.button !== 0) return;
+  const dragPlane = new THREE.Plane();
+  const hitPoint = new THREE.Vector3();
+
+  function pointerNDC(ev) {
     const rect = canvas.getBoundingClientRect();
     mouse.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
     mouse.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
+  }
+
+  canvas.addEventListener("pointerdown", (ev) => {
+    if (ev.button !== 0) return;
+    pointerNDC(ev);
     ray.setFromCamera(mouse, camera);
+
+    // Resize handles first (lid sides)
+    const handleHits = state.handleRoot
+      ? ray.intersectObjects(state.handles, true)
+      : [];
+    if (handleHits.length) {
+      let h = handleHits[0].object;
+      while (h && !h.userData.resize) h = h.parent;
+      if (h && h.userData.resize) {
+        ev.preventDefault();
+        canvas.setPointerCapture(ev.pointerId);
+        const field = h.userData.field;
+        const axis = h.userData.axis;
+        const startVal = Number($(field).value) || 100;
+        const pivot = handleHits[0].point.clone();
+        if (axis === "z") {
+          const n = new THREE.Vector3(
+            camera.position.x - pivot.x,
+            camera.position.y - pivot.y,
+            0
+          );
+          if (n.lengthSq() < 1e-6) n.set(1, 0, 0);
+          else n.normalize();
+          dragPlane.setFromNormalAndCoplanarPoint(n, pivot);
+        } else {
+          dragPlane.setFromNormalAndCoplanarPoint(new THREE.Vector3(0, 0, 1), pivot);
+        }
+        ray.ray.intersectPlane(dragPlane, hitPoint);
+        state.drag = {
+          field,
+          axis,
+          sign: h.userData.sign,
+          startVal,
+          startPoint: hitPoint.clone(),
+          handle: h,
+        };
+        controls.enabled = false;
+        canvas.style.cursor = "grabbing";
+        if (state.handleMatHot) h.traverse((o) => {
+          if (o.isMesh) o.material = state.handleMatHot;
+        });
+        setStatus("Tut-çek: " + field.replace("box-", "").toUpperCase() + " · bırakınca paneller yenilenir", "ok");
+        return;
+      }
+    }
+
     const hits = ray.intersectObjects(state.meshes, true);
     if (!hits.length) {
       selectPanel(null);
@@ -231,11 +381,145 @@ function buildScene() {
     }
     let obj = hits[0].object;
     while (obj && !obj.userData.partId) obj = obj.parent;
+    if (obj && obj.userData.divider) {
+      ev.preventDefault();
+      canvas.setPointerCapture(ev.pointerId);
+      const div = obj.userData.divider;
+      const fp = boxFootprintMm();
+      const positions = (div.axis === "x"
+        ? (state.summary && state.summary.divider_x_pos) || []
+        : (state.summary && state.summary.divider_y_pos) || []).map(Number);
+      dragPlane.setFromNormalAndCoplanarPoint(new THREE.Vector3(0, 0, 1), hits[0].point.clone());
+      ray.ray.intersectPlane(dragPlane, hitPoint);
+      state.dividerDrag = {
+        group: obj,
+        axis: div.axis,
+        index: div.index,
+        positions: positions.slice(),
+        startPos: positions[div.index],
+        startPoint: hitPoint.clone(),
+        span: div.axis === "x" ? fp.xi : fp.yi,
+        thickness: fp.t,
+      };
+      controls.enabled = false;
+      canvas.style.cursor = "grabbing";
+      selectPanel(obj);
+      hideDimPop();
+      setStatus("Bölücüyü kaydır · hücre ≥ 8 mm · bırakınca yenilenir", "ok");
+      return;
+    }
     if (obj) {
       selectPanel(obj);
       openDimPop(obj, ev.clientX, ev.clientY);
     }
   });
+
+  canvas.addEventListener("pointermove", (ev) => {
+    pointerNDC(ev);
+    ray.setFromCamera(mouse, camera);
+    if (state.drag) {
+      if (!ray.ray.intersectPlane(dragPlane, hitPoint)) return;
+      const d = state.drag;
+      let deltaWorld = 0;
+      if (d.axis === "x") deltaWorld = hitPoint.x - d.startPoint.x;
+      else if (d.axis === "y") deltaWorld = hitPoint.y - d.startPoint.y;
+      else deltaWorld = hitPoint.z - d.startPoint.z;
+      const lo = d.field === "box-h" ? 10 : 20;
+      const next = Math.round(Math.max(lo, Math.min(800, d.startVal + deltaWorld * d.sign)));
+      if (Number($(d.field).value) === next) return;
+      $(d.field).value = String(next);
+      applyLiveResizePreview(d.field, d.startVal, next);
+      $("sum-dims").textContent = d.field.replace("box-", "").toUpperCase() + " → " + next + " mm";
+      return;
+    }
+    if (state.dividerDrag) {
+      if (!ray.ray.intersectPlane(dragPlane, hitPoint)) return;
+      const d = state.dividerDrag;
+      const delta = d.axis === "x"
+        ? (hitPoint.x - d.startPoint.x)
+        : (hitPoint.y - d.startPoint.y);
+      const t = d.thickness;
+      const minP = t / 2 + 8;
+      const maxP = d.span - t / 2 - 8;
+      let next = Math.round((d.startPos + delta) * 10) / 10;
+      next = Math.max(minP, Math.min(maxP, next));
+      // Keep clear of neighboring dividers
+      const prev = d.index > 0 ? d.positions[d.index - 1] : null;
+      const nxt = d.index < d.positions.length - 1 ? d.positions[d.index + 1] : null;
+      if (prev != null) next = Math.max(next, prev + t + 8);
+      if (nxt != null) next = Math.min(next, nxt - t - 8);
+      d.positions[d.index] = next;
+      // Live translate divider mesh along axis from seated pose
+      if (d.group && d.group.userData.baseMatrix) {
+        const m = d.group.userData.baseMatrix.clone();
+        const shift = new THREE.Vector3(
+          d.axis === "x" ? (next - d.startPos) : 0,
+          d.axis === "y" ? (next - d.startPos) : 0,
+          0
+        );
+        m.setPosition(new THREE.Vector3().setFromMatrixPosition(m).add(shift));
+        d.group.matrix.copy(m);
+        d.group.matrixWorldNeedsUpdate = true;
+      }
+      $("sum-dims").textContent = "bölücü " + d.axis.toUpperCase() + (d.index + 1) + " → " + next + " mm";
+      return;
+    }
+    // Hover cursor on handles / dividers
+    const handleHits = state.handleRoot
+      ? ray.intersectObjects(state.handles, true)
+      : [];
+    if (handleHits.length) {
+      let h = handleHits[0].object;
+      while (h && !h.userData.resize) h = h.parent;
+      canvas.style.cursor = (h && h.userData.axis === "y") ? "ns-resize"
+        : (h && h.userData.axis === "z") ? "ns-resize"
+          : "ew-resize";
+      return;
+    }
+    const meshHits = ray.intersectObjects(state.meshes, true);
+    if (meshHits.length) {
+      let o = meshHits[0].object;
+      while (o && !o.userData.partId) o = o.parent;
+      canvas.style.cursor = (o && o.userData.divider) ? "grab" : "";
+    } else {
+      canvas.style.cursor = "";
+    }
+  });
+
+  function endDrag(ev) {
+    if (state.dividerDrag) {
+      const d = state.dividerDrag;
+      state.dividerDrag = null;
+      controls.enabled = true;
+      canvas.style.cursor = "";
+      try { canvas.releasePointerCapture(ev.pointerId); } catch (_) { /* ignore */ }
+      if (d.axis === "x") {
+        state.sx = null; // send positions instead
+        state.dividerXPos = d.positions.slice();
+      } else {
+        state.sy = null;
+        state.dividerYPos = d.positions.slice();
+      }
+      pushUndo();
+      scheduleRebuild(true);
+      return;
+    }
+    if (!state.drag) return;
+    const d = state.drag;
+    if (d.handle && state.handleMat) {
+      d.handle.traverse((o) => {
+        if (o.isMesh) o.material = state.handleMat;
+      });
+    }
+    state.drag = null;
+    controls.enabled = true;
+    canvas.style.cursor = "";
+    try { canvas.releasePointerCapture(ev.pointerId); } catch (_) { /* ignore */ }
+    pushUndo();
+    scheduleRebuild(true);
+  }
+  canvas.addEventListener("pointerup", endDrag);
+  canvas.addEventListener("pointercancel", endDrag);
 
   function frame() {
     controls.update();
@@ -245,7 +529,133 @@ function buildScene() {
   frame();
 }
 
+function clearResizeHandles() {
+  if (!state.handleRoot || !view.root) {
+    state.handles = [];
+    return;
+  }
+  view.root.remove(state.handleRoot);
+  state.handleRoot.traverse((obj) => {
+    if (obj.geometry) obj.geometry.dispose();
+  });
+  state.handleRoot = null;
+  state.handles = [];
+}
+
+function boxFootprintMm() {
+  const x = Number($("box-x").value) || 100;
+  const y = Number($("box-y").value) || 80;
+  const h = Number($("box-h").value) || 40;
+  const t = Number($("box-t").value) || 3;
+  const mode = ($("box-dims") && $("box-dims").value) || "internal";
+  const xi = mode === "external" ? Math.max(8, x - 2 * t) : x;
+  const yi = mode === "external" ? Math.max(8, y - 2 * t) : y;
+  const hi = mode === "external" ? Math.max(8, h - t) : h;
+  return { xi, yi, hi, t, x, y, h };
+}
+
+function rebuildResizeHandles() {
+  clearResizeHandles();
+  if (!view.root) return;
+  const lid = ($("box-lid") && $("box-lid").value) || "open";
+  // Handles sit on lid plane; if open, on the top rim so sides are still grabable.
+  const { xi, yi, hi, t } = boxFootprintMm();
+  if (!state.handleMat) {
+    state.handleMat = new THREE.MeshStandardMaterial({
+      color: 0x4ea1ff,
+      emissive: 0x12385c,
+      roughness: 0.45,
+      metalness: 0.2,
+    });
+  }
+  if (!state.handleMatHot) {
+    state.handleMatHot = new THREE.MeshStandardMaterial({
+      color: 0xffc857,
+      emissive: 0x5a3a00,
+      roughness: 0.4,
+      metalness: 0.15,
+    });
+  }
+  const root = new THREE.Group();
+  root.userData.handles = true;
+  const z = hi + t + 1.5;
+  const grip = Math.max(6, Math.min(14, Math.min(xi, yi) * 0.08));
+  const stick = Math.max(10, Math.min(22, Math.min(xi, yi) * 0.12));
+  const specs = [
+    { field: "box-x", axis: "x", sign: 1, pos: [xi + stick / 2, yi / 2, z], size: [stick, grip, grip], cursor: "ew-resize" },
+    { field: "box-x", axis: "x", sign: -1, pos: [-stick / 2, yi / 2, z], size: [stick, grip, grip], cursor: "ew-resize" },
+    { field: "box-y", axis: "y", sign: 1, pos: [xi / 2, yi + stick / 2, z], size: [grip, stick, grip], cursor: "ns-resize" },
+    { field: "box-y", axis: "y", sign: -1, pos: [xi / 2, -stick / 2, z], size: [grip, stick, grip], cursor: "ns-resize" },
+  ];
+  // Height grips on lid front/back corners when a lid exists (grow H)
+  if (lid !== "open") {
+    specs.push(
+      { field: "box-h", axis: "z", sign: 1, pos: [xi / 2, yi / 2, z + stick / 2], size: [grip, grip, stick], cursor: "ns-resize", plane: "z" }
+    );
+  }
+  specs.forEach((s) => {
+    const geom = new THREE.BoxGeometry(s.size[0], s.size[1], s.size[2]);
+    const mesh = new THREE.Mesh(geom, state.handleMat);
+    mesh.position.set(s.pos[0], s.pos[1], s.pos[2]);
+    mesh.userData.resize = true;
+    mesh.userData.field = s.field;
+    mesh.userData.axis = s.axis;
+    mesh.userData.sign = s.sign;
+    mesh.userData.plane = s.plane || "xy";
+    // Soft edge
+    const edges = new THREE.LineSegments(
+      new THREE.EdgesGeometry(geom),
+      new THREE.LineBasicMaterial({ color: 0xd7ebff })
+    );
+    mesh.add(edges);
+    root.add(mesh);
+    state.handles.push(mesh);
+  });
+  const anchor = assemblyAnchor();
+  if (anchor) root.position.set(anchor.x, anchor.y, anchor.z);
+  else root.position.set(-xi / 2, -yi / 2, 0);
+  view.root.add(root);
+  state.handleRoot = root;
+}
+
+function applyLiveResizePreview(field, fromVal, toVal) {
+  if (!fromVal || !toVal || fromVal === toVal) return;
+  const sx = field === "box-x" ? toVal / fromVal : 1;
+  const sy = field === "box-y" ? toVal / fromVal : 1;
+  const sz = field === "box-h" ? toVal / fromVal : 1;
+  // Scale seated assembly around box origin for instant feedback
+  state.meshes.forEach((group) => {
+    if (!group.userData.baseMatrix) return;
+    const m = group.userData.baseMatrix.clone();
+    const scale = new THREE.Matrix4().makeScale(sx, sy, sz);
+    // Prefer anchoring at current handle-root origin
+    const origin = state.handleRoot
+      ? state.handleRoot.position.clone()
+      : new THREE.Vector3();
+    const toLocal = new THREE.Matrix4().makeTranslation(-origin.x, -origin.y, -origin.z);
+    const toWorld = new THREE.Matrix4().makeTranslation(origin.x, origin.y, origin.z);
+    group.matrix.copy(toWorld.clone().multiply(scale).multiply(toLocal).multiply(m));
+    group.matrixWorldNeedsUpdate = true;
+  });
+  if (state.handleRoot) {
+    const { xi, yi, hi, t } = boxFootprintMm();
+    // Reposition grips to match live numbers without full rebuild
+    const z = hi + t + 1.5;
+    const stick = Math.max(10, Math.min(22, Math.min(xi, yi) * 0.12));
+    const grip = Math.max(6, Math.min(14, Math.min(xi, yi) * 0.08));
+    state.handles.forEach((mesh) => {
+      const f = mesh.userData.field;
+      const sign = mesh.userData.sign;
+      if (f === "box-x") mesh.position.set(sign > 0 ? xi + stick / 2 : -stick / 2, yi / 2, z);
+      else if (f === "box-y") mesh.position.set(xi / 2, sign > 0 ? yi + stick / 2 : -stick / 2, z);
+      else if (f === "box-h") mesh.position.set(xi / 2, yi / 2, z + stick / 2);
+      if (f === "box-x") mesh.scale.set(1, grip / Math.max(mesh.geometry.parameters.height, 1), grip / Math.max(mesh.geometry.parameters.depth, 1));
+    });
+  }
+}
+
 function clearMeshes() {
+  clearResizeHandles();
   state.meshes.forEach((g) => {
     view.root.remove(g);
     g.traverse((obj) => {
@@ -308,6 +718,12 @@ function openDimPop(group, _x, _y) {
 
 function paintSummary(summary) {
   state.summary = summary || null;
+  if (summary) {
+    if (Array.isArray(summary.sx)) state.sx = summary.sx.slice();
+    if (Array.isArray(summary.sy)) state.sy = summary.sy.slice();
+    if (Array.isArray(summary.divider_x_pos)) state.dividerXPos = summary.divider_x_pos.slice();
+    if (Array.isArray(summary.divider_y_pos)) state.dividerYPos = summary.divider_y_pos.slice();
+  }
   if (!summary) {
     $("sum-inner").textContent = "—";
     $("sum-outer").textContent = "—";
@@ -355,6 +771,8 @@ function loadAssembly(assembly) {
     group.userData.partId = panel.part_id;
     group.userData.role = panelRole(panel.part_id);
     group.userData.baseMatrix = matrix.clone();
+    const divMeta = parseDividerMeta(panel.part_id);
+    if (divMeta) group.userData.divider = divMeta;
 
     const seated = new THREE.Vector3().setFromMatrixPosition(matrix);
     const [cx, cy] = centroidLocal(panel.outline_local_mm || [[0, 0]]);
@@ -379,16 +797,48 @@ function loadAssembly(assembly) {
     state.meshes.push(group);
   });
   applyExplode(Number($("explode").value || 0) / 100);
+  rebuildResizeHandles();
   fitCamera();
-  setStatus("Zoom ile incele. Panele tıkla. Ölçü → yalnız temas eden paneller yenilenir; kalınlık sabit.", "ok");
+  setStatus("Mavi tutamaç / bölücü tut-çek · panele tıkla = ölçü.", "ok");
   $("sum-panels").textContent = String(panels.length);
   $("sum-t").textContent = thickness + " mm";
   $("sum-val").textContent = assembly.validation_state || "—";
   $("sum-sel").textContent = "—";
   $("sum-dims").textContent = "—";
-  $("sum-note").textContent = assembly.note || "";
+  $("sum-note").textContent = assembly.note || "Kapak kenarı = boyut · bölücü = kaydır.";
   if ($("box-t") && thickness) $("box-t").value = String(thickness);
   if ($("stl-h") && thickness) $("stl-h").value = String(thickness);
+  paintNestStats();
+}
+
+function paintNestStats() {
+  const el = $("nest-stats");
+  if (!el) return;
+  const gap = Number(($("nest-gap") && $("nest-gap").value) || 6);
+  const panels = (state.assembly && state.assembly.panels) || [];
+  if (!panels.length) {
+    el.textContent = "Önce bir kutu üret. Nest özeti burada görünür.";
+    return;
+  }
+  let cursor = 0;
+  let maxD = 0;
+  let area = 0;
+  panels.forEach((panel) => {
+    const xs = (panel.outline_local_mm || []).map((p) => p[0]);
+    const ys = (panel.outline_local_mm || []).map((p) => p[1]);
+    if (!xs.length) return;
+    const w = Math.max(...xs) - Math.min(...xs);
+    const d = Math.max(...ys) - Math.min(...ys);
+    cursor += w + gap;
+    maxD = Math.max(maxD, d);
+    area += w * d;
+  });
+  const sheetW = Math.max(0, cursor - gap);
+  const t = Number((state.assembly && state.assembly.thickness_mm) || ($("box-t") && $("box-t").value) || 3);
+  el.textContent =
+    panels.length + " panel · nest ≈ " +
+    Math.round(sheetW) + " × " + Math.round(maxD) + " mm · " +
+    "boşluk " + gap + " mm · alan ≈ " + Math.round(area) + " mm² · t=" + t + " mm";
 }
 
 function applyExplode(t) {
@@ -437,10 +887,33 @@ function fitCamera() {
   view.controls.update();
 }
 
+function paintJoints(data) {
+  const el = $("sum-joints");
+  if (!el) return;
+  const joints = data.joints || (data.summary && data.summary.joints) || null;
+  if (!joints) {
+    el.textContent = "—";
+    return;
+  }
+  const bits = [
+    joints.status || "?",
+    "finger " + (joints.finger_mm != null ? joints.finger_mm + " mm" : "?"),
+    joints.style || "",
+    "kerf " + (joints.kerf_status || "?"),
+  ].filter(Boolean);
+  el.textContent = bits.join(" · ");
+  if (joints.physical_fit) {
+    $("sum-note").textContent =
+      (joints.warnings && joints.warnings[0]) ||
+      ("Finger/kerf dijital: " + joints.status + ". Fiziksel fit " + joints.physical_fit + ".");
+  }
+}
+
 function paintExports(data) {
   const fileId = data.file_id || (data.assembly && data.assembly.file_id);
   state.fileId = fileId;
   $("sum-file").textContent = fileId || "—";
+  paintJoints(data);
   const svg = $("dl-svg");
   const dxf = $("dl-dxf");
   const edit = $("open-edit");
@@ -529,6 +1002,21 @@ function boxBody() {
   };
   const burn = $("box-burn").value;
   if (burn !== "") body.burn = Number(burn);
+  // Custom divider layout from drag (positions preferred)
+  if (Array.isArray(state.dividerXPos) && state.dividerXPos.length) {
+    body.divider_x_mm = state.dividerXPos.slice();
+    body.dividers_x = state.dividerXPos.length;
+  } else if (Array.isArray(state.sx) && state.sx.length > 1) {
+    body.sx = state.sx.slice();
+    body.dividers_x = state.sx.length - 1;
+  }
+  if (Array.isArray(state.dividerYPos) && state.dividerYPos.length) {
+    body.divider_y_mm = state.dividerYPos.slice();
+    body.dividers_y = state.dividerYPos.length;
+  } else if (Array.isArray(state.sy) && state.sy.length > 1) {
+    body.sy = state.sy.slice();
+    body.dividers_y = state.sy.length - 1;
+  }
   return body;
 }
 
@@ -584,7 +1072,7 @@ function scheduleRebuild(immediate) {
   // Instant optimistic lid so the viewport reacts before the server returns.
   showOptimisticLid();
   setLoading(true, "Kapak / ölçü güncelleniyor…");
-  const delay = immediate ? 80 : 280;
+  const delay = immediate ? 40 : 220;
   state.rebuildTimer = setTimeout(() => {
     pushUndo();
     makeBox({ preview: true }).catch((err) => {
@@ -672,16 +1160,25 @@ function paintAiCost(data) {
   if (!el || !data) return;
   const studio = data.studio_ai || {};
   const mcp = data.mcp_host_ai || {};
-  const usd = (mcp.usd && mcp.usd.total != null) ? mcp.usd.total : null;
+  const keys = data.workshop_llm_keys || [];
+  const configured = keys.filter((k) => k.configured).map((k) => k.provider + ":" + (k.prefix || "ok"));
+  const studioUsd = (studio.usd && studio.usd.total != null) ? Number(studio.usd.total) : 0;
+  const mcpUsd = (mcp.usd && mcp.usd.total != null) ? Number(mcp.usd.total) : null;
   const tok = (mcp.tokens && mcp.tokens.input_total) || 0;
-  const q = (studio.quota) || {};
-  el.textContent =
-    "Stüdyo AI API: $0 (yerel). " +
-    "Aynı prompt MCP/" + (mcp.model_label || "model") + " ≈ $" +
-    (usd != null ? Number(usd).toFixed(5) : "?") +
-    " (~" + tok + " in tok). " +
+  const q = studio.quota || {};
+  const lines = [
+    "Stüdyo: " + (studio.uses_workshop_key
+      ? ("atölye " + (studio.provider || "LLM") + " ≈ $" + studioUsd.toFixed(5) + " (sizin API faturanız)")
+      : "yerel planner $0"),
+    "MCP host (" + (mcp.model_label || "model") + "): ≈ $" +
+      (mcpUsd != null ? mcpUsd.toFixed(5) : "?") + " · ~" + tok + " in tok",
     "Kota: " + (q.used != null ? q.used + "/" + (q.limit || "?") : "—") +
-    " · " + (data.recommendation || "");
+      (q.plan ? " · " + q.plan : ""),
+    "LLM anahtar: " + (configured.length ? configured.join(", ") : "yok → Hesap → LLM"),
+    data.recommendation || "",
+  ];
+  el.textContent = lines.filter(Boolean).join("\n");
+  el.style.whiteSpace = "pre-line";
 }
 
 let aiCostTimer = null;
@@ -791,6 +1288,92 @@ async function makeStl() {
   setStatus("STL hazır — ölçek mm. Baskı büzülmesi NOT_VERIFIED.", "ok");
 }
 
+function syncMakerFields() {
+  const kind = ($("maker-kind") && $("maker-kind").value) || "name_ornament";
+  const name = $("maker-fields-name");
+  const bird = $("maker-fields-bird");
+  const xmas = $("maker-fields-xmas");
+  if (name) name.classList.toggle("hide", kind !== "name_ornament");
+  if (bird) bird.classList.toggle("hide", kind !== "birdhouse");
+  if (xmas) xmas.classList.toggle("hide", kind !== "christmas");
+  const hole = $("maker-hole");
+  if (hole) hole.closest("label").classList.toggle("hide", kind === "birdhouse");
+  const note = $("maker-note");
+  if (note) {
+    if (kind === "birdhouse") note.textContent = "Boxes.py BirdHouse — finger-joint. AI yok.";
+    else if (kind === "christmas") note.textContent = "Yıldız / daire ası süsü — parametrik, AI yok.";
+    else note.textContent = "İsim süsü + ası deliği + kazıma yazı. Fiziksel kuruluk NOT_VERIFIED.";
+  }
+}
+
+function makerBody() {
+  const kind = ($("maker-kind") && $("maker-kind").value) || "name_ornament";
+  const body = {
+    maker: kind,
+    thickness: Number(($("maker-t") && $("maker-t").value) || 3),
+  };
+  if (kind === "name_ornament") {
+    body.text = ($("maker-text") && $("maker-text").value) || "LaserMCP";
+    body.width = Number(($("maker-w") && $("maker-w").value) || 120);
+    body.height = Number(($("maker-h") && $("maker-h").value) || 40);
+    body.hang_hole_mm = Number(($("maker-hole") && $("maker-hole").value) || 4);
+  } else if (kind === "birdhouse") {
+    body.x = Number(($("maker-bx") && $("maker-bx").value) || 120);
+    body.y = Number(($("maker-by") && $("maker-by").value) || 100);
+    body.h = Number(($("maker-bh") && $("maker-bh").value) || 100);
+    body.roof_overhang = Number(($("maker-overhang") && $("maker-overhang").value) || 0.4);
+  } else {
+    body.shape = ($("maker-shape") && $("maker-shape").value) || "star";
+    body.text = ($("maker-xtext") && $("maker-xtext").value) || "";
+    body.size = Number(($("maker-size") && $("maker-size").value) || 80);
+    body.hang_hole_mm = Number(($("maker-hole") && $("maker-hole").value) || 4);
+  }
+  return body;
+}
+
+async function makeMaker() {
+  const btn = $("make-maker");
+  if (btn) btn.disabled = true;
+  setLoading(true, "Parametrik süs üretiliyor…");
+  setStatus("Hazır maker — AI yok…");
+  try {
+    const { data } = await api("/api/studio/maker", {
+      method: "POST",
+      body: JSON.stringify(makerBody()),
+    });
+    if (!data.success && data.ok === false) {
+      setStatus((data.look_again || []).join(" ") || "Kota veya plan engeli.", "bad");
+      paintExports(data);
+      return;
+    }
+    if (!data.success) {
+      setStatus((data.look_again || []).join(" ") || "Üretim başarısız.", "bad");
+      return;
+    }
+    paintExports(data);
+    const panels = data.assembly && data.assembly.panels;
+    if (panels && panels.length) {
+      loadAssembly(data.assembly);
+    } else {
+      clearMeshes();
+      setStatus("SVG/DXF hazır (düz nest). 3D montaj bu maker için zorunlu değil.", "ok");
+      $("sum-note").textContent = (data.summary && data.summary.maker)
+        ? ("Maker: " + data.summary.maker + " · AI: hayır")
+        : "Parametrik maker · AI yok";
+    }
+    if (data.file_id) {
+      history.replaceState(null, "", "/studio?file=" + encodeURIComponent(data.file_id));
+    }
+    const label = (data.summary && data.summary.maker) || "maker";
+    setStatus("Parametrik " + label + " hazır — AI kullanılmadı.", "ok");
+    $("sum-plan").textContent = "parametric_maker";
+    $("sum-val").textContent = data.final_status || "DIGITAL_PROTOTYPE";
+  } finally {
+    setLoading(false);
+    if (btn) btn.disabled = false;
+  }
+}
+
 function wireUi() {
   document.querySelectorAll(".tabs button").forEach((btn) => {
     btn.onclick = () => {
@@ -798,6 +1381,7 @@ function wireUi() {
       btn.classList.add("on");
       document.querySelectorAll(".pane").forEach((p) => p.classList.remove("on"));
       $("pane-" + btn.dataset.tab).classList.add("on");
+      if (btn.dataset.tab === "makers") syncMakerFields();
     };
   });
   $("box-lid").onchange = () => {
@@ -810,10 +1394,21 @@ function wireUi() {
   ].forEach((id) => {
     const el = $(id);
     if (!el) return;
-    el.addEventListener("change", scheduleRebuild);
+    const onChange = () => {
+      if (id === "box-dx") {
+        state.dividerXPos = null;
+        state.sx = null;
+      }
+      if (id === "box-dy") {
+        state.dividerYPos = null;
+        state.sy = null;
+      }
+      scheduleRebuild();
+    };
+    el.addEventListener("change", onChange);
     el.addEventListener("input", () => {
       if (id === "box-burn") return;
-      scheduleRebuild();
+      onChange();
     });
   });
   $("box-bumps").onchange = scheduleRebuild;
@@ -838,12 +1433,49 @@ function wireUi() {
   };
   $("make-ai").onclick = makeAi;
   $("make-stl").onclick = makeStl;
+  if ($("maker-kind")) {
+    $("maker-kind").onchange = syncMakerFields;
+    syncMakerFields();
+  }
+  if ($("make-maker")) $("make-maker").onclick = () => makeMaker().catch((e) => setStatus(String(e), "bad"));
+  if ($("nest-flat")) {
+    $("nest-flat").onclick = () => {
+      $("explode").value = "100";
+      $("explode-lab").textContent = "100% düz";
+      applyExplode(1);
+      paintNestStats();
+      setStatus("Düz nest yerleşimi — paneller yan yana.", "ok");
+    };
+  }
+  if ($("nest-assemble")) {
+    $("nest-assemble").onclick = () => {
+      $("explode").value = "0";
+      $("explode-lab").textContent = "0%";
+      applyExplode(0);
+      setStatus("Montaj görünümü.", "ok");
+    };
+  }
+  if ($("nest-gap")) {
+    $("nest-gap").onchange = () => {
+      // Gap is visual estimate in nest stats; flat layout uses fixed gap in loadAssembly.
+      paintNestStats();
+    };
+  }
   if ($("ai-file")) $("ai-file").onchange = () => { onAiFileChange().catch((e) => setStatus(String(e), "bad")); };
+  if ($("ai-file-clear")) {
+    $("ai-file-clear").onclick = () => {
+      state.attach = null;
+      if ($("ai-file")) $("ai-file").value = "";
+      $("ai-file-name").textContent = "Dosya yok — yalnız prompt da olur.";
+      scheduleAiCost();
+    };
+  }
   if ($("ai-cost-btn")) $("ai-cost-btn").onclick = () => estimateAiCost().catch((e) => setStatus(String(e), "bad"));
   if ($("ai-prompt")) {
     $("ai-prompt").addEventListener("input", scheduleAiCost);
   }
   if ($("ai-model")) $("ai-model").onchange = scheduleAiCost;
+  if ($("ai-w")) $("ai-w").addEventListener("change", scheduleAiCost);
   $("dim-pop-cancel").onclick = hideDimPop;
   $("dim-pop-apply").onclick = () => {
     const field = $("dim-pop").dataset.field;
@@ -865,6 +1497,17 @@ function wireUi() {
       $("undo-box").click();
     }
   });
+  if ($("mcp-open")) {
+    $("mcp-open").onclick = () => {
+      const id = String(($("mcp-file-id") && $("mcp-file-id").value) || "").trim();
+      if (!id) {
+        setStatus("MCP file_id gir.", "bad");
+        return;
+      }
+      history.replaceState(null, "", "/studio?file=" + encodeURIComponent(id));
+      loadFile(id).catch((e) => setStatus(String(e), "bad"));
+    };
+  }
 }
 
 async function loadFile(fileId) {

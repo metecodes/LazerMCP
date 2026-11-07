@@ -103,16 +103,33 @@
         <button class="btn" type="button" id="request-go">Talep aç</button>
         <p class="ok" id="request-note-out"></p>
       </div>
+      <div id="llm-keys" style="margin-top:22px;padding-top:16px;border-top:1px solid var(--line)">
+        <p class="kicker" style="margin:0 0 8px;font:11px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--cut)">LLM anahtarı</p>
+        <p class="lede" id="llm-lede">OpenAI / Claude — atölyenin girdiği harici API anahtarı. LaserMCP platform (lzr_) anahtarı değil. Fatura sağlayıcıya gider.</p>
+        <div id="llm-status" class="lede" style="margin:8px 0"></div>
+        <div id="llm-box" class="hide" style="margin-top:12px">
+          <select id="llm-provider">
+            <option value="openai">OpenAI</option>
+            <option value="anthropic">Anthropic (Claude)</option>
+          </select>
+          <input id="llm-key" type="password" autocomplete="off" placeholder="sk-… / sk-ant-…">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+            <button class="btn" type="button" id="llm-save">Kaydet</button>
+            <button class="btn ghost" type="button" id="llm-delete">Sil</button>
+          </div>
+          <p class="ok" id="llm-note"></p>
+        </div>
+      </div>
       <div id="keys" style="margin-top:22px;padding-top:16px;border-top:1px solid var(--line)">
-        <p class="kicker" style="margin:0 0 8px;font:11px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--cut)">API anahtarı</p>
-        <p class="lede" id="keys-lede">Cursor / otomasyon için Bearer anahtarı burada. Önce Google ile gir. Kurumsal onay yoksa talep aç.</p>
+        <p class="kicker" style="margin:0 0 8px;font:11px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--cut)">Platform API (lzr_)</p>
+        <p class="lede" id="keys-lede">Cursor / otomasyon için LaserMCP Bearer anahtarı. OpenAI/Claude anahtarı değil — yukarıdaki LLM bölümüne bak.</p>
         <p style="margin:10px 0"><a class="btn ghost" href="/studio">Stüdyoyu aç</a>
         <a class="btn ghost" href="/dashboard">Makine / anahtar paneli</a>
         <a class="btn ghost" href="/connect">MCP bağlama</a></p>
       </div>
       <div id="keys-box" class="hide" style="margin-top:18px">
         <input id="key-name" placeholder="atölye-anahtarı">
-        <button class="btn" type="button" id="mint">API anahtarı üret</button>
+        <button class="btn" type="button" id="mint">Platform anahtarı üret</button>
         <p class="ok" id="new-key"></p>
         <div id="key-list"></div>
       </div>
@@ -128,27 +145,31 @@
       lede: "Individuals do not paste a bare link. Google is required. Organizations mint API keys.",
       cfg: "Supabase is not connected yet. Put the project URL and anon key on the server.",
       google: "Continue with Google",
-      mint: "Mint API key", out: "Sign out", need: "Sign in with Google first.",
+      mint: "Mint platform key", out: "Sign out", need: "Sign in with Google first.",
       orgYes: "This account may mint organization API keys.",
       orgNo: "Need a key? Open a request. Admin approves organization or dealer.",
       reqGo: "Open request", reqOpen: "Request is open. Admin will review it.",
       reqLede: "If you need a Cursor or automation key, open a request here.",
       useLab: "Usage", jobs: "jobs this month", kindLab: "Type",
       hat: "LINE", p1: "AI", p2: "Parametric", p3: "Mechanical", p4: "Production", p5: "Cut SVG",
-      hatNote: "A simple box is fast. Name parts on a compact model. A photo is not 3D."
+      hatNote: "A simple box is fast. Name parts on a compact model. A photo is not 3D.",
+      llmSave: "Save", llmDelete: "Remove", llmNeedAdmin: "Only operators can save OpenAI/Claude keys.",
+      llmNone: "No workshop LLM key yet. Studio AI stays on the local planner ($0)."
     } : {
       connect: "Bağlama adımları", title: "Google ile gir",
       lede: "Bireysel kullanıcı link yapıştırmaz. Google zorunlu. Kurumsal hesap anahtar üretir.",
       cfg: "Supabase henüz bağlı değil. Proje URL ve anon anahtarını sunucuya yaz.",
       google: "Google ile devam et",
-      mint: "API anahtarı üret", out: "Çık", need: "Önce Google ile gir.",
+      mint: "Platform anahtarı üret", out: "Çık", need: "Önce Google ile gir.",
       orgYes: "Bu hesap kurumsal API anahtarı üretebilir.",
       orgNo: "Anahtar için talep aç. Admin kurumsal veya bayi yapınca üretirsin.",
       reqGo: "Talep aç", reqOpen: "Talebin açık. Admin bakınca haberin olur.",
       reqLede: "Cursor veya otomasyon anahtarı istersen buradan talep aç.",
       useLab: "Kullanım", jobs: "iş bu ay", kindLab: "Tür",
       hat: "HAT", p1: "AI", p2: "Parametrik", p3: "Mekanik", p4: "Üretim", p5: "Kesim SVG",
-      hatNote: "Basit kutu hızlı. Kompakt makette parçaları yaz. Fotoğraf 3D olmaz."
+      hatNote: "Basit kutu hızlı. Kompakt makette parçaları yaz. Fotoğraf 3D olmaz.",
+      llmSave: "Kaydet", llmDelete: "Sil", llmNeedAdmin: "Yalnız operatör OpenAI/Claude anahtarı kaydeder.",
+      llmNone: "Atölye LLM anahtarı yok. Stüdyo AI yerel planner’da kalır ($0)."
     };
     document.getElementById("to-connect").textContent = T.connect;
     document.getElementById("title").textContent = T.title;
@@ -156,6 +177,8 @@
     document.getElementById("cfg-note").textContent = T.cfg;
     document.getElementById("google-label").textContent = T.google;
     document.getElementById("mint").textContent = T.mint;
+    document.getElementById("llm-save").textContent = T.llmSave;
+    document.getElementById("llm-delete").textContent = T.llmDelete;
     document.getElementById("out").textContent = T.out;
     document.getElementById("use-lab").textContent = T.useLab;
     document.getElementById("kind-lab").textContent = T.kindLab;
@@ -263,6 +286,27 @@
       document.getElementById("key-list").innerHTML = keys.map((k) =>
         "<div class='row'><span>" + (k.name || k.id) + "</span><span>" + (k.last_used || "—") + "</span></div>"
       ).join("");
+      document.getElementById("llm-box").classList.toggle("hide", !approved || !data.admin);
+      loadLlmStatus(Boolean(data.admin));
+    }
+
+    async function loadLlmStatus(canEdit) {
+      const el = document.getElementById("llm-status");
+      const res = await fetch("/api/account/llm-keys", { credentials: "same-origin" }).then((r) => r.json()).catch(() => ({}));
+      const rows = res.keys || [];
+      if (!rows.length) {
+        el.textContent = T.llmNone;
+        return;
+      }
+      el.textContent = rows.map((r) => {
+        if (!r.configured) return r.provider + ": —";
+        return r.provider + ": " + (r.prefix || "ok") + " (" + (r.source || "stored") + ")";
+      }).join(" · ");
+      if (!canEdit && !rows.some((r) => r.configured)) el.textContent = T.llmNone;
+      if (!canEdit && rows.every((r) => !r.configured)) {
+        const note = document.getElementById("llm-note");
+        if (note) note.textContent = T.llmNeedAdmin;
+      }
     }
 
     async function sync(kind) {
@@ -332,6 +376,33 @@
       document.getElementById("new-key").textContent = data.token ? ((lang === "en" ? "shown once: " : "bir kez: ") + data.token) : (data.look_again || []).join(" ");
       const me = await fetch("/api/account", { credentials: "same-origin" }).then((r) => r.json());
       if (me.user) showUser(me);
+    };
+    document.getElementById("llm-save").onclick = async () => {
+      const res = await fetch("/api/account/llm-keys", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          provider: document.getElementById("llm-provider").value,
+          key: document.getElementById("llm-key").value
+        })
+      });
+      const data = await res.json().catch(() => ({}));
+      document.getElementById("llm-note").textContent =
+        (data.look_again || []).join(" ") || (data.success ? (data.prefix || "ok") : "error");
+      if (data.success) document.getElementById("llm-key").value = "";
+      loadLlmStatus(true);
+    };
+    document.getElementById("llm-delete").onclick = async () => {
+      const res = await fetch("/api/account/llm-keys", {
+        method: "DELETE",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ provider: document.getElementById("llm-provider").value })
+      });
+      const data = await res.json().catch(() => ({}));
+      document.getElementById("llm-note").textContent = (data.look_again || []).join(" ") || "";
+      loadLlmStatus(true);
     };
     document.getElementById("out").onclick = async () => {
       await fetch("/api/auth/logout", { method: "POST", credentials: "same-origin" }).catch(() => {});

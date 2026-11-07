@@ -128,7 +128,7 @@
       <div class="links">
         <a href="/">Ana sayfa</a>
         <a href="/dashboard">Makine</a>
-        <a href="/account#keys">API anahtarı</a>
+        <a href="/account#llm-keys">LLM anahtarı</a>
         <a href="/connect">MCP (ücretsiz)</a>
         <a href="/account" id="nav-account">Hesap</a>
       </div>
@@ -143,6 +143,8 @@
         </div>
         <div class="tabs" role="tablist">
           <button type="button" class="on" data-tab="box">Kutu</button>
+          <button type="button" data-tab="makers">Süs</button>
+          <button type="button" data-tab="nest">Nest</button>
           <button type="button" data-tab="ai">AI</button>
           <button type="button" data-tab="stl">STL</button>
         </div>
@@ -186,6 +188,7 @@
             <label>Bölücü X<input id="box-dx" type="number" value="0" min="0" max="8" step="1"></label>
             <label>Bölücü Y<input id="box-dy" type="number" value="0" min="0" max="8" step="1"></label>
           </div>
+          <p class="hint">Bölücü sayısı &gt; 0 ise 3D’de bölücüyü tutup kaydır — hücreler eşit kalmak zorunda değil (≥ 8 mm).</p>
           <label>Yükseltilmiş taban (mm)<input id="box-lift" type="number" value="0" min="0" step="0.5"></label>
           <p class="hint" id="link-hint">X→ön/arka/taban · Y→sol/sağ/taban · H→duvarlar · Kalınlık→eklemler. Temas etmeyen parça bu ölçüyle büyümez.</p>
           <div class="row2">
@@ -193,15 +196,69 @@
             <button class="btn cut" type="button" id="make-box">Yeniden üret</button>
           </div>
         </div>
+        <div class="pane" id="pane-makers">
+          <p class="hint">Hazır parametrik süs / kuş evi. Ürün bunları biliyor — AI yok, prompt yok, API $0.</p>
+          <label>Süs türü
+            <select id="maker-kind">
+              <option value="name_ornament" selected>İsim süsü</option>
+              <option value="birdhouse">Kuş evi</option>
+              <option value="christmas">Christmas süs</option>
+            </select>
+          </label>
+          <div id="maker-fields-name">
+            <label>İsim / yazı<input id="maker-text" type="text" value="LaserMCP" maxlength="40"></label>
+            <div class="row2">
+              <label>Genişlik (mm)<input id="maker-w" type="number" value="120" min="40" max="300" step="1"></label>
+              <label>Yükseklik (mm)<input id="maker-h" type="number" value="40" min="28" max="120" step="1"></label>
+            </div>
+          </div>
+          <div id="maker-fields-bird" class="hide">
+            <div class="row2">
+              <label>Genişlik X<input id="maker-bx" type="number" value="120" min="60" step="1"></label>
+              <label>Derinlik Y<input id="maker-by" type="number" value="100" min="60" step="1"></label>
+            </div>
+            <label>Yükseklik H<input id="maker-bh" type="number" value="100" min="40" step="1"></label>
+            <label>Çatı taşması (0.1–1)<input id="maker-overhang" type="number" value="0.4" min="0.1" max="1" step="0.05"></label>
+          </div>
+          <div id="maker-fields-xmas" class="hide">
+            <label>Şekil
+              <select id="maker-shape">
+                <option value="star" selected>Yıldız</option>
+                <option value="circle">Daire / bauble</option>
+              </select>
+            </label>
+            <label>Yazı (opsiyonel)<input id="maker-xtext" type="text" value="" maxlength="24" placeholder="2026"></label>
+            <label>Boyut (mm)<input id="maker-size" type="number" value="80" min="40" max="200" step="1"></label>
+          </div>
+          <div class="row2">
+            <label>Kalınlık (mm)<input id="maker-t" type="number" value="3" min="1" step="0.1"></label>
+            <label>Ası deliği (mm)<input id="maker-hole" type="number" value="4" min="2" step="0.5"></label>
+          </div>
+          <button class="btn cut" type="button" id="make-maker">Parametrik üret</button>
+          <p class="hint" id="maker-note">İsim süsü + ası deliği + kazıma yazı. Fiziksel kuruluk NOT_VERIFIED.</p>
+        </div>
+        <div class="pane" id="pane-nest">
+          <p class="hint">Düz nest: paneller yan yana serilir. Gelişmiş nesting / döndürme yok — sıra montajdan gelir.</p>
+          <div class="row2">
+            <button class="btn cut" type="button" id="nest-flat">Düz yerleşim</button>
+            <button class="btn ghost" type="button" id="nest-assemble">Montaj görünümü</button>
+          </div>
+          <label>Nest boşluğu (mm)<input id="nest-gap" type="number" value="6" min="2" max="30" step="1"></label>
+          <p class="hint" id="nest-stats">Önce bir kutu üret. Nest özeti burada görünür.</p>
+          <p class="hint">Makine yatağına sığma dijital; fiziksel kerf/yerleşim NOT_VERIFIED.</p>
+        </div>
         <div class="pane" id="pane-ai">
           <label>Ne keseceksin?<textarea id="ai-prompt" placeholder="Örn: 180×120×80 açık finger-joint kutu, 3 mm kavak — veya dosya yükle"></textarea></label>
           <label>Dosya (foto / SVG / PLT / DXF)
             <input id="ai-file" type="file" accept="image/*,.svg,.plt,.hpgl,.dxf,image/svg+xml">
           </label>
-          <p class="hint" id="ai-file-name">Dosya yok — yalnız prompt da olur.</p>
+          <div class="row2">
+            <p class="hint" id="ai-file-name" style="margin:0">Dosya yok — yalnız prompt da olur.</p>
+            <button class="btn ghost" type="button" id="ai-file-clear">Dosyayı kaldır</button>
+          </div>
           <div class="row2">
             <label>Kalınlık (mm)<input id="ai-t" type="number" value="3" min="1" step="0.1"></label>
-            <label>Foto genişlik (mm)<input id="ai-w" type="number" value="200" min="20" step="1"></label>
+            <label>Hedef genişlik (mm)<input id="ai-w" type="number" value="200" min="20" step="1" title="Foto/SVG bu genişliğe ölçeklenir"></label>
           </div>
           <label>Maliyet modeli
             <select id="ai-model">
@@ -215,8 +272,11 @@
             <button class="btn ghost" type="button" id="ai-cost-btn">Maliyet tahmin</button>
             <button class="btn cut" type="button" id="make-ai">AI ile üret</button>
           </div>
-          <p class="hint" id="ai-cost-out">Stüdyo AI yerel planner → API $0. MCP/ChatGPT maliyeti tahminle görünür.</p>
-          <p class="hint" id="ai-gate">Maker/Pro gerekir. Kota dolunca kesilir. Parametrik kutu API harcamaz.</p>
+          <div id="ai-cost-panel" class="hint" style="border:1px solid var(--line);padding:10px;margin-top:8px;border-radius:8px">
+            <p class="kicker" style="margin:0 0 6px">Maliyet paneli</p>
+            <p id="ai-cost-out" style="margin:0">Atölye OpenAI/Claude anahtarı yoksa yerel planner ($0). Anahtar: <a href="/account#llm-keys">Hesap → LLM</a>.</p>
+          </div>
+          <p class="hint" id="ai-gate">Maker/Pro gerekir. Kota dolunca kesilir. Parametrik kutu / Süs API harcamaz.</p>
         </div>
         <div class="pane" id="pane-stl">
           <p class="hint">2D SVG kesim konturları mm ölçeğinde ekstrüde edilir. Genişlik/derinlik SVG’den gelir — AI uydurmaz.</p>
@@ -231,6 +291,11 @@
         <a class="btn ghost hide" id="dl-svg" href="#" download>SVG indir</a>
         <a class="btn ghost hide" id="dl-dxf" href="#" download>DXF indir</a>
         <a class="btn ghost hide" id="open-edit" href="#">2D editör</a>
+        <label style="margin-top:12px">MCP dosya kimliği
+          <input id="mcp-file-id" type="text" placeholder="create-design-….svg">
+        </label>
+        <button class="btn ghost" type="button" id="mcp-open">MCP çıktısını aç</button>
+        <p class="hint">ChatGPT/Claude/Cursor’da üretilen file_id buraya — Stüdyo 3D montajı açar.</p>
       </aside>
       <main class="stage">
         <canvas id="viewport"></canvas>
@@ -244,7 +309,7 @@
             <input id="explode" type="range" min="0" max="100" value="0">
             <span id="explode-lab">0%</span>
           </div>
-          <span style="font:11px var(--mono);color:var(--mute)">Sürükle: döndür · Sağ: kaydır · Tekerlek: zoom</span>
+          <span style="font:11px var(--mono);color:var(--mute)">Mavi tutamaç: büyüt/küçült · Sürükle: döndür · Tekerlek: zoom</span>
         </div>
       </main>
       <aside class="summary">
@@ -258,6 +323,7 @@
         <div class="kv"><span>Seçili</span><b id="sum-sel">—</b></div>
         <div class="kv"><span>Bağlı ölçü</span><b id="sum-dims">—</b></div>
         <div class="kv"><span>Doğrulama</span><b id="sum-val">—</b></div>
+        <div class="kv"><span>Finger/kerf</span><b id="sum-joints">—</b></div>
         <div class="kv"><span>Plan</span><b id="sum-plan">—</b></div>
         <div class="kv"><span>Kota</span><b id="sum-quota">—</b></div>
         <h2>Not</h2>
@@ -282,7 +348,7 @@
     }
   }
   </script>
-  <script type="module" src="/studio-3d.js?v=5"></script>
+  <script type="module" src="/studio-3d.js?v=10"></script>
   <script src="/nav-auth.js?v=5"></script>
 </body>
 </html>

@@ -51,6 +51,33 @@ class StudioBoxFeaturesTests(unittest.TestCase):
         self.assertEqual(box["bottom_lift"], 6)
         self.assertEqual(built["parameters"]["FingerJoint_style"], "springs")
         self.assertEqual(box["lid"]["type"], "removable")
+        self.assertEqual(built["summary"]["joints"]["style"], "springs")
+        self.assertEqual(built["summary"]["kerf_status"], "NOT_VERIFIED")
+
+    def test_joint_kerf_assumed_when_burn_set(self):
+        from studio_box import validate_joint_settings
+
+        ok = validate_joint_settings(thickness=3, finger_mult=2, burn=0.15)
+        self.assertEqual(ok["kerf_status"], "ASSUMED")
+        self.assertEqual(ok["physical_fit"], "NOT_VERIFIED")
+        bad = validate_joint_settings(thickness=3, finger_mult=2, burn=0.9)
+        self.assertEqual(bad["status"], "FAIL")
+
+    def test_unequal_divider_positions(self):
+        from studio_box import cells_from_divider_positions, divider_positions
+
+        cells = cells_from_divider_positions(100, [30], 3)
+        self.assertEqual(len(cells), 2)
+        self.assertAlmostEqual(cells[0] + 3 + cells[1], 100)
+        back = divider_positions(cells, 3)
+        self.assertAlmostEqual(back[0], 30, places=1)
+        built = build_studio_box(
+            {"x": 120, "y": 80, "h": 40, "thickness": 3, "lid": "open", "divider_x_mm": [40]}
+        )
+        self.assertEqual(built["summary"]["dividers_x"], 1)
+        self.assertAlmostEqual(built["summary"]["divider_x_pos"][0], 40, places=1)
+        with self.assertRaises(ValueError):
+            cells_from_divider_positions(100, [5], 3)
 
     def test_render_box_with_dividers(self):
         from toolbox import render_toolbox

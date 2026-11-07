@@ -83,6 +83,7 @@ PUBLIC_PATHS = {
     "/api/studio/stl",
     "/api/studio/cost",
     "/api/studio/ai_cost",
+    "/api/studio/maker",
     "/styles.css",
     *BRAND_FILES,
 }
@@ -1575,6 +1576,58 @@ async def api_account_keys_revoke(request: Request) -> Response:
     return JSONResponse({"success": True, "revoked": ok})
 
 
+@mcp.custom_route("/api/account/llm-keys", methods=["GET", "POST", "DELETE"])
+async def api_account_llm_keys(request: Request) -> Response:
+    """Workshop OpenAI/Anthropic keys — not LaserMCP lzr_ platform keys."""
+    from keys import current_auth
+    from llm_keys import delete_key, list_status, save_key
+    from supabase_auth import account_is_approved, is_admin, session_user, user_by_id
+
+    key = current_auth.get() or session_user(request.cookies.get("lmcp_sid"))
+    if not key:
+        return JSONResponse({"success": False, "look_again": ["Sign in with Google."]}, status_code=401)
+    stored = user_by_id(str(key.get("id") or "")) or key
+    if not account_is_approved(stored):
+        return JSONResponse({"success": False, "look_again": ["Hesabın admin onayını bekliyor."]}, status_code=403)
+
+    if request.method == "GET":
+        return JSONResponse(
+            {
+                "success": True,
+                "kind": "workshop_llm",
+                "note": "OpenAI / Claude atölye anahtarları. LaserMCP lzr_ Bearer anahtarı değil.",
+                "keys": list_status(),
+                "can_edit": is_admin(stored),
+            }
+        )
+
+    if not is_admin(stored):
+        return JSONResponse(
+            {
+                "success": False,
+                "look_again": ["Yalnız operatör (admin) OpenAI/Claude anahtarı kaydeder."],
+            },
+            status_code=403,
+        )
+
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    provider = str((body or {}).get("provider") or (body or {}).get("kind") or "")
+    if request.method == "DELETE":
+        try:
+            return JSONResponse(delete_key(provider))
+        except ValueError as exc:
+            return JSONResponse({"success": False, "look_again": [str(exc)]}, status_code=400)
+
+    raw = str((body or {}).get("key") or (body or {}).get("api_key") or (body or {}).get("token") or "")
+    try:
+        return JSONResponse(save_key(provider, raw, by=str(stored.get("email") or "")))
+    except ValueError as exc:
+        return JSONResponse({"success": False, "look_again": [str(exc)]}, status_code=400)
+
+
 def _admin_actor(request: Request):
     from keys import current_auth
     from supabase_auth import is_admin, session_user, user_by_id
@@ -1855,7 +1908,7 @@ async def api_studio(request: Request) -> Response:
 @mcp.custom_route("/api/studio/{action}", methods=["GET", "POST"])
 async def api_studio_action(request: Request) -> Response:
     from studio import studio_action
-    from workshop import create_studio_ai, create_studio_box
+    from workshop import create_studio_ai, create_studio_box, create_studio_maker
 
     action = request.path_params.get("action") or "profiles"
     body: dict[str, Any] = {}
@@ -1871,6 +1924,10 @@ async def api_studio_action(request: Request) -> Response:
         return JSONResponse(create_studio_box(body, public_base_url=_public_base(request)))
     if verb in {"ai", "studio_ai", "design_ai"}:
         return JSONResponse(create_studio_ai(body, public_base_url=_public_base(request)))
+    if verb in {"maker", "makers", "ornament", "sus"}:
+        if request.method == "GET" or verb == "makers":
+            body = {**body, "action": body.get("action") or "list"}
+        return JSONResponse(create_studio_maker(body, public_base_url=_public_base(request)))
     if verb in {"stl", "to_stl", "svg_to_stl"}:
         from workshop import create_studio_stl
 

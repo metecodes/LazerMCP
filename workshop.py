@@ -419,12 +419,14 @@ def estimate_cost(body: dict[str, Any] | None = None) -> dict[str, Any]:
 def estimate_ai_prompt_cost(body: dict[str, Any] | None = None) -> dict[str, Any]:
     """Dry-run LLM $ estimate for a prompt. Studio AI local path is $0 API."""
     from ai_cost import estimate_prompt_cost, list_models
+    from llm_keys import any_configured, list_status, provider_for_model
     from plans import gate_job
 
     payload = body or {}
     prompt = str(payload.get("prompt") or payload.get("ai_prompt") or payload.get("text") or "")
     model = str(payload.get("model") or "gpt-4o-mini")
     mode = str(payload.get("mode") or "mcp_thin")
+    workshop_llm = any_configured()
     # Studio AI tab uses in-process planner — surface both quotes
     local = estimate_prompt_cost(
         prompt,
@@ -438,21 +440,35 @@ def estimate_ai_prompt_cost(body: dict[str, Any] | None = None) -> dict[str, Any
         mode=mode if mode != "studio_local" else "mcp_thin",
         photo=bool(payload.get("has_photo") or payload.get("photo")),
     )
+    workshop = estimate_prompt_cost(
+        prompt,
+        model=model,
+        mode="mcp_thin",
+        photo=bool(payload.get("has_photo") or payload.get("photo")),
+    )
     gate = gate_job("platform_ai")
+    provider = provider_for_model(model)
     return {
         "success": True,
         "kind": "ai_prompt",
         "prompt_preview": prompt[:240],
+        "workshop_llm_keys": list_status(),
         "studio_ai": {
-            **local,
+            **(workshop if workshop_llm else local),
             "quota": {"used": gate.get("used"), "limit": gate.get("quota"), "plan": gate.get("plan_name")},
-            "note": "Stüdyo AI şu an yerel plan_laser_job kullanır → harici API $0. Aylık tasarım kotasına 1 sayılabilir.",
+            "uses_workshop_key": workshop_llm,
+            "provider": provider,
+            "note": (
+                f"Atölye {provider} anahtarı kayıtlı → Stüdyo AI bu modele çağrı yapabilir; fatura sağlayıcıya gider (LaserMCP lzr_ değil)."
+                if workshop_llm
+                else "Stüdyo AI şu an yerel plan_laser_job kullanır → harici API $0. Hesap → LLM anahtarı eklenince sağlayıcıya gider."
+            ),
         },
         "mcp_host_ai": mcp,
         "models": list_models(),
         "recommendation": (
-            "Basit kutu/kapak/bölücü → parametrik Stüdyo ($0 API). "
-            "Karmaşık maket / serbest form → MCP ile Claude/ChatGPT; önce mcp_host_ai.usd.total’a bak."
+            "Basit kutu/kapak/süs → parametrik Stüdyo / Süs ($0 API). "
+            "Serbest prompt → atölye OpenAI/Claude anahtarı (Hesap → LLM) veya MCP host."
         ),
         "look_again": list(mcp.get("look_again") or []),
     }
@@ -515,6 +531,103 @@ def approve_prototype(body: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def create_studio_maker(body: dict[str, Any] | None = None, *, public_base_url: str | None = None) -> dict[str, Any]:
+    """Parametric makers (name ornament, birdhouse, christmas). Explicitly NOT AI."""
+    from assembly_result import panels_for_viewer
+    from plans import gate_job
+    from studio_makers import MAKERS, build_maker, list_makers
+    import payas_cad
+    from boxes_adapter import generate_svg
+
+    payload = body or {}
+    if str(payload.get("action") or "").lower() in {"list", "catalog"}:
+        return {"success": True, "ai": False, "makers": list_makers()}
+    gate = gate_job("design")
+    if not gate.get("ok"):
+        return gate
+    kind = str(payload.get("maker") or payload.get("kind") or payload.get("type") or "").strip()
+    if not kind:
+        return {
+            "success": False,
+            "ok": False,
+            "ai": False,
+            "makers": list_makers(),
+            "look_again": ["maker required: name_ornament | birdhouse | christmas"],
+            "plan": gate,
+        }
+    try:
+        built = build_maker(kind, payload)
+    except (TypeError, ValueError) as exc:
+        return {"success": False, "ok": False, "ai": False, "look_again": [str(exc)], "plan": gate}
+
+    base = public_base_url or ""
+    try:
+        if built.get("mode") == "generator":
+            result = generate_svg(
+                str(built["generator"]),
+                built.get("parameters") or {},
+                public_base_url=base,
+                extra={
+                    "product": built["summary"]["maker"],
+                    "title": MAKERS.get(built["summary"]["maker"], {}).get("label_tr")
+                    or built["summary"]["maker"],
+                    "method": "parametric_maker",
+                    "ai": False,
+                },
+            )
+            if isinstance(result.get("assembly_result"), dict):
+                viewer = panels_for_viewer(result.get("assembly_result"))
+            else:
+                viewer = {
+                    "success": True,
+                    "panels": [],
+                    "thickness_mm": float((built.get("parameters") or {}).get("thickness") or 3),
+                    "note": "Generator nest sheet — SVG/DXF ready; 3D assembly N/A for this maker.",
+                    "validation_state": "DIGITAL_PROTOTYPE",
+                }
+        else:
+            result = payas_cad.create_design(
+                primitives=built.get("primitives") or [],
+                parameters=built.get("parameters") or {},
+                public_base_url=base,
+            )
+            viewer = panels_for_viewer(result.get("assembly_result"))
+    except Exception as exc:
+        return {
+            "success": False,
+            "ok": False,
+            "ai": False,
+            "maker": built.get("summary", {}).get("maker") or kind,
+            "look_again": [str(exc)],
+            "summary": built.get("summary"),
+            "plan": gate,
+        }
+    file_id = result.get("file_id")
+    studio_url = f"{base.rstrip('/')}/studio?file={file_id}" if base and file_id else (f"/studio?file={file_id}" if file_id else None)
+    looks = list(result.get("look_again") or []) + [
+        "Parametric maker — no AI / no LLM.",
+        "Digital prototype only. Measure thickness and dry-fit before production.",
+    ]
+    if studio_url:
+        looks.append(f"Open in Studio 3D: {studio_url}")
+    return {
+        "success": bool(result.get("success")),
+        "ai": False,
+        "maker": built.get("summary", {}).get("maker") or kind,
+        "file_id": file_id,
+        "svg_url": result.get("svg_url"),
+        "dxf_id": result.get("dxf_id"),
+        "dxf_url": result.get("dxf_url"),
+        "studio_url": studio_url,
+        "project": result.get("project"),
+        "final_status": result.get("final_status"),
+        "assembly": viewer,
+        "summary": built.get("summary"),
+        "look_again": looks,
+        "plan": gate,
+    }
+
+
 def create_studio_box(body: dict[str, Any] | None = None, *, public_base_url: str | None = None) -> dict[str, Any]:
     """Parametric finger-joint box for the platform 3D studio. No AI cost.
 
@@ -558,16 +671,30 @@ def create_studio_box(body: dict[str, Any] | None = None, *, public_base_url: st
             project_id="studio-preview",
         )
         viewer = panels_for_viewer(result_blob)
+        joints = (built.get("summary") or {}).get("joints") or {}
+        looks = [
+            "Live preview — SVG/DXF not saved yet. Click Yeniden üret to export.",
+            "3D view is a nominal digital assembly. Measure kerf and dry-fit before production.",
+        ] + list(joints.get("warnings") or []) + list(joints.get("failures") or [])
         return {
-            "success": bool(viewer.get("success")),
+            "success": bool(viewer.get("success")) and joints.get("status") != "FAIL",
             "preview": True,
             "file_id": None,
             "assembly": viewer,
             "summary": built.get("summary"),
-            "look_again": [
-                "Live preview — SVG/DXF not saved yet. Click Yeniden üret to export.",
-                "3D view is a nominal digital assembly. Measure kerf and dry-fit before production.",
-            ],
+            "joints": joints,
+            "look_again": looks,
+            "plan": gate,
+        }
+
+    joints = (built.get("summary") or {}).get("joints") or {}
+    if joints.get("status") == "FAIL":
+        return {
+            "success": False,
+            "ok": False,
+            "summary": built.get("summary"),
+            "joints": joints,
+            "look_again": list(joints.get("failures") or []) + list(joints.get("warnings") or []),
             "plan": gate,
         }
 
@@ -577,19 +704,28 @@ def create_studio_box(body: dict[str, Any] | None = None, *, public_base_url: st
         public_base_url=public_base_url or "",
     )
     viewer = panels_for_viewer(result.get("assembly_result"))
+    looks = list(result.get("look_again") or []) + list(joints.get("warnings") or [])
+    looks.append("3D view is a nominal digital assembly. Measure kerf and dry-fit before production.")
+    looks.append(f"Kerf digital status: {joints.get('kerf_status')} (physical fit NOT_VERIFIED).")
+    file_id = result.get("file_id")
+    base = (public_base_url or "").rstrip("/")
+    studio_url = f"{base}/studio?file={file_id}" if base and file_id else (f"/studio?file={file_id}" if file_id else None)
+    if studio_url:
+        looks.append(f"Open in Studio 3D: {studio_url}")
     return {
         "success": bool(result.get("success")),
-        "file_id": result.get("file_id"),
+        "file_id": file_id,
         "svg_url": result.get("svg_url"),
         "dxf_id": result.get("dxf_id"),
         "dxf_url": result.get("dxf_url"),
+        "studio_url": studio_url,
         "project": result.get("project"),
         "final_status": result.get("final_status"),
         "speak": result.get("speak"),
         "assembly": viewer,
         "summary": built.get("summary"),
-        "look_again": list(result.get("look_again") or [])
-        + ["3D view is a nominal digital assembly. Measure kerf and dry-fit before production."],
+        "joints": joints,
+        "look_again": looks,
         "plan": gate,
     }
 
@@ -645,18 +781,24 @@ def create_studio_stl(body: dict[str, Any] | None = None, *, public_base_url: st
     }
 
 
-def _studio_ai_result(result: dict[str, Any], *, cost: dict[str, Any] | None = None, extra_look: list[str] | None = None, plan: dict[str, Any] | None = None, plan_job: dict[str, Any] | None = None, source: str = "prompt") -> dict[str, Any]:
+def _studio_ai_result(result: dict[str, Any], *, cost: dict[str, Any] | None = None, extra_look: list[str] | None = None, plan: dict[str, Any] | None = None, plan_job: dict[str, Any] | None = None, source: str = "prompt", public_base_url: str | None = None) -> dict[str, Any]:
     from assembly_result import panels_for_viewer
 
     viewer = panels_for_viewer(result.get("assembly_result"))
     looks = list(result.get("look_again") or [])
     looks.extend(extra_look or [])
+    file_id = result.get("file_id")
+    base = (public_base_url or "").rstrip("/")
+    studio_url = f"{base}/studio?file={file_id}" if base and file_id else (f"/studio?file={file_id}" if file_id else None)
+    if studio_url:
+        looks.append(f"Open in Studio 3D: {studio_url}")
     return {
         "success": bool(result.get("success")),
-        "file_id": result.get("file_id"),
+        "file_id": file_id,
         "svg_url": result.get("svg_url"),
         "dxf_id": result.get("dxf_id"),
         "dxf_url": result.get("dxf_url"),
+        "studio_url": studio_url,
         "project": result.get("project"),
         "final_status": result.get("final_status"),
         "speak": result.get("speak"),
@@ -750,6 +892,7 @@ def create_studio_ai(body: dict[str, Any] | None = None, *, public_base_url: str
             result,
             cost=cost,
             plan=design_gate,
+            public_base_url=base,
             source="photo",
             extra_look=[
                 "Photo was traced to CUT/ENGRAVE — not a parametric 3D box kit.",
@@ -765,6 +908,7 @@ def create_studio_ai(body: dict[str, Any] | None = None, *, public_base_url: str
             result,
             cost=cost,
             plan=design_gate,
+            public_base_url=base,
             source="svg",
             extra_look=["SVG imported as design source. Joints are not invented from paths."],
         )
@@ -783,6 +927,7 @@ def create_studio_ai(body: dict[str, Any] | None = None, *, public_base_url: str
             result,
             cost=cost,
             plan=design_gate,
+            public_base_url=base,
             source="plt",
             extra_look=["PLT/HP-GL imported. Pen mapping from profile; physical PASS not claimed."],
         )
@@ -801,11 +946,78 @@ def create_studio_ai(body: dict[str, Any] | None = None, *, public_base_url: str
             result,
             cost=cost,
             plan=design_gate,
+            public_base_url=base,
             source="dxf",
             extra_look=["DXF converted to SVG millimetres. Layer ops preserved when named CUT/ENGRAVE."],
         )
 
-    # --- Text prompt → local planner primitives ---
+    # --- Text prompt → workshop LLM (if key) else local planner ---
+    from llm_keys import get_raw_key, provider_for_model
+
+    model_id = str(payload.get("model") or "gpt-4o-mini")
+    provider = provider_for_model(model_id)
+    planner_mode = str(payload.get("planner") or "").lower()
+    force_local = planner_mode in {"local", "rules", "plan_laser_job"}
+    prefer_llm = planner_mode in {"llm", "provider", "openai", "anthropic", "external"}
+    api_key = None if force_local else get_raw_key(provider)
+    if prefer_llm and not api_key:
+        return {
+            "success": True,
+            "ok": False,
+            "look_again": [
+                f"No workshop {provider} key. Add it at Account → LLM (not LaserMCP lzr_), or set env OPENAI_API_KEY / ANTHROPIC_API_KEY.",
+            ],
+            "plan": gate,
+        }
+
+    if api_key:
+        try:
+            from llm_client import plan_primitives_with_llm
+
+            llm_plan = plan_primitives_with_llm(
+                request,
+                model=model_id,
+                thickness=float(thickness) if thickness not in (None, "") else None,
+            )
+            primitives = llm_plan.get("primitives") or []
+            merged = dict(llm_plan.get("parameters") or {})
+            merged.update(parameters)
+            cost = estimate_ai_prompt_cost(
+                {
+                    "prompt": request,
+                    "model": model_id,
+                    "has_photo": False,
+                    "mode": "mcp_thin",
+                }
+            )
+            result = payas_cad.create_design(
+                primitives=primitives,
+                parameters=merged,
+                public_base_url=base,
+            )
+            return _studio_ai_result(
+                result,
+                cost=cost,
+                plan=design_gate,
+                public_base_url=base,
+                plan_job={
+                    "summary": llm_plan.get("summary"),
+                    "method": "workshop_llm",
+                    "provider": provider,
+                    "model": model_id,
+                },
+                source="prompt_llm",
+                extra_look=[
+                    "AI draft is digital only. Confirm joints and dry-fit before cutting.",
+                    f"Studio AI used workshop {provider} key — billed to that provider, not LaserMCP lzr_.",
+                ],
+            )
+        except Exception as exc:
+            # Fall through to local planner; surface the LLM error in look_again.
+            llm_error = str(exc)
+    else:
+        llm_error = ""
+
     plan = plan_laser_job(
         request,
         what_you_see=str(payload.get("what_you_see") or request),
@@ -814,12 +1026,15 @@ def create_studio_ai(body: dict[str, Any] | None = None, *, public_base_url: str
     args = plan.get("next_arguments") if isinstance(plan.get("next_arguments"), dict) else {}
     primitives = args.get("primitives") if isinstance(args.get("primitives"), list) else []
     if not primitives:
+        looks = list(plan.get("look_again") or [])
+        if llm_error:
+            looks.insert(0, f"Workshop LLM failed: {llm_error}")
         return {
             "success": True,
             "ok": False,
             "plan_job": plan,
             "cost": cost,
-            "look_again": list(plan.get("look_again") or [])
+            "look_again": looks
             or ["Could not draft primitives. Try a simpler box description, or upload SVG/PLT/DXF/photo."],
             "plan": gate,
         }
@@ -830,16 +1045,20 @@ def create_studio_ai(body: dict[str, Any] | None = None, *, public_base_url: str
         parameters=merged,
         public_base_url=base,
     )
+    looks = [
+        "AI draft is digital only. Confirm joints and dry-fit before cutting.",
+        "Studio AI used the local planner — no external LLM API charge from LaserMCP.",
+    ]
+    if llm_error:
+        looks.insert(0, f"Workshop LLM failed ({llm_error}); fell back to local planner.")
     return _studio_ai_result(
         result,
         cost=cost,
         plan=design_gate,
+        public_base_url=base,
         plan_job={k: plan.get(k) for k in ("summary", "next_tool", "method", "look_again") if k in plan},
         source="prompt",
-        extra_look=[
-            "AI draft is digital only. Confirm joints and dry-fit before cutting.",
-            "Studio AI used the local planner — no external LLM API charge from LaserMCP.",
-        ],
+        extra_look=looks,
     )
 
 
