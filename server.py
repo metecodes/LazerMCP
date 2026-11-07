@@ -80,10 +80,15 @@ PUBLIC_PATHS = {
     "/api/account/key-request",
     "/api/catalog",
     "/api/studio/box",
+    "/api/studio/ai",
     "/api/studio/stl",
     "/api/studio/cost",
     "/api/studio/ai_cost",
     "/api/studio/maker",
+    "/api/studio/profiles",
+    "/api/studio/calibrate",
+    "/api/studio/projects",
+    "/api/studio/coupon",
     "/styles.css",
     *BRAND_FILES,
 }
@@ -1932,6 +1937,10 @@ async def api_studio_action(request: Request) -> Response:
         from workshop import create_studio_stl
 
         return JSONResponse(create_studio_stl(body, public_base_url=_public_base(request)))
+    if verb in {"coupon", "kerf_coupon"}:
+        from workshop import create_studio_coupon
+
+        return JSONResponse(create_studio_coupon(body, public_base_url=_public_base(request)))
     if verb in {"cost", "ai_cost", "quote"}:
         from workshop import estimate_ai_prompt_cost, estimate_cost
 

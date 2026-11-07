@@ -4,7 +4,14 @@ from __future__ import annotations
 
 import unittest
 
-from studio_box import build_studio_box, equal_cells, resolve_inner_outer, volume_liters
+from studio_box import (
+    build_assembly_guide,
+    build_studio_box,
+    cells_with_locks,
+    equal_cells,
+    resolve_inner_outer,
+    volume_liters,
+)
 
 
 class StudioBoxFeaturesTests(unittest.TestCase):
@@ -78,6 +85,188 @@ class StudioBoxFeaturesTests(unittest.TestCase):
         self.assertAlmostEqual(built["summary"]["divider_x_pos"][0], 40, places=1)
         with self.assertRaises(ValueError):
             cells_from_divider_positions(100, [5], 3)
+
+    def test_shelves(self):
+        built = build_studio_box(
+            {"x": 120, "y": 80, "h": 90, "thickness": 3, "lid": "open", "shelves": 2}
+        )
+        self.assertEqual(built["primitives"][0]["shelves"], 2)
+        self.assertEqual(built["summary"]["shelves"], 2)
+        from toolbox import render_toolbox
+
+        out = render_toolbox(built["primitives"], built["parameters"])
+        self.assertIn("svg_bytes", out)
+        self.assertGreater(len(out["svg_bytes"]), 200)
+        svg = out["svg_bytes"].decode("utf-8", errors="ignore")
+        self.assertIn("shelf-1", svg)
+        self.assertIn("shelf-2", svg)
+
+    def test_locked_cells(self):
+        cells = cells_with_locks(100, 1, 3, {0: 30})
+        self.assertEqual(len(cells), 2)
+        self.assertAlmostEqual(cells[0], 30)
+        self.assertAlmostEqual(sum(cells) + 3, 100)
+        built = build_studio_box(
+            {
+                "x": 150,
+                "y": 90,
+                "h": 50,
+                "thickness": 3,
+                "lid": "open",
+                "dividers_x": 2,
+                "locked_cells_x": {"0": 40},
+            }
+        )
+        sx = built["summary"]["sx"]
+        self.assertEqual(len(sx), 3)
+        self.assertAlmostEqual(sx[0], 40)
+        self.assertAlmostEqual(sum(sx) + 2 * 3, 150, places=1)
+        with self.assertRaises(ValueError):
+            cells_with_locks(100, 1, 3, {0: 90})
+
+    def test_handle_bump_divider_joints(self):
+        built = build_studio_box(
+            {
+                "x": 120,
+                "y": 80,
+                "h": 50,
+                "thickness": 3,
+                "lid": "removable",
+                "handle": False,
+                "lid_radius": 4,
+                "press_fit": True,
+                "bump_diameter": 0.8,
+                "divider_joint_walls": False,
+                "divider_joint_bottom": True,
+                "dividers_x": 1,
+            }
+        )
+        box = built["primitives"][0]
+        self.assertFalse(box["lid"]["handle"])
+        self.assertEqual(box["lid"]["radius"], 4)
+        self.assertFalse(box["divider_joint_walls"])
+        self.assertTrue(box["divider_joint_bottom"])
+        self.assertAlmostEqual(built["parameters"]["FingerJoint_surround"], 0.8)
+
+    def test_crosslap_dividers_render(self):
+        from toolbox import render_toolbox
+
+        built = build_studio_box(
+            {
+                "x": 120,
+                "y": 100,
+                "h": 50,
+                "thickness": 3,
+                "lid": "open",
+                "dividers_x": 1,
+                "dividers_y": 1,
+            }
+        )
+        out = render_toolbox(built["primitives"], built["parameters"])
+        self.assertIn("svg_bytes", out)
+        svg = out["svg_bytes"].decode("utf-8", errors="ignore")
+        self.assertIn("divider-x-1", svg)
+        self.assertIn("divider-y-1", svg)
+        # Cross-lap half-slots appear as extra cut geometry on both divider panels
+        self.assertGreater(svg.lower().count("path"), 8)
+
+    def test_assembly_guide_open_box(self):
+        built = build_studio_box({"x": 120, "y": 80, "h": 40, "thickness": 3, "lid": "open"})
+        guide = built["assembly_guide"]
+        self.assertEqual(guide["physical_assembly"], "NOT_VERIFIED")
+        self.assertEqual(guide["self_connection_count"], 0)
+        self.assertEqual(guide["forbidden_connection_count"], 0)
+        order = guide["assembly_order"]
+        self.assertEqual(order[:5], ["bottom", "front", "back", "left", "right"])
+        self.assertNotIn("lid", order)
+        self.assertGreaterEqual(guide["connection_count"], 8)
+        for c in guide["connections"]:
+            self.assertNotEqual(c["part_a"], c["part_b"])
+            self.assertEqual(c["digital_status"], "DECLARED")
+        self.assertIn("Montaj sırası", guide["speak"])
+
+    def test_assembly_guide_dividers_shelf_lid(self):
+        built = build_studio_box(
+            {
+                "x": 150,
+                "y": 100,
+                "h": 90,
+                "thickness": 3,
+                "lid": "removable",
+                "dividers_x": 1,
+                "dividers_y": 1,
+                "shelves": 1,
+            }
+        )
+        guide = built["assembly_guide"]
+        order = guide["assembly_order"]
+        self.assertIn("divider-x-1", order)
+        self.assertIn("divider-y-1", order)
+        self.assertIn("shelf-1", order)
+        self.assertIn("lid", order)
+        self.assertEqual(guide["self_connection_count"], 0)
+        pairs = {frozenset((c["part_a"], c["part_b"])) for c in guide["connections"]}
+        self.assertIn(frozenset(("divider-x-1", "divider-y-1")), pairs)
+        self.assertTrue(any(c["joint_type"] == "cross_lap" for c in guide["connections"]))
+        # No top↔bottom / lid↔bottom
+        self.assertNotIn(frozenset(("lid", "bottom")), pairs)
+        self.assertEqual(len(guide["steps"]), len(order))
+
+    def test_build_assembly_guide_direct(self):
+        box = {
+            "type": "box",
+            "bottom": True,
+            "lid": False,
+            "dividers_x": 0,
+            "dividers_y": 0,
+            "shelves": 0,
+            "bottom_lift": 0,
+        }
+        guide = build_assembly_guide(box, {"lid": "open"})
+        self.assertEqual(guide["step_count"], 5)
+
+    def test_preview_response_marks_gate_skipped(self):
+        from workshop import create_studio_box
+
+        preview = create_studio_box(
+            {"x": 100, "y": 80, "h": 40, "thickness": 3, "lid": "open", "preview": True}
+        )
+        self.assertTrue(preview.get("preview"))
+        self.assertTrue(preview.get("gate_skipped"))
+        self.assertEqual(preview.get("final_status"), "PREVIEW_ONLY")
+        self.assertEqual(preview.get("production_export"), "BLOCKED")
+        self.assertIsNone(preview.get("file_id"))
+        self.assertIn("final_gate", preview.get("scorecard") or {})
+
+    def test_studio_calibrate_records_human_bar(self):
+        import os
+        import tempfile
+
+        from studio import studio_action
+
+        tmp = tempfile.mkdtemp()
+        old = os.environ.get("MCP_DATA_DIR")
+        os.environ["MCP_DATA_DIR"] = tmp
+        try:
+            out = studio_action(
+                "calibrate",
+                payload={
+                    "measured_bar_mm": 99.7,
+                    "machine": "payas_workshop",
+                    "material": "poplar_3mm",
+                },
+            )
+            self.assertTrue(out.get("success"))
+            self.assertIsNotNone(out.get("calibration"))
+            self.assertIsNotNone(out.get("suggested_burn"))
+            self.assertEqual(out["physical"]["kerf"], "PASS")
+            listed = studio_action("calibrate", payload={})
+            self.assertGreaterEqual(len(listed.get("rows") or []), 1)
+        finally:
+            if old is None:
+                os.environ.pop("MCP_DATA_DIR", None)
+            else:
+                os.environ["MCP_DATA_DIR"] = old
 
     def test_render_box_with_dividers(self):
         from toolbox import render_toolbox

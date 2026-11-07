@@ -23,12 +23,23 @@ const state = {
   handleMatHot: null,
   drag: null,
   dividerDrag: null,
+  liftDrag: null,
   sx: null,
   sy: null,
+  dividerXPos: null,
+  dividerYPos: null,
+  lockedCellsX: {},
+  lockedCellsY: {},
   undo: [],
   flatLayouts: [],
   summary: null,
   attach: null,
+  assemblyGuide: null,
+  asmStep: 0,
+  asmPlaying: false,
+  asmTimer: null,
+  asmAnim: null,
+  woodMate: null,
 };
 
 const PANEL_DIMS = {
@@ -61,7 +72,19 @@ function panelRole(partId) {
   if (/divider-x/.test(leaf)) return "divider-x";
   if (/divider-y/.test(leaf)) return "divider-y";
   if (leaf.includes("divider")) return "divider";
+  if (/shelf-\d+/.test(leaf)) return "shelf";
   return "other";
+}
+
+function panelLeafId(partId) {
+  return String(partId || "").toLowerCase().split("/").pop() || "";
+}
+
+function matchGuidePart(partId, guidePartId) {
+  const leaf = panelLeafId(partId);
+  const want = String(guidePartId || "").toLowerCase();
+  if (!leaf || !want) return false;
+  return leaf === want || leaf.endsWith(want) || leaf.includes(want);
 }
 
 function parseDividerMeta(partId) {
@@ -362,13 +385,19 @@ function buildScene() {
           startVal,
           startPoint: hitPoint.clone(),
           handle: h,
+          lift: !!h.userData.lift,
         };
         controls.enabled = false;
         canvas.style.cursor = "grabbing";
         if (state.handleMatHot) h.traverse((o) => {
           if (o.isMesh) o.material = state.handleMatHot;
         });
-        setStatus("Tut-çek: " + field.replace("box-", "").toUpperCase() + " · bırakınca paneller yenilenir", "ok");
+        setStatus(
+          h.userData.lift
+            ? "Yükseltilmiş taban · tut-çek · bırakınca yenilenir"
+            : ("Tut-çek: " + field.replace("box-", "").toUpperCase() + " · bırakınca paneller yenilenir"),
+          "ok"
+        );
         return;
       }
     }
@@ -387,8 +416,8 @@ function buildScene() {
       const div = obj.userData.divider;
       const fp = boxFootprintMm();
       const positions = (div.axis === "x"
-        ? (state.summary && state.summary.divider_x_pos) || []
-        : (state.summary && state.summary.divider_y_pos) || []).map(Number);
+        ? (state.summary && state.summary.divider_x_pos) || state.dividerXPos || []
+        : (state.summary && state.summary.divider_y_pos) || state.dividerYPos || []).map(Number);
       dragPlane.setFromNormalAndCoplanarPoint(new THREE.Vector3(0, 0, 1), hits[0].point.clone());
       ray.ray.intersectPlane(dragPlane, hitPoint);
       state.dividerDrag = {
@@ -405,12 +434,18 @@ function buildScene() {
       canvas.style.cursor = "grabbing";
       selectPanel(obj);
       hideDimPop();
-      setStatus("Bölücüyü kaydır · hücre ≥ 8 mm · bırakınca yenilenir", "ok");
+      setStatus("Bölücüyü kaydır · Del = birleştir · bırakınca yenilenir", "ok");
       return;
     }
     if (obj) {
       selectPanel(obj);
-      openDimPop(obj, ev.clientX, ev.clientY);
+      let hitLocal = null;
+      if (obj.userData.role === "bottom" && obj.userData.baseMatrix) {
+        const inv = obj.userData.baseMatrix.clone().invert();
+        const local = hits[0].point.clone().applyMatrix4(inv);
+        hitLocal = { x: local.x, y: local.y };
+      }
+      openDimPop(obj, ev.clientX, ev.clientY, hitLocal);
     }
   });
 
@@ -424,8 +459,19 @@ function buildScene() {
       if (d.axis === "x") deltaWorld = hitPoint.x - d.startPoint.x;
       else if (d.axis === "y") deltaWorld = hitPoint.y - d.startPoint.y;
       else deltaWorld = hitPoint.z - d.startPoint.z;
+      let next;
+      if (d.lift || d.field === "box-lift") {
+        const hi = Number($("box-h").value) || 70;
+        const t = Number($("box-t").value) || 3;
+        next = Math.round(Math.max(0, Math.min(hi - t - 8, d.startVal + deltaWorld * d.sign)) * 2) / 2;
+        if (Number($(d.field).value) === next) return;
+        $(d.field).value = String(next);
+        if (d.handle) d.handle.position.z = Math.max(next, 2) + t / 2;
+        $("sum-dims").textContent = "lift → " + next + " mm";
+        return;
+      }
       const lo = d.field === "box-h" ? 10 : 20;
-      const next = Math.round(Math.max(lo, Math.min(800, d.startVal + deltaWorld * d.sign)));
+      next = Math.round(Math.max(lo, Math.min(800, d.startVal + deltaWorld * d.sign)));
       if (Number($(d.field).value) === next) return;
       $(d.field).value = String(next);
       applyLiveResizePreview(d.field, d.startVal, next);
@@ -593,6 +639,19 @@ function rebuildResizeHandles() {
       { field: "box-h", axis: "z", sign: 1, pos: [xi / 2, yi / 2, z + stick / 2], size: [grip, grip, stick], cursor: "ns-resize", plane: "z" }
     );
   }
+  // Raised-bottom lift grip (Vector Painter: drag floor edge up)
+  const lift = Number(($("box-lift") && $("box-lift").value) || 0);
+  const liftZ = Math.max(lift, 2) + t / 2;
+  specs.push({
+    field: "box-lift",
+    axis: "z",
+    sign: 1,
+    pos: [xi / 2, grip * 0.2, liftZ],
+    size: [Math.min(xi * 0.45, 48), grip * 0.7, grip * 0.7],
+    cursor: "ns-resize",
+    plane: "z",
+    lift: true,
+  });
   specs.forEach((s) => {
     const geom = new THREE.BoxGeometry(s.size[0], s.size[1], s.size[2]);
     const mesh = new THREE.Mesh(geom, state.handleMat);
@@ -602,10 +661,11 @@ function rebuildResizeHandles() {
     mesh.userData.axis = s.axis;
     mesh.userData.sign = s.sign;
     mesh.userData.plane = s.plane || "xy";
+    mesh.userData.lift = !!s.lift;
     // Soft edge
     const edges = new THREE.LineSegments(
       new THREE.EdgesGeometry(geom),
-      new THREE.LineBasicMaterial({ color: 0xd7ebff })
+      new THREE.LineBasicMaterial({ color: s.lift ? 0xffe0a0 : 0xd7ebff })
     );
     mesh.add(edges);
     root.add(mesh);
@@ -688,10 +748,68 @@ function selectPanel(group) {
 
 function hideDimPop() {
   $("dim-pop").classList.add("hide");
+  delete $("dim-pop").dataset.mode;
+  delete $("dim-pop").dataset.cellX;
+  delete $("dim-pop").dataset.cellY;
+  if ($("dim-pop-cell-wrap")) $("dim-pop-cell-wrap").classList.add("hide");
+  if ($("dim-pop-val-wrap")) $("dim-pop-val-wrap").classList.remove("hide");
+  if ($("dim-pop-title")) $("dim-pop-title").textContent = "Panel ölçüsü";
 }
 
-function openDimPop(group, _x, _y) {
+function cellIndexAt(coord, cells, thickness) {
+  const list = Array.isArray(cells) && cells.length ? cells : [Number.POSITIVE_INFINITY];
+  let cursor = 0;
+  const t = Number(thickness) || 0;
+  for (let i = 0; i < list.length; i++) {
+    const end = cursor + Number(list[i]);
+    if (coord <= end + 1e-6) return i;
+    cursor = end + t;
+  }
+  return list.length - 1;
+}
+
+function openCellLockPop(localX, localY) {
+  const sx = (state.summary && state.summary.sx) || state.sx || [];
+  const sy = (state.summary && state.summary.sy) || state.sy || [];
+  const t = Number($("box-t").value) || 3;
+  const dx = Number($("box-dx").value) || 0;
+  const dy = Number($("box-dy").value) || 0;
+  if (dx <= 0 && dy <= 0) return false;
+  const ix = dx > 0 && sx.length ? cellIndexAt(localX, sx, t) : null;
+  const iy = dy > 0 && sy.length ? cellIndexAt(localY, sy, t) : null;
+  $("dim-pop").classList.remove("hide");
+  $("dim-pop").dataset.mode = "cell-lock";
+  if ($("dim-pop-title")) $("dim-pop-title").textContent = "Hücre kilidi";
+  if ($("dim-pop-val-wrap")) $("dim-pop-val-wrap").classList.add("hide");
+  if ($("dim-pop-cell-wrap")) $("dim-pop-cell-wrap").classList.remove("hide");
+  const bits = [];
+  if (ix != null) {
+    $("dim-pop").dataset.cellX = String(ix);
+    $("dim-pop-cx-wrap").classList.remove("hide");
+    $("dim-pop-cx").value = String(Math.round(Number(sx[ix]) * 10) / 10);
+    bits.push("X" + (ix + 1));
+  } else {
+    delete $("dim-pop").dataset.cellX;
+    $("dim-pop-cx-wrap").classList.add("hide");
+  }
+  if (iy != null) {
+    $("dim-pop").dataset.cellY = String(iy);
+    $("dim-pop-cy-wrap").classList.remove("hide");
+    $("dim-pop-cy").value = String(Math.round(Number(sy[iy]) * 10) / 10);
+    bits.push("Y" + (iy + 1));
+  } else {
+    delete $("dim-pop").dataset.cellY;
+    $("dim-pop-cy-wrap").classList.add("hide");
+  }
+  $("dim-pop-label").textContent = "Hücre " + bits.join("×") + " · ≥ 8 mm · kilitle";
+  return true;
+}
+
+function openDimPop(group, _x, _y, hitLocal) {
   const role = panelRole(group.userData.partId);
+  if (role === "bottom" && hitLocal && openCellLockPop(hitLocal.x, hitLocal.y)) {
+    return;
+  }
   const field =
     role === "front" || role === "back" ? "box-x"
       : role === "left" || role === "right" ? "box-y"
@@ -702,6 +820,10 @@ function openDimPop(group, _x, _y) {
     return;
   }
   $("dim-pop").classList.remove("hide");
+  $("dim-pop").dataset.mode = "panel";
+  if ($("dim-pop-title")) $("dim-pop-title").textContent = "Panel ölçüsü";
+  if ($("dim-pop-val-wrap")) $("dim-pop-val-wrap").classList.remove("hide");
+  if ($("dim-pop-cell-wrap")) $("dim-pop-cell-wrap").classList.add("hide");
   $("dim-pop-label").textContent = group.userData.partId + " · " + linkedDims(group.userData.partId);
   $("dim-pop-val").value = $(field).value;
   $("dim-pop").dataset.field = field;
@@ -719,10 +841,27 @@ function openDimPop(group, _x, _y) {
 function paintSummary(summary) {
   state.summary = summary || null;
   if (summary) {
-    if (Array.isArray(summary.sx)) state.sx = summary.sx.slice();
-    if (Array.isArray(summary.sy)) state.sy = summary.sy.slice();
-    if (Array.isArray(summary.divider_x_pos)) state.dividerXPos = summary.divider_x_pos.slice();
-    if (Array.isArray(summary.divider_y_pos)) state.dividerYPos = summary.divider_y_pos.slice();
+    const wantDx = Number(($("box-dx") && $("box-dx").value) || 0);
+    const wantDy = Number(($("box-dy") && $("box-dy").value) || 0);
+    if (Array.isArray(summary.sx) && summary.sx.length === wantDx + 1) state.sx = summary.sx.slice();
+    if (Array.isArray(summary.sy) && summary.sy.length === wantDy + 1) state.sy = summary.sy.slice();
+    // Only keep dragged positions when count still matches the form — otherwise equal cells win.
+    if (Array.isArray(summary.divider_x_pos) && summary.divider_x_pos.length === wantDx) {
+      state.dividerXPos = summary.divider_x_pos.slice();
+    } else if (wantDx === 0) {
+      state.dividerXPos = null;
+      state.sx = null;
+    }
+    if (Array.isArray(summary.divider_y_pos) && summary.divider_y_pos.length === wantDy) {
+      state.dividerYPos = summary.divider_y_pos.slice();
+    } else if (wantDy === 0) {
+      state.dividerYPos = null;
+      state.sy = null;
+    }
+    if ($("box-shelves") && summary.shelves != null) {
+      // Don't overwrite while user is typing; only sync when idle rebuild finished.
+      if (!state.rebuilding) $("box-shelves").value = String(summary.shelves);
+    }
   }
   if (!summary) {
     $("sum-inner").textContent = "—";
@@ -737,8 +876,284 @@ function paintSummary(summary) {
   $("sum-vol").textContent = (summary.volume_l != null ? summary.volume_l + " L" : "—");
 }
 
+function stopAssemblyPlay() {
+  state.asmPlaying = false;
+  if (state.asmTimer) {
+    clearTimeout(state.asmTimer);
+    state.asmTimer = null;
+  }
+  if (state.asmAnim) {
+    cancelAnimationFrame(state.asmAnim);
+    state.asmAnim = null;
+  }
+  if ($("asm-play")) $("asm-play").textContent = "▶ Oynat";
+}
+
+function findMeshForGuidePart(partId) {
+  for (const g of state.meshes || []) {
+    if (matchGuidePart(g.userData.partId, partId)) return g;
+  }
+  return null;
+}
+
+function paintAssemblyGuide(guide) {
+  state.assemblyGuide = guide || null;
+  const stepsEl = $("asm-steps");
+  const jointsEl = $("asm-joints");
+  if (stepsEl) stepsEl.innerHTML = "";
+  if (jointsEl) jointsEl.innerHTML = "";
+  if (!guide || !(guide.steps || []).length) {
+    if (stepsEl) {
+      const li = document.createElement("li");
+      li.textContent = "Montaj sırası yok — kutu üret.";
+      stepsEl.appendChild(li);
+    }
+    if ($("asm-step")) {
+      $("asm-step").max = "0";
+      $("asm-step").value = "0";
+    }
+    if ($("asm-step-lab")) $("asm-step-lab").textContent = "0/0";
+    return;
+  }
+  const steps = guide.steps || [];
+  steps.forEach((s) => {
+    const li = document.createElement("li");
+    li.dataset.step = String(s.step);
+    li.innerHTML = "<strong>" + s.step + ". " + (s.title_tr || s.part_id) + "</strong>"
+      + "<span class=\"sub\">" + (s.detail_tr || "") + "</span>";
+    li.onclick = () => {
+      stopAssemblyPlay();
+      setAssemblyStep(s.step, true);
+    };
+    stepsEl.appendChild(li);
+  });
+  (guide.connections || []).forEach((c) => {
+    const li = document.createElement("li");
+    li.dataset.cid = c.connection_id || "";
+    li.innerHTML = "<strong>" + (c.connection_id || "?") + "</strong> "
+      + (c.part_a || "?") + " ↔ " + (c.part_b || "?")
+      + "<span class=\"sub\">" + (c.joint_type || "") + (c.edge_hint ? " · " + c.edge_hint : "")
+      + " · " + (c.physical_fit || "NOT_VERIFIED") + "</span>";
+    li.onclick = () => {
+      stopAssemblyPlay();
+      highlightConnection(c);
+      setStatus((c.note || (c.part_a + " ↔ " + c.part_b)) + " · fiziksel NOT_VERIFIED", "ok");
+    };
+    jointsEl.appendChild(li);
+  });
+  if ($("asm-step")) {
+    $("asm-step").max = String(steps.length);
+    $("asm-step").value = String(steps.length);
+  }
+  state.asmStep = steps.length;
+  if ($("asm-step-lab")) $("asm-step-lab").textContent = steps.length + "/" + steps.length;
+  syncAsmStepList(steps.length);
+}
+
+function syncAsmStepList(step) {
+  const stepsEl = $("asm-steps");
+  if (!stepsEl) return;
+  stepsEl.querySelectorAll("li").forEach((li) => {
+    li.classList.toggle("on", Number(li.dataset.step) === Number(step));
+  });
+  const jointsEl = $("asm-joints");
+  if (!jointsEl || !state.assemblyGuide) return;
+  const active = (state.assemblyGuide.steps || []).find((s) => s.step === Number(step));
+  const joinSet = new Set((active && active.joins) || []);
+  jointsEl.querySelectorAll("li").forEach((li) => {
+    li.classList.toggle("on", joinSet.has(li.dataset.cid));
+  });
+}
+
+function highlightConnection(conn) {
+  if (!state.woodMate) {
+    state.woodMate = new THREE.MeshStandardMaterial({
+      color: 0xffc857, emissive: 0x5a3a00, roughness: 0.45, metalness: 0.12,
+    });
+  }
+  state.meshes.forEach((g) => {
+    const hot = matchGuidePart(g.userData.partId, conn.part_a)
+      || matchGuidePart(g.userData.partId, conn.part_b);
+    g.visible = true;
+    g.traverse((obj) => {
+      if (obj.isMesh && obj.material && obj.material.isMeshStandardMaterial) {
+        obj.material = hot ? state.woodMate : state.wood;
+        obj.material.transparent = false;
+        obj.material.opacity = 1;
+      }
+    });
+  });
+}
+
+function setPanelMaterial(group, kind) {
+  // kind: seated | active | mate | hidden | ghost
+  if (!state.woodMate) {
+    state.woodMate = new THREE.MeshStandardMaterial({
+      color: 0xffc857, emissive: 0x5a3a00, roughness: 0.45, metalness: 0.12,
+    });
+  }
+  if (!state.woodGhost) {
+    state.woodGhost = new THREE.MeshStandardMaterial({
+      color: 0x3d8bfd, transparent: true, opacity: 0.22, roughness: 0.7, metalness: 0.05, depthWrite: false,
+    });
+  }
+  if (kind === "hidden") {
+    group.visible = false;
+    return;
+  }
+  group.visible = true;
+  let mat = state.wood;
+  if (kind === "active") mat = state.woodHi || state.woodMate;
+  else if (kind === "mate") mat = state.woodMate;
+  else if (kind === "ghost") mat = state.woodGhost;
+  group.traverse((obj) => {
+    if (obj.isMesh && obj.material && obj.material.isMeshStandardMaterial) {
+      obj.material = mat;
+    }
+  });
+}
+
+function applyAssemblyStep(step, animateIncoming) {
+  const guide = state.assemblyGuide;
+  const order = (guide && guide.assembly_order) || [];
+  const n = Math.max(0, Math.min(order.length, Number(step) || 0));
+  state.asmStep = n;
+  if ($("asm-step")) $("asm-step").value = String(n);
+  if ($("asm-step-lab")) $("asm-step-lab").textContent = n + "/" + order.length;
+  syncAsmStepList(n);
+
+  // Force assembled explode pose
+  if ($("explode")) {
+    $("explode").value = "0";
+    $("explode-lab").textContent = "0%";
+  }
+
+  const placed = new Set(order.slice(0, n));
+  const activeId = n > 0 ? order[n - 1] : null;
+  const activeJoins = new Set();
+  if (guide && activeId) {
+    const st = (guide.steps || []).find((s) => s.part_id === activeId);
+    (st && st.joins || []).forEach((id) => activeJoins.add(id));
+    (guide.connections || []).forEach((c) => {
+      if (!activeJoins.has(c.connection_id)) return;
+      // mates already in placed set get mate highlight
+    });
+  }
+  const mateParts = new Set();
+  if (guide && activeId) {
+    (guide.connections || []).forEach((c) => {
+      if (!activeJoins.has(c.connection_id)) return;
+      if (c.part_a !== activeId) mateParts.add(c.part_a);
+      if (c.part_b !== activeId) mateParts.add(c.part_b);
+    });
+  }
+
+  state.meshes.forEach((group) => {
+    const leaf = panelLeafId(group.userData.partId);
+    let kind = "hidden";
+    let matchedOrder = null;
+    for (const pid of order) {
+      if (matchGuidePart(group.userData.partId, pid)) {
+        matchedOrder = pid;
+        break;
+      }
+    }
+    if (!matchedOrder) {
+      // panels not in guide (unknown) — show when fully assembled
+      kind = n >= order.length ? "seated" : "ghost";
+    } else if (!placed.has(matchedOrder)) {
+      kind = "hidden";
+    } else if (matchedOrder === activeId) {
+      kind = "active";
+    } else if (mateParts.has(matchedOrder)) {
+      kind = "mate";
+    } else {
+      kind = "seated";
+    }
+    setPanelMaterial(group, kind);
+
+    if (!group.userData.baseMatrix || !group.userData.seated) return;
+    const m = group.userData.baseMatrix.clone();
+    if (animateIncoming && matchedOrder === activeId && group.userData.exploded) {
+      // start from exploded, lerp into seat below
+      const from = group.userData.exploded.clone();
+      const to = group.userData.seated.clone();
+      const start = performance.now();
+      const dur = 420;
+      const tick = (now) => {
+        if (state.asmStep !== n) return;
+        const u = Math.min(1, (now - start) / dur);
+        const e = 1 - Math.pow(1 - u, 3);
+        const p = from.clone().lerp(to, e);
+        const delta = p.clone().sub(group.userData.seated);
+        const mm = group.userData.baseMatrix.clone();
+        mm.setPosition(new THREE.Vector3().setFromMatrixPosition(mm).add(delta));
+        group.matrix.copy(mm);
+        group.matrixWorldNeedsUpdate = true;
+        if (u < 1) state.asmAnim = requestAnimationFrame(tick);
+        else {
+          group.matrix.copy(group.userData.baseMatrix);
+          state.asmAnim = null;
+        }
+      };
+      state.asmAnim = requestAnimationFrame(tick);
+    } else {
+      group.matrix.copy(m);
+      group.matrixWorldNeedsUpdate = true;
+    }
+  });
+
+  if (activeId) {
+    const st = (guide.steps || []).find((s) => s.part_id === activeId);
+    setStatus(
+      (st ? (st.step + ". " + st.title_tr + " — " + st.detail_tr) : activeId)
+      + " · fiziksel NOT_VERIFIED",
+      "ok"
+    );
+  } else if (n === 0) {
+    setStatus("Montaj başlangıcı — henüz panel yok.", "ok");
+  } else {
+    setStatus("Montaj tamam (dijital). Fiziksel dry-fit NOT_VERIFIED.", "ok");
+  }
+}
+
+function setAssemblyStep(step, animate) {
+  applyAssemblyStep(step, !!animate);
+}
+
+function playAssemblyAnimation() {
+  const guide = state.assemblyGuide;
+  const total = ((guide && guide.assembly_order) || []).length;
+  if (!total) {
+    setStatus("Önce kutu üret — montaj sırası yok.", "bad");
+    return;
+  }
+  if (state.asmPlaying) {
+    stopAssemblyPlay();
+    return;
+  }
+  state.asmPlaying = true;
+  if ($("asm-play")) $("asm-play").textContent = "■ Dur";
+  let step = 0;
+  setAssemblyStep(0, false);
+  const advance = () => {
+    if (!state.asmPlaying) return;
+    step += 1;
+    if (step > total) {
+      stopAssemblyPlay();
+      setAssemblyStep(total, false);
+      setStatus("Montaj animasyonu bitti — dijital sıra. Fiziksel NOT_VERIFIED.", "ok");
+      return;
+    }
+    setAssemblyStep(step, true);
+    state.asmTimer = setTimeout(advance, 520);
+  };
+  state.asmTimer = setTimeout(advance, 280);
+}
+
 function loadAssembly(assembly) {
   clearGhostLid();
+  stopAssemblyPlay();
   clearMeshes();
   state.assembly = assembly;
   state.selected = null;
@@ -751,7 +1166,7 @@ function loadAssembly(assembly) {
   const edgeMat = new THREE.LineBasicMaterial({ color: 0x5a4030 });
   const panels = assembly.panels || [];
   let cursorX = 0;
-  const gap = 6;
+  const gap = Math.max(2, Math.min(30, Number(($("nest-gap") && $("nest-gap").value) || 6)));
   panels.forEach((panel, index) => {
     const shape = shapeFromOutline(panel.outline_local_mm, panel.inner_cuts);
     if (!shape) return;
@@ -799,7 +1214,7 @@ function loadAssembly(assembly) {
   applyExplode(Number($("explode").value || 0) / 100);
   rebuildResizeHandles();
   fitCamera();
-  setStatus("Mavi tutamaç / bölücü tut-çek · panele tıkla = ölçü.", "ok");
+  setStatus("Mavi tutamaç / bölücü tut-çek · ▶ Oynat = montaj sırası.", "ok");
   $("sum-panels").textContent = String(panels.length);
   $("sum-t").textContent = thickness + " mm";
   $("sum-val").textContent = assembly.validation_state || "—";
@@ -809,6 +1224,11 @@ function loadAssembly(assembly) {
   if ($("box-t") && thickness) $("box-t").value = String(thickness);
   if ($("stl-h") && thickness) $("stl-h").value = String(thickness);
   paintNestStats();
+  applyLidOpenPreview();
+  if (state.assemblyGuide) {
+    const n = (state.assemblyGuide.assembly_order || []).length;
+    setAssemblyStep(n, false);
+  }
 }
 
 function paintNestStats() {
@@ -909,16 +1329,98 @@ function paintJoints(data) {
   }
 }
 
+function paintGate(data) {
+  const status = data.final_status || (data.preview ? "PREVIEW_ONLY" : "—");
+  const isPreview = !!(data.preview || data.gate_skipped || status === "PREVIEW_ONLY");
+  // Live preview must not hide the last authorized download.
+  const exportOk = !!state.fileId && (
+    isPreview
+      ? true
+      : (data.export_allowed !== false && status !== "BLOCKED" && status !== "FAIL")
+  );
+  if ($("sum-val")) $("sum-val").textContent = status;
+  if ($("sum-export")) {
+    $("sum-export").textContent = exportOk
+      ? (isPreview ? "son kayıt indirilebilir" : "izinli")
+      : (isPreview && !state.fileId ? "önizleme — henüz kayıt yok" : "BLOCKED");
+  }
+  if ($("gate-badge")) {
+    if (isPreview) {
+      $("gate-badge").textContent = state.fileId
+        ? "PREVIEW_ONLY (gate atlandı) — son kayıtlı SVG hâlâ indirilebilir."
+        : "PREVIEW_ONLY — Final Gate / nest atlandı. Henüz kayıt yok.";
+    } else if (status === "BLOCKED") {
+      $("gate-badge").textContent = "BLOCKED — SVG/DXF yetkisiz. look_again’e bak.";
+    } else if (status === "PROTOTYPE READY" || status === "DIGITAL_PROTOTYPE_READY") {
+      $("gate-badge").textContent = "DIGITAL PROTOTYPE READY — fiziksel fit NOT_VERIFIED.";
+    } else {
+      $("gate-badge").textContent = "Gate: " + status + " · fiziksel NOT_VERIFIED.";
+    }
+  }
+  const scoreEl = $("gate-score");
+  if (scoreEl) {
+    scoreEl.innerHTML = "";
+    const card = data.scorecard || {};
+    const rows = Object.keys(card).length
+      ? Object.entries(card)
+      : [
+        ["preview", data.preview ? "PASS" : "—"],
+        ["joints", (data.joints && data.joints.status) || "—"],
+        ["final_gate", data.gate_skipped ? "SKIPPED" : status],
+        ["physical_fit", "NOT_VERIFIED"],
+      ];
+    rows.forEach(([k, v]) => {
+      const li = document.createElement("li");
+      li.innerHTML = "<strong>" + k + "</strong> · " + String(v);
+      scoreEl.appendChild(li);
+    });
+  }
+  if ($("gate-looks")) {
+    const looks = data.look_again || [];
+    $("gate-looks").textContent = looks.length ? looks.slice(0, 8).join("\n") : "";
+  }
+  // Lock download buttons only when a non-preview response forbids export.
+  if (!isPreview && !exportOk) {
+    ["dl-svg", "dl-dxf", "open-edit"].forEach((id) => {
+      const el = $(id);
+      if (!el) return;
+      el.classList.add("hide");
+      el.removeAttribute("href");
+    });
+  }
+  if ($("make-box")) {
+    $("make-box").disabled = false;
+    $("make-box").title = (!isPreview && status === "BLOCKED")
+      ? "Son kayıt BLOCKED — düzeltip tekrar kaydet"
+      : "";
+  }
+}
+
 function paintExports(data) {
-  const fileId = data.file_id || (data.assembly && data.assembly.file_id);
-  state.fileId = fileId;
-  $("sum-file").textContent = fileId || "—";
+  const incoming = data.file_id || (data.assembly && data.assembly.file_id) || null;
+  // Preview responses have no file_id — keep the last saved export so download links stay usable.
+  if (incoming) {
+    state.fileId = incoming;
+    state.svgUrl = data.svg_url || ("/files/" + encodeURIComponent(incoming) + "?download=1");
+    state.dxfId = data.dxf_id || null;
+    state.dxfUrl = data.dxf_url || (data.dxf_id ? ("/files/" + encodeURIComponent(data.dxf_id) + "?download=1") : null);
+  } else if (data.preview && state.fileId) {
+    // keep previous
+  } else if (!data.preview) {
+    state.fileId = null;
+    state.svgUrl = null;
+    state.dxfId = null;
+    state.dxfUrl = null;
+  }
+  const fileId = state.fileId;
+  $("sum-file").textContent = fileId || (data.preview ? "önizleme (kayıt yok)" : "—");
   paintJoints(data);
   const svg = $("dl-svg");
   const dxf = $("dl-dxf");
   const edit = $("open-edit");
   if (fileId) {
-    svg.href = data.svg_url || ("/files/" + encodeURIComponent(fileId));
+    svg.href = state.svgUrl || ("/files/" + encodeURIComponent(fileId) + "?download=1");
+    svg.setAttribute("download", fileId);
     svg.classList.remove("hide");
     edit.href = "/out/" + encodeURIComponent(fileId);
     edit.classList.remove("hide");
@@ -926,21 +1428,45 @@ function paintExports(data) {
     svg.classList.add("hide");
     edit.classList.add("hide");
   }
-  if (data.dxf_url || data.dxf_id) {
-    dxf.href = data.dxf_url || ("/files/" + encodeURIComponent(data.dxf_id));
+  if (state.dxfUrl || state.dxfId) {
+    dxf.href = state.dxfUrl || ("/files/" + encodeURIComponent(state.dxfId) + "?download=1");
+    dxf.setAttribute("download", state.dxfId || "cut.dxf");
     dxf.classList.remove("hide");
-  } else {
+  } else if (!data.preview) {
     dxf.classList.add("hide");
   }
   if (data.stl_url || data.stl_id) {
     const stl = $("dl-stl");
-    stl.href = data.stl_url || ("/files/" + encodeURIComponent(data.stl_id));
+    stl.href = data.stl_url || ("/files/" + encodeURIComponent(data.stl_id) + "?download=1");
     stl.classList.remove("hide");
   }
   const plan = data.plan || {};
   $("sum-plan").textContent = plan.plan_name || plan.plan || "—";
   if (plan.quota != null) $("sum-quota").textContent = (plan.used || 0) + " / " + plan.quota;
   paintSummary(data.summary);
+  const guide = data.assembly_guide
+    || (data.summary && data.summary.assembly_guide)
+    || null;
+  if (guide) {
+    paintAssemblyGuide(guide);
+  } else if (!data.preview) {
+    // Saved/non-box payloads without a guide: clear lists once, don't wipe on every preview miss.
+    paintAssemblyGuide(null);
+  }
+  paintGate(data);
+  const saveHint = $("export-hint");
+  if (saveHint) {
+    if (data.preview || data.gate_skipped) {
+      saveHint.textContent = "Önizleme kaydetmez / gate yok. «Kaydet ve indir» = Final Gate + SVG.";
+    } else if (data.final_status === "BLOCKED" || data.export_allowed === false) {
+      saveHint.textContent = "BLOCKED — indirme yok. Gate / look_again listesine bak.";
+    } else if (fileId) {
+      const dxfNote = (state.dxfUrl || state.dxfId) ? " SVG/DXF indirilebilir." : " SVG indirilebilir (DXF plana bağlı).";
+      saveHint.textContent = "Kayıtlı: " + fileId + " —" + dxfNote;
+    } else {
+      saveHint.textContent = "Çıktı için «Kaydet ve indir».";
+    }
+  }
 }
 
 function snapshotForm() {
@@ -955,9 +1481,24 @@ function snapshotForm() {
     finger: $("box-finger").value,
     burn: $("box-burn").value,
     press_fit: $("box-bumps").checked,
+    bump_d: $("box-bump-d") ? $("box-bump-d").value : "0.5",
+    handle: $("box-handle") ? $("box-handle").checked : true,
+    handle_w: $("box-handle-w") ? $("box-handle-w").value : "40",
+    lid_r: $("box-lid-r") ? $("box-lid-r").value : "0",
+    lid_open: $("box-lid-open") ? $("box-lid-open").checked : false,
     dividers_x: $("box-dx").value,
     dividers_y: $("box-dy").value,
+    shelves: $("box-shelves") ? $("box-shelves").value : "0",
+    div_walls: $("box-div-walls") ? $("box-div-walls").checked : true,
+    div_bottom: $("box-div-bottom") ? $("box-div-bottom").checked : true,
     bottom_lift: $("box-lift").value,
+    dividerXPos: state.dividerXPos ? state.dividerXPos.slice() : null,
+    dividerYPos: state.dividerYPos ? state.dividerYPos.slice() : null,
+    lockedCellsX: state.lockedCellsX ? { ...state.lockedCellsX } : {},
+    lockedCellsY: state.lockedCellsY ? { ...state.lockedCellsY } : {},
+    material: $("box-material") ? $("box-material").value : "poplar_3mm",
+    machine: $("box-machine") ? $("box-machine").value : "payas_workshop",
+    nest_gap: $("nest-gap") ? $("nest-gap").value : "6",
   };
 }
 
@@ -970,12 +1511,27 @@ function restoreForm(snap) {
   $("box-y").value = snap.y;
   $("box-h").value = snap.h;
   $("box-t").value = snap.thickness;
+  if ($("box-material") && snap.material) $("box-material").value = snap.material;
+  if ($("box-machine") && snap.machine) $("box-machine").value = snap.machine;
+  if ($("nest-gap") && snap.nest_gap != null) $("nest-gap").value = snap.nest_gap;
   $("box-finger").value = snap.finger;
   $("box-burn").value = snap.burn || "";
   $("box-bumps").checked = !!snap.press_fit;
+  if ($("box-bump-d") && snap.bump_d != null) $("box-bump-d").value = snap.bump_d;
+  if ($("box-handle") && snap.handle != null) $("box-handle").checked = !!snap.handle;
+  if ($("box-handle-w") && snap.handle_w != null) $("box-handle-w").value = snap.handle_w;
+  if ($("box-lid-r") && snap.lid_r != null) $("box-lid-r").value = snap.lid_r;
+  if ($("box-lid-open") && snap.lid_open != null) $("box-lid-open").checked = !!snap.lid_open;
   $("box-dx").value = snap.dividers_x || 0;
   $("box-dy").value = snap.dividers_y || 0;
+  if ($("box-shelves") && snap.shelves != null) $("box-shelves").value = snap.shelves;
+  if ($("box-div-walls") && snap.div_walls != null) $("box-div-walls").checked = !!snap.div_walls;
+  if ($("box-div-bottom") && snap.div_bottom != null) $("box-div-bottom").checked = !!snap.div_bottom;
   $("box-lift").value = snap.bottom_lift || 0;
+  state.dividerXPos = Array.isArray(snap.dividerXPos) ? snap.dividerXPos.slice() : null;
+  state.dividerYPos = Array.isArray(snap.dividerYPos) ? snap.dividerYPos.slice() : null;
+  state.lockedCellsX = snap.lockedCellsX ? { ...snap.lockedCellsX } : {};
+  state.lockedCellsY = snap.lockedCellsY ? { ...snap.lockedCellsY } : {};
   state.lid = snap.lid || "open";
 }
 
@@ -1002,20 +1558,38 @@ function boxBody() {
   };
   const burn = $("box-burn").value;
   if (burn !== "") body.burn = Number(burn);
-  // Custom divider layout from drag (positions preferred)
-  if (Array.isArray(state.dividerXPos) && state.dividerXPos.length) {
+  if ($("box-shelves")) body.shelves = Number($("box-shelves").value) || 0;
+  if ($("box-handle")) body.handle = !!$("box-handle").checked;
+  if ($("box-handle-w")) body.handle_w = Number($("box-handle-w").value) || 40;
+  if ($("box-lid-r")) body.lid_radius = Number($("box-lid-r").value) || 0;
+  if ($("box-bump-d")) body.bump_diameter = Number($("box-bump-d").value) || 0.5;
+  if ($("box-div-walls")) body.divider_joint_walls = !!$("box-div-walls").checked;
+  if ($("box-div-bottom")) body.divider_joint_bottom = !!$("box-div-bottom").checked;
+  if ($("box-material")) body.material = $("box-material").value;
+  if ($("box-machine")) body.machine = $("box-machine").value;
+  if ($("nest-gap")) body.nest_gap_mm = Number($("nest-gap").value) || 6;
+  // Custom divider layout from drag — only when count matches the form fields.
+  const dx = body.dividers_x;
+  const dy = body.dividers_y;
+  if (Array.isArray(state.dividerXPos) && state.dividerXPos.length === dx && dx > 0) {
     body.divider_x_mm = state.dividerXPos.slice();
-    body.dividers_x = state.dividerXPos.length;
-  } else if (Array.isArray(state.sx) && state.sx.length > 1) {
-    body.sx = state.sx.slice();
-    body.dividers_x = state.sx.length - 1;
+  } else {
+    state.dividerXPos = null;
+    if (Array.isArray(state.sx) && state.sx.length === dx + 1 && dx > 0) body.sx = state.sx.slice();
+    else state.sx = null;
   }
-  if (Array.isArray(state.dividerYPos) && state.dividerYPos.length) {
+  if (Array.isArray(state.dividerYPos) && state.dividerYPos.length === dy && dy > 0) {
     body.divider_y_mm = state.dividerYPos.slice();
-    body.dividers_y = state.dividerYPos.length;
-  } else if (Array.isArray(state.sy) && state.sy.length > 1) {
-    body.sy = state.sy.slice();
-    body.dividers_y = state.sy.length - 1;
+  } else {
+    state.dividerYPos = null;
+    if (Array.isArray(state.sy) && state.sy.length === dy + 1 && dy > 0) body.sy = state.sy.slice();
+    else state.sy = null;
+  }
+  if (state.lockedCellsX && Object.keys(state.lockedCellsX).length) {
+    body.locked_cells_x = state.lockedCellsX;
+  }
+  if (state.lockedCellsY && Object.keys(state.lockedCellsY).length) {
+    body.locked_cells_y = state.lockedCellsY;
   }
   return body;
 }
@@ -1048,16 +1622,30 @@ async function makeBox(opts) {
       return;
     }
     paintExports(data);
-    loadAssembly(data.assembly);
+    if (data.assembly) loadAssembly(data.assembly);
     if (data.file_id) {
       history.replaceState(null, "", "/studio?file=" + encodeURIComponent(data.file_id));
     }
-    setStatus(
-      preview
-        ? "Önizleme hazır. İndirmek için Yeniden üret’e bas."
-        : "Kayıtlı kesim hazır.",
-      "ok"
-    );
+    if (!preview && (data.final_status === "BLOCKED" || data.export_allowed === false)) {
+      setStatus("BLOCKED — indirme yok. " + ((data.look_again || [])[0] || "Gate başarısız."), "bad");
+    } else {
+      setStatus(
+        preview
+          ? "Önizleme (PREVIEW_ONLY) — gate yok. «Kaydet ve indir» ile yetkilendir."
+          : (data.file_id ? ("Kayıtlı: " + (data.final_status || "OK") + " — SVG indir.") : "Üretim bitti."),
+        "ok"
+      );
+    }
+    if (!preview && options.autoDownload && data.file_id && data.export_allowed !== false) {
+      const href = data.svg_url || ("/files/" + encodeURIComponent(data.file_id) + "?download=1");
+      const a = document.createElement("a");
+      a.href = href;
+      a.download = data.file_id;
+      a.rel = "noopener";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
   } finally {
     if (gen === state.rebuildGen) {
       state.rebuilding = false;
@@ -1069,12 +1657,13 @@ async function makeBox(opts) {
 
 function scheduleRebuild(immediate) {
   clearTimeout(state.rebuildTimer);
+  stopAssemblyPlay();
   // Instant optimistic lid so the viewport reacts before the server returns.
   showOptimisticLid();
   setLoading(true, "Kapak / ölçü güncelleniyor…");
   const delay = immediate ? 40 : 220;
   state.rebuildTimer = setTimeout(() => {
-    pushUndo();
+    // Do NOT pushUndo here — live preview would flood the undo stack every keystroke.
     makeBox({ preview: true }).catch((err) => {
       setLoading(false);
       setStatus(String(err), "bad");
@@ -1356,7 +1945,6 @@ async function makeMaker() {
       loadAssembly(data.assembly);
     } else {
       clearMeshes();
-      setStatus("SVG/DXF hazır (düz nest). 3D montaj bu maker için zorunlu değil.", "ok");
       $("sum-note").textContent = (data.summary && data.summary.maker)
         ? ("Maker: " + data.summary.maker + " · AI: hayır")
         : "Parametrik maker · AI yok";
@@ -1365,9 +1953,18 @@ async function makeMaker() {
       history.replaceState(null, "", "/studio?file=" + encodeURIComponent(data.file_id));
     }
     const label = (data.summary && data.summary.maker) || "maker";
-    setStatus("Parametrik " + label + " hazır — AI kullanılmadı.", "ok");
     $("sum-plan").textContent = "parametric_maker";
     $("sum-val").textContent = data.final_status || "DIGITAL_PROTOTYPE";
+    if (data.final_status === "BLOCKED" || data.export_allowed === false) {
+      setStatus(
+        "BLOCKED — " + label + " indirme yok. " + ((data.look_again || [])[0] || "Gate başarısız."),
+        "bad"
+      );
+    } else if (panels && panels.length) {
+      setStatus("Parametrik " + label + " hazır — AI yok. Fiziksel NOT_VERIFIED.", "ok");
+    } else {
+      setStatus("SVG/DXF hazır (düz nest). 3D montaj bu maker için zorunlu değil.", "ok");
+    }
   } finally {
     setLoading(false);
     if (btn) btn.disabled = false;
@@ -1380,48 +1977,116 @@ function wireUi() {
       document.querySelectorAll(".tabs button").forEach((b) => b.classList.remove("on"));
       btn.classList.add("on");
       document.querySelectorAll(".pane").forEach((p) => p.classList.remove("on"));
-      $("pane-" + btn.dataset.tab).classList.add("on");
+      const pane = $("pane-" + btn.dataset.tab);
+      if (pane) pane.classList.add("on");
       if (btn.dataset.tab === "makers") syncMakerFields();
+      if (btn.dataset.tab === "calibrate") loadCalibrations().catch(() => {});
+      if (btn.dataset.tab === "history") loadProjectHistory().catch(() => {});
     };
   });
   $("box-lid").onchange = () => {
+    pushUndo();
     state.lid = $("box-lid").value;
     scheduleRebuild(true); // lid change → immediate preview + overlay
   };
+  if ($("box-lid-open")) {
+    $("box-lid-open").onchange = () => applyLidOpenPreview();
+  }
   [
     "box-x", "box-y", "box-h", "box-t", "box-finger", "box-burn",
     "box-dx", "box-dy", "box-lift", "box-unit", "box-dims",
+    "box-handle-w", "box-lid-r", "box-bump-d",
   ].forEach((id) => {
     const el = $(id);
     if (!el) return;
-    const onChange = () => {
+    const applyFields = () => {
       if (id === "box-dx") {
         state.dividerXPos = null;
         state.sx = null;
+        state.lockedCellsX = {};
       }
       if (id === "box-dy") {
         state.dividerYPos = null;
         state.sy = null;
+        state.lockedCellsY = {};
       }
-      scheduleRebuild();
     };
-    el.addEventListener("change", onChange);
+    el.addEventListener("change", () => {
+      applyFields();
+      pushUndo();
+      scheduleRebuild(true);
+    });
     el.addEventListener("input", () => {
       if (id === "box-burn") return;
-      onChange();
+      applyFields();
+      scheduleRebuild(); // live preview — undo only on change/commit
     });
   });
-  $("box-bumps").onchange = scheduleRebuild;
+  $("box-bumps").onchange = () => { pushUndo(); scheduleRebuild(true); };
+  ["box-handle", "box-div-walls", "box-div-bottom"].forEach((id) => {
+    if ($(id)) $(id).onchange = () => { pushUndo(); scheduleRebuild(true); };
+  });
   $("explode").oninput = () => {
+    stopAssemblyPlay();
+    // Restore all panels visible when scrubbing explode
+    state.meshes.forEach((g) => setPanelMaterial(g, "seated"));
     const t = Number($("explode").value) / 100;
     $("explode-lab").textContent = Math.round(t * 100) + "%";
     applyExplode(t);
   };
+  if ($("asm-play")) $("asm-play").onclick = () => playAssemblyAnimation();
+  if ($("asm-prev")) {
+    $("asm-prev").onclick = () => {
+      stopAssemblyPlay();
+      setAssemblyStep(Math.max(0, (state.asmStep || 0) - 1), true);
+    };
+  }
+  if ($("asm-next")) {
+    $("asm-next").onclick = () => {
+      stopAssemblyPlay();
+      const max = ((state.assemblyGuide && state.assemblyGuide.assembly_order) || []).length;
+      setAssemblyStep(Math.min(max, (state.asmStep || 0) + 1), true);
+    };
+  }
+  if ($("asm-step")) {
+    $("asm-step").oninput = () => {
+      stopAssemblyPlay();
+      setAssemblyStep(Number($("asm-step").value) || 0, false);
+    };
+  }
   $("make-box").onclick = () => {
     pushUndo();
     clearGhostLid();
-    makeBox({ preview: false }); // full SVG/DXF export
+    makeBox({ preview: false, autoDownload: true }); // full SVG/DXF + trigger download
   };
+  function bumpCount(id, delta, lo, hi) {
+    const el = $(id);
+    if (!el) return;
+    pushUndo();
+    const next = Math.max(lo, Math.min(hi, (Number(el.value) || 0) + delta));
+    el.value = String(next);
+    if (id === "box-dx") { state.dividerXPos = null; state.sx = null; state.lockedCellsX = {}; }
+    if (id === "box-dy") { state.dividerYPos = null; state.sy = null; state.lockedCellsY = {}; }
+    scheduleRebuild(true);
+  }
+  if ($("dx-plus")) $("dx-plus").onclick = () => bumpCount("box-dx", 1, 0, 8);
+  if ($("dx-minus")) $("dx-minus").onclick = () => bumpCount("box-dx", -1, 0, 8);
+  if ($("dy-plus")) $("dy-plus").onclick = () => bumpCount("box-dy", 1, 0, 8);
+  if ($("dy-minus")) $("dy-minus").onclick = () => bumpCount("box-dy", -1, 0, 8);
+  if ($("sh-plus")) $("sh-plus").onclick = () => bumpCount("box-shelves", 1, 0, 6);
+  if ($("sh-minus")) $("sh-minus").onclick = () => bumpCount("box-shelves", -1, 0, 6);
+  if ($("box-shelves")) {
+    $("box-shelves").addEventListener("change", () => scheduleRebuild(true));
+    $("box-shelves").addEventListener("input", () => scheduleRebuild());
+  }
+  if ($("dl-svg")) {
+    $("dl-svg").addEventListener("click", (ev) => {
+      if (state.fileId) return;
+      ev.preventDefault();
+      setStatus("Önce «Kaydet ve indir» ile dosyayı kaydet.", "bad");
+      makeBox({ preview: false, autoDownload: true }).catch((e) => setStatus(String(e), "bad"));
+    });
+  }
   $("undo-box").onclick = () => {
     const prev = state.undo.pop();
     if (!prev) {
@@ -1457,10 +2122,16 @@ function wireUi() {
   }
   if ($("nest-gap")) {
     $("nest-gap").onchange = () => {
-      // Gap is visual estimate in nest stats; flat layout uses fixed gap in loadAssembly.
       paintNestStats();
+      if (state.assembly) loadAssembly(state.assembly); // re-pack flat layout with new gap
     };
   }
+  if ($("box-material")) $("box-material").onchange = onMaterialChange;
+  if ($("box-machine")) $("box-machine").onchange = onMachineChange;
+  if ($("make-coupon")) $("make-coupon").onclick = () => makeCoupon().catch((e) => setStatus(String(e), "bad"));
+  if ($("cal-save")) $("cal-save").onclick = () => saveCalibration().catch((e) => setStatus(String(e), "bad"));
+  if ($("cal-apply")) $("cal-apply").onclick = () => applyCalibrationBurn();
+  if ($("hist-refresh")) $("hist-refresh").onclick = () => loadProjectHistory().catch((e) => setStatus(String(e), "bad"));
   if ($("ai-file")) $("ai-file").onchange = () => { onAiFileChange().catch((e) => setStatus(String(e), "bad")); };
   if ($("ai-file-clear")) {
     $("ai-file-clear").onclick = () => {
@@ -1478,15 +2149,30 @@ function wireUi() {
   if ($("ai-w")) $("ai-w").addEventListener("change", scheduleAiCost);
   $("dim-pop-cancel").onclick = hideDimPop;
   $("dim-pop-apply").onclick = () => {
+    if ($("dim-pop").dataset.mode === "cell-lock") {
+      pushUndo();
+      state.dividerXPos = null;
+      state.dividerYPos = null;
+      if ($("dim-pop").dataset.cellX != null) {
+        const ix = Number($("dim-pop").dataset.cellX);
+        const w = Math.max(8, Number($("dim-pop-cx").value) || 8);
+        state.lockedCellsX = { ...(state.lockedCellsX || {}), [ix]: w };
+        state.sx = null;
+      }
+      if ($("dim-pop").dataset.cellY != null) {
+        const iy = Number($("dim-pop").dataset.cellY);
+        const d = Math.max(8, Number($("dim-pop-cy").value) || 8);
+        state.lockedCellsY = { ...(state.lockedCellsY || {}), [iy]: d };
+        state.sy = null;
+      }
+      hideDimPop();
+      scheduleRebuild(true);
+      setStatus("Hücre kilitlendi — kalan hücreler eşit dağıtılır.", "ok");
+      return;
+    }
     const field = $("dim-pop").dataset.field;
-    const field2 = $("dim-pop").dataset.field2;
     const val = $("dim-pop-val").value;
     if (field) $(field).value = val;
-    // For walls, primary field is the edge length along that wall's width;
-    // height stays on box-h via field2 only when user intends — keep H unless role needs both.
-    if (field2 === "box-y" && field === "box-x") {
-      // bottom/lid: changing one dim in popup edits X; Y unchanged unless typed same — OK
-    }
     hideDimPop();
     pushUndo();
     scheduleRebuild();
@@ -1495,6 +2181,14 @@ function wireUi() {
     if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "z") {
       ev.preventDefault();
       $("undo-box").click();
+      return;
+    }
+    if (ev.key === "Delete" || ev.key === "Backspace") {
+      const tag = (ev.target && ev.target.tagName) || "";
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      if (!state.selected || !state.selected.userData.divider) return;
+      ev.preventDefault();
+      mergeSelectedDivider();
     }
   });
   if ($("mcp-open")) {
@@ -1508,6 +2202,44 @@ function wireUi() {
       loadFile(id).catch((e) => setStatus(String(e), "bad"));
     };
   }
+}
+
+function mergeSelectedDivider() {
+  const div = state.selected && state.selected.userData.divider;
+  if (!div) return;
+  pushUndo();
+  const axis = div.axis;
+  const idx = div.index;
+  const positions = (axis === "x"
+    ? (state.dividerXPos || (state.summary && state.summary.divider_x_pos) || [])
+    : (state.dividerYPos || (state.summary && state.summary.divider_y_pos) || [])).map(Number);
+  if (idx < 0 || idx >= positions.length) return;
+  positions.splice(idx, 1);
+  if (axis === "x") {
+    state.dividerXPos = positions.length ? positions : null;
+    state.sx = null;
+    state.lockedCellsX = {};
+    $("box-dx").value = String(positions.length);
+  } else {
+    state.dividerYPos = positions.length ? positions : null;
+    state.sy = null;
+    state.lockedCellsY = {};
+    $("box-dy").value = String(positions.length);
+  }
+  selectPanel(null);
+  hideDimPop();
+  scheduleRebuild(true);
+  setStatus("Bölücü silindi — hücreler birleşti.", "ok");
+}
+
+function applyLidOpenPreview() {
+  const open = $("box-lid-open") && $("box-lid-open").checked;
+  const lid = ($("box-lid") && $("box-lid").value) || "open";
+  if (!open || lid === "open") {
+    clearGhostLid();
+    return;
+  }
+  showOptimisticLid();
 }
 
 async function loadFile(fileId) {
@@ -1527,9 +2259,210 @@ async function loadFile(fileId) {
   loadAssembly(data);
 }
 
+async function makeCoupon() {
+  setLoading(true, "Kerf coupon üretiliyor…");
+  setStatus("Coupon (100 mm bar) kesime hazırlanıyor…");
+  try {
+    const body = {
+      thickness: Number($("box-t").value) || 3,
+      material: ($("box-material") && $("box-material").value) || "poplar_3mm",
+      machine: ($("box-machine") && $("box-machine").value) || "payas_workshop",
+    };
+    if ($("box-burn") && $("box-burn").value !== "") body.burn = Number($("box-burn").value);
+    const { data } = await api("/api/studio/coupon", { method: "POST", body: JSON.stringify(body) });
+    paintExports(data);
+    if (!data.success) {
+      setStatus((data.look_again || []).join(" ") || "Coupon üretilemedi.", "bad");
+      return;
+    }
+    if (data.file_id) {
+      history.replaceState(null, "", "/studio?file=" + encodeURIComponent(data.file_id));
+    }
+    $("cal-note").textContent =
+      "Coupon hazır — kes, 100 mm çubuğu ölç, mm gir, kaydet. " + ((data.look_again || [])[0] || "");
+    setStatus(data.file_id ? "Coupon SVG hazır — indir / kes / ölç." : "Coupon üretildi.", "ok");
+    if (data.export_allowed !== false && data.file_id) {
+      const a = document.createElement("a");
+      a.href = data.svg_url || ("/files/" + encodeURIComponent(data.file_id) + "?download=1");
+      a.download = data.file_id;
+      a.rel = "noopener";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
+  } finally {
+    setLoading(false);
+  }
+}
+
+async function loadCalibrations() {
+  const { data } = await api("/api/studio/calibrate");
+  const list = $("cal-list");
+  if (!list) return;
+  list.innerHTML = "";
+  const rows = (data && data.rows) || [];
+  if (!rows.length) {
+    const li = document.createElement("li");
+    li.textContent = "Kayıt yok — coupon kesip ölçülen çubuğu gir.";
+    list.appendChild(li);
+    return;
+  }
+  rows.slice().reverse().forEach((r) => {
+    const li = document.createElement("li");
+    li.innerHTML = "<strong>" + (r.material || "?") + "</strong> @ " + (r.machine || "?")
+      + "<span class=\"sub\">bar " + (r.measured_bar_mm != null ? r.measured_bar_mm : "?")
+      + " mm → burn " + (r.burn != null ? r.burn : "?") + " · " + (r.at || "") + "</span>";
+    li.onclick = () => {
+      if (r.burn != null && $("box-burn")) $("box-burn").value = String(r.burn);
+      if (r.material && $("box-material")) $("box-material").value = r.material;
+      if (r.machine && $("box-machine")) $("box-machine").value = r.machine;
+      state._calBurn = r.burn;
+      setStatus("Kalibrasyon seçildi — burn " + r.burn + " mm (fiziksel dry-fit NOT_VERIFIED).", "ok");
+    };
+    list.appendChild(li);
+  });
+}
+
+async function saveCalibration() {
+  const measured = Number(($("cal-bar") && $("cal-bar").value) || "");
+  if (!(measured >= 96 && measured <= 104)) {
+    setStatus("Ölçülen çubuk 96–104 mm arası olmalı.", "bad");
+    return;
+  }
+  const body = {
+    measured_bar_mm: measured,
+    material: ($("box-material") && $("box-material").value) || "poplar_3mm",
+    machine: ($("box-machine") && $("box-machine").value) || "payas_workshop",
+  };
+  const { data } = await api("/api/studio/calibrate", { method: "POST", body: JSON.stringify(body) });
+  if (!data.success) {
+    setStatus((data.look_again || []).join(" ") || "Kalibrasyon kaydedilmedi.", "bad");
+    await loadCalibrations();
+    return;
+  }
+  state._calBurn = data.suggested_burn;
+  if (data.suggested_burn != null) {
+    $("cal-note").textContent = "Önerilen burn " + data.suggested_burn + " mm — «Burn’u kutuya uygula».";
+  }
+  setStatus((data.look_again || [])[0] || "Kalibrasyon kaydedildi.", "ok");
+  await loadCalibrations();
+}
+
+function applyCalibrationBurn() {
+  const burn = state._calBurn;
+  if (burn == null || burn === "") {
+    setStatus("Önce ölçüm kaydet veya listeden kalibrasyon seç.", "bad");
+    return;
+  }
+  pushUndo();
+  $("box-burn").value = String(burn);
+  scheduleRebuild(true);
+  setStatus("Burn " + burn + " mm kutu formuna yazıldı — fiziksel fit NOT_VERIFIED.", "ok");
+}
+
+async function loadProjectHistory() {
+  const { data } = await api("/api/studio/projects");
+  const list = $("hist-list");
+  if (!list) return;
+  list.innerHTML = "";
+  const projects = (data && data.projects) || [];
+  if (!projects.length) {
+    const li = document.createElement("li");
+    li.textContent = "Proje yok.";
+    list.appendChild(li);
+    if ($("hist-note")) $("hist-note").textContent = "«Kaydet ve indir» sonrası burada görünür.";
+    return;
+  }
+  projects.forEach((p) => {
+    const latest = p.latest || {};
+    const li = document.createElement("li");
+    li.innerHTML = "<strong>" + (p.name || p.id) + "</strong>"
+      + "<span class=\"sub\">v" + (latest.n || p.versions || "?")
+      + " · " + (latest.final_status || "—")
+      + " · " + (p.updated || "")
+      + (latest.file_id ? (" · " + latest.file_id) : "") + "</span>";
+    li.onclick = () => {
+      const fid = latest.file_id;
+      if (!fid) {
+        setStatus("Bu sürümde file_id yok.", "bad");
+        return;
+      }
+      history.replaceState(null, "", "/studio?file=" + encodeURIComponent(fid));
+      loadFile(fid).catch((e) => setStatus(String(e), "bad"));
+    };
+    list.appendChild(li);
+  });
+  if ($("hist-note")) $("hist-note").textContent = projects.length + " proje — tıkla = 3D aç.";
+}
+
+async function loadProfiles() {
+  try {
+    const { data } = await api("/api/studio/profiles");
+    const mats = (data && data.materials) || [];
+    const macs = (data && data.machines) || [];
+    const matEl = $("box-material");
+    const macEl = $("box-machine");
+    if (matEl && mats.length) {
+      const cur = matEl.value;
+      matEl.innerHTML = "";
+      mats.forEach((m) => {
+        const opt = document.createElement("option");
+        opt.value = m.id;
+        opt.textContent = m.name || m.id;
+        opt.dataset.thickness = m.thickness != null ? String(m.thickness) : "";
+        opt.dataset.kerf = m.kerf != null ? String(m.kerf) : "";
+        matEl.appendChild(opt);
+      });
+      matEl.value = mats.some((m) => m.id === cur) ? cur : (mats[0].id || "poplar_3mm");
+    }
+    if (macEl && macs.length) {
+      const cur = macEl.value;
+      macEl.innerHTML = "";
+      macs.forEach((m) => {
+        const opt = document.createElement("option");
+        opt.value = m.id;
+        opt.textContent = (m.name || m.id)
+          + (m.bed_w && m.bed_h ? (" · " + m.bed_w + "×" + m.bed_h) : "");
+        if (m.gap_mm != null) opt.dataset.gap = String(m.gap_mm);
+        macEl.appendChild(opt);
+      });
+      macEl.value = macs.some((m) => m.id === cur) ? cur : (macs[0].id || "payas_workshop");
+    }
+  } catch (_) {
+    /* keep hardcoded options */
+  }
+}
+
+function onMaterialChange() {
+  const matEl = $("box-material");
+  if (!matEl) return;
+  const opt = matEl.selectedOptions && matEl.selectedOptions[0];
+  if (opt && opt.dataset.thickness && $("box-t")) {
+    $("box-t").value = opt.dataset.thickness;
+  }
+  // Kerf suggestion only — never invent verified; leave burn empty unless user sets it.
+  if (opt && opt.dataset.kerf) {
+    setStatus("Profil kerf önerisi " + opt.dataset.kerf + " mm — ölçmeden burn alanına yazma; fiziksel NOT_VERIFIED.", "ok");
+  }
+  pushUndo();
+  scheduleRebuild(true);
+}
+
+function onMachineChange() {
+  const macEl = $("box-machine");
+  if (!macEl) return;
+  const opt = macEl.selectedOptions && macEl.selectedOptions[0];
+  if (opt && opt.dataset.gap && $("nest-gap")) {
+    $("nest-gap").value = opt.dataset.gap;
+  }
+  pushUndo();
+  scheduleRebuild(true);
+}
+
 async function boot() {
   buildScene();
   wireUi();
+  await loadProfiles();
   const { data } = await api("/api/account");
   if (data && data.user) document.body.classList.add("signed-in");
   const plans = await api("/api/plans");

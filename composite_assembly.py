@@ -122,10 +122,100 @@ def _box(parent: dict[str, Any], index: int, thickness: float):
         ("left", y, h, f"{b}f{top}f", {"origin": [0, y, t], "u": [0, -1, 0], "v": [0, 0, 1]}, feats("left")),
         ("right", y, h, f"{b}f{top}f", {"origin": [x, 0, t], "u": [0, 1, 0], "v": [0, 0, 1]}, feats("right")),
     ]
+    raised = max(0.0, _num(parent.get("bottom_lift") or parent.get("raised_bottom"), 0.0))
     if bottom_on:
-        specs.insert(0, ("bottom", x, y, "ffff", {"origin": [0, 0, 0], "u": [1, 0, 0], "v": [0, 1, 0]}, feats("bottom")))
+        specs.insert(
+            0,
+            (
+                "bottom",
+                x,
+                y,
+                "ffff",
+                {"origin": [0, 0, raised], "u": [1, 0, 0], "v": [0, 1, 0]},
+                feats("bottom"),
+            ),
+        )
     if lid_on:
-        specs.append(("lid", x, y, lid_edges if lid_type in {"finger","finger_joint","fixed"} else "eeee", {"origin": [0, 0, h + t], "u": [1, 0, 0], "v": [0, 1, 0]}, feats("lid") or feats("top"),"removable" if lid_type in {"removable","sliding"} else "structural"))
+        doors = int((lid_value.get("doors") if isinstance(lid_value, dict) else 1) or 1)
+        lid_role = "removable" if lid_type in {"removable", "sliding"} else "structural"
+        if lid_type == "hinged" and doors >= 2:
+            half = max(8.0, (x - t) / 2)
+            specs.append(
+                ("lid-left", half, y, "efee", {"origin": [0, 0, h + t], "u": [1, 0, 0], "v": [0, 1, 0]}, feats("lid") or feats("top"), lid_role)
+            )
+            specs.append(
+                ("lid-right", half, y, "eefe", {"origin": [half + t, 0, h + t], "u": [1, 0, 0], "v": [0, 1, 0]}, feats("lid") or feats("top"), lid_role)
+            )
+        else:
+            specs.append(
+                (
+                    "lid",
+                    x,
+                    y,
+                    lid_edges if lid_type in {"finger", "finger_joint", "fixed"} else "eeee",
+                    {"origin": [0, 0, h + t], "u": [1, 0, 0], "v": [0, 1, 0]},
+                    feats("lid") or feats("top"),
+                    lid_role,
+                )
+            )
+
+    # Internal fittings (Studio / Vector Painter parity): dividers + shelves.
+    from studio_box import divider_positions, equal_cells
+
+    dx = max(0, int(parent.get("dividers_x") or 0))
+    dy = max(0, int(parent.get("dividers_y") or 0))
+    sx = parent.get("sx") if isinstance(parent.get("sx"), list) and parent.get("sx") else None
+    sy = parent.get("sy") if isinstance(parent.get("sy"), list) and parent.get("sy") else None
+    if not sx:
+        sx = equal_cells(x, dx, t) if dx else [x]
+    if not sy:
+        sy = equal_cells(y, dy, t) if dy else [y]
+    x_div_pos = divider_positions([float(v) for v in sx], t) if dx else []
+    y_div_pos = divider_positions([float(v) for v in sy], t) if dy else []
+    div_h = max(8.0, h - raised)
+    for i, pos in enumerate(x_div_pos, 1):
+        specs.append(
+            (
+                f"divider-x-{i}",
+                y,
+                div_h,
+                "eeee",
+                {"origin": [float(pos), 0.0, raised], "u": [0, 1, 0], "v": [0, 0, 1]},
+                {},
+                "structural",
+            )
+        )
+    for i, pos in enumerate(y_div_pos, 1):
+        specs.append(
+            (
+                f"divider-y-{i}",
+                x,
+                div_h,
+                "eeee",
+                {"origin": [0.0, float(pos), raised], "u": [1, 0, 0], "v": [0, 0, 1]},
+                {},
+                "structural",
+            )
+        )
+    shelf_n = max(0, min(6, int(parent.get("shelves") or 0)))
+    lid_eat = t if lid_on and lid_type in {"finger", "finger_joint", "fixed"} else 0.0
+    shelf_span = max(0.0, h - raised - lid_eat)
+    if shelf_n and shelf_span > 0:
+        step = shelf_span / (shelf_n + 1)
+        for i in range(1, shelf_n + 1):
+            z = raised + step * i
+            specs.append(
+                (
+                    f"shelf-{i}",
+                    x,
+                    y,
+                    "eeee",
+                    {"origin": [0.0, 0.0, float(z)], "u": [1, 0, 0], "v": [0, 1, 0]},
+                    {},
+                    "structural",
+                )
+            )
+
     children = [_child(parent,parent_id,*spec[:6],thickness,*(spec[6:] or ["structural"])) for spec in specs]
     edge = lambda part, name: f"{parent_id}/{part}:{name}"
     constraints = []
@@ -138,17 +228,85 @@ def _box(parent: dict[str, Any], index: int, thickness: float):
         ("front", "left", "left", "right"), ("front", "right", "right", "left"),
         ("back", "right", "left", "left"), ("back", "left", "right", "right"),
     ])
-    if lid_on and lid_type in {"finger","finger_joint","fixed"}:
-        constraints.extend([("lid","bottom","front","top"),("lid","top","back","top"),("lid","left","left","top"),("lid","right","right","top")])
-    elif lid_on:
-        constraints.extend([("lid","bottom","front","top")])
+    lid_names = [str(spec[0]) for spec in specs if str(spec[0]).startswith("lid")]
+    if lid_on and lid_type in {"finger", "finger_joint", "fixed"} and "lid" in lid_names:
+        constraints.extend([
+            ("lid", "bottom", "front", "top"),
+            ("lid", "top", "back", "top"),
+            ("lid", "left", "left", "top"),
+            ("lid", "right", "right", "top"),
+        ])
+    elif lid_on and lid_names:
+        # Removable / sliding / hinged doors: declare seat against front rim only.
+        for name in lid_names:
+            constraints.append((name, "bottom", "front", "top"))
+
+    # Internal fittings: world-space seats (slots), not outer f/F edge pairs.
+    joint_walls = bool(parent.get("divider_joint_walls", True))
+    joint_bottom = bool(parent.get("divider_joint_bottom", True))
+    internal_constraints: list[tuple[str, str, str, str, str]] = []
+    for i, _pos in enumerate(x_div_pos, 1):
+        pid = f"divider-x-{i}"
+        if joint_bottom and bottom_on:
+            internal_constraints.append((pid, "bottom", "bottom", "top", "finger_slot"))
+        if joint_walls:
+            internal_constraints.append((pid, "left", "front", "top", "finger_slot"))
+            internal_constraints.append((pid, "right", "back", "top", "finger_slot"))
+    for i, _pos in enumerate(y_div_pos, 1):
+        pid = f"divider-y-{i}"
+        if joint_bottom and bottom_on:
+            internal_constraints.append((pid, "bottom", "bottom", "top", "finger_slot"))
+        if joint_walls:
+            internal_constraints.append((pid, "left", "left", "top", "finger_slot"))
+            internal_constraints.append((pid, "right", "right", "top", "finger_slot"))
+        for xi, _xp in enumerate(x_div_pos, 1):
+            internal_constraints.append((pid, "bottom", f"divider-x-{xi}", "bottom", "cross_lap"))
+    for i in range(1, shelf_n + 1):
+        pid = f"shelf-{i}"
+        for wall, ea, eb in (
+            ("front", "bottom", "top"),
+            ("back", "top", "top"),
+            ("left", "left", "top"),
+            ("right", "right", "top"),
+        ):
+            internal_constraints.append((pid, ea, wall, eb, "finger_slot"))
+
     joints = [{
         "part_a": f"{parent_id}/{a}", "edge_a": edge(a, ea),
         "part_b": f"{parent_id}/{bpart}", "edge_b": edge(bpart, eb),
-        "joint_type": "removable_lid" if a=="lid" and lid_type in {"removable","sliding"} else "finger_joint", "expected_transform": "vertical_removal_path" if a=="lid" and lid_type in {"removable","sliding"} else "orthogonal_edge_mate",
+        "joint_type": "removable_lid" if str(a).startswith("lid") and lid_type in {"removable","sliding"} else "finger_joint",
+        "expected_transform": "vertical_removal_path" if str(a).startswith("lid") and lid_type in {"removable","sliding"} else "orthogonal_edge_mate",
         "tolerance": 0.05, "result": "NOT_VERIFIED",
     } for a, ea, bpart, eb in constraints]
+    for a, ea, bpart, eb, jtype in internal_constraints:
+        joints.append({
+            "part_a": f"{parent_id}/{a}",
+            "edge_a": edge(a, ea),
+            "part_b": f"{parent_id}/{bpart}",
+            "edge_b": edge(bpart, eb),
+            "joint_type": jtype,
+            "expected_transform": "internal_fitting_seat",
+            "tolerance": 0.05,
+            "result": "NOT_VERIFIED",
+        })
     return parent_id, children, joints
+
+
+def _internal_fitting_ok(a: dict[str, Any] | None, b: dict[str, Any] | None, thickness: float, tol: float = 0.05):
+    """Prove divider/shelf seats via world AABB contact (slots), not outer f/F edges."""
+    if not a or not b:
+        return False, None
+    ab = _bbox(a, thickness)
+    bb = _bbox(b, thickness)
+    if not ab or not bb:
+        return False, None
+    depth = [min(ab[k + 3], bb[k + 3]) - max(ab[k], bb[k]) for k in range(3)]
+    if any(d < -tol for d in depth):
+        return False, depth
+    ordered = sorted(depth)
+    # Touch/engage in the shallow axis, substantial overlap elsewhere.
+    ok = ordered[0] <= thickness + tol and ordered[-1] > thickness
+    return ok, depth
 
 def _normal(part):
     pose=part.get("placement") or {};u=pose.get("u") or [];v=pose.get("v") or []
@@ -165,13 +323,40 @@ def validate_box_transforms(parts,constraints,thickness):
     """Prove compiler-derived box poses against the actual joint graph."""
     parts=[p for p in parts if p.get('composite_parent')]
     lookup={str(p.get("physical_part_id")):p for p in parts};checks=[];tol=.05;t=float(thickness)
-    expected={"bottom":[0,0,1],"lid":[0,0,1],"front":[0,-1,0],"back":[0,1,0],"left":[-1,0,0],"right":[1,0,0]}
+    expected={"bottom":[0,0,1],"lid":[0,0,1],"lid-left":[0,0,1],"lid-right":[0,0,1],"front":[0,-1,0],"back":[0,1,0],"left":[-1,0,0],"right":[1,0,0]}
     for part in parts:
-        role=str(part.get("composite_role") or "");normal=_normal(part);target=expected.get(role)
+        role=str(part.get("composite_role") or "");normal=_normal(part)
+        if role.startswith("divider-x"):
+            target=[1,0,0]
+        elif role.startswith("divider-y"):
+            target=[0,-1,0]
+        elif role.startswith("shelf"):
+            target=[0,0,1]
+        else:
+            target=expected.get(role)
         status="PASS" if normal and target and math.sqrt(sum((normal[i]-target[i])**2 for i in range(3)))<=1e-6 else "FAIL"
         checks.append({"type":"PART_TRANSFORM","part":part.get("physical_part_id"),"status":status,"origin":(part.get("placement") or {}).get("origin"),"u":(part.get("placement") or {}).get("u"),"v":(part.get("placement") or {}).get("v"),"normal":normal,"expected_normal":target})
     for joint in constraints:
         a,b=lookup.get(str(joint.get("part_a"))),lookup.get(str(joint.get("part_b")));ea=str(joint.get("edge_a") or "").split(":")[-1];eb=str(joint.get("edge_b") or "").split(":")[-1]
+        jtype=str(joint.get("joint_type") or "finger_joint")
+        if jtype in {"finger_slot", "cross_lap", "shelf_slot", "removable_lid"}:
+            ok, depth = _internal_fitting_ok(a, b, t, tol)
+            joint.update(
+                result="MATCH" if ok else "FAIL",
+                world_edge_error_mm=None,
+                seat_penetration_mm=[round(d, 6) for d in depth] if depth else None,
+                complementary_geometry=False,
+                internal_fitting=True,
+            )
+            checks.append({
+                "type": "INTERNAL_FITTING",
+                "part_a": joint.get("part_a"),
+                "part_b": joint.get("part_b"),
+                "joint_type": jtype,
+                "status": "PASS" if ok else "FAIL",
+                "seat_penetration_mm": joint.get("seat_penetration_mm"),
+            })
+            continue
         best=None
         if a and b:
             for za in (0,t):
@@ -249,7 +434,12 @@ def classify_contacts(parts: list[dict[str, Any]], constraints: list[dict[str, A
             depth = [min(ab[k + 3], bb[k + 3]) - max(ab[k], bb[k]) for k in range(3)]
             pair = frozenset((a["physical_part_id"], b["physical_part_id"]))
             rec = {"part_a": a["physical_part_id"], "part_b": b["physical_part_id"], "penetration_mm": [round(x, 4) for x in depth]}
+            roles = {str(a.get("composite_role") or ""), str(b.get("composite_role") or "")}
+            internal = any(r.startswith(("divider-", "shelf")) for r in roles)
             if pair in intended_pairs and all(x >= -0.05 for x in depth):
+                rec["classification"] = "INTENDED_CONTACT"; intended.append(rec)
+            elif internal and all(x >= -0.05 for x in depth):
+                # Dividers/shelves seat into walls/bottom — declared fittings, not illegal collisions.
                 rec["classification"] = "INTENDED_CONTACT"; intended.append(rec)
             elif all(x > 0.01 for x in depth):
                 rec["classification"] = "COLLISION"; illegal.append(rec)

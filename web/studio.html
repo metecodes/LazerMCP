@@ -110,6 +110,16 @@
     .hide { display: none !important; }
     .check { display: flex; align-items: center; gap: 8px; margin-top: 10px; font: 12px var(--sans); color: var(--mute); }
     .check input { width: auto; }
+    .asm-list { list-style: none; margin: 0; padding: 0; max-height: 180px; overflow: auto; }
+    .asm-list li {
+      font: 11px var(--mono); padding: 6px 8px; border-bottom: 1px solid var(--line);
+      cursor: pointer; color: var(--mute);
+    }
+    .asm-list li:hover { color: var(--ink); background: rgba(255,255,255,0.03); }
+    .asm-list li.on { color: var(--ink); border-left: 2px solid #4ea1ff; background: rgba(78,161,255,0.08); }
+    .asm-list li .sub { display: block; color: var(--mute); font-size: 10px; margin-top: 2px; }
+    .hud .asm-ctrl { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .hud .asm-ctrl button { padding: 4px 8px; font-size: 11px; }
     .dim-pop {
       position: absolute; right: 280px; top: 72px; z-index: 5; width: 220px;
       background: var(--panel); border: 1px solid var(--line); padding: 12px;
@@ -139,12 +149,15 @@
         <h1>3D montaj stüdyosu</h1>
         <p class="hint">Ölçüyü değiştir = eşleşen paneller yeniden kesilir. Tüm modeli ölçekleme. Kalınlık malzeme; X/Y/H ile büyümez.</p>
         <div class="guest-banner guest-only" id="guest-note">
-          İndirmek için <a href="/account?next=/studio">Google ile gir</a>. Parametrik önizleme açıktır.
+          Parametrik kutu önizleme + «Kaydet ve indir» açıktır. Hesap geçmişi / kota için
+          <a href="/account?next=/studio">Google ile gir</a>. DXF plana bağlı olabilir.
         </div>
         <div class="tabs" role="tablist">
           <button type="button" class="on" data-tab="box">Kutu</button>
           <button type="button" data-tab="makers">Süs</button>
           <button type="button" data-tab="nest">Nest</button>
+          <button type="button" data-tab="calibrate">Kerf</button>
+          <button type="button" data-tab="history">Geçmiş</button>
           <button type="button" data-tab="ai">AI</button>
           <button type="button" data-tab="stl">STL</button>
         </div>
@@ -169,32 +182,77 @@
               <option value="finger">Finger-joint kapak</option>
               <option value="removable">Çıkarılabilir</option>
               <option value="sliding">Kayar</option>
-              <option value="hinged">Menteşeli</option>
+              <option value="hinged">Menteşeli (tek kapı)</option>
               <option value="double_door">Çift kapı</option>
             </select>
           </label>
+          <div class="row2" id="lid-extra">
+            <label class="check"><input id="box-handle" type="checkbox" checked> Tutamaç</label>
+            <label>Tutamaç W<input id="box-handle-w" type="number" value="40" min="10" max="120" step="1"></label>
+          </div>
+          <div class="row2">
+            <label>Kapak köşe R<input id="box-lid-r" type="number" value="0" min="0" max="20" step="0.5"></label>
+            <label class="check"><input id="box-lid-open" type="checkbox"> 3D kapak açık</label>
+          </div>
           <div class="row2">
             <label>Genişlik X<input id="box-x" type="number" value="180" min="20" step="1"></label>
             <label>Derinlik Y<input id="box-y" type="number" value="120" min="20" step="1"></label>
           </div>
           <label>Yükseklik H<input id="box-h" type="number" value="70" min="10" step="1"></label>
-          <label>Kalınlık — malzeme (mm)<input id="box-t" type="number" value="3" min="1" step="0.1" title="Finger/slot bu değere kilitli; X/Y/H ile ölçeklenmez"></label>
+          <label>Malzeme
+            <select id="box-material">
+              <option value="poplar_3mm" selected>3 mm kavak</option>
+            </select>
+          </label>
+          <label>Makine
+            <select id="box-machine">
+              <option value="payas_workshop" selected>Payas STEM 1500×3000</option>
+            </select>
+          </label>
+          <label>Kalınlık — malzeme (mm)<input id="box-t" type="number" value="3" min="1" step="0.1" title="Finger/slot bu değere kilitli; profil seçince güncellenir"></label>
           <div class="row2">
             <label>Finger (×kalınlık)<input id="box-finger" type="number" value="2" min="0.8" max="6" step="0.1"></label>
             <label>Kerf / burn<input id="box-burn" type="number" step="0.01" placeholder="ölçülmediyse boş"></label>
           </div>
-          <label class="check"><input id="box-bumps" type="checkbox"> Press-fit bump (yaylı finger)</label>
           <div class="row2">
-            <label>Bölücü X<input id="box-dx" type="number" value="0" min="0" max="8" step="1"></label>
-            <label>Bölücü Y<input id="box-dy" type="number" value="0" min="0" max="8" step="1"></label>
+            <label class="check"><input id="box-bumps" type="checkbox"> Press-fit bump</label>
+            <label>Bump Ø (mm)<input id="box-bump-d" type="number" value="0.5" min="0.1" max="2" step="0.1"></label>
           </div>
-          <p class="hint">Bölücü sayısı &gt; 0 ise 3D’de bölücüyü tutup kaydır — hücreler eşit kalmak zorunda değil (≥ 8 mm).</p>
-          <label>Yükseltilmiş taban (mm)<input id="box-lift" type="number" value="0" min="0" step="0.5"></label>
-          <p class="hint" id="link-hint">X→ön/arka/taban · Y→sol/sağ/taban · H→duvarlar · Kalınlık→eklemler. Temas etmeyen parça bu ölçüyle büyümez.</p>
+          <div class="row2">
+            <label>Bölücü X (dikey)
+              <div class="row2" style="gap:6px;align-items:center">
+                <button type="button" class="btn ghost" id="dx-minus" style="padding:6px 10px">−</button>
+                <input id="box-dx" type="number" value="0" min="0" max="8" step="1">
+                <button type="button" class="btn ghost" id="dx-plus" style="padding:6px 10px">+</button>
+              </div>
+            </label>
+            <label>Bölücü Y (dikey)
+              <div class="row2" style="gap:6px;align-items:center">
+                <button type="button" class="btn ghost" id="dy-minus" style="padding:6px 10px">−</button>
+                <input id="box-dy" type="number" value="0" min="0" max="8" step="1">
+                <button type="button" class="btn ghost" id="dy-plus" style="padding:6px 10px">+</button>
+              </div>
+            </label>
+          </div>
+          <label>Ara raf / çekmece katı
+            <div class="row2" style="gap:6px;align-items:center">
+              <button type="button" class="btn ghost" id="sh-minus" style="padding:6px 10px">−</button>
+              <input id="box-shelves" type="number" value="0" min="0" max="6" step="1">
+              <button type="button" class="btn ghost" id="sh-plus" style="padding:6px 10px">+</button>
+            </div>
+          </label>
+          <div class="row2">
+            <label class="check"><input id="box-div-walls" type="checkbox" checked> Bölücü→duvar eklemi</label>
+            <label class="check"><input id="box-div-bottom" type="checkbox" checked> Bölücü→taban eklemi</label>
+          </div>
+          <p class="hint">Bölücü = dikey hücre (tut-çek / Del = birleştir). Ara raf = yatay kat. Hücreye tıkla = ölçü kilitle.</p>
+          <label>Yükseltilmiş taban (mm)<input id="box-lift" type="number" value="0" min="0" step="0.5" title="3D’de taban kenarını yukarı çek"></label>
+          <p class="hint" id="link-hint">Vector Painter parity: kapak / bölücü / raf / kerf / bump / 3D düzenleme / SVG+DXF.</p>
           <div class="row2">
             <button class="btn ghost" type="button" id="undo-box">Geri al</button>
-            <button class="btn cut" type="button" id="make-box">Yeniden üret</button>
+            <button class="btn cut" type="button" id="make-box">Kaydet ve indir</button>
           </div>
+          <p class="hint" id="export-hint">Canlı önizleme kaydetmez. Çıktı için «Kaydet ve indir».</p>
         </div>
         <div class="pane" id="pane-makers">
           <p class="hint">Hazır parametrik süs / kuş evi. Ürün bunları biliyor — AI yok, prompt yok, API $0.</p>
@@ -238,14 +296,31 @@
           <p class="hint" id="maker-note">İsim süsü + ası deliği + kazıma yazı. Fiziksel kuruluk NOT_VERIFIED.</p>
         </div>
         <div class="pane" id="pane-nest">
-          <p class="hint">Düz nest: paneller yan yana serilir. Gelişmiş nesting / döndürme yok — sıra montajdan gelir.</p>
+          <p class="hint">3D yerleşim önizlemesi — gelişmiş nesting/döndürme yok. Gap, «Kaydet ve indir» sırasında gerçek nest’e de gider.</p>
           <div class="row2">
             <button class="btn cut" type="button" id="nest-flat">Düz yerleşim</button>
             <button class="btn ghost" type="button" id="nest-assemble">Montaj görünümü</button>
           </div>
           <label>Nest boşluğu (mm)<input id="nest-gap" type="number" value="6" min="2" max="30" step="1"></label>
           <p class="hint" id="nest-stats">Önce bir kutu üret. Nest özeti burada görünür.</p>
-          <p class="hint">Makine yatağına sığma dijital; fiziksel kerf/yerleşim NOT_VERIFIED.</p>
+          <p class="hint">Yatak sığma dijital; fiziksel kerf/yerleşim NOT_VERIFIED.</p>
+        </div>
+        <div class="pane" id="pane-calibrate">
+          <p class="hint">100 mm çubuklu coupon kes → ölç → burn önerisi. Yazılım kerf uydurmaz; fiziksel dry-fit NOT_VERIFIED.</p>
+          <button class="btn cut" type="button" id="make-coupon">Coupon SVG üret</button>
+          <label>Ölçülen çubuk (mm)<input id="cal-bar" type="number" min="96" max="104" step="0.01" placeholder="örn. 99.70"></label>
+          <div class="row2">
+            <button class="btn ghost" type="button" id="cal-save">Ölçümü kaydet</button>
+            <button class="btn cut" type="button" id="cal-apply">Burn’u kutuya uygula</button>
+          </div>
+          <p class="hint" id="cal-note">Kayıtlı kalibrasyonlar aşağıda.</p>
+          <ul class="asm-list" id="cal-list"></ul>
+        </div>
+        <div class="pane" id="pane-history">
+          <p class="hint">Kayıtlı proje sürümleri. Aç = Studio 3D’de file_id yükle.</p>
+          <button class="btn ghost" type="button" id="hist-refresh">Yenile</button>
+          <ul class="asm-list" id="hist-list"></ul>
+          <p class="hint" id="hist-note">Proje yoksa önce «Kaydet ve indir».</p>
         </div>
         <div class="pane" id="pane-ai">
           <label>Ne keseceksin?<textarea id="ai-prompt" placeholder="Örn: 180×120×80 açık finger-joint kutu, 3 mm kavak — veya dosya yükle"></textarea></label>
@@ -305,11 +380,19 @@
         </div>
         <div class="hud">
           <div class="scrub">
-            <span>Montaj</span>
+            <span>Explode</span>
             <input id="explode" type="range" min="0" max="100" value="0">
             <span id="explode-lab">0%</span>
           </div>
-          <span style="font:11px var(--mono);color:var(--mute)">Mavi tutamaç: büyüt/küçült · Sürükle: döndür · Tekerlek: zoom</span>
+          <div class="asm-ctrl">
+            <span>Sıra</span>
+            <button type="button" class="btn ghost" id="asm-prev" title="Önceki adım">◀</button>
+            <button type="button" class="btn cut" id="asm-play" title="Montaj animasyonu">▶ Oynat</button>
+            <button type="button" class="btn ghost" id="asm-next" title="Sonraki adım">▶</button>
+            <input id="asm-step" type="range" min="0" max="1" value="0" style="width:120px">
+            <span id="asm-step-lab" style="font:11px var(--mono);color:var(--mute)">0/0</span>
+          </div>
+          <span style="font:11px var(--mono);color:var(--mute)">Oynat = montaj sırası · Explode = ayrıştır / düz nest</span>
         </div>
       </main>
       <aside class="summary">
@@ -326,13 +409,28 @@
         <div class="kv"><span>Finger/kerf</span><b id="sum-joints">—</b></div>
         <div class="kv"><span>Plan</span><b id="sum-plan">—</b></div>
         <div class="kv"><span>Kota</span><b id="sum-quota">—</b></div>
+        <div class="kv"><span>İndirme</span><b id="sum-export">—</b></div>
+        <h2>Gate / skorkart</h2>
+        <p class="hint" id="gate-badge">Önizleme gate atlar. Kayıt = Final Gate.</p>
+        <ul class="asm-list" id="gate-score"></ul>
+        <p class="hint" id="gate-looks" style="max-height:120px;overflow:auto"></p>
+        <h2>Montaj sırası</h2>
+        <p class="hint">Dijital sıra — fiziksel montaj NOT_VERIFIED.</p>
+        <ol class="asm-list" id="asm-steps"></ol>
+        <h2>Geçme yerleri</h2>
+        <ul class="asm-list" id="asm-joints"></ul>
         <h2>Not</h2>
         <p class="hint" id="sum-note">3D’de panele tıkla. Zoom ile incele. Ölçü değişince yalnız temas eden paneller yeniden kesilir; kalınlık sabit kalır.</p>
       </aside>
       <div id="dim-pop" class="dim-pop hide">
-        <p class="kicker">Panel ölçüsü</p>
+        <p class="kicker" id="dim-pop-title">Panel ölçüsü</p>
         <p id="dim-pop-label" class="hint"></p>
-        <label>Değer (mm)<input id="dim-pop-val" type="number" step="1"></label>
+        <label id="dim-pop-val-wrap">Değer (mm)<input id="dim-pop-val" type="number" step="1"></label>
+        <div id="dim-pop-cell-wrap" class="hide">
+          <label id="dim-pop-cx-wrap" class="hide">Hücre X genişlik (mm)<input id="dim-pop-cx" type="number" min="8" step="0.5"></label>
+          <label id="dim-pop-cy-wrap" class="hide">Hücre Y derinlik (mm)<input id="dim-pop-cy" type="number" min="8" step="0.5"></label>
+          <p class="hint">Kilitle → kalan hücreler eşit dağılır. Del = seçili bölücüyü silip hücreleri birleştir.</p>
+        </div>
         <div class="row2">
           <button type="button" class="btn ghost" id="dim-pop-cancel">Kapat</button>
           <button type="button" class="btn cut" id="dim-pop-apply">Uygula</button>
@@ -348,7 +446,7 @@
     }
   }
   </script>
-  <script type="module" src="/studio-3d.js?v=10"></script>
+  <script type="module" src="/studio-3d.js?v=15"></script>
   <script src="/nav-auth.js?v=5"></script>
 </body>
 </html>

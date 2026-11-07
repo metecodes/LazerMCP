@@ -158,12 +158,43 @@ def studio_action(
     if verb in {"profiles", "profile"}:
         return list_profiles()
     if verb in {"calibrate", "calibration", "calibrations"}:
+        # POST measured_bar_mm → human kerf record (never invent PASS without measurement).
+        if body.get("measured_bar_mm") not in (None, ""):
+            from physical import read_physical
+
+            params = {
+                "machine": body.get("machine") or "payas_workshop",
+                "material": body.get("material") or "poplar_3mm",
+                "measured_bar_mm": body.get("measured_bar_mm"),
+                "nominal_bar_mm": body.get("nominal_bar_mm") or 100,
+            }
+            phys = read_physical(params)
+            row = record_calibration(params, phys)
+            looks = []
+            if phys.get("kerf") == "FAIL":
+                looks.append(str((phys.get("notes") or {}).get("kerf") or "measured_bar_mm rejected"))
+            elif not row:
+                looks.append("Calibration not stored — kerf must be PASS with a measured bar.")
+            else:
+                looks.append(
+                    f"Stored burn {row.get('burn')} mm for {row.get('machine')}/{row.get('material')} "
+                    "(physical fit still NOT_VERIFIED until dry-fit)."
+                )
+            return {
+                "success": phys.get("kerf") == "PASS" and bool(row),
+                "calibration": row,
+                "physical": phys,
+                "suggested_burn": (row or {}).get("burn") or phys.get("suggested_burn"),
+                "rows": list_calibrations(),
+                "look_again": looks,
+            }
         return {"success": True, "rows": list_calibrations()}
     if verb in {"projects", "project", "history"}:
-        if project_id:
-            hit = project_history(project_id)
+        if project_id or body.get("project_id"):
+            pid = str(project_id or body.get("project_id") or "")
+            hit = project_history(pid)
             if not hit:
-                return {"success": True, "look_again": [f"No project {project_id}."], "projects": list_projects()}
+                return {"success": True, "look_again": [f"No project {pid}."], "projects": list_projects()}
             return {"success": True, "project": hit}
         return {"success": True, "projects": list_projects()}
     if verb in {"usage", "metering"}:

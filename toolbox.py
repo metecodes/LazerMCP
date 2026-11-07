@@ -780,6 +780,7 @@ class PayasToolbox(Boxes):
         handle_on = bool(isinstance(lid_value, dict) and lid_value.get("handle"))
         handle_w = _num(lid_value.get("handle_w") if isinstance(lid_value, dict) else 40, min(40.0, x * 0.35))
         handle_h = _num(lid_value.get("handle_h") if isinstance(lid_value, dict) else 18, min(18.0, y * 0.25))
+        lid_r = max(0.0, _num(lid_value.get("radius") if isinstance(lid_value, dict) else 0, 0.0))
         if lid_on and lid_type in {"finger", "finger_joint", "fixed"}:
             wall_top = side_top = "F"
         elif lid_on and lid_type in {"sliding", "slide"}:
@@ -801,6 +802,13 @@ class PayasToolbox(Boxes):
         joint_walls = bool(part.get("divider_joint_walls", True))
         joint_bottom = bool(part.get("divider_joint_bottom", True))
         div_h = max(8.0, h - raised - (t if lid_on and lid_type in {"finger", "finger_joint", "fixed"} else 0.0))
+        shelf_n = max(0, min(6, int(part.get("shelves") or 0)))
+        lid_eat = t if lid_on and lid_type in {"finger", "finger_joint", "fixed"} else 0.0
+        shelf_span = max(0.0, h - raised - lid_eat)
+        shelf_z: list[float] = []
+        if shelf_n and shelf_span > 0:
+            step = shelf_span / (shelf_n + 1)
+            shelf_z = [round(raised + step * i, 3) for i in range(1, shelf_n + 1)]
 
         def wall(name: str) -> dict[str, Any]:
             raw = walls.get(name) if isinstance(walls.get(name), dict) else {}
@@ -891,15 +899,29 @@ class PayasToolbox(Boxes):
 
             return _cb
 
+        def _shelf_wall_fn(length: float):
+            if not shelf_z:
+                return None
+
+            def _cb() -> None:
+                for z in shelf_z:
+                    self.fingerHolesAt(0, z, length, 0)
+
+            return _cb
+
         self.rectangularWall(
             x, h, f"{b}F{wall_top}F", ignore_widths=ignore,
-            callback=_pack_edge0(self._wall_cb(wall("front")), _raised_fn(x), _x_div_wall_fn(), _sliding_rail_fn(x)),
+            callback=_pack_edge0(
+                self._wall_cb(wall("front")), _raised_fn(x), _x_div_wall_fn(), _sliding_rail_fn(x), _shelf_wall_fn(x)
+            ),
             move="up", label="front",
         )
         self._note_part("front")
         self.rectangularWall(
             x, h, f"{b}F{wall_top}F", ignore_widths=ignore,
-            callback=_pack_edge0(self._wall_cb(wall("back")), _raised_fn(x), _x_div_wall_fn(), _sliding_rail_fn(x)),
+            callback=_pack_edge0(
+                self._wall_cb(wall("back")), _raised_fn(x), _x_div_wall_fn(), _sliding_rail_fn(x), _shelf_wall_fn(x)
+            ),
             move="up", label="back",
         )
         self._note_part("back")
@@ -912,24 +934,65 @@ class PayasToolbox(Boxes):
             self._note_part("bottom")
         self.rectangularWall(
             y, h, f"{b}f{side_top}f", ignore_widths=ignore,
-            callback=_pack_edge0(self._wall_cb(wall("left")), _raised_fn(y), _y_div_wall_fn(), _sliding_rail_fn(y)),
+            callback=_pack_edge0(
+                self._wall_cb(wall("left")), _raised_fn(y), _y_div_wall_fn(), _sliding_rail_fn(y), _shelf_wall_fn(y)
+            ),
             move="up", label="left",
         )
         self._note_part("left")
         self.rectangularWall(
             y, h, f"{b}f{side_top}f", ignore_widths=ignore,
-            callback=_pack_edge0(self._wall_cb(wall("right")), _raised_fn(y), _y_div_wall_fn(), _sliding_rail_fn(y)),
+            callback=_pack_edge0(
+                self._wall_cb(wall("right")), _raised_fn(y), _y_div_wall_fn(), _sliding_rail_fn(y), _shelf_wall_fn(y)
+            ),
             move="up", label="right",
         )
         self._note_part("right")
 
+        # Cross-lap half-slots where X and Y dividers intersect (Vector Painter style):
+        # X-dividers cut the lower half; Y-dividers cut the upper half.
+        cross_lap = bool(x_div_pos and y_div_pos)
+        half_h = max(t * 2, div_h / 2.0)
+
+        def _crosslap_x_cb():
+            if not cross_lap:
+                return None
+
+            def _cb() -> None:
+                for pos in y_div_pos:
+                    self.rectangularHole(pos, half_h / 2.0, t, half_h, r=0)
+
+            return _cb
+
+        def _crosslap_y_cb():
+            if not cross_lap:
+                return None
+
+            def _cb() -> None:
+                for pos in x_div_pos:
+                    self.rectangularHole(pos, div_h - half_h / 2.0, t, half_h, r=0)
+
+            return _cb
+
         # Dividers: panels that seat into bottom + wall finger holes.
         for i, _pos in enumerate(x_div_pos, 1):
-            self.rectangularWall(y, div_h, "fefe", move="up", label=f"divider-x-{i}")
+            self.rectangularWall(
+                y, div_h, "fefe",
+                callback=_pack_edge0(_crosslap_x_cb()),
+                move="up", label=f"divider-x-{i}",
+            )
             self._note_part(f"divider-x-{i}")
         for i, _pos in enumerate(y_div_pos, 1):
-            self.rectangularWall(x, div_h, "fefe", move="up", label=f"divider-y-{i}")
+            self.rectangularWall(
+                x, div_h, "fefe",
+                callback=_pack_edge0(_crosslap_y_cb()),
+                move="up", label=f"divider-y-{i}",
+            )
             self._note_part(f"divider-y-{i}")
+        # Horizontal shelves (drawer-like intermediate floors)
+        for i, _z in enumerate(shelf_z, 1):
+            self.rectangularWall(x, y, "ffff", move="up", label=f"shelf-{i}")
+            self._note_part(f"shelf-{i}")
 
         if lid_on:
             if lid_type in {"finger", "finger_joint", "fixed"}:
@@ -941,11 +1004,19 @@ class PayasToolbox(Boxes):
             elif lid_type in {"sliding", "slide"}:
                 margin = max(0.2, 0.1 * t)
                 lw, ld = max(8.0, x - 2 * margin), max(8.0, y - margin)
-                self.rectangularWall(
-                    lw, ld, "eeee",
-                    callback=_pack_edge0(self._wall_cb(wall("lid")), _lid_handle_fn(lw, ld)),
-                    move="up", label="lid",
-                )
+                r = min(lid_r, min(lw, ld) / 2 - 0.5) if lid_r > 0.05 else 0.0
+                if r > 0.05:
+                    self.roundedPlate(
+                        lw, ld, r, edge="e", extend_corners=False,
+                        callback=_pack_edge0(self._wall_cb(wall("lid")), _lid_handle_fn(lw, ld)),
+                        move="up", label="lid",
+                    )
+                else:
+                    self.rectangularWall(
+                        lw, ld, "eeee",
+                        callback=_pack_edge0(self._wall_cb(wall("lid")), _lid_handle_fn(lw, ld)),
+                        move="up", label="lid",
+                    )
                 self._note_part("lid")
             elif lid_type in {"hinged"} and doors >= 2:
                 half = max(8.0, (x - t) / 2)
@@ -963,11 +1034,19 @@ class PayasToolbox(Boxes):
                 self._note_part("lid-right")
             else:
                 edges = "feee" if lid_type == "hinged" else "eeee"
-                self.rectangularWall(
-                    x, y, edges,
-                    callback=_pack_edge0(self._wall_cb(wall("lid")), _lid_handle_fn(x, y, doors)),
-                    move="up", label="lid",
-                )
+                r = min(lid_r, min(x, y) / 2 - 0.5) if (lid_r > 0.05 and lid_type != "hinged") else 0.0
+                if r > 0.05:
+                    self.roundedPlate(
+                        x, y, r, edge="e", extend_corners=False,
+                        callback=_pack_edge0(self._wall_cb(wall("lid")), _lid_handle_fn(x, y, doors)),
+                        move="up", label="lid",
+                    )
+                else:
+                    self.rectangularWall(
+                        x, y, edges,
+                        callback=_pack_edge0(self._wall_cb(wall("lid")), _lid_handle_fn(x, y, doors)),
+                        move="up", label="lid",
+                    )
                 self._note_part("lid")
 
     def _coupon(self, part: dict[str, Any]) -> None:
@@ -1086,11 +1165,16 @@ def render_toolbox(primitives: list[Any], parameters: dict[str, Any] | None = No
     manufacturing = None
     topology = {"ok": True, "cut_paths": 0, "preview_skipped": True} if studio_preview else None
     if not studio_preview:
+        nest_gap = params.get("nest_gap_mm")
+        try:
+            gap_mm = float(nest_gap) if nest_gap not in (None, "") else float(machine.get("gap_mm") or 3.0)
+        except (TypeError, ValueError):
+            gap_mm = float(machine.get("gap_mm") or 3.0)
         svg_bytes, nesting = nest_svg(
             svg_bytes,
             bed_width=machine.get("bed_w"),
             bed_height=machine.get("bed_h"),
-            gap=float(machine.get("gap_mm") or 3.0),
+            gap=max(2.0, min(30.0, gap_mm)),
             panel_names=list(box.drawn_labels),
             allow_rotation=bool(params.get("allow_part_rotation", True)),
         )

@@ -602,29 +602,84 @@ def create_studio_maker(body: dict[str, Any] | None = None, *, public_base_url: 
             "summary": built.get("summary"),
             "plan": gate,
         }
-    file_id = result.get("file_id")
+    final_status = str(result.get("final_status") or "BLOCKED")
+    export_ok = final_status not in {"BLOCKED", "FAIL"} and bool(result.get("success"))
+    file_id = result.get("file_id") if export_ok else None
     studio_url = f"{base.rstrip('/')}/studio?file={file_id}" if base and file_id else (f"/studio?file={file_id}" if file_id else None)
     looks = list(result.get("look_again") or []) + [
         "Parametric maker — no AI / no LLM.",
         "Digital prototype only. Measure thickness and dry-fit before production.",
     ]
+    if final_status == "BLOCKED":
+        looks.insert(0, "BLOCKED — SVG/DXF not authorized (Final Gate). Fix assembly/connections or choose another maker.")
     if studio_url:
         looks.append(f"Open in Studio 3D: {studio_url}")
     return {
         "success": bool(result.get("success")),
         "ai": False,
         "maker": built.get("summary", {}).get("maker") or kind,
+        "export_allowed": export_ok,
         "file_id": file_id,
-        "svg_url": result.get("svg_url"),
-        "dxf_id": result.get("dxf_id"),
-        "dxf_url": result.get("dxf_url"),
+        "svg_url": result.get("svg_url") if export_ok else None,
+        "dxf_id": result.get("dxf_id") if export_ok else None,
+        "dxf_url": result.get("dxf_url") if export_ok else None,
         "studio_url": studio_url,
         "project": result.get("project"),
-        "final_status": result.get("final_status"),
+        "final_status": final_status,
+        "production_export": "BLOCKED" if not export_ok else (result.get("production_export") or "BLOCKED"),
+        "scorecard": result.get("scorecard") or {"final_gate": final_status, "physical_fit": "NOT_VERIFIED"},
         "assembly": viewer,
         "summary": built.get("summary"),
         "look_again": looks,
         "plan": gate,
+        "gate_skipped": False,
+    }
+
+
+def create_studio_coupon(body: dict[str, Any] | None = None, *, public_base_url: str | None = None) -> dict[str, Any]:
+    """Kerf / FingerJoint dry-fit coupon (100 mm bar). Human measurement required for PASS."""
+    from plans import gate_job
+    import payas_cad
+
+    gate = gate_job("design")
+    if not gate.get("ok"):
+        return gate
+    payload = body or {}
+    thickness = float(payload.get("thickness") or 3)
+    params = {
+        "thickness": thickness,
+        "project": str(payload.get("project") or payload.get("name") or "kerf-coupon"),
+        "material": str(payload.get("material") or "poplar_3mm"),
+        "machine": str(payload.get("machine") or "payas_workshop"),
+        "what_you_see": "kerf calibration coupon — measure the 100 mm bar after cutting",
+    }
+    if payload.get("burn") not in (None, ""):
+        try:
+            params["burn"] = float(payload.get("burn"))
+        except (TypeError, ValueError):
+            pass
+    primitives = [{"type": "coupon", "label": "kerf-coupon", "x": float(payload.get("x") or 40)}]
+    result = payas_cad.create_design(
+        primitives=primitives,
+        parameters=params,
+        public_base_url=public_base_url or "",
+    )
+    looks = list(result.get("look_again") or [])
+    looks.append("Cut the coupon, measure the 100 mm bar, enter measured_bar_mm in Studio Kalibrasyon.")
+    looks.append("Software will not invent kerf. Physical fit stays NOT_VERIFIED until dry-fit.")
+    return {
+        "success": bool(result.get("success")),
+        "file_id": result.get("file_id"),
+        "svg_url": result.get("svg_url"),
+        "dxf_id": result.get("dxf_id"),
+        "dxf_url": result.get("dxf_url"),
+        "final_status": result.get("final_status"),
+        "export_allowed": str(result.get("final_status") or "") not in {"BLOCKED", "FAIL"},
+        "speak": result.get("speak") or "Kerf coupon ready.",
+        "look_again": looks,
+        "plan": gate,
+        "coupon": True,
+        "nominal_bar_mm": 100,
     }
 
 
@@ -672,61 +727,111 @@ def create_studio_box(body: dict[str, Any] | None = None, *, public_base_url: st
         )
         viewer = panels_for_viewer(result_blob)
         joints = (built.get("summary") or {}).get("joints") or {}
+        guide = built.get("assembly_guide") or (built.get("summary") or {}).get("assembly_guide") or {}
         looks = [
-            "Live preview — SVG/DXF not saved yet. Click Yeniden üret to export.",
+            "PREVIEW_ONLY — Final Gate / nest skipped. Click «Kaydet ve indir» for gated SVG/DXF.",
             "3D view is a nominal digital assembly. Measure kerf and dry-fit before production.",
         ] + list(joints.get("warnings") or []) + list(joints.get("failures") or [])
+        if guide.get("speak"):
+            looks.append(str(guide["speak"]))
+        joint_status = joints.get("status") or "NOT_VERIFIED"
         return {
-            "success": bool(viewer.get("success")) and joints.get("status") != "FAIL",
+            "success": bool(viewer.get("success")) and joint_status != "FAIL",
             "preview": True,
+            "gate_skipped": True,
             "file_id": None,
             "assembly": viewer,
             "summary": built.get("summary"),
             "joints": joints,
+            "assembly_guide": guide,
+            "speak": guide.get("speak"),
+            "final_status": "PREVIEW_ONLY",
+            "authorized_output": [],
+            "production_export": "BLOCKED",
+            "scorecard": {
+                "preview": "PASS" if viewer.get("success") else "FAIL",
+                "joints": joint_status,
+                "final_gate": "SKIPPED",
+                "physical_fit": "NOT_VERIFIED",
+            },
             "look_again": looks,
             "plan": gate,
         }
 
     joints = (built.get("summary") or {}).get("joints") or {}
+    guide = built.get("assembly_guide") or (built.get("summary") or {}).get("assembly_guide") or {}
     if joints.get("status") == "FAIL":
         return {
             "success": False,
             "ok": False,
+            "final_status": "BLOCKED",
+            "authorized_output": [],
+            "production_export": "BLOCKED",
             "summary": built.get("summary"),
             "joints": joints,
+            "assembly_guide": guide,
+            "scorecard": {"joints": "FAIL", "final_gate": "BLOCKED", "physical_fit": "NOT_VERIFIED"},
             "look_again": list(joints.get("failures") or []) + list(joints.get("warnings") or []),
             "plan": gate,
         }
 
+    # Optional nest gap from Studio Nest tab (mm) — applied on full compile only.
+    params = dict(built["parameters"] or {})
+    if payload.get("nest_gap_mm") not in (None, ""):
+        try:
+            params["nest_gap_mm"] = max(2.0, min(30.0, float(payload.get("nest_gap_mm"))))
+        except (TypeError, ValueError):
+            pass
+    if payload.get("material"):
+        params["material"] = str(payload.get("material"))
+    if payload.get("machine"):
+        params["machine"] = str(payload.get("machine"))
+
     result = payas_cad.create_design(
         primitives=built["primitives"],
-        parameters=built["parameters"],
+        parameters=params,
         public_base_url=public_base_url or "",
     )
     viewer = panels_for_viewer(result.get("assembly_result"))
     looks = list(result.get("look_again") or []) + list(joints.get("warnings") or [])
     looks.append("3D view is a nominal digital assembly. Measure kerf and dry-fit before production.")
     looks.append(f"Kerf digital status: {joints.get('kerf_status')} (physical fit NOT_VERIFIED).")
+    if guide.get("speak"):
+        looks.append(str(guide["speak"]))
     file_id = result.get("file_id")
     base = (public_base_url or "").rstrip("/")
-    studio_url = f"{base}/studio?file={file_id}" if base and file_id else (f"/studio?file={file_id}" if file_id else None)
-    if studio_url:
+    speak = guide.get("speak") or result.get("speak")
+    final_status = str(result.get("final_status") or "BLOCKED")
+    export_ok = final_status not in {"BLOCKED", "FAIL"} and bool(result.get("success"))
+    studio_url = None
+    if export_ok and file_id:
+        studio_url = f"{base}/studio?file={file_id}" if base else f"/studio?file={file_id}"
         looks.append(f"Open in Studio 3D: {studio_url}")
+    elif final_status == "BLOCKED":
+        looks.insert(0, "BLOCKED — SVG/DXF not authorized (Final Gate). Fix connections/assembly before download.")
+    authorized = list(result.get("authorized_output") or []) if export_ok else []
     return {
+        # Compile may succeed while Final Gate blocks export — UI shows 3D + locks downloads.
         "success": bool(result.get("success")),
-        "file_id": file_id,
-        "svg_url": result.get("svg_url"),
-        "dxf_id": result.get("dxf_id"),
-        "dxf_url": result.get("dxf_url"),
+        "export_allowed": export_ok,
+        "file_id": file_id if export_ok else None,
+        "svg_url": result.get("svg_url") if export_ok else None,
+        "dxf_id": result.get("dxf_id") if export_ok else None,
+        "dxf_url": result.get("dxf_url") if export_ok else None,
         "studio_url": studio_url,
         "project": result.get("project"),
-        "final_status": result.get("final_status"),
-        "speak": result.get("speak"),
+        "final_status": final_status,
+        "authorized_output": authorized,
+        "production_export": "BLOCKED" if not export_ok else (result.get("production_export") or "BLOCKED"),
+        "scorecard": result.get("scorecard") or {},
+        "speak": speak,
         "assembly": viewer,
         "summary": built.get("summary"),
         "joints": joints,
+        "assembly_guide": guide,
         "look_again": looks,
         "plan": gate,
+        "gate_skipped": False,
     }
 
 

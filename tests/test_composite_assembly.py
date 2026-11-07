@@ -41,6 +41,66 @@ class CompositeAssemblyTests(unittest.TestCase):
         self.assertEqual(result["transform_validation"]["status"],"FAIL")
         self.assertTrue(any(c.get("type")=="JOINT_TRANSFORM" and c.get("status")=="FAIL" for c in result["transform_validation"]["checks"]))
 
+    def test_box_dividers_and_shelves_get_placements(self):
+        source = [{
+            "type": "box",
+            "label": "tray",
+            "x": 120,
+            "y": 90,
+            "h": 60,
+            "bottom": True,
+            "lid": False,
+            "dividers_x": 1,
+            "dividers_y": 1,
+            "shelves": 1,
+            "sx": [58.5, 58.5],
+            "sy": [43.5, 43.5],
+        }]
+        result = check_assembly(source, thickness=3)
+        ids = [p["id"] for p in result["physical_parts"]]
+        self.assertIn("tray/divider-x-1", ids)
+        self.assertIn("tray/divider-y-1", ids)
+        self.assertIn("tray/shelf-1", ids)
+        self.assertFalse(result["illegal_collisions"])
+        placed = {p["id"]: p for p in result["physical_parts"]}
+        self.assertTrue(placed["tray/divider-x-1"].get("placement"))
+        self.assertEqual(placed["tray/divider-x-1"]["placement_source"], "derived")
+        self.assertTrue(result["ok"])
+        internal = [
+            c for c in result["derived_constraints"]
+            if str(c.get("joint_type") or "") in {"finger_slot", "cross_lap"}
+        ]
+        self.assertGreaterEqual(len(internal), 10)
+        self.assertTrue(all(c.get("result") == "MATCH" for c in internal))
+        pairs = {frozenset((c["part_a"], c["part_b"])) for c in internal}
+        self.assertIn(frozenset(("tray/divider-x-1", "tray/bottom")), pairs)
+        self.assertIn(frozenset(("tray/shelf-1", "tray/front")), pairs)
+        self.assertIn(frozenset(("tray/divider-x-1", "tray/divider-y-1")), pairs)
+        tv = result.get("transform_validation") or {}
+        self.assertEqual(tv.get("status"), "PASS")
+        self.assertTrue(any(c.get("type") == "INTERNAL_FITTING" for c in tv.get("checks") or []))
+
+    def test_removable_lid_seat_is_internal_fitting(self):
+        source = [{
+            "type": "box",
+            "label": "bin",
+            "x": 100,
+            "y": 80,
+            "h": 50,
+            "bottom": True,
+            "lid": {"type": "removable"},
+        }]
+        result = check_assembly(source, thickness=3)
+        self.assertTrue(result["ok"])
+        self.assertEqual((result.get("transform_validation") or {}).get("status"), "PASS")
+        lid_joints = [
+            c for c in result["derived_constraints"]
+            if "lid" in str(c.get("part_a")) or "lid" in str(c.get("part_b"))
+        ]
+        self.assertTrue(lid_joints)
+        self.assertTrue(all(c.get("joint_type") == "removable_lid" for c in lid_joints))
+        self.assertTrue(all(c.get("result") == "MATCH" for c in lid_joints))
+
     def test_two_level_sliding_lid_uses_expanded_box_and_sampled_sweep(self):
         source = [
             {"type": "box", "label": "main-bin-body", "x": 394, "y": 394, "h": 697, "bottom": True},
