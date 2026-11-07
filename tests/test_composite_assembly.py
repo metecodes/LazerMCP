@@ -80,6 +80,60 @@ class CompositeAssemblyTests(unittest.TestCase):
         self.assertEqual(tv.get("status"), "PASS")
         self.assertTrue(any(c.get("type") == "INTERNAL_FITTING" for c in tv.get("checks") or []))
 
+    def test_drawers_seat_in_cubbies_with_finger_dividers(self):
+        from studio_box import build_drawer_specs, seat_drawer_specs, drawer_cell_heights
+
+        sx = [58.5, 58.5]
+        sy = [90.0]
+        cell_h = drawer_cell_heights(90, 0, 1, 3, 0)
+        drawers = seat_drawer_specs(
+            build_drawer_specs(sx=sx, sy=sy, cell_heights=cell_h, thickness=3),
+            sx=sx,
+            sy=sy,
+            raised=0,
+            shelves=1,
+            h=90,
+            thickness=3,
+        )
+        source = [{
+            "type": "box",
+            "label": "cubby",
+            "x": 120,
+            "y": 90,
+            "h": 90,
+            "bottom": True,
+            "lid": False,
+            "dividers_x": 1,
+            "shelves": 1,
+            "sx": sx,
+            "sy": sy,
+            "drawers": True,
+            "drawer_specs": drawers,
+            "divider_joint_walls": True,
+            "divider_joint_bottom": True,
+        }]
+        result = check_assembly(source, thickness=3)
+        ids = [p["id"] for p in result["physical_parts"]]
+        self.assertIn("cubby/divider-x-1", ids)
+        self.assertIn("cubby/shelf-1", ids)
+        self.assertIn("cubby/drawer-1-front", ids)
+        self.assertIn("cubby/drawer-1-bottom", ids)
+        placed = {p["id"]: p for p in result["physical_parts"]}
+        self.assertTrue(placed["cubby/drawer-1-front"].get("placement"))
+        prims = {p["physical_part_id"]: p for p in result["_physical_primitives"]}
+        self.assertEqual(str(prims["cubby/divider-x-1"].get("edges") or "")[0], "f")
+        self.assertFalse(result["illegal_collisions"])
+        self.assertTrue(result["ok"], result.get("look_again"))
+        fingerish = [
+            c for c in result["derived_constraints"]
+            if str(c.get("joint_type") or "") in {"finger_slot", "cross_lap"}
+        ]
+        self.assertTrue(fingerish)
+        self.assertTrue(all(c.get("result") == "MATCH" for c in fingerish))
+        seats = [c for c in result["derived_constraints"] if c.get("joint_type") == "drawer_seat"]
+        self.assertGreaterEqual(len(seats), 2)
+        self.assertTrue(all(c.get("result") == "MATCH" for c in seats))
+
     def test_removable_lid_seat_is_internal_fitting(self):
         source = [{
             "type": "box",

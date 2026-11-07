@@ -674,8 +674,10 @@ class PayasToolbox(Boxes):
             self._coupon(part)
             return 3
         if kind in {"box"}:
+            before = len(self.drawn_labels)
             self._box(part)
-            return 4 + int(bool(part.get("bottom", True))) + int(bool(part.get("lid")))
+            # Count every noted panel (walls + dividers + shelves + drawer trays).
+            return max(1, len(self.drawn_labels) - before)
         if kind in {"panel", "wall", "rect", "roof", "roof_panel"}:
             w = _num(part.get("w") or part.get("x") or part.get("width"), 80)
             h = _num(part.get("h") or part.get("y") or part.get("height") or part.get("length"), 80)
@@ -1072,7 +1074,8 @@ class PayasToolbox(Boxes):
             )
             self._note_part(f"shelf-{i}")
 
-        # Open tray drawers sized to each cubby — seated in assembly; nest on the sheet.
+        # Open tray drawers — new nest column beside the carcass (not only inside 3D).
+        drawer_col = True
         for spec in drawer_specs:
             if not isinstance(spec, dict):
                 continue
@@ -1084,6 +1087,7 @@ class PayasToolbox(Boxes):
             did = str(spec.get("id") or "drawer")
             pull_r = float(spec.get("pull_r_mm") or min(12.0, dw * 0.16, dh * 0.38))
             label_txt = str(spec.get("label_mm") or f"{dw:.0f}×{dd:.0f}×{dh:.0f}")
+            nest_tag = f"CEKMECE {did.replace('drawer-', '')} {label_txt}"
 
             def _front_pull_cb(w=dw, h=dh, r=pull_r):
                 def _cb() -> None:
@@ -1092,7 +1096,7 @@ class PayasToolbox(Boxes):
 
                 return _cb
 
-            def _bottom_label_cb(w=dw, d=dd, text=label_txt):
+            def _bottom_label_cb(w=dw, d=dd, text=nest_tag):
                 def _cb() -> None:
                     from markings import draw_markings
 
@@ -1114,10 +1118,13 @@ class PayasToolbox(Boxes):
 
                 return _cb
 
+            # First drawer bottom starts a column to the RIGHT of the carcass stack.
+            bottom_move = "right" if drawer_col else "up"
+            drawer_col = False
             self.rectangularWall(
                 dw, dd, "ffff",
                 callback=_pack_edge0(_bottom_label_cb()),
-                move="up", label=f"{did}-bottom",
+                move=bottom_move, label=f"{did}-bottom",
             )
             self._note_part(f"{did}-bottom")
             self.rectangularWall(

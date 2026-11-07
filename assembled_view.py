@@ -70,6 +70,30 @@ def validate(parts,t,inferred_slots=()):
                 pose=p.get('placement') or {};u,v=pose['u'],pose['v'];slot_n=[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]]
                 rec['world_center']['slot']=world(p,x,y,t/2);rec['world_normal']['slot']=slot_n
             except (KeyError,TypeError,ValueError):pass
+            is_drawer_opening = str(s.get('semantic_role') or '') == 'drawer_opening'
+            if is_drawer_opening:
+                # Cubby mouth: nominal rectangle check only (finger teeth are outside the pad).
+                pw = float(p.get('w') or 0); ph = float(p.get('h') or 0)
+                pad = max(1.0, float(s.get('edge_clearance_mm') or 0.5))
+                if w <= 0 or h <= 0 or x - w / 2 < pad or x + w / 2 > pw - pad or y - h / 2 < pad or y + h / 2 > ph - pad:
+                    rec['reason'] = 'drawer opening leaves nominal wall'
+                    debug.append(rec)
+                    errors.append(f"slot on {p.get('label')} leaves its actual outline")
+                    continue
+                actual = (p.get('_cut_geometry') or {}).get('inner_cuts') or []
+                if not any(
+                    row.get('role') == 'SLOT' and row.get('operation') == 'CUT'
+                    and row.get('points') == [[x - w / 2, y - h / 2], [x + w / 2, y - h / 2], [x + w / 2, y + h / 2], [x - w / 2, y + h / 2]]
+                    for row in actual if isinstance(row, dict)
+                ):
+                    rec['reason'] = 'drawer opening missing INNER_CUT'
+                    debug.append(rec)
+                    errors.append(f"slot on {p.get('label')} is missing from actual INNER_CUT geometry")
+                    continue
+                rec['result'] = 'PASS'
+                rec['reason'] = 'drawer_opening'
+                debug.append(rec)
+                continue
             if w<=0 or h<=0 or not poly.contains(box(x-w/2,y-h/2,x+w/2,y+h/2)):
                 rec['reason']='slot leaves its actual outline';debug.append(rec);errors.append(f"slot on {p.get('label')} leaves its actual outline");continue
             edge_clearance=float(s.get('edge_clearance_mm') or 1.0)

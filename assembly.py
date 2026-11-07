@@ -415,8 +415,9 @@ def check_assembly(
             sh = _num(slot.get("h") or slot.get("dy"), 0)
             if sw <= 0 or sh <= 0:
                 continue
+            is_drawer_opening = str(slot.get("semantic_role") or "") == "drawer_opening"
             thin = min(sw, sh)
-            if thin <= t + 0.6:
+            if (not is_drawer_opening) and thin <= t + 0.6:
                 if abs(thin - t) > 0.35:
                     errors.append(
                         f"tab-slot on {face['name']} is {thin:.2f} mm thick; 3 mm plywood + kerf {kerf} needs ~{t:.1f} mm"
@@ -424,7 +425,8 @@ def check_assembly(
                 else:
                     warnings.append(f"slot on {face['name']}: thickness fits; matching tab is not verified")
                     errors.append(f"slot on {face['name']} has no verified tab partner")
-            if not (x-sw/2 >= 1 and x+sw/2 <= w-1 and y-sh/2 >= 1 and y+sh/2 <= h-1):
+            pad = 1.0 if is_drawer_opening else 1.0
+            if not (x - sw / 2 >= pad and x + sw / 2 <= w - pad and y - sh / 2 >= pad and y + sh / 2 <= h - pad):
                 errors.append(f"slot on {face['name']} at {x},{y} {sw}×{sh} leaves the wall")
         for hole in face["features"]["holes"]:
             hx = _num(hole.get("x") or hole.get("cx"), 0)

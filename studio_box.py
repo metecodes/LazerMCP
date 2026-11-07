@@ -78,15 +78,21 @@ def drawer_front_openings(
     bay_floors: list[float],
     thickness: float,
     wall_z0: float,
+    wall_w: float,
+    wall_h: float,
     clearance: float = 1.0,
-    margin: float = 0.6,
+    margin: float = 1.2,
 ) -> list[dict[str, Any]]:
     """Front-wall slot rectangles (local wall coords) so cubbies open for drawers."""
     t = float(thickness)
     play = max(0.4, min(3.0, float(clearance)))
     starts = cell_starts(sx, t)
     slots: list[dict[str, Any]] = []
-    m = max(0.4, float(margin))
+    # Stay inside the nominal wall rectangle (finger teeth are outside this pad).
+    pad = max(t + 1.5, float(margin) + 1.0)
+    ww = float(wall_w)
+    wh = float(wall_h)
+    m = max(0.8, float(margin))
     for zi, ch in enumerate(cell_heights):
         if zi >= len(bay_floors):
             break
@@ -97,17 +103,25 @@ def drawer_front_openings(
             # Front wall local Y = world Z - wall_z0 (wall origin sits at z=wall_z0).
             z_mid = float(bay_floors[zi]) + float(ch) / 2.0
             cy = z_mid - float(wall_z0)
-            if cy - oh / 2.0 < 1.0:
+            # Clamp opening into the safe inner rectangle.
+            left = max(pad, cx - ow / 2.0)
+            right = min(ww - pad, cx + ow / 2.0)
+            bottom = max(pad, cy - oh / 2.0)
+            top = min(wh - pad, cy + oh / 2.0)
+            ow2 = right - left
+            oh2 = top - bottom
+            if ow2 < 10.0 or oh2 < 10.0:
                 continue
             slots.append(
                 {
                     "id": f"drawer-open-c{xi+1}-z{zi+1}",
-                    "x": round(cx, 3),
-                    "y": round(cy, 3),
-                    "w": round(ow, 3),
-                    "h": round(oh, 3),
+                    "x": round((left + right) / 2.0, 3),
+                    "y": round((bottom + top) / 2.0, 3),
+                    "w": round(ow2, 3),
+                    "h": round(oh2, 3),
                     "semantic_role": "drawer_opening",
                     "clearance_mm": play,
+                    "edge_clearance_mm": 0.5,
                 }
             )
     return slots
@@ -500,6 +514,8 @@ def build_studio_box(payload: dict[str, Any] | None = None) -> dict[str, Any]:
             bay_floors=bay_floors,
             thickness=thickness,
             wall_z0=thickness,
+            wall_w=xi,
+            wall_h=hi,
             clearance=drawer_clearance,
         )
         if make_drawers and drawer_specs
@@ -731,6 +747,9 @@ def build_assembly_guide(box: dict[str, Any], summary: dict[str, Any] | None = N
 
     order: list[str] = ["bottom", "front", "back", "left", "right"]
 
+    drawers_on = bool(box.get("drawers")) and bool(box.get("drawer_specs"))
+    drawer_specs = box.get("drawer_specs") if isinstance(box.get("drawer_specs"), list) else []
+
     for i in range(1, dx + 1):
         pid = f"divider-x-{i}"
         order.append(pid)
@@ -738,7 +757,8 @@ def build_assembly_guide(box: dict[str, Any], summary: dict[str, Any] | None = N
         if joint_bottom:
             add_conn(pid, "bottom", joint_type="finger_slot", edge_hint="divider→bottom", gender_a="male", gender_b="female")
         if joint_walls:
-            add_conn(pid, "front", joint_type="finger_slot", edge_hint="divider→front", gender_a="male", gender_b="female")
+            if not drawers_on:
+                add_conn(pid, "front", joint_type="finger_slot", edge_hint="divider→front", gender_a="male", gender_b="female")
             add_conn(pid, "back", joint_type="finger_slot", edge_hint="divider→back", gender_a="male", gender_b="female")
 
     for i in range(1, dy + 1):
@@ -766,8 +786,37 @@ def build_assembly_guide(box: dict[str, Any], summary: dict[str, Any] | None = N
         pid = f"shelf-{i}"
         order.append(pid)
         titles[pid] = (f"Ara raf {i}", "Yatay rafı duvar finger yuvalarına kaydır.")
-        for wall in ("front", "back", "left", "right"):
+        walls = ("back", "left", "right") if drawers_on else ("front", "back", "left", "right")
+        for wall in walls:
             add_conn(pid, wall, joint_type="finger_slot", edge_hint=f"shelf→{wall}", gender_a="male", gender_b="female")
+
+    for spec in drawer_specs:
+        if not isinstance(spec, dict):
+            continue
+        did = str(spec.get("id") or "drawer")
+        label = str(spec.get("label_mm") or did)
+        for suffix, title in (
+            ("bottom", "taban"),
+            ("front", "ön"),
+            ("back", "arka"),
+            ("left", "sol"),
+            ("right", "sağ"),
+        ):
+            pid = f"{did}-{suffix}"
+            order.append(pid)
+            titles[pid] = (
+                f"Çekmece {did.replace('drawer-', '')} {title}",
+                f"Açık tepsiyi hücreye kaydır ({label} mm). Fiziksel kayma NOT_VERIFIED.",
+            )
+        add_conn(
+            f"{did}-front",
+            "front",
+            joint_type="drawer_seat",
+            edge_hint="drawer→opening",
+            gender_a="moving",
+            gender_b="opening",
+            note="pull-out tray in cubby",
+        )
 
     lid_parts: list[str] = []
     if lid_raw != "open" and lid_value:

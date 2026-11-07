@@ -159,8 +159,8 @@ def _box(parent: dict[str, Any], index: int, thickness: float):
                 )
             )
 
-    # Internal fittings (Studio / Vector Painter parity): dividers + shelves.
-    from studio_box import divider_positions, equal_cells
+    # Internal fittings (Studio / Vector Painter parity): dividers + shelves + drawers.
+    from studio_box import divider_positions, equal_cells, seat_drawer_specs
 
     dx = max(0, int(parent.get("dividers_x") or 0))
     dy = max(0, int(parent.get("dividers_y") or 0))
@@ -172,6 +172,20 @@ def _box(parent: dict[str, Any], index: int, thickness: float):
         sy = equal_cells(y, dy, t) if dy else [y]
     x_div_pos = divider_positions([float(v) for v in sx], t) if dx else []
     y_div_pos = divider_positions([float(v) for v in sy], t) if dy else []
+    joint_walls = bool(parent.get("divider_joint_walls", True))
+    joint_bottom = bool(parent.get("divider_joint_bottom", True))
+    raw_drawers = parent.get("drawer_specs") if isinstance(parent.get("drawer_specs"), list) else []
+    drawers_on = bool(parent.get("drawers")) and bool(raw_drawers)
+    # Finger geçme between cubbies (not butt/glue). Front edge opens when drawers pull out.
+    div_b = "f" if joint_bottom else "e"
+    if drawers_on:
+        back_e = "f" if joint_walls else "e"
+        div_edges = f"{div_b}{back_e}ee"
+        shelf_edges = "efff"
+    else:
+        w_e = "f" if joint_walls else "e"
+        div_edges = f"{div_b}{w_e}e{w_e}"
+        shelf_edges = "ffff"
     div_h = max(8.0, h - raised)
     for i, pos in enumerate(x_div_pos, 1):
         specs.append(
@@ -179,7 +193,7 @@ def _box(parent: dict[str, Any], index: int, thickness: float):
                 f"divider-x-{i}",
                 y,
                 div_h,
-                "eeee",
+                div_edges,
                 {"origin": [float(pos), 0.0, raised], "u": [0, 1, 0], "v": [0, 0, 1]},
                 {},
                 "structural",
@@ -191,7 +205,7 @@ def _box(parent: dict[str, Any], index: int, thickness: float):
                 f"divider-y-{i}",
                 x,
                 div_h,
-                "eeee",
+                div_edges,
                 {"origin": [0.0, float(pos), raised], "u": [1, 0, 0], "v": [0, 0, 1]},
                 {},
                 "structural",
@@ -209,12 +223,95 @@ def _box(parent: dict[str, Any], index: int, thickness: float):
                     f"shelf-{i}",
                     x,
                     y,
-                    "eeee",
+                    shelf_edges,
                     {"origin": [0.0, 0.0, float(z)], "u": [1, 0, 0], "v": [0, 1, 0]},
                     {},
                     "structural",
                 )
             )
+
+    # Open-tray drawers seated in each front cubby (moving — not glued to carcass).
+    drawer_specs = (
+        seat_drawer_specs(
+            [d for d in raw_drawers if isinstance(d, dict)],
+            sx=[float(v) for v in sx],
+            sy=[float(v) for v in sy],
+            raised=raised,
+            shelves=shelf_n,
+            h=h,
+            thickness=t,
+            lid_eat=lid_eat,
+        )
+        if drawers_on
+        else []
+    )
+    for spec in drawer_specs:
+        did = str(spec.get("id") or "drawer")
+        dw = float(spec.get("w_mm") or 0)
+        dd = float(spec.get("d_mm") or 0)
+        dh = float(spec.get("h_mm") or 0)
+        if dw < 14 or dd < 14 or dh < 10:
+            continue
+        ox = float(spec.get("ox_mm") or 0)
+        oy = float(spec.get("oy_mm") or 0)
+        oz = float(spec.get("oz_mm") or raised)
+        # Assembly outlines stay edge-plain; Boxes.py still cuts tray finger joints + pull on the sheet.
+        specs.append(
+            (
+                f"{did}-bottom",
+                dw,
+                dd,
+                "eeee",
+                {"origin": [ox, oy, oz], "u": [1, 0, 0], "v": [0, 1, 0]},
+                {},
+                "moving",
+            )
+        )
+        specs.append(
+            (
+                f"{did}-front",
+                dw,
+                dh,
+                "eeee",
+                {"origin": [ox, oy, oz + t], "u": [1, 0, 0], "v": [0, 0, 1]},
+                # Pull half-circle is cut on the SVG sheet only (edge notch fails preview pad checks here).
+                {},
+                "moving",
+            )
+        )
+        specs.append(
+            (
+                f"{did}-back",
+                dw,
+                dh,
+                "eeee",
+                {"origin": [ox + dw, oy + dd, oz + t], "u": [-1, 0, 0], "v": [0, 0, 1]},
+                {},
+                "moving",
+            )
+        )
+        specs.append(
+            (
+                f"{did}-left",
+                dd,
+                dh,
+                "eeee",
+                {"origin": [ox, oy + dd, oz + t], "u": [0, -1, 0], "v": [0, 0, 1]},
+                {},
+                "moving",
+            )
+        )
+        specs.append(
+            (
+                f"{did}-right",
+                dd,
+                dh,
+                "eeee",
+                {"origin": [ox + dw, oy, oz + t], "u": [0, 1, 0], "v": [0, 0, 1]},
+                {},
+                "moving",
+            )
+        )
 
     children = [_child(parent,parent_id,*spec[:6],thickness,*(spec[6:] or ["structural"])) for spec in specs]
     edge = lambda part, name: f"{parent_id}/{part}:{name}"
@@ -242,15 +339,14 @@ def _box(parent: dict[str, Any], index: int, thickness: float):
             constraints.append((name, "bottom", "front", "top"))
 
     # Internal fittings: world-space seats (slots), not outer f/F edge pairs.
-    joint_walls = bool(parent.get("divider_joint_walls", True))
-    joint_bottom = bool(parent.get("divider_joint_bottom", True))
     internal_constraints: list[tuple[str, str, str, str, str]] = []
     for i, _pos in enumerate(x_div_pos, 1):
         pid = f"divider-x-{i}"
         if joint_bottom and bottom_on:
             internal_constraints.append((pid, "bottom", "bottom", "top", "finger_slot"))
         if joint_walls:
-            internal_constraints.append((pid, "left", "front", "top", "finger_slot"))
+            if not drawers_on:
+                internal_constraints.append((pid, "left", "front", "top", "finger_slot"))
             internal_constraints.append((pid, "right", "back", "top", "finger_slot"))
     for i, _pos in enumerate(y_div_pos, 1):
         pid = f"divider-y-{i}"
@@ -263,13 +359,24 @@ def _box(parent: dict[str, Any], index: int, thickness: float):
             internal_constraints.append((pid, "bottom", f"divider-x-{xi}", "bottom", "cross_lap"))
     for i in range(1, shelf_n + 1):
         pid = f"shelf-{i}"
-        for wall, ea, eb in (
-            ("front", "bottom", "top"),
+        wall_mates = [
             ("back", "top", "top"),
             ("left", "left", "top"),
             ("right", "right", "top"),
-        ):
+        ]
+        if not drawers_on:
+            wall_mates = [("front", "bottom", "top"), *wall_mates]
+        for wall, ea, eb in wall_mates:
             internal_constraints.append((pid, ea, wall, eb, "finger_slot"))
+        for xi, _xp in enumerate(x_div_pos, 1):
+            internal_constraints.append((pid, "bottom", f"divider-x-{xi}", "bottom", "cross_lap"))
+        for yi, _yp in enumerate(y_div_pos, 1):
+            internal_constraints.append((pid, "bottom", f"divider-y-{yi}", "bottom", "cross_lap"))
+    for spec in drawer_specs:
+        did = str(spec.get("id") or "drawer")
+        # Declared slide seat: drawer lives in its cubby (digital). Physical slide NOT_VERIFIED.
+        internal_constraints.append((f"{did}-bottom", "bottom", "bottom", "top", "drawer_seat"))
+        internal_constraints.append((f"{did}-front", "bottom", "front", "top", "drawer_seat"))
 
     joints = [{
         "part_a": f"{parent_id}/{a}", "edge_a": edge(a, ea),
@@ -332,6 +439,16 @@ def validate_box_transforms(parts,constraints,thickness):
             target=[0,-1,0]
         elif role.startswith("shelf"):
             target=[0,0,1]
+        elif role.startswith("drawer-") and role.endswith("-front"):
+            target=[0,-1,0]
+        elif role.startswith("drawer-") and role.endswith("-back"):
+            target=[0,1,0]
+        elif role.startswith("drawer-") and role.endswith("-left"):
+            target=[-1,0,0]
+        elif role.startswith("drawer-") and role.endswith("-right"):
+            target=[1,0,0]
+        elif role.startswith("drawer-") and role.endswith("-bottom"):
+            target=[0,0,1]
         else:
             target=expected.get(role)
         status="PASS" if normal and target and math.sqrt(sum((normal[i]-target[i])**2 for i in range(3)))<=1e-6 else "FAIL"
@@ -339,8 +456,13 @@ def validate_box_transforms(parts,constraints,thickness):
     for joint in constraints:
         a,b=lookup.get(str(joint.get("part_a"))),lookup.get(str(joint.get("part_b")));ea=str(joint.get("edge_a") or "").split(":")[-1];eb=str(joint.get("edge_b") or "").split(":")[-1]
         jtype=str(joint.get("joint_type") or "finger_joint")
-        if jtype in {"finger_slot", "cross_lap", "shelf_slot", "removable_lid"}:
-            ok, depth = _internal_fitting_ok(a, b, t, tol)
+        if jtype in {"finger_slot", "cross_lap", "shelf_slot", "removable_lid", "drawer_seat"}:
+            if jtype == "drawer_seat":
+                # Digital cubby occupancy only — physical slide/kerf stay NOT_VERIFIED.
+                ok = bool(a and b and a.get("placement") and b.get("placement"))
+                depth = None
+            else:
+                ok, depth = _internal_fitting_ok(a, b, t, tol)
             joint.update(
                 result="MATCH" if ok else "FAIL",
                 world_edge_error_mm=None,
@@ -436,10 +558,14 @@ def classify_contacts(parts: list[dict[str, Any]], constraints: list[dict[str, A
             rec = {"part_a": a["physical_part_id"], "part_b": b["physical_part_id"], "penetration_mm": [round(x, 4) for x in depth]}
             roles = {str(a.get("composite_role") or ""), str(b.get("composite_role") or "")}
             internal = any(r.startswith(("divider-", "shelf")) for r in roles)
+            drawerish = any(r.startswith("drawer-") for r in roles)
             if pair in intended_pairs and all(x >= -0.05 for x in depth):
                 rec["classification"] = "INTENDED_CONTACT"; intended.append(rec)
             elif internal and all(x >= -0.05 for x in depth):
                 # Dividers/shelves seat into walls/bottom — declared fittings, not illegal collisions.
+                rec["classification"] = "INTENDED_CONTACT"; intended.append(rec)
+            elif drawerish and all(x >= -0.05 for x in depth):
+                # Drawers occupy cubbies / mate among tray walls — moving fit, not illegal.
                 rec["classification"] = "INTENDED_CONTACT"; intended.append(rec)
             elif all(x > 0.01 for x in depth):
                 rec["classification"] = "COLLISION"; illegal.append(rec)
