@@ -190,13 +190,21 @@ def studio_action(
             }
         return {"success": True, "rows": list_calibrations()}
     if verb in {"projects", "project", "history"}:
+        raw_limit = body.get("limit")
+        limit = None if raw_limit in (None, "", "all") else raw_limit
         if project_id or body.get("project_id"):
             pid = str(project_id or body.get("project_id") or "")
             hit = project_history(pid)
             if not hit:
-                return {"success": True, "look_again": [f"No project {pid}."], "projects": list_projects()}
+                return {"success": True, "look_again": [f"No project {pid}."], "projects": list_projects(limit=limit)}
             return {"success": True, "project": hit}
-        return {"success": True, "projects": list_projects()}
+        rows = list_projects(limit=limit)
+        return {
+            "success": True,
+            "projects": rows,
+            "limit": None if limit in (None, "") else int(limit) if str(limit).isdigit() else limit,
+            "returned": len(rows),
+        }
     if verb in {"usage", "metering"}:
         return usage_summary()
     if verb in {"keys", "key"}:

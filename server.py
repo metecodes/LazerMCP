@@ -1924,6 +1924,9 @@ async def api_studio_action(request: Request) -> Response:
                 body = raw
         except Exception:
             body = {}
+    # Merge query params so GET ?limit=80 reaches studio_action (POST body wins).
+    query_payload = {k: request.query_params.get(k) for k in request.query_params}
+    body = {**query_payload, **body}
     verb = str(action or "").strip().lower()
     if verb in {"box", "studio_box", "parametric"}:
         return JSONResponse(create_studio_box(body, public_base_url=_public_base(request)))

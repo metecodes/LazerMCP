@@ -1213,10 +1213,13 @@ def workshop_action(action: str, body: dict[str, Any], principal: dict[str, Any]
         return {"success": True, "activation": mint_activation(body, owner=_owner(principal))}
     if verb in {"projects", "project"}:
         pid = str(body.get("project_id") or "")
+        raw_limit = body.get("limit")
+        limit = None if raw_limit in (None, "", "all") else raw_limit
         if pid:
             hit = project_history(pid)
-            return {"success": True, "project": hit} if hit else {"success": True, "look_again": [f"No project {pid}."], "projects": list_projects()}
-        return {"success": True, "projects": list_projects()}
+            return {"success": True, "project": hit} if hit else {"success": True, "look_again": [f"No project {pid}."], "projects": list_projects(limit=limit)}
+        rows = list_projects(limit=limit)
+        return {"success": True, "projects": rows, "returned": len(rows)}
     return {
         "success": True,
         "look_again": [

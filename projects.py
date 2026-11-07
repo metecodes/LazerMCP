@@ -102,7 +102,7 @@ def approve_latest(project_id: str) -> dict[str, Any]:
     return {"project_id": project_id, "version": versions[-1].get("n")}
 
 
-def list_projects() -> list[dict[str, Any]]:
+def list_projects(limit: int | None = None) -> list[dict[str, Any]]:
     store = _load()
     out = []
     for pid, project in store.items():
@@ -117,6 +117,12 @@ def list_projects() -> list[dict[str, Any]]:
             }
         )
     out.sort(key=lambda r: str(r.get("updated") or ""), reverse=True)
+    if limit is not None:
+        try:
+            n = max(1, min(500, int(limit)))
+        except (TypeError, ValueError):
+            n = 80
+        return out[:n]
     return out
 
 

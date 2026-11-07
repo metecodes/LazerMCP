@@ -39,7 +39,11 @@ const state = {
   asmPlaying: false,
   asmTimer: null,
   asmAnim: null,
+  asmPlayToken: 0,
   woodMate: null,
+  histAbort: null,
+  histLoading: false,
+  fitExplodeRaf: null,
 };
 
 const PANEL_DIMS = {
@@ -164,16 +168,16 @@ function showOptimisticLid() {
   const hi = mode === "external" ? Math.max(8, h - t) : h;
   if (!state.woodGhost) {
     state.woodGhost = new THREE.MeshStandardMaterial({
-      color: 0x2f6fed,
+      color: 0xb8956a,
       transparent: true,
-      opacity: 0.55,
-      roughness: 0.65,
-      metalness: 0.08,
+      opacity: 0.32,
+      roughness: 0.9,
+      metalness: 0.02,
       depthWrite: false,
     });
   }
   if (!state.edgeGhost) {
-    state.edgeGhost = new THREE.LineBasicMaterial({ color: 0x9ec1ff, transparent: true, opacity: 0.9 });
+    state.edgeGhost = new THREE.LineBasicMaterial({ color: 0xc4a574, transparent: true, opacity: 0.75 });
   }
   const doors = lid === "double_door" ? 2 : 1;
   const group = new THREE.Group();
@@ -302,13 +306,25 @@ let view = {};
 
 function buildScene() {
   const canvas = $("viewport");
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setClearColor(document.documentElement.getAttribute("data-theme") === "light" ? 0xd9d3c8 : 0x0f1419, 1);
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 5000);
   camera.position.set(220, 180, 260);
   const controls = new OrbitControls(camera, canvas);
   controls.enableDamping = true;
+  controls.dampingFactor = 0.08;
+  // Keep the kit readable: no underground flips, no whip-spin on drag.
+  controls.rotateSpeed = 0.38;
+  controls.zoomSpeed = 0.85;
+  controls.panSpeed = 0.55;
+  controls.minPolarAngle = 0.18;          // ~10° from top
+  controls.maxPolarAngle = Math.PI * 0.49; // stay above the floor plane
+  controls.minDistance = 40;
+  controls.maxDistance = 1800;
+  controls.enablePan = true;
+  controls.screenSpacePanning = true;
   const root = new THREE.Group();
   scene.add(root);
   scene.add(new THREE.AmbientLight(0xffffff, 0.55));
@@ -321,7 +337,7 @@ function buildScene() {
   state.wood = new THREE.MeshStandardMaterial({ color: 0xc4a574, roughness: 0.85, metalness: 0.05 });
   state.woodHi = new THREE.MeshStandardMaterial({ color: 0xe0c08a, roughness: 0.7, metalness: 0.08 });
   state.woodGhost = new THREE.MeshStandardMaterial({
-    color: 0x3d8bfd, transparent: true, opacity: 0.45, roughness: 0.7, metalness: 0.05, depthWrite: false,
+    color: 0xb8956a, transparent: true, opacity: 0.28, roughness: 0.9, metalness: 0.02, depthWrite: false,
   });
   view = { renderer, scene, camera, controls, root, canvas };
 
@@ -459,6 +475,9 @@ function buildScene() {
       if (d.axis === "x") deltaWorld = hitPoint.x - d.startPoint.x;
       else if (d.axis === "y") deltaWorld = hitPoint.y - d.startPoint.y;
       else deltaWorld = hitPoint.z - d.startPoint.z;
+      // Soften stretch so far-camera drags don't jump tens of mm per pixel.
+      const stretchGain = d.axis === "z" || d.lift ? 0.7 : 0.55;
+      deltaWorld *= stretchGain;
       let next;
       if (d.lift || d.field === "box-lift") {
         const hi = Number($("box-h").value) || 70;
@@ -608,10 +627,12 @@ function rebuildResizeHandles() {
   const { xi, yi, hi, t } = boxFootprintMm();
   if (!state.handleMat) {
     state.handleMat = new THREE.MeshStandardMaterial({
-      color: 0x4ea1ff,
-      emissive: 0x12385c,
-      roughness: 0.45,
-      metalness: 0.2,
+      color: 0x6aa4ff,
+      emissive: 0x0d2744,
+      roughness: 0.55,
+      metalness: 0.15,
+      transparent: true,
+      opacity: 0.82,
     });
   }
   if (!state.handleMatHot) {
@@ -624,30 +645,29 @@ function rebuildResizeHandles() {
   }
   const root = new THREE.Group();
   root.userData.handles = true;
-  const z = hi + t + 1.5;
-  const grip = Math.max(6, Math.min(14, Math.min(xi, yi) * 0.08));
-  const stick = Math.max(10, Math.min(22, Math.min(xi, yi) * 0.12));
+  const z = hi + t + 1.2;
+  // Thin axis bars — not chunky cubes that read as loose parts.
+  const bar = Math.max(3.2, Math.min(5.5, Math.min(xi, yi) * 0.028));
+  const stick = Math.max(16, Math.min(34, Math.min(xi, yi) * 0.16));
   const specs = [
-    { field: "box-x", axis: "x", sign: 1, pos: [xi + stick / 2, yi / 2, z], size: [stick, grip, grip], cursor: "ew-resize" },
-    { field: "box-x", axis: "x", sign: -1, pos: [-stick / 2, yi / 2, z], size: [stick, grip, grip], cursor: "ew-resize" },
-    { field: "box-y", axis: "y", sign: 1, pos: [xi / 2, yi + stick / 2, z], size: [grip, stick, grip], cursor: "ns-resize" },
-    { field: "box-y", axis: "y", sign: -1, pos: [xi / 2, -stick / 2, z], size: [grip, stick, grip], cursor: "ns-resize" },
+    { field: "box-x", axis: "x", sign: 1, pos: [xi + stick / 2, yi / 2, z], size: [stick, bar, bar], cursor: "ew-resize" },
+    { field: "box-x", axis: "x", sign: -1, pos: [-stick / 2, yi / 2, z], size: [stick, bar, bar], cursor: "ew-resize" },
+    { field: "box-y", axis: "y", sign: 1, pos: [xi / 2, yi + stick / 2, z], size: [bar, stick, bar], cursor: "ns-resize" },
+    { field: "box-y", axis: "y", sign: -1, pos: [xi / 2, -stick / 2, z], size: [bar, stick, bar], cursor: "ns-resize" },
   ];
-  // Height grips on lid front/back corners when a lid exists (grow H)
   if (lid !== "open") {
     specs.push(
-      { field: "box-h", axis: "z", sign: 1, pos: [xi / 2, yi / 2, z + stick / 2], size: [grip, grip, stick], cursor: "ns-resize", plane: "z" }
+      { field: "box-h", axis: "z", sign: 1, pos: [xi / 2, yi / 2, z + stick / 2], size: [bar, bar, stick], cursor: "ns-resize", plane: "z" }
     );
   }
-  // Raised-bottom lift grip (Vector Painter: drag floor edge up)
   const lift = Number(($("box-lift") && $("box-lift").value) || 0);
   const liftZ = Math.max(lift, 2) + t / 2;
   specs.push({
     field: "box-lift",
     axis: "z",
     sign: 1,
-    pos: [xi / 2, grip * 0.2, liftZ],
-    size: [Math.min(xi * 0.45, 48), grip * 0.7, grip * 0.7],
+    pos: [xi / 2, bar * 0.4, liftZ],
+    size: [Math.min(xi * 0.4, 42), bar * 0.85, bar * 0.85],
     cursor: "ns-resize",
     plane: "z",
     lift: true,
@@ -662,7 +682,6 @@ function rebuildResizeHandles() {
     mesh.userData.sign = s.sign;
     mesh.userData.plane = s.plane || "xy";
     mesh.userData.lift = !!s.lift;
-    // Soft edge
     const edges = new THREE.LineSegments(
       new THREE.EdgesGeometry(geom),
       new THREE.LineBasicMaterial({ color: s.lift ? 0xffe0a0 : 0xd7ebff })
@@ -676,6 +695,17 @@ function rebuildResizeHandles() {
   else root.position.set(-xi / 2, -yi / 2, 0);
   view.root.add(root);
   state.handleRoot = root;
+  syncHandleVisibility();
+}
+
+function syncHandleVisibility() {
+  if (!state.handleRoot) return;
+  const explode = Number(($("explode") && $("explode").value) || 0);
+  const guide = state.assemblyGuide;
+  const total = ((guide && guide.assembly_order) || []).length;
+  const full = !total || Number(state.asmStep || 0) >= total;
+  // Handles only on the seated, fully assembled edit pose — never as floating “parts”.
+  state.handleRoot.visible = explode < 6 && full && !state.asmPlaying;
 }
 
 function applyLiveResizePreview(field, fromVal, toVal) {
@@ -878,6 +908,7 @@ function paintSummary(summary) {
 
 function stopAssemblyPlay() {
   state.asmPlaying = false;
+  state.asmPlayToken = (state.asmPlayToken || 0) + 1;
   if (state.asmTimer) {
     clearTimeout(state.asmTimer);
     state.asmTimer = null;
@@ -887,6 +918,15 @@ function stopAssemblyPlay() {
     state.asmAnim = null;
   }
   if ($("asm-play")) $("asm-play").textContent = "▶ Oynat";
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => {
+    state.asmTimer = setTimeout(() => {
+      state.asmTimer = null;
+      resolve();
+    }, ms);
+  });
 }
 
 function findMeshForGuidePart(partId) {
@@ -913,6 +953,9 @@ function paintAssemblyGuide(guide) {
       $("asm-step").value = "0";
     }
     if ($("asm-step-lab")) $("asm-step-lab").textContent = "0/0";
+    state.asmStep = 0;
+    (state.meshes || []).forEach((g) => setPanelMaterial(g, "seated"));
+    syncHandleVisibility();
     return;
   }
   const steps = guide.steps || [];
@@ -948,6 +991,11 @@ function paintAssemblyGuide(guide) {
   state.asmStep = steps.length;
   if ($("asm-step-lab")) $("asm-step-lab").textContent = steps.length + "/" + steps.length;
   syncAsmStepList(steps.length);
+  // Restore a clean assembled wood pose — never leave mid-step blue/hidden debris.
+  if (state.meshes && state.meshes.length) {
+    applyAssemblyStep(steps.length, false);
+    syncHandleVisibility();
+  }
 }
 
 function syncAsmStepList(step) {
@@ -994,7 +1042,7 @@ function setPanelMaterial(group, kind) {
   }
   if (!state.woodGhost) {
     state.woodGhost = new THREE.MeshStandardMaterial({
-      color: 0x3d8bfd, transparent: true, opacity: 0.22, roughness: 0.7, metalness: 0.05, depthWrite: false,
+      color: 0xb8956a, transparent: true, opacity: 0.28, roughness: 0.9, metalness: 0.02, depthWrite: false,
     });
   }
   if (kind === "hidden") {
@@ -1022,7 +1070,7 @@ function applyAssemblyStep(step, animateIncoming) {
   if ($("asm-step-lab")) $("asm-step-lab").textContent = n + "/" + order.length;
   syncAsmStepList(n);
 
-  // Force assembled explode pose
+  // Force assembled explode pose (incoming panel still lerps from exploded)
   if ($("explode")) {
     $("explode").value = "0";
     $("explode-lab").textContent = "0%";
@@ -1034,10 +1082,6 @@ function applyAssemblyStep(step, animateIncoming) {
   if (guide && activeId) {
     const st = (guide.steps || []).find((s) => s.part_id === activeId);
     (st && st.joins || []).forEach((id) => activeJoins.add(id));
-    (guide.connections || []).forEach((c) => {
-      if (!activeJoins.has(c.connection_id)) return;
-      // mates already in placed set get mate highlight
-    });
   }
   const mateParts = new Set();
   if (guide && activeId) {
@@ -1048,8 +1092,8 @@ function applyAssemblyStep(step, animateIncoming) {
     });
   }
 
+  let incoming = null;
   state.meshes.forEach((group) => {
-    const leaf = panelLeafId(group.userData.partId);
     let kind = "hidden";
     let matchedOrder = null;
     for (const pid of order) {
@@ -1059,7 +1103,6 @@ function applyAssemblyStep(step, animateIncoming) {
       }
     }
     if (!matchedOrder) {
-      // panels not in guide (unknown) — show when fully assembled
       kind = n >= order.length ? "seated" : "ghost";
     } else if (!placed.has(matchedOrder)) {
       kind = "hidden";
@@ -1075,28 +1118,13 @@ function applyAssemblyStep(step, animateIncoming) {
     if (!group.userData.baseMatrix || !group.userData.seated) return;
     const m = group.userData.baseMatrix.clone();
     if (animateIncoming && matchedOrder === activeId && group.userData.exploded) {
-      // start from exploded, lerp into seat below
+      incoming = group;
       const from = group.userData.exploded.clone();
-      const to = group.userData.seated.clone();
-      const start = performance.now();
-      const dur = 420;
-      const tick = (now) => {
-        if (state.asmStep !== n) return;
-        const u = Math.min(1, (now - start) / dur);
-        const e = 1 - Math.pow(1 - u, 3);
-        const p = from.clone().lerp(to, e);
-        const delta = p.clone().sub(group.userData.seated);
-        const mm = group.userData.baseMatrix.clone();
-        mm.setPosition(new THREE.Vector3().setFromMatrixPosition(mm).add(delta));
-        group.matrix.copy(mm);
-        group.matrixWorldNeedsUpdate = true;
-        if (u < 1) state.asmAnim = requestAnimationFrame(tick);
-        else {
-          group.matrix.copy(group.userData.baseMatrix);
-          state.asmAnim = null;
-        }
-      };
-      state.asmAnim = requestAnimationFrame(tick);
+      const delta0 = from.clone().sub(group.userData.seated);
+      const startM = group.userData.baseMatrix.clone();
+      startM.setPosition(new THREE.Vector3().setFromMatrixPosition(startM).add(delta0));
+      group.matrix.copy(startM);
+      group.matrixWorldNeedsUpdate = true;
     } else {
       group.matrix.copy(m);
       group.matrixWorldNeedsUpdate = true;
@@ -1115,13 +1143,43 @@ function applyAssemblyStep(step, animateIncoming) {
   } else {
     setStatus("Montaj tamam (dijital). Fiziksel dry-fit NOT_VERIFIED.", "ok");
   }
+  syncHandleVisibility();
+
+  if (!incoming) return Promise.resolve();
+  const from = incoming.userData.exploded.clone();
+  const to = incoming.userData.seated.clone();
+  const start = performance.now();
+  const dur = 900;
+  return new Promise((resolve) => {
+    const tick = (now) => {
+      if (state.asmStep !== n) {
+        resolve();
+        return;
+      }
+      const u = Math.min(1, (now - start) / dur);
+      const e = 1 - Math.pow(1 - u, 3);
+      const p = from.clone().lerp(to, e);
+      const delta = p.clone().sub(incoming.userData.seated);
+      const mm = incoming.userData.baseMatrix.clone();
+      mm.setPosition(new THREE.Vector3().setFromMatrixPosition(mm).add(delta));
+      incoming.matrix.copy(mm);
+      incoming.matrixWorldNeedsUpdate = true;
+      if (u < 1) state.asmAnim = requestAnimationFrame(tick);
+      else {
+        incoming.matrix.copy(incoming.userData.baseMatrix);
+        state.asmAnim = null;
+        resolve();
+      }
+    };
+    state.asmAnim = requestAnimationFrame(tick);
+  });
 }
 
 function setAssemblyStep(step, animate) {
-  applyAssemblyStep(step, !!animate);
+  return applyAssemblyStep(step, !!animate);
 }
 
-function playAssemblyAnimation() {
+async function playAssemblyAnimation() {
   const guide = state.assemblyGuide;
   const total = ((guide && guide.assembly_order) || []).length;
   if (!total) {
@@ -1132,23 +1190,36 @@ function playAssemblyAnimation() {
     stopAssemblyPlay();
     return;
   }
+  const token = (state.asmPlayToken || 0) + 1;
+  state.asmPlayToken = token;
   state.asmPlaying = true;
   if ($("asm-play")) $("asm-play").textContent = "■ Dur";
-  let step = 0;
-  setAssemblyStep(0, false);
-  const advance = () => {
-    if (!state.asmPlaying) return;
-    step += 1;
-    if (step > total) {
-      stopAssemblyPlay();
-      setAssemblyStep(total, false);
-      setStatus("Montaj animasyonu bitti — dijital sıra. Fiziksel NOT_VERIFIED.", "ok");
-      return;
-    }
-    setAssemblyStep(step, true);
-    state.asmTimer = setTimeout(advance, 520);
-  };
-  state.asmTimer = setTimeout(advance, 280);
+
+  // Peek exploded layout so "incoming from outside" is readable, then assemble.
+  state.meshes.forEach((g) => setPanelMaterial(g, "seated"));
+  if ($("explode")) {
+    $("explode").value = "55";
+    $("explode-lab").textContent = "55%";
+  }
+  applyExplode(0.55);
+  fitCamera();
+  await sleep(500);
+  if (!state.asmPlaying || state.asmPlayToken !== token) return;
+
+  await setAssemblyStep(0, false);
+  fitCameraSoon();
+  await sleep(350);
+  for (let step = 1; step <= total; step += 1) {
+    if (!state.asmPlaying || state.asmPlayToken !== token) return;
+    await setAssemblyStep(step, true);
+    fitCameraSoon();
+    if (step < total) await sleep(700);
+  }
+  if (!state.asmPlaying || state.asmPlayToken !== token) return;
+  stopAssemblyPlay();
+  await setAssemblyStep(total, false);
+  fitCamera();
+  setStatus("Montaj animasyonu bitti — dijital sıra. Fiziksel NOT_VERIFIED.", "ok");
 }
 
 function loadAssembly(assembly) {
@@ -1211,10 +1282,16 @@ function loadAssembly(assembly) {
     view.root.add(group);
     state.meshes.push(group);
   });
-  applyExplode(Number($("explode").value || 0) / 100);
+  if ($("explode")) {
+    $("explode").value = "0";
+    $("explode-lab").textContent = "0%";
+  }
+  applyExplode(0);
+  state.meshes.forEach((g) => setPanelMaterial(g, "seated"));
   rebuildResizeHandles();
+  syncHandleVisibility();
   fitCamera();
-  setStatus("Mavi tutamaç / bölücü tut-çek · ▶ Oynat = montaj sırası.", "ok");
+  setStatus("İnce tutamaç / bölücü tut-çek · ▶ Oynat = montaj sırası.", "ok");
   $("sum-panels").textContent = String(panels.length);
   $("sum-t").textContent = thickness + " mm";
   $("sum-val").textContent = assembly.validation_state || "—";
@@ -1294,17 +1371,44 @@ function applyExplode(t) {
     group.matrixWorldNeedsUpdate = true;
   });
   if (t > 0.84) $("explode-lab").textContent = Math.round(t * 100) + "% düz";
+  syncHandleVisibility();
 }
 
 function fitCamera() {
-  const box = new THREE.Box3().setFromObject(view.root);
-  if (box.isEmpty()) return;
+  // Frame visible wood panels only — ignore resize handles / ghost lids.
+  if (view && view.root) view.root.updateMatrixWorld(true);
+  const box = new THREE.Box3();
+  let any = false;
+  (state.meshes || []).forEach((g) => {
+    if (!g.visible) return;
+    const b = new THREE.Box3().setFromObject(g);
+    if (b.isEmpty()) return;
+    if (!any) { box.copy(b); any = true; }
+    else box.union(b);
+  });
+  if (!any) {
+    const fallback = new THREE.Box3().setFromObject(view.root);
+    if (fallback.isEmpty()) return;
+    box.copy(fallback);
+  }
   const size = box.getSize(new THREE.Vector3());
   const center = box.getCenter(new THREE.Vector3());
   const maxDim = Math.max(size.x, size.y, size.z, 40);
+  const dist = maxDim * 1.55;
   view.controls.target.copy(center);
-  view.camera.position.set(center.x + maxDim * 1.2, center.y + maxDim * 0.9, center.z + maxDim * 1.3);
+  view.camera.near = Math.max(0.1, maxDim / 200);
+  view.camera.far = Math.max(2000, maxDim * 20);
+  view.camera.updateProjectionMatrix();
+  view.camera.position.set(center.x + dist * 0.95, center.y + dist * 0.72, center.z + dist * 1.05);
   view.controls.update();
+}
+
+function fitCameraSoon() {
+  if (state.fitExplodeRaf) return;
+  state.fitExplodeRaf = requestAnimationFrame(() => {
+    state.fitExplodeRaf = null;
+    fitCamera();
+  });
 }
 
 function paintJoints(data) {
@@ -1621,8 +1725,8 @@ async function makeBox(opts) {
       setStatus((data.look_again || []).join(" ") || "Üretim başarısız.", "bad");
       return;
     }
-    paintExports(data);
     if (data.assembly) loadAssembly(data.assembly);
+    paintExports(data);
     if (data.file_id) {
       history.replaceState(null, "", "/studio?file=" + encodeURIComponent(data.file_id));
     }
@@ -1833,8 +1937,8 @@ async function makeAi() {
       setStatus((data.look_again || []).join(" ") || "AI üretim başarısız.", "bad");
       return;
     }
-    paintExports(data);
     if (data.assembly) loadAssembly(data.assembly);
+    paintExports(data);
     setStatus(
       "Hazır (" + (data.source || "ai") + "). " + ((data.look_again || [])[0] || ""),
       "ok"
@@ -1939,7 +2043,6 @@ async function makeMaker() {
       setStatus((data.look_again || []).join(" ") || "Üretim başarısız.", "bad");
       return;
     }
-    paintExports(data);
     const panels = data.assembly && data.assembly.panels;
     if (panels && panels.length) {
       loadAssembly(data.assembly);
@@ -1949,6 +2052,7 @@ async function makeMaker() {
         ? ("Maker: " + data.summary.maker + " · AI: hayır")
         : "Parametrik maker · AI yok";
     }
+    paintExports(data);
     if (data.file_id) {
       history.replaceState(null, "", "/studio?file=" + encodeURIComponent(data.file_id));
     }
@@ -1971,7 +2075,36 @@ async function makeMaker() {
   }
 }
 
+function currentTheme() {
+  const t = document.documentElement.getAttribute("data-theme");
+  return t === "light" ? "light" : "dark";
+}
+
+function applyTheme(theme) {
+  const next = theme === "light" ? "light" : "dark";
+  document.documentElement.setAttribute("data-theme", next);
+  try { localStorage.setItem("lasermcp-studio-theme", next); } catch (_) { /* ignore */ }
+  const meta = document.getElementById("meta-theme-color");
+  if (meta) meta.setAttribute("content", next === "light" ? "#f3f1ec" : "#0f1419");
+  const btn = $("theme-toggle");
+  if (btn) {
+    btn.textContent = next === "light" ? "Açık" : "Koyu";
+    btn.setAttribute("aria-pressed", next === "dark" ? "true" : "false");
+    btn.title = next === "light" ? "Koyu temaya geç" : "Açık temaya geç";
+  }
+  // Soften the 3D clear color with the stage wash.
+  if (view && view.renderer) {
+    view.renderer.setClearColor(next === "light" ? 0xd9d3c8 : 0x0f1419, 1);
+  }
+}
+
 function wireUi() {
+  applyTheme(currentTheme());
+  if ($("theme-toggle")) {
+    $("theme-toggle").onclick = () => {
+      applyTheme(currentTheme() === "dark" ? "light" : "dark");
+    };
+  }
   document.querySelectorAll(".tabs button").forEach((btn) => {
     btn.onclick = () => {
       document.querySelectorAll(".tabs button").forEach((b) => b.classList.remove("on"));
@@ -2033,6 +2166,11 @@ function wireUi() {
     const t = Number($("explode").value) / 100;
     $("explode-lab").textContent = Math.round(t * 100) + "%";
     applyExplode(t);
+    fitCameraSoon();
+  };
+  $("explode").onchange = () => {
+    applyExplode(Number($("explode").value) / 100);
+    fitCamera();
   };
   if ($("asm-play")) $("asm-play").onclick = () => playAssemblyAnimation();
   if ($("asm-prev")) {
@@ -2250,13 +2388,13 @@ async function loadFile(fileId) {
     await makeBox();
     return;
   }
+  loadAssembly(data);
   paintExports({
     file_id: data.file_id || fileId,
     svg_url: data.svg_url,
     dxf_id: data.dxf_id,
     dxf_url: data.dxf_url,
   });
-  loadAssembly(data);
 }
 
 async function makeCoupon() {
@@ -2361,38 +2499,59 @@ function applyCalibrationBurn() {
 }
 
 async function loadProjectHistory() {
-  const { data } = await api("/api/studio/projects");
   const list = $("hist-list");
   if (!list) return;
-  list.innerHTML = "";
-  const projects = (data && data.projects) || [];
-  if (!projects.length) {
-    const li = document.createElement("li");
-    li.textContent = "Proje yok.";
-    list.appendChild(li);
-    if ($("hist-note")) $("hist-note").textContent = "«Kaydet ve indir» sonrası burada görünür.";
-    return;
+  if (state.histAbort) {
+    try { state.histAbort.abort(); } catch (_) { /* ignore */ }
   }
-  projects.forEach((p) => {
-    const latest = p.latest || {};
-    const li = document.createElement("li");
-    li.innerHTML = "<strong>" + (p.name || p.id) + "</strong>"
-      + "<span class=\"sub\">v" + (latest.n || p.versions || "?")
-      + " · " + (latest.final_status || "—")
-      + " · " + (p.updated || "")
-      + (latest.file_id ? (" · " + latest.file_id) : "") + "</span>";
-    li.onclick = () => {
-      const fid = latest.file_id;
-      if (!fid) {
-        setStatus("Bu sürümde file_id yok.", "bad");
-        return;
-      }
-      history.replaceState(null, "", "/studio?file=" + encodeURIComponent(fid));
-      loadFile(fid).catch((e) => setStatus(String(e), "bad"));
-    };
-    list.appendChild(li);
-  });
-  if ($("hist-note")) $("hist-note").textContent = projects.length + " proje — tıkla = 3D aç.";
+  const ac = new AbortController();
+  state.histAbort = ac;
+  state.histLoading = true;
+  if ($("hist-note")) $("hist-note").textContent = "Yükleniyor…";
+  if ($("hist-refresh")) $("hist-refresh").disabled = true;
+  try {
+    const { data } = await api("/api/studio/projects?limit=80", { signal: ac.signal });
+    if (ac.signal.aborted) return;
+    list.innerHTML = "";
+    const projects = (data && data.projects) || [];
+    if (!projects.length) {
+      const li = document.createElement("li");
+      li.textContent = "Proje yok.";
+      list.appendChild(li);
+      if ($("hist-note")) $("hist-note").textContent = "«Kaydet ve indir» sonrası burada görünür.";
+      return;
+    }
+    projects.forEach((p) => {
+      const latest = p.latest || {};
+      const li = document.createElement("li");
+      li.innerHTML = "<strong>" + (p.name || p.id) + "</strong>"
+        + "<span class=\"sub\">v" + (latest.n || p.versions || "?")
+        + " · " + (latest.final_status || "—")
+        + " · " + (p.updated || "")
+        + (latest.file_id ? (" · " + latest.file_id) : "") + "</span>";
+      li.onclick = () => {
+        const fid = latest.file_id;
+        if (!fid) {
+          setStatus("Bu sürümde file_id yok.", "bad");
+          return;
+        }
+        history.replaceState(null, "", "/studio?file=" + encodeURIComponent(fid));
+        loadFile(fid).catch((e) => setStatus(String(e), "bad"));
+      };
+      list.appendChild(li);
+    });
+    if ($("hist-note")) {
+      $("hist-note").textContent = projects.length + " son proje (limit 80) — tıkla = 3D aç.";
+    }
+  } catch (err) {
+    if (ac.signal.aborted || (err && err.name === "AbortError")) return;
+    setStatus(String(err), "bad");
+    if ($("hist-note")) $("hist-note").textContent = "Geçmiş yüklenemedi.";
+  } finally {
+    if (state.histAbort === ac) state.histAbort = null;
+    state.histLoading = false;
+    if ($("hist-refresh")) $("hist-refresh").disabled = false;
+  }
 }
 
 async function loadProfiles() {
