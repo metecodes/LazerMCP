@@ -8,6 +8,7 @@ import hmac
 import json
 import os
 import re
+import secrets
 import time
 import urllib.error
 import urllib.request
@@ -242,6 +243,10 @@ def _identity_from_user_payload(payload: dict[str, Any]) -> dict[str, Any] | Non
     if not isinstance(payload, dict) or not payload.get("id"):
         return None
     email = str(payload.get("email") or "")
+    # Admin rights and org-domain grants are keyed on the email, so an address
+    # nobody has proven ownership of must not sign in (Google sets this field).
+    if email and not (payload.get("email_confirmed_at") or payload.get("confirmed_at")):
+        return None
     meta = payload.get("user_metadata") if isinstance(payload.get("user_metadata"), dict) else {}
     app = payload.get("app_metadata") if isinstance(payload.get("app_metadata"), dict) else {}
     provider = str(app.get("provider") or meta.get("provider") or "email").strip().lower() or "email"
@@ -577,8 +582,14 @@ def _session_secret() -> bytes:
             raise SessionSecretError("MCP_SESSION_SECRET is required in production")
         return hashlib.sha256(raw.encode("utf-8")).digest()
     if not raw:
-        raw = "lasermcp-dev-session"
+        # The repository is public, so a fixed fallback would let anyone sign
+        # sessions (including the admin email). Use a per-process random key:
+        # local sessions simply reset when the server restarts.
+        return _EPHEMERAL_SESSION_SECRET
     return hashlib.sha256(raw.encode("utf-8")).digest()
+
+
+_EPHEMERAL_SESSION_SECRET = secrets.token_bytes(32)
 
 
 def _b64(raw: bytes) -> str:

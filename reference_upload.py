@@ -71,3 +71,23 @@ def fetch_public_image(image_url):
     if len(data)>MAX_IMAGE_BYTES:raise ValueError('image_url exceeds 12 MB')
     if not data:raise ValueError('image_url returned an empty body')
     return base64.b64encode(data).decode()
+
+MAX_SVG_BYTES=5_000_000
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self,*args,**kwargs):raise ValueError('url redirects are not followed; pass the final public HTTPS URL')
+
+def fetch_public_svg(url):
+    """Fetch a public HTTPS SVG. Rejects file://, http://, credentials, redirects and non-global addresses."""
+    parsed=urlparse(str(url or ''));host=parsed.hostname
+    if parsed.scheme!='https' or not host or parsed.username or parsed.password:raise ValueError('url must be a public HTTPS URL')
+    for info in socket.getaddrinfo(host,443,type=socket.SOCK_STREAM):
+        if not ipaddress.ip_address(info[4][0]).is_global:raise ValueError('url resolves to a private or reserved address')
+    opener=urllib.request.build_opener(_NoRedirect)
+    request=urllib.request.Request(str(url),headers={'User-Agent':'LaserMCP/1.0','Accept':'image/svg+xml'})
+    with opener.open(request,timeout=15) as response:
+        if int(response.headers.get('Content-Length') or 0)>MAX_SVG_BYTES:raise ValueError('url exceeds 5 MB')
+        data=response.read(MAX_SVG_BYTES+1)
+    if len(data)>MAX_SVG_BYTES:raise ValueError('url exceeds 5 MB')
+    if not data:raise ValueError('url returned an empty body')
+    return data

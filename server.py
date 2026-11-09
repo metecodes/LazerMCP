@@ -303,6 +303,9 @@ def _file_payload(data: bytes, filename: str, media: str, *, inline: bool) -> Re
             "Content-Disposition": f'{kind}; filename="{name}"',
             "Cache-Control": "private, no-store",
             "X-Content-Type-Options": "nosniff",
+            # Output files are data, never active content: an SVG opened directly
+            # on this origin must not run script next to the lmcp_sid session.
+            "Content-Security-Policy": "default-src 'none'; img-src data: blob:; style-src 'unsafe-inline'; font-src data:; sandbox",
         },
     )
 
@@ -1049,17 +1052,15 @@ def generate_svg(generator: str, parameters: dict[str, Any] | None = None) -> di
 def validate_svg(file_id: str | None = None, url: str | None = None) -> dict[str, Any]:
     try:
         if url and not file_id:
-            import urllib.request
             import uuid
-            from pathlib import Path
-            req = urllib.request.Request(url, headers={"User-Agent": "LazerMCP/1.0"})
-            with urllib.request.urlopen(req, timeout=15) as resp:
-                data = resp.read()
-            file_id = f"uploaded_{uuid.uuid4().hex[:8]}.svg"
-            out_path = Path("output") / file_id
-            out_path.parent.mkdir(exist_ok=True, parents=True)
-            out_path.write_bytes(data)
-            
+
+            from reference_upload import fetch_public_svg
+
+            # Only public HTTPS, global IPs, bounded size: never file://, localhost or cloud metadata.
+            data = fetch_public_svg(url)
+            file_id = f"uploaded_{uuid.uuid4().hex}.svg"
+            (boxespy.OUTPUT_DIR / file_id).write_bytes(data)
+
         if not file_id:
             return payas_cad._mcp({"look_again": ["Must provide either file_id or url"], "well_formed": False})
             
