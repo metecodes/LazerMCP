@@ -1381,6 +1381,11 @@ function setVideoExportUi(busy) {
     el.disabled = !!busy;
     el.textContent = busy ? (id === "export-video-hud" ? "■ Dur" : "Video kaydediliyor…") : "Video indir";
   });
+  const stopBtn = $("video-stop-stage");
+  if (stopBtn) {
+    stopBtn.classList.toggle("hide", !busy);
+    stopBtn.disabled = !busy;
+  }
 }
 
 function stopVideoRecorder(save) {
@@ -2031,15 +2036,22 @@ function paintExports(data) {
   const svg = $("dl-svg");
   const dxf = $("dl-dxf");
   const edit = $("open-edit");
+  const editStage = $("open-edit-stage");
   if (fileId && canDownload) {
     svg.href = state.svgUrl || ("/files/" + encodeURIComponent(fileId) + "?download=1");
     svg.setAttribute("download", fileId);
     svg.classList.remove("hide");
-    edit.href = "/out/" + encodeURIComponent(fileId);
+    const editHref = "/out/" + encodeURIComponent(fileId);
+    edit.href = editHref;
     edit.classList.remove("hide");
+    if (editStage) {
+      editStage.href = editHref;
+      editStage.classList.remove("hide");
+    }
   } else {
     svg.classList.add("hide");
     edit.classList.add("hide");
+    if (editStage) editStage.classList.add("hide");
   }
   if ((state.dxfUrl || state.dxfId) && canDownload) {
     dxf.href = state.dxfUrl || ("/files/" + encodeURIComponent(state.dxfId) + "?download=1");
@@ -3027,7 +3039,7 @@ function wireUi() {
       makeBox({ preview: false, autoDownload: true }).catch((e) => setStatus(String(e), "bad"));
     });
   }
-  $("undo-box").onclick = () => {
+  function applyUndo() {
     const prev = state.undo.pop();
     if (!prev) {
       setStatus("Geri alınacak adım yok.");
@@ -3035,7 +3047,16 @@ function wireUi() {
     }
     restoreForm(prev);
     makeBox();
-  };
+  }
+  if ($("undo-box")) $("undo-box").onclick = applyUndo;
+  if ($("undo-stage")) $("undo-stage").onclick = applyUndo;
+  if ($("video-stop-stage")) {
+    $("video-stop-stage").onclick = () => {
+      if (!state.videoExporting) return;
+      stopVideoRecorder(false).catch(() => {});
+      setStatus("Video kaydı durduruldu.", "ok");
+    };
+  }
   $("make-ai").onclick = () => makeAi().catch((e) => setStatus(String(e), "bad"));
   if ($("ai-retry")) $("ai-retry").onclick = () => retryAi().catch((e) => setStatus(String(e), "bad"));
   if ($("ai-block-dismiss")) $("ai-block-dismiss").onclick = hideAiBlocked;
@@ -3187,7 +3208,7 @@ function wireUi() {
       || (ev.target && ev.target.isContentEditable);
     if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "z" && !typing) {
       ev.preventDefault();
-      $("undo-box").click();
+      applyUndo();
       return;
     }
     if (ev.key === "Delete" || ev.key === "Backspace") {
