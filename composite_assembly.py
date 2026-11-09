@@ -378,11 +378,21 @@ def _box(parent: dict[str, Any], index: int, thickness: float):
         internal_constraints.append((f"{did}-bottom", "bottom", "bottom", "top", "drawer_seat"))
         internal_constraints.append((f"{did}-front", "bottom", "front", "top", "drawer_seat"))
 
+    def lid_seat(name: str) -> tuple[str, str] | None:
+        # Non-finger lids are plain "eeee" panels seated on the front rim, not f/F edge mates.
+        if not str(name).startswith("lid"):
+            return None
+        if lid_type in {"removable", "sliding"}:
+            return "removable_lid", "vertical_removal_path"
+        if lid_type == "hinged":
+            return "hinged_lid", "internal_fitting_seat"
+        return None
+
     joints = [{
         "part_a": f"{parent_id}/{a}", "edge_a": edge(a, ea),
         "part_b": f"{parent_id}/{bpart}", "edge_b": edge(bpart, eb),
-        "joint_type": "removable_lid" if str(a).startswith("lid") and lid_type in {"removable","sliding"} else "finger_joint",
-        "expected_transform": "vertical_removal_path" if str(a).startswith("lid") and lid_type in {"removable","sliding"} else "orthogonal_edge_mate",
+        "joint_type": (lid_seat(a) or ("finger_joint",))[0],
+        "expected_transform": (lid_seat(a) or (None, "orthogonal_edge_mate"))[1],
         "tolerance": 0.05, "result": "NOT_VERIFIED",
     } for a, ea, bpart, eb in constraints]
     for a, ea, bpart, eb, jtype in internal_constraints:
@@ -456,7 +466,7 @@ def validate_box_transforms(parts,constraints,thickness):
     for joint in constraints:
         a,b=lookup.get(str(joint.get("part_a"))),lookup.get(str(joint.get("part_b")));ea=str(joint.get("edge_a") or "").split(":")[-1];eb=str(joint.get("edge_b") or "").split(":")[-1]
         jtype=str(joint.get("joint_type") or "finger_joint")
-        if jtype in {"finger_slot", "cross_lap", "shelf_slot", "removable_lid", "drawer_seat"}:
+        if jtype in {"finger_slot", "cross_lap", "shelf_slot", "removable_lid", "hinged_lid", "drawer_seat"}:
             if jtype == "drawer_seat":
                 # Digital cubby occupancy only — physical slide/kerf stay NOT_VERIFIED.
                 ok = bool(a and b and a.get("placement") and b.get("placement"))

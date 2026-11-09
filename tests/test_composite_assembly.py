@@ -155,6 +155,23 @@ class CompositeAssemblyTests(unittest.TestCase):
         self.assertTrue(all(c.get("joint_type") == "removable_lid" for c in lid_joints))
         self.assertTrue(all(c.get("result") == "MATCH" for c in lid_joints))
 
+    def test_hinged_doors_seat_on_front_rim(self):
+        # Plain "eeee" doors cannot pass an f/F finger edge mate; they must be proven as a rim seat.
+        for doors, names in ((1, {"lid"}), (2, {"lid-left", "lid-right"})):
+            with self.subTest(doors=doors):
+                source = [{
+                    "type": "box", "label": "cab", "x": 180, "y": 120, "h": 70,
+                    "bottom": True, "lid": {"type": "hinged", "doors": doors},
+                }]
+                result = check_assembly(source, thickness=3)
+                self.assertEqual((result.get("transform_validation") or {}).get("status"), "PASS",
+                                 result.get("look_again"))
+                lid_joints = [c for c in result["derived_constraints"] if "/lid" in str(c.get("part_a"))]
+                self.assertEqual({str(c["part_a"]).split("/")[-1] for c in lid_joints}, names)
+                self.assertTrue(all(c.get("joint_type") == "hinged_lid" for c in lid_joints))
+                self.assertTrue(all(c.get("result") == "MATCH" for c in lid_joints))
+                self.assertTrue(result["ok"], result.get("look_again"))
+
     def test_two_level_sliding_lid_uses_expanded_box_and_sampled_sweep(self):
         source = [
             {"type": "box", "label": "main-bin-body", "x": 394, "y": 394, "h": 697, "bottom": True},
