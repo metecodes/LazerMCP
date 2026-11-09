@@ -47,6 +47,11 @@ const state = {
   histAbort: null,
   histLoading: false,
   fitExplodeRaf: null,
+  aiChat: [],
+  aiChatKey: "",
+  aiLastResult: null,
+  aiBusy: false,
+  projectId: null,
 };
 
 const PANEL_DIMS = {
@@ -1866,6 +1871,12 @@ function paintExports(data) {
   // "studio-preview.svg" and BLOCKED saves name a file that was never written.
   const authorized = !data.preview && data.export_allowed !== false && data.final_status !== "BLOCKED";
   const incoming = data.file_id || (authorized && data.assembly && data.assembly.file_id) || null;
+  const project = data.project;
+  if (typeof project === "string" && project.trim()) {
+    state.projectId = project.trim();
+  } else if (project && typeof project === "object") {
+    state.projectId = String(project.id || project.project_id || "").trim() || state.projectId;
+  }
   // Preview responses have no file_id — keep the last saved export so download links stay usable.
   if (incoming) {
     state.fileId = incoming;
@@ -1881,6 +1892,7 @@ function paintExports(data) {
     state.dxfId = null;
     state.dxfUrl = null;
   }
+  bindAiChatScope(state.projectId, state.fileId);
   const fileId = state.fileId;
   $("sum-file").textContent = fileId || (data.preview ? "önizleme (kayıt yok)" : "—");
   paintJoints(data);
@@ -2277,17 +2289,144 @@ async function estimateAiCost() {
   paintAiCost(data);
 }
 
-async function makeAi() {
-  const btn = $("make-ai");
-  btn.disabled = true;
-  setLoading(true, "AI / dosya işleniyor…");
-  setStatus("AI tasarlıyor…");
+function aiBlockReasons(data) {
+  const looks = Array.isArray(data && data.look_again) ? data.look_again.map((x) => String(x || "").trim()).filter(Boolean) : [];
+  const failures = Array.isArray(data && data.failures) ? data.failures.map((x) => {
+    if (typeof x === "string") return x;
+    if (x && typeof x === "object") {
+      return [x.code, x.category, x.reason || x.detected || x.note].filter(Boolean).join(" — ");
+    }
+    return "";
+  }).filter(Boolean) : [];
+  const score = (data && data.scorecard) || {};
+  const scoreFails = Object.entries(score)
+    .filter(([, v]) => String(v || "").toUpperCase() === "FAIL" || String(v || "").toUpperCase() === "BLOCKED")
+    .map(([k, v]) => k + ": " + v);
+  const merged = [];
+  [...looks, ...failures, ...scoreFails].forEach((line) => {
+    if (line && !merged.includes(line)) merged.push(line);
+  });
+  return merged;
+}
+
+function aiChatScopeKey(projectId, fileId) {
+  const pid = String(projectId || "").trim();
+  const fid = String(fileId || "").trim();
+  if (pid) return "project:" + pid;
+  if (fid) return "file:" + fid;
+  return "draft";
+}
+
+function aiChatStorageKey(scope) {
+  return "lasermcp-studio-ai-chat:" + (scope || "draft");
+}
+
+function loadAiChat(scope) {
+  try {
+    const raw = sessionStorage.getItem(aiChatStorageKey(scope));
+    if (!raw) return [];
+    const rows = JSON.parse(raw);
+    if (!Array.isArray(rows)) return [];
+    return rows
+      .filter((m) => m && typeof m === "object" && m.text)
+      .map((m) => ({
+        role: String(m.role || "system"),
+        text: String(m.text || ""),
+        tone: String(m.tone || ""),
+        at: Number(m.at) || Date.now(),
+      }))
+      .slice(-80);
+  } catch (_) {
+    return [];
+  }
+}
+
+function saveAiChat() {
+  try {
+    sessionStorage.setItem(
+      aiChatStorageKey(state.aiChatKey || "draft"),
+      JSON.stringify((state.aiChat || []).slice(-80))
+    );
+  } catch (_) {
+    /* private mode / quota — chat still works in memory */
+  }
+}
+
+function bindAiChatScope(projectId, fileId) {
+  const next = aiChatScopeKey(projectId, fileId);
+  if (next === state.aiChatKey) return;
+  if (state.aiChatKey) saveAiChat();
+  state.aiChatKey = next;
+  state.aiChat = loadAiChat(next);
+  paintAiChat();
+}
+
+function paintAiChat() {
+  const log = $("ai-chat-log");
+  if (!log) return;
+  log.innerHTML = "";
+  if (!state.aiChat.length) {
+    const empty = document.createElement("div");
+    empty.className = "ai-msg system";
+    empty.textContent = "Üretim ve gate notları burada akar. BLOCKED olursa metni oku, sohbetten düzelt, tekrar dene.";
+    log.appendChild(empty);
+    return;
+  }
+  state.aiChat.forEach((msg) => {
+    const el = document.createElement("div");
+    el.className = "ai-msg " + (msg.role || "system") + (msg.tone === "bad" ? " bad" : "");
+    el.textContent = msg.text || "";
+    log.appendChild(el);
+  });
+  log.scrollTop = log.scrollHeight;
+}
+
+function appendAiChat(role, text, tone) {
+  const clean = String(text || "").trim();
+  if (!clean) return;
+  state.aiChat.push({ role: role || "system", text: clean, tone: tone || "", at: Date.now() });
+  if (state.aiChat.length > 80) state.aiChat = state.aiChat.slice(-80);
+  saveAiChat();
+  paintAiChat();
+}
+
+function showAiBlocked(data) {
+  const box = $("ai-block");
+  const text = $("ai-block-text");
+  const title = $("ai-block-title");
+  const reasons = aiBlockReasons(data);
+  const body = reasons.join("\n") || "Final Gate BLOCKED — ayrıntı yok. Promptu sadeleştirip tekrar dene.";
+  if (title) title.textContent = "BLOCKED — indirme yok";
+  if (text) text.textContent = body;
+  if (box) box.classList.remove("hide");
+  // Banner keeps the full gate text; chat only gets a short pointer to avoid spam.
+  const summary = reasons[0]
+    ? ("BLOCKED — " + reasons[0] + (reasons.length > 1 ? (" (+" + (reasons.length - 1) + " not)") : "") + ". Ayrıntı yukarıdaki uyarıda.")
+    : "BLOCKED — indirme yok. Ayrıntı yukarıdaki uyarıda.";
+  appendAiChat("assistant", summary, "bad");
+  if ($("gate-looks")) $("gate-looks").textContent = body;
+}
+
+function hideAiBlocked() {
+  const box = $("ai-block");
+  if (box) box.classList.add("hide");
+}
+
+function buildAiBody(extra) {
   const body = {
-    prompt: $("ai-prompt").value,
-    thickness: Number($("ai-t").value),
-    width_mm: Number($("ai-w").value) || 200,
+    prompt: ($("ai-prompt") && $("ai-prompt").value) || "",
+    thickness: Number($("ai-t") && $("ai-t").value) || 3,
+    width_mm: Number($("ai-w") && $("ai-w").value) || 200,
     model: ($("ai-model") && $("ai-model").value) || "gpt-4o-mini",
+    messages: state.aiChat
+      .filter((m) => m.role === "user" || m.role === "assistant")
+      .slice(-12)
+      .map((m) => ({ role: m.role, text: m.text })),
   };
+  if (state.aiLastResult) {
+    body.prior_status = state.aiLastResult.final_status || "";
+    body.prior_look_again = aiBlockReasons(state.aiLastResult).slice(0, 12);
+  }
   if (state.attach) {
     body.file_kind = state.attach.kind;
     if (state.attach.kind === "photo") {
@@ -2304,31 +2443,96 @@ async function makeAi() {
       body.file_text = state.attach.file_text;
     }
   }
+  return Object.assign(body, extra || {});
+}
+
+function applyAiResult(data, { fromChat } = {}) {
+  state.aiLastResult = data;
+  if (data.cost) paintAiCost(data.cost);
+  const blocked = data.final_status === "BLOCKED"
+    || data.export_allowed === false
+    || data.ok === false
+    || (!data.success && (data.look_again || []).length);
+  if (data.assembly) loadAssembly(data.assembly);
+  paintExports(data);
+  paintGate(data);
+  if (blocked) {
+    showAiBlocked(data);
+    setStatus("BLOCKED — " + ((aiBlockReasons(data)[0]) || "Gate başarısız. Sohbetten düzeltip tekrar dene."), "bad");
+    return false;
+  }
+  hideAiBlocked();
+  const okLine = "Hazır (" + (data.source || "ai") + "). " + ((data.look_again || [])[0] || data.final_status || "OK");
+  appendAiChat("assistant", okLine, "ok");
+  setStatus(okLine, "ok");
+  if (data.file_id) {
+    history.replaceState(null, "", "/studio?file=" + encodeURIComponent(data.file_id));
+  }
+  if (fromChat && data.speak) appendAiChat("system", String(data.speak));
+  return true;
+}
+
+async function runStudioAi({ label, extra } = {}) {
+  if (state.aiBusy) return;
+  state.aiBusy = true;
+  const btn = $("make-ai");
+  const send = $("ai-chat-send");
+  const retry = $("ai-retry");
+  if (btn) btn.disabled = true;
+  if (send) send.disabled = true;
+  if (retry) retry.disabled = true;
+  const note = label || "AI tasarlıyor…";
+  setLoading(true, note);
+  setStatus(note);
+  appendAiChat("system", note);
   try {
-    const { data } = await api("/api/studio/ai", { method: "POST", body: JSON.stringify(body) });
-    if (data.cost) paintAiCost(data.cost);
-    if (data.ok === false || (!data.success && (data.look_again || []).length)) {
-      setStatus((data.look_again || []).join(" ") || "AI kapalı veya kota doldu.", "bad");
-      paintExports(data);
-      return;
-    }
-    if (!data.success) {
-      setStatus((data.look_again || []).join(" ") || "AI üretim başarısız.", "bad");
-      return;
-    }
-    if (data.assembly) loadAssembly(data.assembly);
-    paintExports(data);
-    setStatus(
-      "Hazır (" + (data.source || "ai") + "). " + ((data.look_again || [])[0] || ""),
-      "ok"
-    );
-    if (data.file_id) {
-      history.replaceState(null, "", "/studio?file=" + encodeURIComponent(data.file_id));
-    }
+    const { data } = await api("/api/studio/ai", {
+      method: "POST",
+      body: JSON.stringify(buildAiBody(extra)),
+    });
+    applyAiResult(data || {}, { fromChat: !!(extra && extra.from_chat) });
+  } catch (err) {
+    appendAiChat("assistant", String(err || "AI isteği başarısız."), "bad");
+    setStatus(String(err || "AI isteği başarısız."), "bad");
   } finally {
-    btn.disabled = false;
+    state.aiBusy = false;
+    if (btn) btn.disabled = false;
+    if (send) send.disabled = false;
+    if (retry) retry.disabled = false;
     setLoading(false);
   }
+}
+
+async function makeAi() {
+  // Fresh "AI ile üret" keeps the current project chat if we already have a scope;
+  // otherwise stay on the draft thread until a file/project id arrives.
+  bindAiChatScope(state.projectId, state.fileId);
+  const prompt = (($("ai-prompt") && $("ai-prompt").value) || "").trim();
+  if (prompt) appendAiChat("user", prompt);
+  await runStudioAi({ label: "AI / dosya işleniyor…" });
+}
+
+async function retryAi() {
+  appendAiChat("system", "Önceki BLOCKED notlarıyla tekrar deneniyor…");
+  await runStudioAi({
+    label: "BLOCKED sonrası tekrar deneniyor…",
+    extra: { retry: true },
+  });
+}
+
+async function sendAiChat() {
+  const input = $("ai-chat-input");
+  const text = ((input && input.value) || "").trim();
+  if (!text) return;
+  if (input) input.value = "";
+  appendAiChat("user", text);
+  if ($("ai-prompt") && !$("ai-prompt").value.trim()) {
+    $("ai-prompt").value = text;
+  }
+  await runStudioAi({
+    label: "Sohbet yanıtı üretiliyor…",
+    extra: { from_chat: true, prompt: ($("ai-prompt") && $("ai-prompt").value) || text },
+  });
 }
 
 async function makeStl() {
@@ -2627,7 +2831,19 @@ function wireUi() {
     restoreForm(prev);
     makeBox();
   };
-  $("make-ai").onclick = makeAi;
+  $("make-ai").onclick = () => makeAi().catch((e) => setStatus(String(e), "bad"));
+  if ($("ai-retry")) $("ai-retry").onclick = () => retryAi().catch((e) => setStatus(String(e), "bad"));
+  if ($("ai-block-dismiss")) $("ai-block-dismiss").onclick = hideAiBlocked;
+  if ($("ai-chat-send")) $("ai-chat-send").onclick = () => sendAiChat().catch((e) => setStatus(String(e), "bad"));
+  if ($("ai-chat-input")) {
+    $("ai-chat-input").addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter" && !ev.shiftKey) {
+        ev.preventDefault();
+        sendAiChat().catch((e) => setStatus(String(e), "bad"));
+      }
+    });
+  }
+  bindAiChatScope(state.projectId, state.fileId);
   $("make-stl").onclick = makeStl;
   if ($("maker-kind")) {
     $("maker-kind").onchange = syncMakerFields;

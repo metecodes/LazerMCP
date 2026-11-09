@@ -77,6 +77,45 @@ class AiCostAndUploadTests(unittest.TestCase):
         self.assertEqual(out["stl_id"], "not-on-this-instance.stl")
         self.assertTrue(base64.b64decode(out["stl_base64"]))
 
+    def test_ai_chat_prompt_includes_prior_block_and_messages(self):
+        from workshop import _compose_ai_chat_prompt
+
+        text = _compose_ai_chat_prompt(
+            "kutu yap",
+            {
+                "prior_status": "BLOCKED",
+                "prior_look_again": ["self connection on front wall"],
+                "messages": [{"role": "user", "text": "kapagi duzelt"}],
+            },
+        )
+        self.assertIn("kutu yap", text)
+        self.assertIn("BLOCKED", text)
+        self.assertIn("self connection", text)
+        self.assertIn("kapagi duzelt", text)
+
+    def test_studio_ai_blocked_result_forbids_export(self):
+        from workshop import _studio_ai_result
+
+        with patch(
+            "assembly_result.panels_for_viewer",
+            return_value={"success": True, "panels": [], "thickness_mm": 3},
+        ):
+            out = _studio_ai_result(
+                {
+                    "success": True,
+                    "final_status": "BLOCKED",
+                    "file_id": "blocked.svg",
+                    "svg_url": "/files/blocked.svg",
+                    "look_again": ["bad joint"],
+                },
+                source="prompt",
+            )
+        self.assertFalse(out["export_allowed"])
+        self.assertIs(out["ok"], False)
+        self.assertIsNone(out["file_id"])
+        self.assertIsNone(out["svg_url"])
+        self.assertTrue((out.get("look_again") or [])[0].startswith("BLOCKED"))
+
     def test_password_sign_in_route_is_public(self):
         import server
 

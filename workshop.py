@@ -919,26 +919,70 @@ def create_studio_stl(
     }
 
 
+def _compose_ai_chat_prompt(prompt: str, payload: dict[str, Any]) -> str:
+    """Fold Studio chat / prior gate text into the planner prompt for a retry turn."""
+    base = str(prompt or "").strip()
+    chunks: list[str] = []
+    prior = payload.get("prior_look_again") or payload.get("block_reasons") or []
+    if isinstance(prior, str) and prior.strip():
+        prior = [prior.strip()]
+    if isinstance(prior, list):
+        reasons = [str(x).strip() for x in prior if str(x).strip()]
+        if reasons:
+            chunks.append("Previous design was BLOCKED. Fix these gate notes:\n- " + "\n- ".join(reasons[:12]))
+    prior_status = str(payload.get("prior_status") or "").strip()
+    if prior_status:
+        chunks.append(f"Previous final_status: {prior_status}")
+    messages = payload.get("messages") or payload.get("chat") or []
+    if isinstance(messages, list) and messages:
+        lines: list[str] = []
+        for row in messages[-16:]:
+            if not isinstance(row, dict):
+                continue
+            role = str(row.get("role") or "user").strip().lower() or "user"
+            text = str(row.get("text") or row.get("content") or "").strip()
+            if not text:
+                continue
+            label = "User" if role in {"user", "human"} else ("Assistant" if role in {"assistant", "ai", "system"} else role)
+            lines.append(f"{label}: {text}")
+        if lines:
+            chunks.append("Studio chat so far:\n" + "\n".join(lines))
+    if not chunks:
+        return base
+    head = base or "Revise the laser-cut design from the Studio chat."
+    return head + "\n\n" + "\n\n".join(chunks)
+
+
 def _studio_ai_result(result: dict[str, Any], *, cost: dict[str, Any] | None = None, extra_look: list[str] | None = None, plan: dict[str, Any] | None = None, plan_job: dict[str, Any] | None = None, source: str = "prompt", public_base_url: str | None = None) -> dict[str, Any]:
     from assembly_result import panels_for_viewer
 
     viewer = panels_for_viewer(result.get("assembly_result"))
     looks = list(result.get("look_again") or [])
     looks.extend(extra_look or [])
-    file_id = result.get("file_id")
+    final_status = str(result.get("final_status") or "BLOCKED")
+    export_ok = final_status not in {"BLOCKED", "FAIL"} and bool(result.get("success"))
+    # BLOCKED drafts must not look like authorized downloads in Studio.
+    file_id = result.get("file_id") if export_ok else None
     base = (public_base_url or "").rstrip("/")
     studio_url = f"{base}/studio?file={file_id}" if base and file_id else (f"/studio?file={file_id}" if file_id else None)
+    if final_status == "BLOCKED":
+        looks.insert(0, "BLOCKED — SVG/DXF not authorized. Read the notes below, fix in chat, then retry.")
     if studio_url:
         looks.append(f"Open in Studio 3D: {studio_url}")
     return {
         "success": bool(result.get("success")),
+        "ok": export_ok,
+        "export_allowed": export_ok,
         "file_id": file_id,
-        "svg_url": result.get("svg_url"),
-        "dxf_id": result.get("dxf_id"),
-        "dxf_url": result.get("dxf_url"),
+        "svg_url": result.get("svg_url") if export_ok else None,
+        "dxf_id": result.get("dxf_id") if export_ok else None,
+        "dxf_url": result.get("dxf_url") if export_ok else None,
         "studio_url": studio_url,
         "project": result.get("project"),
-        "final_status": result.get("final_status"),
+        "final_status": final_status,
+        "authorized_output": list(result.get("authorized_output") or []) if export_ok else [],
+        "production_export": "BLOCKED" if not export_ok else (result.get("production_export") or "BLOCKED"),
+        "scorecard": result.get("scorecard"),
         "speak": result.get("speak"),
         "source": source,
         "plan_job": plan_job,
@@ -966,7 +1010,8 @@ def create_studio_ai(body: dict[str, Any] | None = None, *, public_base_url: str
             "plan": gate,
         }
     payload = body or {}
-    request = str(payload.get("prompt") or payload.get("name") or payload.get("what_you_see") or "").strip()
+    raw_prompt = str(payload.get("prompt") or payload.get("name") or payload.get("what_you_see") or "").strip()
+    request = _compose_ai_chat_prompt(raw_prompt, payload)
     kind = str(payload.get("file_kind") or payload.get("attach_kind") or "").strip().lower()
     has_image = bool(payload.get("image_base64") or payload.get("photo_base64"))
     has_svg = bool(payload.get("svg") or payload.get("svg_text") or (kind == "svg" and payload.get("file_text")))
@@ -987,8 +1032,8 @@ def create_studio_ai(body: dict[str, Any] | None = None, *, public_base_url: str
     base = public_base_url or ""
     thickness = payload.get("thickness")
     parameters: dict[str, Any] = {
-        "project": (request or "studio-upload")[:48],
-        "what_you_see": request or "studio upload",
+        "project": (raw_prompt or request or "studio-upload")[:48],
+        "what_you_see": raw_prompt or request or "studio upload",
     }
     if thickness not in (None, ""):
         parameters["thickness"] = float(thickness)

@@ -218,6 +218,38 @@
     }
     .status.bad { color: var(--bad); }
     .status.ok { color: var(--ok); }
+    .ai-block {
+      margin-top: 12px; padding: 12px; border: 1px solid color-mix(in srgb, var(--bad) 55%, var(--line));
+      border-radius: 10px; background: color-mix(in srgb, var(--bad) 10%, var(--panel-2));
+    }
+    .ai-block .ai-block-title {
+      margin: 0 0 8px; font: 600 11px/1.3 var(--mono); letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--bad);
+    }
+    .ai-block .ai-block-text {
+      margin: 0 0 10px; white-space: pre-wrap; font: 12px/1.5 var(--sans); color: var(--ink);
+      max-height: 160px; overflow: auto;
+    }
+    .ai-chat {
+      margin-top: 12px; border: 1px solid var(--line); border-radius: 10px;
+      background: var(--panel-2); display: flex; flex-direction: column; min-height: 220px; max-height: 340px;
+    }
+    .ai-chat-log {
+      flex: 1 1 auto; overflow: auto; padding: 10px; display: flex; flex-direction: column; gap: 8px;
+    }
+    .ai-msg {
+      max-width: 94%; padding: 8px 10px; border-radius: 10px; font: 12px/1.45 var(--sans);
+      white-space: pre-wrap; word-break: break-word;
+    }
+    .ai-msg.user { align-self: flex-end; background: color-mix(in srgb, var(--accent) 18%, var(--panel)); border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line)); }
+    .ai-msg.assistant { align-self: flex-start; background: var(--panel); border: 1px solid var(--line); color: var(--ink); }
+    .ai-msg.system { align-self: stretch; background: transparent; border: 0; color: var(--mute); font: 11px/1.45 var(--mono); padding: 2px 4px; }
+    .ai-msg.bad { color: var(--bad); }
+    .ai-chat-compose {
+      display: flex; gap: 8px; padding: 8px; border-top: 1px solid var(--line);
+    }
+    .ai-chat-compose input { flex: 1 1 auto; margin: 0; }
+    .ai-chat-compose button { width: auto; margin: 0; flex: 0 0 auto; }
     .kv {
       display: flex; justify-content: space-between; gap: 8px;
       padding: 9px 0; border-bottom: 1px solid var(--line); font: 12px var(--mono);
@@ -476,11 +508,27 @@
             <button class="btn ghost" type="button" id="ai-cost-btn">Maliyet tahmin</button>
             <button class="btn cut" type="button" id="make-ai">AI ile üret</button>
           </div>
+          <div id="ai-block" class="ai-block hide" role="alert">
+            <p class="ai-block-title" id="ai-block-title">BLOCKED — indirme yok</p>
+            <p class="ai-block-text" id="ai-block-text"></p>
+            <div class="row2">
+              <button class="btn cut" type="button" id="ai-retry">Tekrar dene</button>
+              <button class="btn ghost" type="button" id="ai-block-dismiss">Kapat</button>
+            </div>
+          </div>
+          <div class="ai-chat" id="ai-chat">
+            <p class="kicker" style="margin:10px 10px 0">AI sohbet · bu proje</p>
+            <div class="ai-chat-log" id="ai-chat-log" aria-live="polite"></div>
+            <div class="ai-chat-compose">
+              <input id="ai-chat-input" type="text" placeholder="Düzelt / sor: örn. kapak sürgülü olsun" autocomplete="off">
+              <button class="btn cut" type="button" id="ai-chat-send">Gönder</button>
+            </div>
+          </div>
           <div id="ai-cost-panel" class="hint" style="border:1px solid var(--line);padding:10px;margin-top:8px;border-radius:8px">
             <p class="kicker" style="margin:0 0 6px">Maliyet paneli</p>
             <p id="ai-cost-out" style="margin:0">Atölye OpenAI/Claude anahtarı yoksa yerel planner ($0). Anahtar: <a href="/account#llm-keys">Hesap → LLM</a>.</p>
           </div>
-          <p class="hint" id="ai-gate">Maker/Pro gerekir. Kota dolunca kesilir. Parametrik kutu / Süs API harcamaz.</p>
+          <p class="hint" id="ai-gate">Maker/Pro gerekir. Kota dolunca kesilir. BLOCKED olursa uyarı + sohbetten düzeltip tekrar dene.</p>
         </div>
         <div class="pane" id="pane-stl">
           <p class="hint">2D SVG kesim konturları mm ölçeğinde ekstrüde edilir. Genişlik/derinlik SVG’den gelir — AI uydurmaz.</p>
@@ -547,7 +595,7 @@
         <h2>Gate / skorkart</h2>
         <p class="hint" id="gate-badge">Önizleme gate atlar. Kayıt = Final Gate.</p>
         <ul class="asm-list" id="gate-score"></ul>
-        <p class="hint" id="gate-looks" style="max-height:120px;overflow:auto"></p>
+        <p class="hint" id="gate-looks" style="max-height:220px;overflow:auto;white-space:pre-wrap"></p>
         <h2>Montaj sırası</h2>
         <p class="hint">Dijital sıra — fiziksel montaj NOT_VERIFIED.</p>
         <ol class="asm-list" id="asm-steps"></ol>
@@ -580,7 +628,7 @@
     }
   }
   </script>
-  <script type="module" src="/studio-3d.js?v=28"></script>
+  <script type="module" src="/studio-3d.js?v=30"></script>
   <script src="/nav-auth.js?v=6"></script>
 </body>
 </html>
