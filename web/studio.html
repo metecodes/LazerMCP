@@ -260,6 +260,7 @@
       border-radius: 10px; background: var(--panel-2); color: var(--mute); font-size: 12px; line-height: 1.5;
     }
     .hide { display: none !important; }
+    body.signed-in .guest-only { display: none !important; }
     .check { display: flex; align-items: center; gap: 8px; margin-top: 10px; font: 12px var(--sans); color: var(--mute); }
     .check input { width: auto; }
     .asm-list { list-style: none; margin: 0; padding: 0; max-height: 180px; overflow: auto; }
@@ -478,10 +479,16 @@
           <ul class="asm-list" id="cal-list"></ul>
         </div>
         <div class="pane" id="pane-history">
-          <p class="hint">Kayıtlı proje sürümleri. Aç = Studio 3D’de file_id yükle.</p>
-          <button class="btn ghost" type="button" id="hist-refresh">Yenile</button>
+          <p class="hint" id="hist-account">Hesabına ait kayıtlı projeler. Giriş yoksa geçmiş boş kalır.</p>
+          <div class="row2">
+            <button class="btn ghost" type="button" id="hist-refresh">Yenile</button>
+            <a class="btn ghost guest-only" href="/account?next=/studio" id="hist-signin">Giriş yap</a>
+          </div>
           <ul class="asm-list" id="hist-list"></ul>
-          <p class="hint" id="hist-note">Proje yoksa önce «Kaydet ve indir».</p>
+          <p class="hint" id="hist-note">«Kaydet ve indir» veya AI üretimi sonrası burada görünür.</p>
+          <p class="kicker" style="margin-top:14px">Sürümler</p>
+          <ul class="asm-list" id="hist-versions"></ul>
+          <p class="hint" id="hist-ver-note">Projeye tıkla — sürümleri burada açılır.</p>
         </div>
         <div class="pane" id="pane-ai">
           <label>Ne keseceksin?<textarea id="ai-prompt" placeholder="Örn: 180×120×80 açık finger-joint kutu, 3 mm kavak — veya dosya yükle"></textarea></label>
@@ -596,6 +603,9 @@
         <p class="hint" id="gate-badge">Önizleme gate atlar. Kayıt = Final Gate.</p>
         <ul class="asm-list" id="gate-score"></ul>
         <p class="hint" id="gate-looks" style="max-height:220px;overflow:auto;white-space:pre-wrap"></p>
+        <h2>Hesap geçmişi</h2>
+        <p class="hint" id="sum-hist-note">Giriş yapınca son projelerin burada.</p>
+        <ul class="asm-list" id="sum-hist-list"></ul>
         <h2>Montaj sırası</h2>
         <p class="hint">Dijital sıra — fiziksel montaj NOT_VERIFIED.</p>
         <ol class="asm-list" id="asm-steps"></ol>
@@ -628,7 +638,7 @@
     }
   }
   </script>
-  <script type="module" src="/studio-3d.js?v=30"></script>
+  <script type="module" src="/studio-3d.js?v=32"></script>
   <script src="/nav-auth.js?v=6"></script>
 </body>
 </html>

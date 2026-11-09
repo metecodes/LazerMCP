@@ -1895,6 +1895,10 @@ function paintExports(data) {
   bindAiChatScope(state.projectId, state.fileId);
   const fileId = state.fileId;
   $("sum-file").textContent = fileId || (data.preview ? "önizleme (kayıt yok)" : "—");
+  // After an authorized save, refresh account history so the new row appears without a manual Yenile.
+  if (authorized && fileId && document.body.classList.contains("signed-in") && !state.histLoading) {
+    loadProjectHistory().catch(() => {});
+  }
   paintJoints(data);
   const svg = $("dl-svg");
   const dxf = $("dl-dxf");
@@ -3134,6 +3138,88 @@ function applyCalibrationBurn() {
   setStatus("Burn " + burn + " mm kutu formuna yazıldı — fiziksel fit NOT_VERIFIED.", "ok");
 }
 
+function paintSummaryHistory(projects) {
+  const list = $("sum-hist-list");
+  const note = $("sum-hist-note");
+  if (!list) return;
+  list.innerHTML = "";
+  const rows = (projects || []).slice(0, 8);
+  if (!rows.length) {
+    if (note) {
+      note.textContent = document.body.classList.contains("signed-in")
+        ? "Bu hesapta henüz kayıtlı proje yok."
+        : "Giriş yapınca son projelerin burada.";
+    }
+    return;
+  }
+  if (note) note.textContent = rows.length + " son proje — tıkla = aç.";
+  rows.forEach((p) => {
+    const latest = p.latest || {};
+    const li = document.createElement("li");
+    li.innerHTML = "<strong>" + (p.name || p.id) + "</strong>"
+      + "<span class=\"sub\">v" + (latest.n || p.versions || "?")
+      + " · " + (latest.final_status || "—") + "</span>";
+    li.onclick = () => openHistoryProject(p).catch((e) => setStatus(String(e), "bad"));
+    list.appendChild(li);
+  });
+}
+
+async function openHistoryProject(p) {
+  const latest = (p && p.latest) || {};
+  const fid = latest.file_id;
+  state.projectId = String((p && p.id) || state.projectId || "").trim() || state.projectId;
+  bindAiChatScope(state.projectId, fid || state.fileId);
+  await loadHistoryVersions(String((p && p.id) || ""));
+  if (!fid) {
+    setStatus("Bu sürümde file_id yok — sürüm listesine bak.", "bad");
+    return;
+  }
+  history.replaceState(null, "", "/studio?file=" + encodeURIComponent(fid));
+  await loadFile(fid);
+}
+
+async function loadHistoryVersions(projectId) {
+  const list = $("hist-versions");
+  const note = $("hist-ver-note");
+  if (!list) return;
+  list.innerHTML = "";
+  if (!projectId) {
+    if (note) note.textContent = "Projeye tıkla — sürümleri burada açılır.";
+    return;
+  }
+  if (note) note.textContent = "Sürümler yükleniyor…";
+  try {
+    const { data } = await api("/api/studio/projects?project_id=" + encodeURIComponent(projectId));
+    const project = (data && data.project) || null;
+    const versions = (project && Array.isArray(project.versions) ? project.versions : []).slice().reverse();
+    if (!versions.length) {
+      if (note) note.textContent = "Bu projede sürüm yok.";
+      return;
+    }
+    versions.forEach((ver) => {
+      const li = document.createElement("li");
+      li.innerHTML = "<strong>v" + (ver.n || "?") + "</strong>"
+        + "<span class=\"sub\">" + (ver.final_status || "—")
+        + " · " + (ver.at || "")
+        + (ver.file_id ? (" · " + ver.file_id) : "") + "</span>";
+      li.onclick = () => {
+        const fid = ver.file_id;
+        if (!fid) {
+          setStatus("Bu sürümde file_id yok.", "bad");
+          return;
+        }
+        history.replaceState(null, "", "/studio?file=" + encodeURIComponent(fid));
+        loadFile(fid).catch((e) => setStatus(String(e), "bad"));
+      };
+      list.appendChild(li);
+    });
+    if (note) note.textContent = versions.length + " sürüm — tıkla = o SVG’yi aç.";
+  } catch (err) {
+    if (note) note.textContent = "Sürümler yüklenemedi.";
+    setStatus(String(err), "bad");
+  }
+}
+
 async function loadProjectHistory() {
   const list = $("hist-list");
   if (!list) return;
@@ -3146,15 +3232,33 @@ async function loadProjectHistory() {
   if ($("hist-note")) $("hist-note").textContent = "Yükleniyor…";
   if ($("hist-refresh")) $("hist-refresh").disabled = true;
   try {
-    const { data } = await api("/api/studio/projects?limit=80", { signal: ac.signal });
+    const me = await api("/api/account?optional=1").then((r) => r.data || {}).catch(() => ({}));
+    const signed = !!(me && me.user);
+    if ($("hist-account")) {
+      $("hist-account").textContent = signed
+        ? ("Hesap: " + (me.user.email || me.user.name || "oturum açık") + " — yalnızca bu hesabın projeleri.")
+        : "Misafir: hesap geçmişi yok. Giriş yapınca kendi projelerini görürsün.";
+    }
+    document.body.classList.toggle("signed-in", signed);
+    if (!signed) {
+      list.innerHTML = "";
+      const li = document.createElement("li");
+      li.textContent = "Giriş gerekli.";
+      list.appendChild(li);
+      paintSummaryHistory([]);
+      if ($("hist-note")) $("hist-note").textContent = "Google / e-posta ile gir → geçmiş burada.";
+      return;
+    }
+    const { data } = await api("/api/studio/projects?limit=120", { signal: ac.signal });
     if (ac.signal.aborted) return;
     list.innerHTML = "";
     const projects = (data && data.projects) || [];
+    paintSummaryHistory(projects);
     if (!projects.length) {
       const li = document.createElement("li");
-      li.textContent = "Proje yok.";
+      li.textContent = "Bu hesapta proje yok.";
       list.appendChild(li);
-      if ($("hist-note")) $("hist-note").textContent = "«Kaydet ve indir» sonrası burada görünür.";
+      if ($("hist-note")) $("hist-note").textContent = "«Kaydet ve indir» veya AI üretimi sonrası burada görünür.";
       return;
     }
     projects.forEach((p) => {
@@ -3165,19 +3269,11 @@ async function loadProjectHistory() {
         + " · " + (latest.final_status || "—")
         + " · " + (p.updated || "")
         + (latest.file_id ? (" · " + latest.file_id) : "") + "</span>";
-      li.onclick = () => {
-        const fid = latest.file_id;
-        if (!fid) {
-          setStatus("Bu sürümde file_id yok.", "bad");
-          return;
-        }
-        history.replaceState(null, "", "/studio?file=" + encodeURIComponent(fid));
-        loadFile(fid).catch((e) => setStatus(String(e), "bad"));
-      };
+      li.onclick = () => openHistoryProject(p).catch((e) => setStatus(String(e), "bad"));
       list.appendChild(li);
     });
     if ($("hist-note")) {
-      $("hist-note").textContent = projects.length + " son proje (limit 80) — tıkla = 3D aç.";
+      $("hist-note").textContent = projects.length + " proje (limit 120) — tıkla = sürümler + 3D aç.";
     }
   } catch (err) {
     if (ac.signal.aborted || (err && err.name === "AbortError")) return;
@@ -3260,6 +3356,8 @@ async function boot() {
   await loadProfiles();
   const { data } = await api("/api/account?optional=1");
   if (data && data.user) document.body.classList.add("signed-in");
+  // Account history (Geçmiş tab + summary strip) for the signed-in principal.
+  loadProjectHistory().catch(() => {});
   const plans = await api("/api/plans");
   const planRows = (plans.data && plans.data.plans) || [];
   const free = planRows.find((p) => p.id === "free");

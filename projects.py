@@ -18,7 +18,8 @@ _LIST_SELECT = (
     "n:payload->versions->-1->>n,file_id:payload->versions->-1->>file_id,"
     "final_status:payload->versions->-1->>final_status,product:payload->versions->-1->>product,"
     "at:payload->versions->-1->>at,approved:payload->versions->-1->>approved,"
-    "owner_org:payload->versions->-1->>owner_org"
+    "owner_org:payload->versions->-1->>owner_org,"
+    "owner_user:payload->versions->-1->>owner_user"
 )
 _LATEST = "payload->versions->-1->>"
 _OWNED_FILES_LIMIT = 150  # keeps the or=(…in.(…)) filter well under URL limits
@@ -44,11 +45,17 @@ def _owner_org(principal: dict[str, Any] | None) -> str:
         return str(principal.get("organization_id") or "")
 
 
+def _owner_user(principal: dict[str, Any] | None) -> str:
+    if not principal:
+        return ""
+    return str(principal.get("id") or principal.get("user_id") or "").strip()
+
+
 def visible_scope(principal: dict[str, Any] | None) -> dict[str, set[str]] | None:
     """Which projects a caller may see. None = all (operator, or single-tenant local store).
 
-    New versions carry owner_org. Older rows are matched through the caller's SVG
-    artifacts, the same ownership record /files/ uses.
+    New versions carry owner_org / owner_user. Older rows are matched through the
+    caller's SVG artifacts, the same ownership record /files/ uses.
     """
     if not uses_supabase_app_db():
         return None
@@ -58,22 +65,28 @@ def visible_scope(principal: dict[str, Any] | None) -> dict[str, set[str]] | Non
         if is_admin(principal) or (str(principal.get("id")) == "admin" and str(principal.get("role")) == "admin"):
             return None
     org = _owner_org(principal)
-    if not org:
-        return {"orgs": set(), "files": set()}
+    uid = _owner_user(principal)
+    if not org and not uid:
+        return {"orgs": set(), "users": set(), "files": set()}
     files: set[str] = set()
-    try:
-        found = rows(
-            "lasermcp_artifacts",
-            select="source_file_id",
-            organization_id=f"eq.{org}",
-            kind="eq.svg",
-            order="created_at.desc",
-            limit=_OWNED_FILES_LIMIT,
-        )
-        files = {str(r.get("source_file_id")) for r in found if r.get("source_file_id")}
-    except Exception:
-        files = set()
-    return {"orgs": {org}, "files": files}
+    if org:
+        try:
+            found = rows(
+                "lasermcp_artifacts",
+                select="source_file_id",
+                organization_id=f"eq.{org}",
+                kind="eq.svg",
+                order="created_at.desc",
+                limit=_OWNED_FILES_LIMIT,
+            )
+            files = {str(r.get("source_file_id")) for r in found if r.get("source_file_id")}
+        except Exception:
+            files = set()
+    return {
+        "orgs": {org} if org else set(),
+        "users": {uid} if uid else set(),
+        "files": files,
+    }
 
 
 def _resolve_scope(scope: Any) -> dict[str, set[str]] | None:
@@ -85,12 +98,17 @@ def _project_visible(project: dict[str, Any] | None, scope: dict[str, set[str]] 
         return False
     if scope is None:
         return True
+    users = scope.get("users") or set()
+    orgs = scope.get("orgs") or set()
+    files = scope.get("files") or set()
     for ver in project.get("versions") or []:
         if not isinstance(ver, dict):
             continue
-        if ver.get("owner_org") and ver.get("owner_org") in scope["orgs"]:
+        if ver.get("owner_user") and ver.get("owner_user") in users:
             return True
-        if ver.get("file_id") and ver.get("file_id") in scope["files"]:
+        if ver.get("owner_org") and ver.get("owner_org") in orgs:
+            return True
+        if ver.get("file_id") and ver.get("file_id") in files:
             return True
     return False
 
@@ -176,6 +194,7 @@ def save_version(parameters: dict[str, Any] | None, result: dict[str, Any] | Non
         "assembly_result": data.get("assembly_result") if isinstance(data.get("assembly_result"), dict) else None,
         # Owner of this version; guests save as "" and get no shared history.
         "owner_org": _owner_org(_current_principal()),
+        "owner_user": _owner_user(_current_principal()),
     }
     if remote:
         return rest("rpc/append_lasermcp_version", method="POST", body={
@@ -227,9 +246,11 @@ def _list_remote(limit: int | None, scope: dict[str, set[str]] | None) -> list[d
                               "limit": limit or 500}
     if scope is not None:
         clauses = []
-        if scope["orgs"]:
+        if scope.get("orgs"):
             clauses.append(f"{_LATEST}owner_org.in.({_quoted(scope['orgs'])})")
-        if scope["files"]:
+        if scope.get("users"):
+            clauses.append(f"{_LATEST}owner_user.in.({_quoted(scope['users'])})")
+        if scope.get("files"):
             clauses.append(f"{_LATEST}file_id.in.({_quoted(scope['files'])})")
         if not clauses:
             return []
@@ -244,6 +265,8 @@ def _list_remote(limit: int | None, scope: dict[str, set[str]] | None) -> list[d
             "product": row.get("product"),
             "at": row.get("at"),
             "approved": str(row.get("approved")).lower() == "true",
+            "owner_user": row.get("owner_user") or "",
+            "owner_org": row.get("owner_org") or "",
         }
         out.append({
             "id": row.get("id"),

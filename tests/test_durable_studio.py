@@ -108,8 +108,26 @@ class ProjectScopeTests(unittest.TestCase):
         _, request = self._list({'id': 'u1', 'email': 'a@x.com', 'organization_id': 'org-a'}, ['old.svg'])
         params = request.call_args.kwargs['params']
         self.assertIn('owner_org.in.("org-a")', params['or'])
+        self.assertIn('owner_user.in.("u1")', params['or'])
         self.assertIn('file_id.in.("old.svg")', params['or'])
         self.assertNotIn('*', params['select'])
+
+    def test_history_visible_by_owner_user(self):
+        from keys import current_auth
+        import projects
+        project = {'id': 'p', 'versions': [{'n': 1, 'file_id': 'a.svg', 'owner_user': 'u-mine', 'owner_org': ''}]}
+        token = current_auth.set({'id': 'u-mine', 'email': 'me@x.com', 'organization_id': ''})
+        try:
+            with patch('projects.rows', side_effect=[[{'id': 'p', 'payload': project}], []]):
+                self.assertIsNotNone(projects.project_history('p'))
+            with patch('projects.rows', side_effect=[[{'id': 'p', 'payload': project}], []]):
+                other = current_auth.set({'id': 'u-other', 'email': 'o@x.com', 'organization_id': 'org-x'})
+                try:
+                    self.assertIsNone(projects.project_history('p'))
+                finally:
+                    current_auth.reset(other)
+        finally:
+            current_auth.reset(token)
 
     def test_operator_lists_without_filter(self):
         _, request = self._list({'id': 'u2', 'email': 'metehan1387@gmail.com', 'organization_id': 'org-b'})
