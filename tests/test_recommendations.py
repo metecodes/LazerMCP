@@ -193,6 +193,25 @@ class StudioTests(unittest.TestCase):
             else:
                 os.environ["MCP_DATA_DIR"] = old
 
+    def test_stored_calibration_does_not_break_boxes_generators(self):
+        # apply_stored_burn adds a "calibration" record; Boxes.py must never receive it as an argument.
+        import os
+        import tempfile
+        from unittest.mock import patch
+
+        from boxes_adapter import _merge_parameters, _to_cli_args
+        from calibrate import record_calibration
+        from physical import read_physical
+
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {"MCP_DATA_DIR": tmp}):
+            phys = read_physical({"measured_bar_mm": 99.7}, moving=False)
+            self.assertIsNotNone(record_calibration({"machine": "payas_workshop", "material": "poplar_3mm"}, phys))
+            merged = _merge_parameters({"x": 120, "y": 100, "h": 100, "thickness": 3})
+            self.assertIn("calibration", merged)
+            args = _to_cli_args(merged)
+        self.assertFalse(any(a.startswith("--calibration") for a in args), args)
+        self.assertIn(f"--burn={merged['burn']}", args)
+
     def test_free_plan_hides_dxf(self):
         import os
 
@@ -232,7 +251,8 @@ class StudioTests(unittest.TestCase):
             })
             self.assertIn("dxf_url", out)
             self.assertNotIn("bom", out)
-            self.assertNotIn("project", out)
+            # Maker includes project history since 06c113c (Studio Geçmiş tab).
+            self.assertEqual(out.get("project"), {"id": "p"})
             self.assertEqual(out.get("sheets"), 1)
         finally:
             current_auth.reset(token)

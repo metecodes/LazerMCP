@@ -1857,12 +1857,20 @@ function paintGate(data) {
   }
 }
 
+function svgDownloadUrl(fileId) {
+  return "/files/" + encodeURIComponent(fileId) + "?download=1";
+}
+
 function paintExports(data) {
-  const incoming = data.file_id || (data.assembly && data.assembly.file_id) || null;
+  // assembly.file_id is only a real file when the save was authorized; previews carry
+  // "studio-preview.svg" and BLOCKED saves name a file that was never written.
+  const authorized = !data.preview && data.export_allowed !== false && data.final_status !== "BLOCKED";
+  const incoming = data.file_id || (authorized && data.assembly && data.assembly.file_id) || null;
   // Preview responses have no file_id — keep the last saved export so download links stay usable.
   if (incoming) {
     state.fileId = incoming;
-    state.svgUrl = data.svg_url || ("/files/" + encodeURIComponent(incoming) + "?download=1");
+    // svg_url is the /out/ editor page (HTML); downloads must hit /files/ for the real SVG bytes.
+    state.svgUrl = svgDownloadUrl(incoming);
     state.dxfId = data.dxf_id || null;
     state.dxfUrl = data.dxf_url || (data.dxf_id ? ("/files/" + encodeURIComponent(data.dxf_id) + "?download=1") : null);
   } else if (data.preview && state.fileId) {
@@ -1896,9 +1904,20 @@ function paintExports(data) {
   } else if (!data.preview) {
     dxf.classList.add("hide");
   }
-  if (data.stl_url || data.stl_id) {
+  if (data.stl_base64 || data.stl_url || data.stl_id) {
     const stl = $("dl-stl");
-    stl.href = data.stl_url || ("/files/" + encodeURIComponent(data.stl_id) + "?download=1");
+    if (data.stl_base64) {
+      // Inline bytes: serverless instances do not share /tmp, so a /files URL can 404.
+      const bin = atob(data.stl_base64);
+      const buf = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+      if (state.stlBlobUrl) URL.revokeObjectURL(state.stlBlobUrl);
+      state.stlBlobUrl = URL.createObjectURL(new Blob([buf], { type: "model/stl" }));
+      stl.href = state.stlBlobUrl;
+    } else {
+      stl.href = data.stl_url || ("/files/" + encodeURIComponent(data.stl_id) + "?download=1");
+    }
+    stl.setAttribute("download", data.stl_id || "model.stl");
     stl.classList.remove("hide");
   }
   const plan = data.plan || {};
@@ -2101,7 +2120,7 @@ async function makeBox(opts) {
       );
     }
     if (!preview && options.autoDownload && data.file_id && data.export_allowed !== false) {
-      const href = data.svg_url || ("/files/" + encodeURIComponent(data.file_id) + "?download=1");
+      const href = svgDownloadUrl(data.file_id);
       const a = document.createElement("a");
       a.href = href;
       a.download = data.file_id;
@@ -2690,7 +2709,9 @@ function wireUi() {
     scheduleRebuild();
   };
   window.addEventListener("keydown", (ev) => {
-    if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "z") {
+    const typing = ["INPUT", "TEXTAREA", "SELECT"].includes((ev.target && ev.target.tagName) || "")
+      || (ev.target && ev.target.isContentEditable);
+    if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "z" && !typing) {
       ev.preventDefault();
       $("undo-box").click();
       return;
@@ -2756,19 +2777,38 @@ function applyLidOpenPreview() {
 
 async function loadFile(fileId) {
   setStatus("Montaj yükleniyor…");
-  const { data } = await api("/api/assembly/" + encodeURIComponent(fileId));
-  if (!data.success || !(data.panels || []).length) {
-    setStatus((data.look_again || []).join(" ") || "Kayıtlı montaj yok; yeni parametrik kutu üretiliyor…", "bad");
-    await makeBox();
-    return;
+  setLoading(true, "Montaj yükleniyor…");
+  let res;
+  let data;
+  try {
+    ({ res, data } = await api("/api/assembly/" + encodeURIComponent(fileId)));
+  } finally {
+    setLoading(false);
   }
-  loadAssembly(data);
-  paintExports({
+  const exportsFor = () => ({
     file_id: data.file_id || fileId,
     svg_url: data.svg_url,
     dxf_id: data.dxf_id,
     dxf_url: data.dxf_url,
   });
+  if (data.success && (data.panels || []).length) {
+    loadAssembly(data);
+    paintExports(exportsFor());
+    setStatus("Açıldı: " + (data.file_id || fileId), "ok");
+    return;
+  }
+  if (res.ok && data.file_id) {
+    // Flat sheet (name ornament, coupon…): valid file, just no 3D panels. Keep it — do not swap in a new box.
+    clearMeshes();
+    paintExports(exportsFor());
+    $("sum-note").textContent = "Düz kesim sayfası — bu dosya için 3D montaj yok.";
+    setStatus("Düz kesim dosyası açıldı (3D montaj yok) — SVG/DXF indirilebilir.", "ok");
+    return;
+  }
+  const reason = (data.look_again || []).join(" ") || "Dosya açılamadı.";
+  history.replaceState(null, "", "/studio");
+  if (!state.meshes.length) await makeBox({ preview: true });
+  setStatus(reason, "bad");
 }
 
 async function makeCoupon() {
@@ -2795,7 +2835,7 @@ async function makeCoupon() {
     setStatus(data.file_id ? "Coupon SVG hazır — indir / kes / ölç." : "Coupon üretildi.", "ok");
     if (data.export_allowed !== false && data.file_id) {
       const a = document.createElement("a");
-      a.href = data.svg_url || ("/files/" + encodeURIComponent(data.file_id) + "?download=1");
+      a.href = svgDownloadUrl(data.file_id);
       a.download = data.file_id;
       a.rel = "noopener";
       document.body.appendChild(a);

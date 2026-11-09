@@ -75,6 +75,7 @@ PUBLIC_PATHS = {
     "/api/auth/config",
     "/api/auth/start",
     "/api/auth/session",
+    "/api/auth/password",
     "/api/auth/logout",
     "/api/account",
     "/api/account/key-request",
@@ -2006,9 +2007,26 @@ async def api_studio_action(request: Request) -> Response:
             body = {**body, "action": body.get("action") or "list"}
         return JSONResponse(create_studio_maker(body, public_base_url=_public_base(request)))
     if verb in {"stl", "to_stl", "svg_to_stl"}:
+        from persist.storage import StorageService
         from workshop import create_studio_stl
 
-        return JSONResponse(create_studio_stl(body, public_base_url=_public_base(request)))
+        # Same access rule and byte source as /files/: durable storage first, local output otherwise.
+        source = _safe_download_name(str(body.get("file_id") or "").strip()) if body.get("file_id") else ""
+        svg_bytes = None
+        if source:
+            decision, principal = _authorize_output_file(request, source)
+            if not decision.get("allow"):
+                return _editor_denied(decision, principal, source)
+            artifact = decision.get("artifact")
+            try:
+                svg_bytes = (
+                    StorageService().get(str(artifact["storage_path"]))
+                    if artifact
+                    else boxespy._safe_output_file(source).read_bytes()
+                )
+            except (FileNotFoundError, OSError, ValueError):
+                svg_bytes = None
+        return JSONResponse(create_studio_stl(body, public_base_url=_public_base(request), svg_bytes=svg_bytes))
     if verb in {"coupon", "kerf_coupon"}:
         from workshop import create_studio_coupon
 

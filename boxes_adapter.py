@@ -84,8 +84,12 @@ _STUDIO_ARGS = {
     "project_id",
     "what_you_see",
     "measured_bar_mm",
+    "nominal_bar_mm",
     "physical_assembly",
     "movement_test",
+    "use_test",
+    # Added by calibrate.apply_stored_burn once a kerf coupon was measured; not a Boxes.py arg.
+    "calibration",
 }
 _LATEST_ALIASES = {
     "laser mcp",

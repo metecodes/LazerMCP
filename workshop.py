@@ -835,8 +835,20 @@ def create_studio_box(body: dict[str, Any] | None = None, *, public_base_url: st
     }
 
 
-def create_studio_stl(body: dict[str, Any] | None = None, *, public_base_url: str | None = None) -> dict[str, Any]:
-    """Extrude a generated SVG (mm) to STL. XY scale comes from the SVG — never invented."""
+def create_studio_stl(
+    body: dict[str, Any] | None = None,
+    *,
+    public_base_url: str | None = None,
+    svg_bytes: bytes | None = None,
+) -> dict[str, Any]:
+    """Extrude a generated SVG (mm) to STL. XY scale comes from the SVG — never invented.
+
+    ``svg_bytes`` lets the HTTP route pass a source it already authorized and read from
+    durable storage; on serverless hosts the local output dir is per-instance.
+    """
+    import base64
+    from pathlib import Path
+
     from boxes_adapter import OUTPUT_DIR, _file_url, _safe_output_file
     from plans import gate_job
     from svg_to_stl import svg_bytes_to_stl
@@ -848,11 +860,12 @@ def create_studio_stl(body: dict[str, Any] | None = None, *, public_base_url: st
     file_id = str(payload.get("file_id") or "").strip()
     if not file_id:
         return {"success": False, "ok": False, "look_again": ["file_id required"], "plan": gate}
-    try:
-        path = _safe_output_file(file_id)
-        svg_bytes = path.read_bytes()
-    except (OSError, ValueError):
-        return {"success": False, "ok": False, "look_again": ["SVG not found for STL export"], "plan": gate}
+    if svg_bytes is None:
+        try:
+            svg_bytes = _safe_output_file(file_id).read_bytes()
+        except (OSError, ValueError):
+            return {"success": False, "ok": False, "look_again": ["SVG not found for STL export"], "plan": gate}
+    path = Path(Path(file_id).name)
     height = payload.get("height_mm") or payload.get("extrude_mm") or payload.get("thickness")
     try:
         stl = svg_bytes_to_stl(
@@ -864,13 +877,33 @@ def create_studio_stl(body: dict[str, Any] | None = None, *, public_base_url: st
     except (TypeError, ValueError) as exc:
         return {"success": False, "ok": False, "look_again": [str(exc)], "plan": gate}
     stl_id = path.stem + ".stl"
-    out = OUTPUT_DIR / stl_id
-    out.write_bytes(stl["stl_bytes"])
+    stl_bytes = stl["stl_bytes"]
+    (OUTPUT_DIR / stl_id).write_bytes(stl_bytes)
+    from persist.env import uses_supabase_app_db
+
+    if uses_supabase_app_db():
+        # Best effort so /files/<stl> works across instances; the inline bytes below always work.
+        try:
+            from persist.authz import PUBLIC_ORG_ID
+            from persist.job import _org_id, _principal, persist_bytes
+
+            persist_bytes(
+                organization_id=_org_id(_principal()) or PUBLIC_ORG_ID,
+                kind="stl",
+                data=stl_bytes,
+                mime_type="model/stl",
+                source_file_id=stl_id,
+                durable=True,
+                name=stl_id,
+            )
+        except Exception:
+            pass
     base = public_base_url or ""
     return {
         "success": True,
         "file_id": path.name,
         "stl_id": stl_id,
+        "stl_base64": base64.b64encode(stl_bytes).decode("ascii"),
         "stl_url": _file_url(base, stl_id) if base else f"/files/{stl_id}",
         "units": "mm",
         "scale": stl.get("scale"),
