@@ -175,6 +175,11 @@ def studio_action(
                 looks.append(str((phys.get("notes") or {}).get("kerf") or "measured_bar_mm rejected"))
             elif not row:
                 looks.append("Calibration not stored — kerf must be PASS with a measured bar.")
+            elif row.get("stored") is False:
+                looks.append(
+                    f"Burn {row.get('burn')} mm hesaplandı — misafir olarak kalıcı kaydedilmedi; "
+                    "atölyene kaydetmek için giriş yap (fiziksel fit NOT_VERIFIED)."
+                )
             else:
                 looks.append(
                     f"Stored burn {row.get('burn')} mm for {row.get('machine')}/{row.get('material')} "

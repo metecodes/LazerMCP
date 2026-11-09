@@ -1,16 +1,69 @@
-"""Persisted kerf calibration per machine + material. Human measurement only."""
+"""Persisted kerf calibration per machine + material. Human measurement only.
+
+Hosted (Supabase): one private JSON object per organization in Storage, so one
+workshop's measured burn never changes another's jobs and survives serverless
+restarts. Guests are not persisted. Local single-tenant runs keep calibrations.json.
+"""
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from physical import NOMINAL_BAR_MM, read_physical
 from studio_store import now_iso, read_json, write_json
 
 
+def _org() -> str:
+    try:
+        from keys import current_auth
+        from persist.job import _org_id
+
+        principal = current_auth.get()
+        return (_org_id(principal) or "") if principal else ""
+    except Exception:
+        return ""
+
+
+def _hosted() -> bool:
+    from persist.env import uses_supabase_app_db
+
+    return uses_supabase_app_db()
+
+
+def _object_path(org: str) -> str:
+    return f"calibrations/{org}.json"
+
+
 def _load() -> list[dict[str, Any]]:
+    if _hosted():
+        org = _org()
+        if not org:
+            return []
+        from persist.storage import StorageService
+
+        try:
+            raw = json.loads(StorageService().get(_object_path(org)))
+        except FileNotFoundError:
+            return []
+        except Exception:
+            return []
+        return raw if isinstance(raw, list) else []
     raw = read_json("calibrations.json", [])
     return raw if isinstance(raw, list) else []
+
+
+def _save(rows: list[dict[str, Any]]) -> bool:
+    if _hosted():
+        org = _org()
+        if not org:
+            return False
+        from persist.storage import StorageService
+
+        StorageService().put(_object_path(org), json.dumps(rows, ensure_ascii=False).encode("utf-8"), "application/json")
+        return True
+    write_json("calibrations.json", rows)
+    return True
 
 
 def record_calibration(parameters: dict[str, Any] | None, physical: dict[str, Any] | None = None) -> dict[str, Any] | None:
@@ -29,7 +82,7 @@ def record_calibration(parameters: dict[str, Any] | None, physical: dict[str, An
     }
     rows = [r for r in _load() if not (r.get("machine") == row["machine"] and r.get("material") == row["material"])]
     rows.append(row)
-    write_json("calibrations.json", rows)
+    row["stored"] = _save(rows)
     return row
 
 

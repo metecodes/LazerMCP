@@ -19,7 +19,7 @@ MAKERS = {
         "label_tr": "Kuş evi",
         "label_en": "Birdhouse",
         "ai": False,
-        "note": "Boxes.py BirdHouse — finger-joint, AI yok.",
+        "note": "Finger-joint kuş evi — giriş deliği + kaldırılabilir çatı, AI yok.",
     },
     "christmas": {
         "id": "christmas",
@@ -114,37 +114,54 @@ def build_name_ornament(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def build_birdhouse(payload: dict[str, Any]) -> dict[str, Any]:
-    """Boxes.py BirdHouse — parametric, no AI."""
+    """Finger-jointed birdhouse on the Studio box pipeline: entrance hole + removable roof.
+
+    Boxes.py BirdHouse (pitched roof) is a multi-part catalog sheet the Final Gate cannot
+    prove, so it could never be downloaded. This recipe is assembled and validated like
+    a Studio box; the roof lifts off for cleaning. Physical fit stays NOT_VERIFIED.
+    """
     thickness = _f(payload.get("thickness"), 3)
-    x = _f(payload.get("x") or payload.get("width"), 120)
-    y = _f(payload.get("y") or payload.get("depth"), 100)
-    h = _f(payload.get("h") or payload.get("height"), 100)
-    overhang = _f(payload.get("roof_overhang"), 0.4)
-    x = max(60.0, min(400.0, x))
-    y = max(60.0, min(400.0, y))
-    h = max(40.0, min(400.0, h))
-    overhang = max(0.1, min(1.0, overhang))
-    parameters = {
-        "thickness": thickness,
+    x = max(60.0, min(400.0, _f(payload.get("x") or payload.get("width"), 120)))
+    y = max(60.0, min(400.0, _f(payload.get("y") or payload.get("depth"), 100)))
+    h = max(60.0, min(400.0, _f(payload.get("h") or payload.get("height"), 100)))
+    # roof_overhang kept for API compatibility; a removable flat roof has no overhang to cut.
+    overhang = max(0.1, min(1.0, _f(payload.get("roof_overhang"), 0.4)))
+    # Entrance: ~32 mm suits small songbirds; never closer than 2 t to any edge.
+    hole_d = _f(payload.get("entrance_mm") or payload.get("hole_mm"), 32)
+    hole_d = max(15.0, min(hole_d, x - 6 * thickness, h - 6 * thickness))
+    hole = {"x": x / 2, "y": h * 0.62, "d": hole_d, "purpose": "entrance"}
+    if hole["y"] + hole_d / 2 > h - 3 * thickness:
+        hole["y"] = h - 3 * thickness - hole_d / 2
+    box = {
+        "type": "box",
+        "label": "birdhouse",
         "x": x,
         "y": y,
         "h": h,
-        "roof_overhang": overhang,
+        "bottom": True,
+        "lid": {"type": "removable"},
+        "walls": {"front": {"holes": [hole]}},
+    }
+    parameters = {
+        "thickness": thickness,
+        "project": "birdhouse",
+        "what_you_see": "finger-jointed birdhouse with an entrance hole and lift-off roof",
         "material": payload.get("material") or "poplar_3mm",
         "machine": payload.get("machine") or "payas_workshop",
-        "project": "birdhouse",
     }
     if payload.get("burn") not in (None, ""):
         parameters["burn"] = _f(payload.get("burn"), 0.15)
     return {
-        "mode": "generator",
-        "generator": "BirdHouse",
+        "mode": "primitives",
+        "primitives": [box],
         "parameters": parameters,
         "summary": {
             "maker": "birdhouse",
             "x_mm": x,
             "y_mm": y,
             "h_mm": h,
+            "entrance_mm": round(hole_d, 1),
+            "roof": "removable",
             "roof_overhang": overhang,
             "thickness_mm": thickness,
             "ai": False,

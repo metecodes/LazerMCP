@@ -193,6 +193,37 @@ class StudioTests(unittest.TestCase):
             else:
                 os.environ["MCP_DATA_DIR"] = old
 
+    def test_hosted_calibration_is_per_organization(self):
+        # One workshop's measured burn must never change another workshop's (or a guest's) jobs.
+        from unittest.mock import patch
+
+        import calibrate
+        from physical import read_physical
+
+        blobs = {}
+
+        class FakeStorage:
+            def put(self, path, data, mime):
+                blobs[path] = data
+
+            def get(self, path):
+                if path not in blobs:
+                    raise FileNotFoundError(path)
+                return blobs[path]
+
+        params = {"machine": "payas_workshop", "material": "poplar_3mm"}
+        phys = read_physical({"measured_bar_mm": 99.7}, moving=False)
+        with patch("calibrate._hosted", return_value=True), patch("persist.storage.StorageService", FakeStorage):
+            with patch("calibrate._org", return_value="org-a"):
+                self.assertTrue(calibrate.record_calibration(params, phys)["stored"])
+                self.assertIn("calibration", calibrate.apply_stored_burn(params))
+            with patch("calibrate._org", return_value="org-b"):
+                self.assertNotIn("calibration", calibrate.apply_stored_burn(params))
+            with patch("calibrate._org", return_value=""):
+                self.assertFalse(calibrate.record_calibration(params, phys)["stored"])
+                self.assertEqual(calibrate.list_calibrations(), [])
+        self.assertEqual(list(blobs), ["calibrations/org-a.json"])
+
     def test_stored_calibration_does_not_break_boxes_generators(self):
         # apply_stored_burn adds a "calibration" record; Boxes.py must never receive it as an argument.
         import os

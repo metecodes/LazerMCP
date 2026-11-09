@@ -383,6 +383,41 @@ class BearerGate:
         self.app = app
         self.token = token or None
 
+    @staticmethod
+    def _principal(scope) -> dict | None:
+        """Bearer API key/OAuth token first, then the lmcp_sid browser session."""
+        from keys import resolve_bearer
+
+        key = resolve_bearer(_extract_token(scope))
+        if key:
+            return key
+        try:
+            from supabase_auth import principal_from_identity, session_user
+
+            cookie_header = ""
+            for hk, hv in scope.get("headers") or []:
+                if hk.decode("latin-1").lower() == "cookie":
+                    cookie_header = hv.decode("latin-1")
+                    break
+            sid = ""
+            for part in cookie_header.split(";"):
+                name, _, val = part.strip().partition("=")
+                if name == "lmcp_sid":
+                    sid = val
+                    break
+            stored = session_user(sid)
+            return principal_from_identity(stored, stored) if stored else None
+        except Exception:
+            return None
+
+    @staticmethod
+    def _approved(key: dict) -> bool:
+        if key.get("provider") == "google":
+            from supabase_auth import account_is_approved
+
+            return account_is_approved(key)
+        return str(key.get("approval_status") or "approved").lower() not in {"pending", "denied", "trial_expired"}
+
     async def __call__(self, scope, receive, send):
         if scope["type"] != "http":
             await self.app(scope, receive, send)
@@ -390,34 +425,30 @@ class BearerGate:
         path = scope.get("path") or ""
         method = scope.get("method") or "GET"
         if method == "OPTIONS" or path in PUBLIC_PATHS or path.startswith(PUBLIC_PREFIXES) or (method == "GET" and path.startswith("/api/editor/")):
-            await self.app(scope, receive, send)
+            # Public API routes still need to know a signed-in caller: without it Studio
+            # saved every account's files into the public org and could not scope history.
+            optional = None
+            if method != "OPTIONS" and path.startswith("/api/") and not path.startswith("/api/auth/"):
+                optional = self._principal(scope)
+                if optional and not self._approved(optional):
+                    optional = None
+            if not optional:
+                await self.app(scope, receive, send)
+                return
+            from keys import current_auth
+
+            token = current_auth.set(optional)
+            try:
+                await self.app(scope, receive, send)
+            finally:
+                current_auth.reset(token)
             return
-        from keys import auth_required, current_auth, resolve_bearer
+        from keys import auth_required, current_auth
 
         if not auth_required():
             await self.app(scope, receive, send)
             return
-        key = resolve_bearer(_extract_token(scope))
-        if not key:
-            try:
-                from supabase_auth import principal_from_identity, session_user
-
-                cookie_header = ""
-                for hk, hv in scope.get("headers") or []:
-                    if hk.decode("latin-1").lower() == "cookie":
-                        cookie_header = hv.decode("latin-1")
-                        break
-                sid = ""
-                for part in cookie_header.split(";"):
-                    name, _, val = part.strip().partition("=")
-                    if name == "lmcp_sid":
-                        sid = val
-                        break
-                stored = session_user(sid)
-                if stored:
-                    key = principal_from_identity(stored, stored)
-            except Exception:
-                key = None
+        key = self._principal(scope)
         if not key:
             host = ""
             for hk, hv in scope.get("headers") or []:

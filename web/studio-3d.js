@@ -2372,7 +2372,7 @@ function syncMakerFields() {
   if (hole) hole.closest("label").classList.toggle("hide", kind === "birdhouse");
   const note = $("maker-note");
   if (note) {
-    if (kind === "birdhouse") note.textContent = "Boxes.py BirdHouse — finger-joint. AI yok.";
+    if (kind === "birdhouse") note.textContent = "Finger-joint kuş evi — giriş deliği + kaldırılabilir çatı. AI yok. Fiziksel fit NOT_VERIFIED.";
     else if (kind === "christmas") note.textContent = "Yıldız / daire ası süsü — parametrik, AI yok.";
     else note.textContent = "İsim süsü + ası deliği + kazıma yazı. Fiziksel kuruluk NOT_VERIFIED.";
   }
@@ -2393,7 +2393,7 @@ function makerBody() {
     body.x = Number(($("maker-bx") && $("maker-bx").value) || 120);
     body.y = Number(($("maker-by") && $("maker-by").value) || 100);
     body.h = Number(($("maker-bh") && $("maker-bh").value) || 100);
-    body.roof_overhang = Number(($("maker-overhang") && $("maker-overhang").value) || 0.4);
+    body.entrance_mm = Number(($("maker-entrance") && $("maker-entrance").value) || 32);
   } else {
     body.shape = ($("maker-shape") && $("maker-shape").value) || "star";
     body.text = ($("maker-xtext") && $("maker-xtext").value) || "";
@@ -2800,6 +2800,12 @@ async function loadFile(fileId) {
   if (res.ok && data.file_id) {
     // Flat sheet (name ornament, coupon…): valid file, just no 3D panels. Keep it — do not swap in a new box.
     clearMeshes();
+    state.assembly = null;
+    ["sum-inner", "sum-outer", "sum-vol", "sum-drawers", "sum-sel", "sum-dims"].forEach((id) => {
+      if ($(id)) $(id).textContent = "—";
+    });
+    if ($("sum-panels")) $("sum-panels").textContent = "0";
+    ["asm-steps", "asm-joints"].forEach((id) => { if ($(id)) $(id).innerHTML = ""; });
     paintExports(exportsFor());
     $("sum-note").textContent = "Düz kesim sayfası — bu dosya için 3D montaj yok.";
     setStatus("Düz kesim dosyası açıldı (3D montaj yok) — SVG/DXF indirilebilir.", "ok");

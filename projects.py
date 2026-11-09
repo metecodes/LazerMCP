@@ -11,6 +11,94 @@ from persist.env import uses_supabase_app_db
 from persist.supabase_rest import rest, rows, upsert
 
 
+_AUTO = object()
+# Light listing: only the fields Studio history shows, latest version picked server-side.
+_LIST_SELECT = (
+    "id,name:payload->>name,created:payload->>created,updated:payload->>updated,"
+    "n:payload->versions->-1->>n,file_id:payload->versions->-1->>file_id,"
+    "final_status:payload->versions->-1->>final_status,product:payload->versions->-1->>product,"
+    "at:payload->versions->-1->>at,approved:payload->versions->-1->>approved,"
+    "owner_org:payload->versions->-1->>owner_org"
+)
+_LATEST = "payload->versions->-1->>"
+_OWNED_FILES_LIMIT = 150  # keeps the or=(…in.(…)) filter well under URL limits
+
+
+def _current_principal() -> dict[str, Any] | None:
+    try:
+        from keys import current_auth
+
+        return current_auth.get()
+    except Exception:
+        return None
+
+
+def _owner_org(principal: dict[str, Any] | None) -> str:
+    if not principal:
+        return ""
+    try:
+        from persist.job import _org_id
+
+        return _org_id(principal) or ""
+    except Exception:
+        return str(principal.get("organization_id") or "")
+
+
+def visible_scope(principal: dict[str, Any] | None) -> dict[str, set[str]] | None:
+    """Which projects a caller may see. None = all (operator, or single-tenant local store).
+
+    New versions carry owner_org. Older rows are matched through the caller's SVG
+    artifacts, the same ownership record /files/ uses.
+    """
+    if not uses_supabase_app_db():
+        return None
+    if principal:
+        from supabase_auth import is_admin
+
+        if is_admin(principal) or (str(principal.get("id")) == "admin" and str(principal.get("role")) == "admin"):
+            return None
+    org = _owner_org(principal)
+    if not org:
+        return {"orgs": set(), "files": set()}
+    files: set[str] = set()
+    try:
+        found = rows(
+            "lasermcp_artifacts",
+            select="source_file_id",
+            organization_id=f"eq.{org}",
+            kind="eq.svg",
+            order="created_at.desc",
+            limit=_OWNED_FILES_LIMIT,
+        )
+        files = {str(r.get("source_file_id")) for r in found if r.get("source_file_id")}
+    except Exception:
+        files = set()
+    return {"orgs": {org}, "files": files}
+
+
+def _resolve_scope(scope: Any) -> dict[str, set[str]] | None:
+    return visible_scope(_current_principal()) if scope is _AUTO else scope
+
+
+def _project_visible(project: dict[str, Any] | None, scope: dict[str, set[str]] | None) -> bool:
+    if not isinstance(project, dict):
+        return False
+    if scope is None:
+        return True
+    for ver in project.get("versions") or []:
+        if not isinstance(ver, dict):
+            continue
+        if ver.get("owner_org") and ver.get("owner_org") in scope["orgs"]:
+            return True
+        if ver.get("file_id") and ver.get("file_id") in scope["files"]:
+            return True
+    return False
+
+
+def _quoted(values: set[str]) -> str:
+    return ",".join('"' + str(v).replace('"', "") + '"' for v in sorted(values))
+
+
 def _slug(name: str) -> str:
     slug = re.sub(r"[^a-zA-Z0-9]+", "-", (name or "job").strip()).strip("-").lower()
     return (slug[:32] or "job")
@@ -67,6 +155,8 @@ def save_version(parameters: dict[str, Any] | None, result: dict[str, Any] | Non
         "feedback": data.get("feedback") if isinstance(data.get("feedback"), dict) else None,
         "approved": bool(data.get("approved")),
         "assembly_result": data.get("assembly_result") if isinstance(data.get("assembly_result"), dict) else None,
+        # Owner of this version; guests save as "" and get no shared history.
+        "owner_org": _owner_org(_current_principal()),
     }
     if remote:
         return rest("rpc/append_lasermcp_version", method="POST", body={
@@ -88,6 +178,8 @@ def _save_store(store: dict[str, Any]) -> None:
 
 
 def approve_latest(project_id: str) -> dict[str, Any]:
+    if project_history(project_id) is None:
+        raise ValueError("unknown project")
     if uses_supabase_app_db():
         return rest("rpc/approve_lasermcp_version", method="POST", body={"p_id": project_id})
     store = _load()
@@ -102,10 +194,59 @@ def approve_latest(project_id: str) -> dict[str, Any]:
     return {"project_id": project_id, "version": versions[-1].get("n")}
 
 
-def list_projects(limit: int | None = None) -> list[dict[str, Any]]:
+def _clamp_limit(limit: Any) -> int | None:
+    if limit is None:
+        return None
+    try:
+        return max(1, min(500, int(limit)))
+    except (TypeError, ValueError):
+        return 80
+
+
+def _list_remote(limit: int | None, scope: dict[str, set[str]] | None) -> list[dict[str, Any]]:
+    params: dict[str, Any] = {"select": _LIST_SELECT, "order": "payload->>updated.desc.nullslast",
+                              "limit": limit or 500}
+    if scope is not None:
+        clauses = []
+        if scope["orgs"]:
+            clauses.append(f"{_LATEST}owner_org.in.({_quoted(scope['orgs'])})")
+        if scope["files"]:
+            clauses.append(f"{_LATEST}file_id.in.({_quoted(scope['files'])})")
+        if not clauses:
+            return []
+        params["or"] = "(" + ",".join(clauses) + ")"
+    out = []
+    for row in rest("lasermcp_projects", params=params) or []:
+        n = row.get("n")
+        latest = {
+            "n": int(n) if str(n or "").isdigit() else n,
+            "file_id": row.get("file_id"),
+            "final_status": row.get("final_status"),
+            "product": row.get("product"),
+            "at": row.get("at"),
+            "approved": str(row.get("approved")).lower() == "true",
+        }
+        out.append({
+            "id": row.get("id"),
+            "name": row.get("name"),
+            "updated": row.get("updated"),
+            "versions": latest["n"] if isinstance(latest["n"], int) else None,
+            "latest": latest,
+        })
+    return out
+
+
+def list_projects(limit: int | None = None, scope: Any = _AUTO) -> list[dict[str, Any]]:
+    """Projects the caller may see, newest first. Pass scope=None only for operator/internal use."""
+    resolved = _resolve_scope(scope)
+    n = _clamp_limit(limit)
+    if uses_supabase_app_db():
+        return _list_remote(n, resolved)
     store = _load()
     out = []
     for pid, project in store.items():
+        if not _project_visible(project, resolved):
+            continue
         versions = project.get("versions") or []
         out.append(
             {
@@ -117,21 +258,17 @@ def list_projects(limit: int | None = None) -> list[dict[str, Any]]:
             }
         )
     out.sort(key=lambda r: str(r.get("updated") or ""), reverse=True)
-    if limit is not None:
-        try:
-            n = max(1, min(500, int(limit)))
-        except (TypeError, ValueError):
-            n = 80
-        return out[:n]
-    return out
+    return out[:n] if n is not None else out
 
 
-def project_history(project_id: str) -> dict[str, Any] | None:
+def project_history(project_id: str, scope: Any = _AUTO) -> dict[str, Any] | None:
+    """Full project for a caller who may see it; None when unknown or not theirs."""
     if uses_supabase_app_db():
         found = rows("lasermcp_projects", id=f"eq.{project_id}", limit=1)
-        return found[0]["payload"] if found else None
-    store = _load()
-    return store.get(project_id)
+        project = found[0]["payload"] if found else None
+    else:
+        project = _load().get(project_id)
+    return project if _project_visible(project, _resolve_scope(scope)) else None
 
 
 def project_by_file(file_id: str) -> dict[str, Any] | None:

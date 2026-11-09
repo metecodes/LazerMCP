@@ -76,7 +76,8 @@ def connection_checks(parts, params):
 def editor_action(action, body, context, public_base_url=''):
     from projects import project_history
     if action == 'history':
-        history = project_history(context['project_id']) or {}
+        # The editor route already authorized this file; its project is the caller's.
+        history = project_history(context['project_id'], scope=None) or {}
         return {'success': True, 'versions': [{k: v.get(k) for k in ('n', 'at', 'file_id', 'primitives', 'parameters', 'final_status')} for v in history.get('versions', []) if v.get('primitives')]}
     if action not in ('preview', 'save'):
         raise ValueError('Bilinmeyen editör işlemi.')

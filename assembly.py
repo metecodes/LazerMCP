@@ -449,7 +449,11 @@ def check_assembly(
     front = next((f for f in faces if str(f["name"]).endswith("/front") or f["name"] == "front"), None)
     back = next((f for f in faces if str(f["name"]).endswith("/back") or f["name"] == "back"), None)
     if front and back:
-        fh = [(_num(h.get("d") or h.get("diameter"), 0), _num(h.get("x"), 0), _num(h.get("y"), 0)) for h in front["features"]["holes"]]
+        # Undeclared front holes are treated as shafts and need a coaxial back hole;
+        # a hole explicitly declared as a pass-through opening has no axle to support.
+        openings = {"entrance", "vent", "cable", "window"}
+        fh = [(_num(h.get("d") or h.get("diameter"), 0), _num(h.get("x"), 0), _num(h.get("y"), 0))
+              for h in front["features"]["holes"] if str(h.get("purpose") or "").lower() not in openings]
         bh = [(_num(h.get("d") or h.get("diameter"), 0), _num(h.get("x"), 0), _num(h.get("y"), 0)) for h in back["features"]["holes"]]
         for d, x, y in fh:
             if d <= 0:

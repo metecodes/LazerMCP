@@ -25,12 +25,41 @@ class StudioMakersTest(unittest.TestCase):
         self.assertEqual(panel["markings"][0]["value"], "Ayşe")
         self.assertEqual(panel["markings"][0]["operation"], "engrave")
 
-    def test_birdhouse_generator(self):
+    def test_birdhouse_is_a_gateable_box(self):
         built = build_maker("kus_evi", {"x": 100, "y": 90, "h": 80, "thickness": 3})
-        self.assertEqual(built["mode"], "generator")
-        self.assertEqual(built["generator"], "BirdHouse")
+        self.assertEqual(built["mode"], "primitives")
         self.assertFalse(built["summary"]["ai"])
-        self.assertIn("roof_overhang", built["parameters"])
+        box = built["primitives"][0]
+        self.assertEqual(box["type"], "box")
+        self.assertEqual(box["lid"], {"type": "removable"})
+        hole = box["walls"]["front"]["holes"][0]
+        self.assertLessEqual(hole["y"] + hole["d"] / 2, 80 - 3 * 3)
+
+    def test_birdhouse_passes_final_gate(self):
+        # The Boxes.py BirdHouse sheet was always BLOCKED; the box recipe must be downloadable.
+        import os
+        import tempfile
+        from unittest.mock import patch
+
+        from assembly import check_assembly
+
+        built = build_maker("birdhouse", {"x": 120, "y": 100, "h": 100, "thickness": 3})
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(
+            os.environ, {"MCP_DATA_DIR": tmp, "SUPABASE_URL": "", "SUPABASE_SERVICE_ROLE_KEY": ""}
+        ):
+            result = check_assembly(built["primitives"], thickness=3)
+        self.assertTrue(result["ok"], result.get("look_again"))
+        self.assertEqual((result.get("transform_validation") or {}).get("status"), "PASS")
+
+    def test_undeclared_front_hole_still_needs_coaxial_back_hole(self):
+        # Only declared openings skip the shaft rule; a bare hole is still an axle.
+        from assembly import check_assembly
+
+        built = build_maker("birdhouse", {"x": 120, "y": 100, "h": 100, "thickness": 3})
+        built["primitives"][0]["walls"]["front"]["holes"][0].pop("purpose")
+        result = check_assembly(built["primitives"], thickness=3)
+        self.assertFalse(result["ok"])
+        self.assertTrue(any("coaxial back hole" in str(x) for x in result.get("look_again") or []))
 
     def test_christmas_star_contour(self):
         built = build_maker("christmas", {"shape": "star", "size": 70, "text": "2026"})
