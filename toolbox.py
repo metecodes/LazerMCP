@@ -942,19 +942,23 @@ class PayasToolbox(Boxes):
 
             return _cb
 
-        self.rectangularWall(
-            x, h, f"{b}F{wall_top}F", ignore_widths=ignore,
-            callback=_pack_edge0(
-                self._wall_cb(wall("front")),
-                _raised_fn(x),
-                _x_div_wall_fn(for_front=True),
-                _sliding_rail_fn(x),
-                _shelf_wall_fn(x, for_front=True),
-                _drawer_opening_fn(),
-            ),
-            move="up", label="front",
-        )
-        self._note_part("front")
+        # Drawer cabinet: no front wall — drawer fronts form the face and trays slide straight out.
+        open_front = drawers_on
+        front_e = "e" if open_front else "f"
+        if not open_front:
+            self.rectangularWall(
+                x, h, f"{b}F{wall_top}F", ignore_widths=ignore,
+                callback=_pack_edge0(
+                    self._wall_cb(wall("front")),
+                    _raised_fn(x),
+                    _x_div_wall_fn(for_front=True),
+                    _sliding_rail_fn(x),
+                    _shelf_wall_fn(x, for_front=True),
+                    _drawer_opening_fn(),
+                ),
+                move="up", label="front",
+            )
+            self._note_part("front")
         self.rectangularWall(
             x, h, f"{b}F{wall_top}F", ignore_widths=ignore,
             callback=_pack_edge0(
@@ -965,13 +969,14 @@ class PayasToolbox(Boxes):
         self._note_part("back")
         if bottom_on:
             self.rectangularWall(
-                x, y, "ffff",
+                x, y, f"{front_e}fff",
                 callback=_pack_edge0(self._wall_cb(wall("bottom")), _bottom_div_fn()),
                 move="up", label="bottom",
             )
             self._note_part("bottom")
+        # Side walls: right edge of the left wall / left edge of the right wall is the front corner.
         self.rectangularWall(
-            y, h, f"{b}f{side_top}f", ignore_widths=ignore,
+            y, h, f"{b}{front_e}{side_top}f", ignore_widths=ignore,
             callback=_pack_edge0(
                 self._wall_cb(wall("left")), _raised_fn(y), _y_div_wall_fn(), _sliding_rail_fn(y), _shelf_wall_fn(y)
             ),
@@ -979,7 +984,7 @@ class PayasToolbox(Boxes):
         )
         self._note_part("left")
         self.rectangularWall(
-            y, h, f"{b}f{side_top}f", ignore_widths=ignore,
+            y, h, f"{b}f{side_top}{front_e}", ignore_widths=ignore,
             callback=_pack_edge0(
                 self._wall_cb(wall("right")), _raised_fn(y), _y_div_wall_fn(), _sliding_rail_fn(y), _shelf_wall_fn(y)
             ),
@@ -1118,32 +1123,43 @@ class PayasToolbox(Boxes):
 
                 return _cb
 
-            # First drawer bottom starts a column to the RIGHT of the carcass stack.
+            # Boxes.py sizes are INNER: walls stand outside the inner rectangle and the
+            # bottom plate sits under the walls. Inner = outer − 2t (w, d) and wall height
+            # = outer − t, so the cut tray's OUTER size is exactly w_mm × d_mm × h_mm —
+            # the size the assembly placed (and validate_drawer_slide checked) in its cubby.
+            iw, idp, ih = dw - 2 * t, dd - 2 * t, dh - t
+            if min(iw, idp, ih) < 6:
+                continue
+            # Open tray, TypeTray pattern: bottom "ffff"; front/back "FFeF"; sides "Ffef".
+            # (Was "FfFf"/"ffFf": f↔f at every corner and the side bottoms, fingers on the open top.)
             bottom_move = "right" if drawer_col else "up"
             drawer_col = False
             self.rectangularWall(
-                dw, dd, "ffff",
-                callback=_pack_edge0(_bottom_label_cb()),
+                iw, idp, "ffff",
+                callback=_pack_edge0(_bottom_label_cb(iw, idp)),
                 move=bottom_move, label=f"{did}-bottom",
             )
             self._note_part(f"{did}-bottom")
             self.rectangularWall(
-                dw, dh, "FfFf",
-                callback=_pack_edge0(_front_pull_cb()),
+                iw, ih, "FFeF",
+                callback=_pack_edge0(_front_pull_cb(iw, ih, min(pull_r, iw / 2 - 2, ih * 0.6))),
                 move="up", label=f"{did}-front",
             )
             self._note_part(f"{did}-front")
-            self.rectangularWall(dw, dh, "FfFf", move="up", label=f"{did}-back")
+            self.rectangularWall(iw, ih, "FFeF", move="up", label=f"{did}-back")
             self._note_part(f"{did}-back")
-            self.rectangularWall(dd, dh, "ffFf", move="up", label=f"{did}-left")
+            self.rectangularWall(idp, ih, "Ffef", move="up", label=f"{did}-left")
             self._note_part(f"{did}-left")
-            self.rectangularWall(dd, dh, "ffFf", move="up", label=f"{did}-right")
+            self.rectangularWall(idp, ih, "Ffef", move="up", label=f"{did}-right")
             self._note_part(f"{did}-right")
 
         if lid_on:
             if lid_type in {"finger", "finger_joint", "fixed"}:
+                finger_lid = lid_edges if lid_edges else "ffff"
+                if open_front:
+                    finger_lid = "e" + finger_lid[1:]
                 self.rectangularWall(
-                    x, y, lid_edges if lid_edges else "ffff",
+                    x, y, finger_lid,
                     callback=self._wall_cb(wall("lid")), move="up", label="lid",
                 )
                 self._note_part("lid")

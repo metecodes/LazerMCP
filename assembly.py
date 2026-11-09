@@ -75,9 +75,12 @@ def expand_faces(primitives: list[Any]) -> list[dict[str, Any]]:
             wall_top = "F" if gable_top else top
             side_top = "e" if gable_top else top
             walls = part.get("walls") if isinstance(part.get("walls"), dict) else {}
-            faces.append(
-                {"name": child_name("front"), "kind": "wall", "w": x, "h": h, "edges": f"{b}F{wall_top}F", "features": _features(walls.get("front") or {})}
-            )
+            # Drawer cabinet (composite_assembly / toolbox): no front wall, the drawer fronts are the face.
+            open_front = bool(part.get("drawers")) and bool(part.get("drawer_specs"))
+            if not open_front:
+                faces.append(
+                    {"name": child_name("front"), "kind": "wall", "w": x, "h": h, "edges": f"{b}F{wall_top}F", "features": _features(walls.get("front") or {})}
+                )
             faces.append(
                 {"name": child_name("back"), "kind": "wall", "w": x, "h": h, "edges": f"{b}F{wall_top}F", "features": _features(walls.get("back") or {})}
             )

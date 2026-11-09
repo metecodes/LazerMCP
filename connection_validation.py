@@ -71,9 +71,14 @@ def validate(primitives,parameters,assembly,linear,mechanism=None):
         if not isinstance(p,dict) or str(p.get("type") or p.get("kind") or "").lower()!="box":continue
         lid=p.get("lid");lid_type=str(lid.get("type") if isinstance(lid,dict) else ("finger_joint" if lid else "")).lower()
         if lid_type in {"finger","finger_joint","fixed"}:
-            parent=str(p.get("label") or p.get("id") or "box-1");required.extend([{"a":f"{parent}/lid","b":f"{parent}/{wall}","type":"finger_joint","source":"finger_joint lid invariant"} for wall in ("front","back","left","right")])
+            parent=str(p.get("label") or p.get("id") or "box-1")
+            # A drawer cabinet has no front wall; the lid joins only the walls that exist.
+            present=[w for w in ("front","back","left","right") if f"{parent}/{w}" in lookup]
+            required.extend([{"a":f"{parent}/lid","b":f"{parent}/{wall}","type":"finger_joint","source":"finger_joint lid invariant"} for wall in present])
             lid_row=next((r for r in (assembly.get("physical_parts") or []) if r.get("id")==f"{parent}/lid"),None);profiles=str(((lid_row or {}).get("outer_cut") or {}).get("edge_profiles") or "")
-            if profiles=="eeee" or len(profiles)!=4 or any(ch!="f" for ch in profiles):required_checks.append({"status":"FAIL","note":"finger_joint lid requested but lid has no joint geometry","part":f"{parent}/lid"})
+            # Lid edge order: bottom(front), right, top(back), left — each existing wall needs fingers.
+            wall_edge={"front":0,"right":1,"back":2,"left":3}
+            if len(profiles)!=4 or any(profiles[wall_edge[w]]!="f" for w in present):required_checks.append({"status":"FAIL","note":"finger_joint lid requested but lid has no joint geometry","part":f"{parent}/lid"})
     for raw in parameters.get("required_connections") or []:
         if isinstance(raw,(list,tuple)) and len(raw)>=2:required.append({"a":str(raw[0]),"b":str(raw[1]),"type":"finger_joint","source":"required_connections"})
         elif isinstance(raw,dict):required.append({"a":str(raw.get("a") or raw.get("part_a") or ""),"b":str(raw.get("b") or raw.get("part_b") or ""),"type":str(raw.get("type") or "finger_joint"),"source":"required_connections"})
@@ -106,7 +111,7 @@ def validate(primitives,parameters,assembly,linear,mechanism=None):
         if not mates:checks.append({"status":"FAIL","note":f'{item["id"]} role={role} has mates=[]; placement is not connection evidence'})
         elif any(e["status"] not in {"PASS","MATCH"} for e in mates):checks.append({"status":"FAIL","note":f'{item["id"]} has an unverified geometric mate'})
         else:checks.append({"status":"PASS","note":f'{item["id"]} role={role} connection coverage PASS'})
-        if role=="moving" and not any(e["type"] in {"linear_slide","removable_slide","shaft_hole","shaft_rotation","direct_motor_shaft"} for e in mates):checks.append({"status":"FAIL","note":f'{item["id"]} moving part has no motion connection'})
+        if role=="moving" and not any(e["type"] in {"linear_slide","removable_slide","drawer_slide","shaft_hole","shaft_rotation","direct_motor_shaft"} for e in mates):checks.append({"status":"FAIL","note":f'{item["id"]} moving part has no motion connection'})
         if role=="removable" and not any(e["type"] in {"removable_slide","removable_lid"} and e["status"] in {"PASS","MATCH"} for e in mates):checks.append({"status":"FAIL","note":f'{item["id"]} removable part has no verified remove/reinstall path'})
     if expected and len(components)>1:
         checks.append({'status':'FAIL','note':f'disconnected structural connection graph: {len(components)} components'})

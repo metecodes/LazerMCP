@@ -116,12 +116,22 @@ def _box(parent: dict[str, Any], index: int, thickness: float):
         return normalize(value)
     if lid_on and lid_type in {"finger","finger_joint","fixed"}:top="F"
     t = float(thickness)
+    raw_drawers = parent.get("drawer_specs") if isinstance(parent.get("drawer_specs"), list) else []
+    drawers_on = bool(parent.get("drawers")) and bool(raw_drawers)
+    # Drawer cabinet: no front wall. The drawer fronts are the face, so trays slide straight
+    # out of their cubbies (a front wall would leave a finger-joint sill they cannot clear).
+    open_front = drawers_on
     specs = [
-        ("front", x, h, f"{b}F{top}F", {"origin": [0, 0, t], "u": [1, 0, 0], "v": [0, 0, 1]}, feats("front")),
         ("back", x, h, f"{b}F{top}F", {"origin": [x, y, t], "u": [-1, 0, 0], "v": [0, 0, 1]}, feats("back")),
-        ("left", y, h, f"{b}f{top}f", {"origin": [0, y, t], "u": [0, -1, 0], "v": [0, 0, 1]}, feats("left")),
-        ("right", y, h, f"{b}f{top}f", {"origin": [x, 0, t], "u": [0, 1, 0], "v": [0, 0, 1]}, feats("right")),
+        # Side walls: local right edge (left wall) / left edge (right wall) is the front corner.
+        ("left", y, h, f"{b}{'e' if open_front else 'f'}{top}f", {"origin": [0, y, t], "u": [0, -1, 0], "v": [0, 0, 1]}, feats("left")),
+        ("right", y, h, f"{b}f{top}{'e' if open_front else 'f'}", {"origin": [x, 0, t], "u": [0, 1, 0], "v": [0, 0, 1]}, feats("right")),
     ]
+    if not open_front:
+        specs.insert(0, ("front", x, h, f"{b}F{top}F", {"origin": [0, 0, t], "u": [1, 0, 0], "v": [0, 0, 1]}, feats("front")))
+    if open_front:
+        # Lid's local bottom edge runs along the open front.
+        lid_edges = "e" + lid_edges[1:]
     raised = max(0.0, _num(parent.get("bottom_lift") or parent.get("raised_bottom"), 0.0))
     if bottom_on:
         specs.insert(
@@ -130,7 +140,7 @@ def _box(parent: dict[str, Any], index: int, thickness: float):
                 "bottom",
                 x,
                 y,
-                "ffff",
+                "efff" if open_front else "ffff",
                 {"origin": [0, 0, raised], "u": [1, 0, 0], "v": [0, 1, 0]},
                 feats("bottom"),
             ),
@@ -174,8 +184,6 @@ def _box(parent: dict[str, Any], index: int, thickness: float):
     y_div_pos = divider_positions([float(v) for v in sy], t) if dy else []
     joint_walls = bool(parent.get("divider_joint_walls", True))
     joint_bottom = bool(parent.get("divider_joint_bottom", True))
-    raw_drawers = parent.get("drawer_specs") if isinstance(parent.get("drawer_specs"), list) else []
-    drawers_on = bool(parent.get("drawers")) and bool(raw_drawers)
     # Finger geçme between cubbies (not butt/glue). Front edge opens when drawers pull out.
     div_b = "f" if joint_bottom else "e"
     if drawers_on:
@@ -194,7 +202,9 @@ def _box(parent: dict[str, Any], index: int, thickness: float):
                 y,
                 div_h,
                 div_edges,
-                {"origin": [float(pos), 0.0, raised], "u": [0, 1, 0], "v": [0, 0, 1]},
+                # pos is the divider CENTERLINE (studio_box.divider_positions, and toolbox's
+                # fingerHolesAt). Normal is +X, so the face starts t/2 before it.
+                {"origin": [float(pos) - t / 2, 0.0, raised], "u": [0, 1, 0], "v": [0, 0, 1]},
                 {},
                 "structural",
             )
@@ -206,7 +216,8 @@ def _box(parent: dict[str, Any], index: int, thickness: float):
                 x,
                 div_h,
                 div_edges,
-                {"origin": [0.0, float(pos), raised], "u": [1, 0, 0], "v": [0, 0, 1]},
+                # Centerline pos; normal is −Y, so the face sits t/2 past it.
+                {"origin": [0.0, float(pos) + t / 2, raised], "u": [1, 0, 0], "v": [0, 0, 1]},
                 {},
                 "structural",
             )
@@ -245,6 +256,7 @@ def _box(parent: dict[str, Any], index: int, thickness: float):
         if drawers_on
         else []
     )
+    placed_drawers: list[dict[str, Any]] = []
     for spec in drawer_specs:
         did = str(spec.get("id") or "drawer")
         dw = float(spec.get("w_mm") or 0)
@@ -255,88 +267,68 @@ def _box(parent: dict[str, Any], index: int, thickness: float):
         ox = float(spec.get("ox_mm") or 0)
         oy = float(spec.get("oy_mm") or 0)
         oz = float(spec.get("oz_mm") or raised)
-        # Assembly outlines stay edge-plain; Boxes.py still cuts tray finger joints + pull on the sheet.
+        # The tray's OUTER box is [ox, ox+dw] × [oy, oy+dd] × [oz, oz+dh]; every panel stays
+        # inside it (thickness grows inward), so the tray never occupies carcass material.
+        # Sides run the full depth, front/back sit between them, walls stand on the bottom.
+        # Assembly outlines stay edge-plain; Boxes.py cuts tray finger joints + pull on the sheet.
+        placed_drawers.append(spec)
+        wall_h = dh - t
+        inner_w = dw - 2 * t
         specs.append(
-            (
-                f"{did}-bottom",
-                dw,
-                dd,
-                "eeee",
-                {"origin": [ox, oy, oz], "u": [1, 0, 0], "v": [0, 1, 0]},
-                {},
-                "moving",
-            )
+            (f"{did}-bottom", dw, dd, "eeee",
+             {"origin": [ox, oy, oz], "u": [1, 0, 0], "v": [0, 1, 0]}, {}, "moving")
         )
         specs.append(
-            (
-                f"{did}-front",
-                dw,
-                dh,
-                "eeee",
-                {"origin": [ox, oy, oz + t], "u": [1, 0, 0], "v": [0, 0, 1]},
-                # Pull half-circle is cut on the SVG sheet only (edge notch fails preview pad checks here).
-                {},
-                "moving",
-            )
+            # Normal −Y: thickness spans [oy, oy+t]. Pull half-circle is cut on the SVG sheet only.
+            (f"{did}-front", inner_w, wall_h, "eeee",
+             {"origin": [ox + t, oy + t, oz + t], "u": [1, 0, 0], "v": [0, 0, 1]}, {}, "moving")
         )
         specs.append(
-            (
-                f"{did}-back",
-                dw,
-                dh,
-                "eeee",
-                {"origin": [ox + dw, oy + dd, oz + t], "u": [-1, 0, 0], "v": [0, 0, 1]},
-                {},
-                "moving",
-            )
+            # Normal +Y: thickness spans [oy+dd−t, oy+dd].
+            (f"{did}-back", inner_w, wall_h, "eeee",
+             {"origin": [ox + dw - t, oy + dd - t, oz + t], "u": [-1, 0, 0], "v": [0, 0, 1]}, {}, "moving")
         )
         specs.append(
-            (
-                f"{did}-left",
-                dd,
-                dh,
-                "eeee",
-                {"origin": [ox, oy + dd, oz + t], "u": [0, -1, 0], "v": [0, 0, 1]},
-                {},
-                "moving",
-            )
+            # Normal −X: thickness spans [ox, ox+t].
+            (f"{did}-left", dd, wall_h, "eeee",
+             {"origin": [ox + t, oy + dd, oz + t], "u": [0, -1, 0], "v": [0, 0, 1]}, {}, "moving")
         )
         specs.append(
-            (
-                f"{did}-right",
-                dd,
-                dh,
-                "eeee",
-                {"origin": [ox + dw, oy, oz + t], "u": [0, 1, 0], "v": [0, 0, 1]},
-                {},
-                "moving",
-            )
+            # Normal +X: thickness spans [ox+dw−t, ox+dw].
+            (f"{did}-right", dd, wall_h, "eeee",
+             {"origin": [ox + dw - t, oy, oz + t], "u": [0, 1, 0], "v": [0, 0, 1]}, {}, "moving")
         )
 
     children = [_child(parent,parent_id,*spec[:6],thickness,*(spec[6:] or ["structural"])) for spec in specs]
     edge = lambda part, name: f"{parent_id}/{part}:{name}"
     constraints = []
     if bottom_on:
+        if not open_front:
+            constraints.append(("bottom", "bottom", "front", "bottom"))
         constraints.extend([
-            ("bottom", "bottom", "front", "bottom"), ("bottom", "top", "back", "bottom"),
+            ("bottom", "top", "back", "bottom"),
             ("bottom", "left", "left", "bottom"), ("bottom", "right", "right", "bottom"),
         ])
+    if not open_front:
+        constraints.extend([("front", "left", "left", "right"), ("front", "right", "right", "left")])
     constraints.extend([
-        ("front", "left", "left", "right"), ("front", "right", "right", "left"),
         ("back", "right", "left", "left"), ("back", "left", "right", "right"),
     ])
     lid_names = [str(spec[0]) for spec in specs if str(spec[0]).startswith("lid")]
     if lid_on and lid_type in {"finger", "finger_joint", "fixed"} and "lid" in lid_names:
+        if not open_front:
+            constraints.append(("lid", "bottom", "front", "top"))
         constraints.extend([
-            ("lid", "bottom", "front", "top"),
             ("lid", "top", "back", "top"),
             ("lid", "left", "left", "top"),
             ("lid", "right", "right", "top"),
         ])
     elif lid_on and lid_names:
-        # Removable / sliding / hinged doors: declare seat against front rim only.
+        # Removable / sliding / hinged doors: declare seat against the front rim
+        # (the back rim on a drawer cabinet, which has no front wall).
+        rim = "back" if open_front else "front"
         for name in lid_names:
-            constraints.append((name, "bottom", "front", "top"))
+            constraints.append((name, "bottom", rim, "top"))
 
     # Internal fittings: world-space seats (slots), not outer f/F edge pairs.
     internal_constraints: list[tuple[str, str, str, str, str]] = []
@@ -372,11 +364,18 @@ def _box(parent: dict[str, Any], index: int, thickness: float):
             internal_constraints.append((pid, "bottom", f"divider-x-{xi}", "bottom", "cross_lap"))
         for yi, _yp in enumerate(y_div_pos, 1):
             internal_constraints.append((pid, "bottom", f"divider-y-{yi}", "bottom", "cross_lap"))
-    for spec in drawer_specs:
+    for spec in placed_drawers:
         did = str(spec.get("id") or "drawer")
-        # Declared slide seat: drawer lives in its cubby (digital). Physical slide NOT_VERIFIED.
-        internal_constraints.append((f"{did}-bottom", "bottom", "bottom", "top", "drawer_seat"))
-        internal_constraints.append((f"{did}-front", "bottom", "front", "top", "drawer_seat"))
+        # The tray is one rigid unit: walls stand on its bottom, front/back sit between the sides.
+        for a, b2 in (("bottom", "front"), ("bottom", "back"), ("bottom", "left"), ("bottom", "right"),
+                      ("left", "front"), ("left", "back"), ("right", "front"), ("right", "back")):
+            internal_constraints.append((f"{did}-{a}", "top", f"{did}-{b2}", "bottom", "tray_joint"))
+        # Each tray panel moves with the tray along a slide proven by validate_drawer_slide()
+        # against the floor it rests on (box bottom, or the shelf under its bay).
+        zi = int(spec.get("row_z") or 0)
+        floor = "bottom" if zi == 0 or shelf_n < zi else f"shelf-{zi}"
+        for suffix in DRAWER_PANELS:
+            internal_constraints.append((f"{did}-{suffix}", "bottom", floor, "top", "drawer_slide"))
 
     def lid_seat(name: str) -> tuple[str, str] | None:
         # Non-finger lids are plain "eeee" panels seated on the front rim, not f/F edge mates.
@@ -402,11 +401,102 @@ def _box(parent: dict[str, Any], index: int, thickness: float):
             "part_b": f"{parent_id}/{bpart}",
             "edge_b": edge(bpart, eb),
             "joint_type": jtype,
-            "expected_transform": "internal_fitting_seat",
+            "expected_transform": "drawer_slide_path" if jtype == "drawer_slide" else "internal_fitting_seat",
             "tolerance": 0.05,
             "result": "NOT_VERIFIED",
         })
     return parent_id, children, joints
+
+
+DRAWER_PANELS = ("bottom", "front", "back", "left", "right")
+DRAWER_MIN_CLEARANCE_MM = 0.2
+_PULL_AXIS = (0.0, -1.0, 0.0)  # drawers pull out through the open front (−Y)
+
+
+def validate_drawer_slide(parts: list[dict[str, Any]], drawer_id: str, thickness: float,
+                          *, min_clearance: float = DRAWER_MIN_CLEARANCE_MM) -> dict[str, Any]:
+    """Prove a tray slides in its cubby from dimensions alone — no joint, just free space.
+
+    The tray (its five panels as one rigid box) must:
+      * rest on a floor (box bottom or the shelf under its bay),
+      * keep ≥ min_clearance to every side neighbour and to anything above it,
+      * not overlap anything at rest, and
+      * sweep straight out along −Y until it fully clears the box without touching
+        any other part (continuous swept-AABB test, same method as linear_motion).
+    Physical sliding/fit stays NOT_VERIFIED; this is digital geometry only.
+    """
+    from linear_motion import _swept_overlap
+
+    t = float(thickness)
+    tol = 0.01
+    tray_ids = {f"{drawer_id}-{s}" for s in DRAWER_PANELS}
+    tray = [p for p in parts if str(p.get("composite_role") or "") in tray_ids]
+    if len(tray) != len(DRAWER_PANELS):
+        return {"drawer": drawer_id, "status": "FAIL", "reason": "TRAY_PANELS_MISSING"}
+    boxes = [_bbox(p, t) for p in tray]
+    if any(b is None for b in boxes):
+        return {"drawer": drawer_id, "status": "FAIL", "reason": "TRAY_PLACEMENT_MISSING"}
+    tb = [min(b[i] for b in boxes) for i in range(3)] + [max(b[i + 3] for b in boxes) for i in range(3)]
+    others = []
+    for p in parts:
+        if p in tray:
+            continue
+        ob = _bbox(p, t)
+        if ob:
+            others.append((str(p.get("composite_role") or p.get("physical_part_id")), ob))
+
+    support = None
+    side_gap = top_gap = None
+    rest_overlaps = []
+    for name, ob in others:
+        ov = [min(tb[i + 3], ob[i + 3]) - max(tb[i], ob[i]) for i in range(3)]
+        if all(v > tol for v in ov):
+            rest_overlaps.append(name)
+            continue
+        if ov[0] > tol and ov[1] > tol and abs(ob[5] - tb[2]) <= 0.05:
+            support = support or name
+        if ov[1] > tol and ov[2] > tol:  # beside the tray
+            gap = -ov[0]
+            side_gap = gap if side_gap is None else min(side_gap, gap)
+        if ov[0] > tol and ov[1] > tol and ob[2] >= tb[5] - tol:  # above the tray
+            gap = ob[2] - tb[5]
+            top_gap = gap if top_gap is None else min(top_gap, gap)
+
+    # Pull until the tray's back face passes the frontmost face of the box.
+    front_face = min(ob[1] for _, ob in others) if others else tb[1]
+    travel = round(tb[4] - front_face + 1.0, 3)
+    velocity = [a * travel for a in _PULL_AXIS]
+    path_hits = []
+    for name, ob in others:
+        hit = _swept_overlap(tb, ob, velocity, tol)
+        if hit:
+            path_hits.append({"part": name, "travel_range_mm": [round(hit[0] * travel, 3), round(hit[1] * travel, 3)]})
+
+    problems = []
+    if rest_overlaps:
+        problems.append("overlaps at rest: " + ", ".join(rest_overlaps))
+    if not support:
+        problems.append("no floor under the tray")
+    if side_gap is not None and side_gap < min_clearance:
+        problems.append(f"side clearance {side_gap:.2f} mm < {min_clearance} mm")
+    if top_gap is not None and top_gap < min_clearance:
+        problems.append(f"top clearance {top_gap:.2f} mm < {min_clearance} mm")
+    if path_hits:
+        problems.append("pull-out path blocked by " + ", ".join(h["part"] for h in path_hits))
+    r = lambda v: None if v is None else round(v, 3)
+    return {
+        "drawer": drawer_id,
+        "status": "FAIL" if problems else "PASS",
+        "reason": "; ".join(problems) if problems else "DRAWER_SLIDE_CLEAR",
+        "tray_bbox_mm": [round(v, 3) for v in tb],
+        "support": support,
+        "side_clearance_mm": r(side_gap),
+        "top_clearance_mm": r(top_gap),
+        "pull_axis": list(_PULL_AXIS),
+        "travel_mm": travel,
+        "path_collisions": path_hits,
+        "physical_slide": "NOT_VERIFIED",
+    }
 
 
 def _internal_fitting_ok(a: dict[str, Any] | None, b: dict[str, Any] | None, thickness: float, tol: float = 0.05):
@@ -463,10 +553,26 @@ def validate_box_transforms(parts,constraints,thickness):
             target=expected.get(role)
         status="PASS" if normal and target and math.sqrt(sum((normal[i]-target[i])**2 for i in range(3)))<=1e-6 else "FAIL"
         checks.append({"type":"PART_TRANSFORM","part":part.get("physical_part_id"),"status":status,"origin":(part.get("placement") or {}).get("origin"),"u":(part.get("placement") or {}).get("u"),"v":(part.get("placement") or {}).get("v"),"normal":normal,"expected_normal":target})
+    slides: dict[tuple[str, str], dict[str, Any]] = {}
     for joint in constraints:
         a,b=lookup.get(str(joint.get("part_a"))),lookup.get(str(joint.get("part_b")));ea=str(joint.get("edge_a") or "").split(":")[-1];eb=str(joint.get("edge_b") or "").split(":")[-1]
         jtype=str(joint.get("joint_type") or "finger_joint")
-        if jtype in {"finger_slot", "cross_lap", "shelf_slot", "removable_lid", "hinged_lid", "drawer_seat"}:
+        if jtype == "drawer_slide":
+            # One slide proof per tray, shared by its five panels' slide edges.
+            role = str((a or {}).get("composite_role") or "")
+            drawer_id = role.rsplit("-", 1)[0] if role.startswith("drawer-") else role
+            group = str((a or {}).get("composite_parent") or "")
+            key = (group, drawer_id)
+            if key not in slides:
+                slides[key] = validate_drawer_slide([p for p in parts if p.get("composite_parent") == group], drawer_id, t)
+            proof = slides[key]
+            ok = bool(a and b) and proof["status"] == "PASS" and proof.get("support") == str(b.get("composite_role"))
+            joint.update(result="MATCH" if ok else "FAIL", drawer_slide=proof, internal_fitting=False)
+            if role.endswith("-bottom"):
+                checks.append({"type": "DRAWER_SLIDE", "part_a": joint.get("part_a"), "part_b": joint.get("part_b"),
+                               "status": "PASS" if ok else "FAIL", **proof})
+            continue
+        if jtype in {"finger_slot", "cross_lap", "shelf_slot", "removable_lid", "hinged_lid", "drawer_seat", "tray_joint"}:
             if jtype == "drawer_seat":
                 # Digital cubby occupancy only — physical slide/kerf stay NOT_VERIFIED.
                 ok = bool(a and b and a.get("placement") and b.get("placement"))
@@ -506,8 +612,9 @@ def validate_box_transforms(parts,constraints,thickness):
         joint.update(result="MATCH" if ok else "FAIL",world_edge_error_mm=round(best[0],6) if best else None,edge_length_delta_mm=round(abs(la-lb),6),normal_angle_deg=round(angle,6) if angle is not None else None,material_surface_offsets_mm=[best[1],best[2]] if best else None,edge_profiles=[ca,cb],complementary_geometry=complementary)
         checks.append({"type":"JOINT_TRANSFORM","part_a":joint.get("part_a"),"part_b":joint.get("part_b"),"status":"PASS" if ok else "FAIL","world_edge_error_mm":joint.get("world_edge_error_mm"),"edge_length_delta_mm":joint.get("edge_length_delta_mm"),"normal_angle_deg":joint.get("normal_angle_deg"),"material_surface_offsets_mm":joint.get("material_surface_offsets_mm"),"edge_profiles":[ca,cb],"complementary_geometry":complementary})
     bottoms=[p for p in parts if p.get("composite_role")=="bottom"];walls={p.get("composite_role"):p for p in parts if p.get("composite_role") in {"front","back","left","right"}}
-    volume_ok=bool(bottoms and len(walls)==4 and float(bottoms[0].get("w") or 0)>0 and float(bottoms[0].get("h") or 0)>0 and min(float(p.get("h") or 0) for p in walls.values())>0)
-    checks.append({"type":"INTERIOR_VOLUME","status":"PASS" if volume_ok else "FAIL","inner_dimensions_mm":[float(bottoms[0].get("w")),float(bottoms[0].get("h")),float(walls["front"].get("h"))] if volume_ok else None})
+    # A drawer cabinet has no front wall; its volume is bounded by back + sides.
+    volume_ok=bool(bottoms and {"back","left","right"}<=set(walls) and float(bottoms[0].get("w") or 0)>0 and float(bottoms[0].get("h") or 0)>0 and min(float(p.get("h") or 0) for p in walls.values())>0)
+    checks.append({"type":"INTERIOR_VOLUME","status":"PASS" if volume_ok else "FAIL","open_front":"front" not in walls,"inner_dimensions_mm":[float(bottoms[0].get("w")),float(bottoms[0].get("h")),float(walls["back"].get("h"))] if volume_ok else None})
     return {"status":"PASS" if checks and all(c["status"]=="PASS" for c in checks) else "FAIL","checks":checks}
 
 
@@ -566,16 +673,21 @@ def classify_contacts(parts: list[dict[str, Any]], constraints: list[dict[str, A
             depth = [min(ab[k + 3], bb[k + 3]) - max(ab[k], bb[k]) for k in range(3)]
             pair = frozenset((a["physical_part_id"], b["physical_part_id"]))
             rec = {"part_a": a["physical_part_id"], "part_b": b["physical_part_id"], "penetration_mm": [round(x, 4) for x in depth]}
-            roles = {str(a.get("composite_role") or ""), str(b.get("composite_role") or "")}
-            internal = any(r.startswith(("divider-", "shelf")) for r in roles)
+            role_a, role_b = str(a.get("composite_role") or ""), str(b.get("composite_role") or "")
+            roles = {role_a, role_b}
+            tray = lambda r: r.rsplit("-", 1)[0] if r.startswith("drawer-") else None
             drawerish = any(r.startswith("drawer-") for r in roles)
+            # Dividers/shelves seat into walls/bottom; a drawer is never exempted this way —
+            # its free space is proven by validate_drawer_slide().
+            internal = not drawerish and any(r.startswith(("divider-", "shelf")) for r in roles)
+            same_tray = tray(role_a) is not None and tray(role_a) == tray(role_b)
             if pair in intended_pairs and all(x >= -0.05 for x in depth):
                 rec["classification"] = "INTENDED_CONTACT"; intended.append(rec)
             elif internal and all(x >= -0.05 for x in depth):
                 # Dividers/shelves seat into walls/bottom — declared fittings, not illegal collisions.
                 rec["classification"] = "INTENDED_CONTACT"; intended.append(rec)
-            elif drawerish and all(x >= -0.05 for x in depth):
-                # Drawers occupy cubbies / mate among tray walls — moving fit, not illegal.
+            elif same_tray and all(x >= -0.05 for x in depth):
+                # Panels of one tray meet at its own corners.
                 rec["classification"] = "INTENDED_CONTACT"; intended.append(rec)
             elif all(x > 0.01 for x in depth):
                 rec["classification"] = "COLLISION"; illegal.append(rec)

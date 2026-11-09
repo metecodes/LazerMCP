@@ -401,7 +401,9 @@ def review_built(built: dict[str, Any]) -> dict[str, Any]:
         else:
             completeness.append({"status": PASS, "note": f"{len(faces)} faces present"})
         if box:
-            for wall in ("front", "back", "left", "right"):
+            # A drawer cabinet has no front wall: the drawer fronts close the face.
+            open_front = bool(box.get("drawers")) and bool(box.get("drawer_specs"))
+            for wall in (("back", "left", "right") if open_front else ("front", "back", "left", "right")):
                 if wall not in names:
                     completeness.append({"status": FAIL, "note": f"box is missing {wall} wall"})
             if box.get("bottom", True) and "bottom" not in names:

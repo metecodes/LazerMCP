@@ -64,7 +64,8 @@ def drawer_bay_floors(h: float, raised: float, shelves: int, thickness: float, l
     floors: list[float] = []
     for zi in range(n):
         if zi == 0:
-            floors.append(round(float(raised), 3))
+            # On top of the bottom plate, which spans [raised, raised + t].
+            floors.append(round(float(raised) + t, 3))
         else:
             # Sit on top of shelf plate at raised + step*zi (thickness +Z).
             floors.append(round(float(raised) + step * zi + t, 3))
@@ -506,21 +507,8 @@ def build_studio_box(payload: dict[str, Any] | None = None) -> dict[str, Any]:
         if make_drawers
         else []
     )
-    bay_floors = drawer_bay_floors(hi, raised, shelves, thickness, lid_eat) if make_drawers else []
-    front_openings = (
-        drawer_front_openings(
-            sx=sx,
-            cell_heights=cell_h,
-            bay_floors=bay_floors,
-            thickness=thickness,
-            wall_z0=thickness,
-            wall_w=xi,
-            wall_h=hi,
-            clearance=drawer_clearance,
-        )
-        if make_drawers and drawer_specs
-        else []
-    )
+    # Drawer boxes have no front wall (the drawer fronts are the face), so no front openings.
+    front_openings: list[dict[str, Any]] = []
 
     box: dict[str, Any] = {
         "type": "box",
@@ -722,17 +710,17 @@ def build_assembly_guide(box: dict[str, Any], summary: dict[str, Any] | None = N
         )
         return cid
 
+    drawers_on = bool(box.get("drawers")) and bool(box.get("drawer_specs"))
+    drawer_specs = box.get("drawer_specs") if isinstance(box.get("drawer_specs"), list) else []
+    # Drawer cabinet: no front wall — the drawer fronts close the face.
+    walls_present = ("back", "left", "right") if drawers_on else ("front", "back", "left", "right")
+
     # Structural walls ↔ bottom + corners
-    for wall, hint in (
-        ("front", "bottom↔front"),
-        ("back", "bottom↔back"),
-        ("left", "bottom↔left"),
-        ("right", "bottom↔right"),
-    ):
+    for wall in walls_present:
         add_conn(
             "bottom",
             wall,
-            edge_hint=hint,
+            edge_hint=f"bottom↔{wall}",
             gender_a="female" if raised > 0.05 else "female",
             gender_b="male",
             note="raised-bottom slot" if raised > 0.05 else "finger joint floor",
@@ -743,12 +731,10 @@ def build_assembly_guide(box: dict[str, Any], summary: dict[str, Any] | None = N
         ("back", "left", "back↔left corner"),
         ("back", "right", "back↔right corner"),
     ):
-        add_conn(a, b, edge_hint=hint)
+        if a in walls_present:
+            add_conn(a, b, edge_hint=hint)
 
-    order: list[str] = ["bottom", "front", "back", "left", "right"]
-
-    drawers_on = bool(box.get("drawers")) and bool(box.get("drawer_specs"))
-    drawer_specs = box.get("drawer_specs") if isinstance(box.get("drawer_specs"), list) else []
+    order: list[str] = ["bottom", *walls_present]
 
     for i in range(1, dx + 1):
         pid = f"divider-x-{i}"
@@ -799,16 +785,18 @@ def build_assembly_guide(box: dict[str, Any], summary: dict[str, Any] | None = N
         order.append(did)
         titles[did] = (
             f"Çekmece {did.replace('drawer-', '')}",
-            f"Açık tepsiyi hücreye kaydır ({label} mm). Fiziksel kayma NOT_VERIFIED.",
+            f"Açık tepsiyi hücresine önden kaydır ({label} mm); üst ortadaki yarım daire delikten çekilir. "
+            "Kayma boşluğu dijital kontrol edildi; fiziksel kayma NOT_VERIFIED.",
         )
+        zi = int(spec.get("row_z") or 0)
         add_conn(
             did,
-            "front",
-            joint_type="drawer_seat",
-            edge_hint="drawer→opening",
+            "bottom" if zi == 0 else f"shelf-{zi}",
+            joint_type="drawer_slide",
+            edge_hint="tray slides on its floor",
             gender_a="moving",
-            gender_b="opening",
-            note="pull-out tray in cubby",
+            gender_b="floor",
+            note="free sliding fit — no joint, clearance checked",
         )
 
     lid_parts: list[str] = []
@@ -826,7 +814,7 @@ def build_assembly_guide(box: dict[str, Any], summary: dict[str, Any] | None = N
         for pid in lid_parts:
             order.append(pid)
             if lid_type in {"finger", "finger_joint", "fixed"}:
-                for wall in ("front", "back", "left", "right"):
+                for wall in walls_present:
                     add_conn(pid, wall, joint_type="finger_joint", edge_hint=f"lid↔{wall}")
             elif lid_type in {"sliding", "slide"}:
                 add_conn(pid, "left", joint_type="slide_rail", edge_hint="lid↔left rail", gender_a="male", gender_b="female")
@@ -835,7 +823,7 @@ def build_assembly_guide(box: dict[str, Any], summary: dict[str, Any] | None = N
                 add_conn(pid, "back", joint_type="hinge", edge_hint="lid↔back hinge", gender_a="male", gender_b="female")
             else:
                 # removable / friction — declared seat, not a locked finger
-                for wall in ("front", "back", "left", "right"):
+                for wall in walls_present:
                     add_conn(
                         pid,
                         wall,

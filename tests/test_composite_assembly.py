@@ -130,9 +130,69 @@ class CompositeAssemblyTests(unittest.TestCase):
         ]
         self.assertTrue(fingerish)
         self.assertTrue(all(c.get("result") == "MATCH" for c in fingerish))
-        seats = [c for c in result["derived_constraints"] if c.get("joint_type") == "drawer_seat"]
-        self.assertGreaterEqual(len(seats), 2)
-        self.assertTrue(all(c.get("result") == "MATCH" for c in seats))
+        # Drawer cabinet: no front wall; each tray slides on its floor with proven free space.
+        self.assertNotIn("cubby/front", ids)
+        slides = [c for c in result["derived_constraints"] if c.get("joint_type") == "drawer_slide"]
+        self.assertEqual(len(slides), 5 * len(drawers))
+        self.assertTrue(all(c.get("result") == "MATCH" for c in slides))
+        proofs = {c["drawer_slide"]["drawer"]: c["drawer_slide"] for c in slides}
+        for proof in proofs.values():
+            self.assertEqual(proof["status"], "PASS", proof["reason"])
+            self.assertGreaterEqual(proof["side_clearance_mm"], 0.2)
+            self.assertFalse(proof["path_collisions"])
+        self.assertEqual({p["support"] for p in proofs.values()}, {"bottom", "shelf-1"})
+
+    def _drawer_box(self, **overrides):
+        from studio_box import build_studio_box
+
+        body = {"x": 180, "y": 120, "h": 70, "thickness": 3, "lid": "open", "dividers_x": 1,
+                "shelves": 1, "drawers": True, "name": "cab", **overrides}
+        return build_studio_box(body)["primitives"]
+
+    def _slide_proofs(self, primitives):
+        result = check_assembly(primitives, thickness=3)
+        checks = (result.get("transform_validation") or {}).get("checks") or []
+        return result, {c["drawer"]: c for c in checks if c.get("type") == "DRAWER_SLIDE"}
+
+    def test_drawer_slide_passes_for_every_lid_and_grid(self):
+        for lid in ("open", "finger", "removable", "sliding", "hinged", "double_door"):
+            for dx, shelves, dy in ((0, 0, 0), (1, 1, 0), (2, 2, 1)):
+                with self.subTest(lid=lid, dx=dx, shelves=shelves, dy=dy):
+                    result, proofs = self._slide_proofs(self._drawer_box(lid=lid, dividers_x=dx, shelves=shelves, dividers_y=dy))
+                    self.assertTrue(result["ok"], result.get("look_again"))
+                    self.assertTrue(proofs)
+                    self.assertTrue(all(p["status"] == "PASS" for p in proofs.values()))
+
+    def test_oversized_drawer_is_caught(self):
+        prims = self._drawer_box()
+        prims[0]["drawer_specs"][0]["w_mm"] += 4  # wider than its cubby → hits the divider
+        result, proofs = self._slide_proofs(prims)
+        self.assertFalse(result["ok"])
+        self.assertEqual(proofs["drawer-1"]["status"], "FAIL")
+        self.assertIn("divider-x-1", proofs["drawer-1"]["reason"])
+
+    def test_floating_drawer_is_caught(self):
+        from composite_assembly import validate_drawer_slide, expand
+
+        parts = [p for p in expand(self._drawer_box(), 3)["physical_parts"] if p.get("composite_parent") == "cab"]
+        for p in parts:  # lift tray 1 two millimetres off the bottom: nothing carries it
+            if str(p.get("composite_role")).startswith("drawer-1-"):
+                p["placement"]["origin"][2] += 2
+        proof = validate_drawer_slide(parts, "drawer-1", 3)
+        self.assertEqual(proof["status"], "FAIL")
+        self.assertIn("no floor", proof["reason"])
+
+    def test_blocked_pull_out_path_is_caught(self):
+        from composite_assembly import validate_drawer_slide, expand
+
+        parts = expand(self._drawer_box(dividers_x=0, shelves=0), 3)["physical_parts"]
+        # A plate across the open front, in front of the tray, blocks the pull-out sweep.
+        blocker = {"composite_parent": "cab", "composite_role": "front-bar", "physical_part_id": "cab/front-bar",
+                   "w": 180, "h": 10, "edges": "eeee", "type": "panel",
+                   "placement": {"origin": [0, -20, 20], "u": [1, 0, 0], "v": [0, 0, 1]}}
+        proof = validate_drawer_slide([p for p in parts if p.get("composite_parent") == "cab"] + [blocker], "drawer-1", 3)
+        self.assertEqual(proof["status"], "FAIL")
+        self.assertEqual([h["part"] for h in proof["path_collisions"]], ["front-bar"])
 
     def test_removable_lid_seat_is_internal_fitting(self):
         source = [{
