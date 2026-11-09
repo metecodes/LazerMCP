@@ -186,21 +186,21 @@
     }
     @keyframes spin { to { transform: rotate(360deg); } }
     .stage-dock {
-      position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+      position: absolute; left: 50%; top: 12px; transform: translateX(-50%);
       z-index: 4; display: flex; align-items: center; gap: 8px;
-      padding: 10px 12px; border-radius: 16px;
+      padding: 8px 12px; border-radius: 14px;
       background: var(--hud-bg); border: 1px solid var(--line);
       box-shadow: var(--shadow); backdrop-filter: blur(10px);
-      pointer-events: auto;
+      pointer-events: auto; max-width: calc(100% - 24px);
     }
-    .stage-dock .btn { width: auto; margin: 0; padding: 10px 14px; font-size: 13px; font-weight: 600; }
+    .stage-dock .btn { width: auto; margin: 0; padding: 9px 14px; font-size: 13px; font-weight: 600; }
     .stage-dock .btn.ghost { background: color-mix(in srgb, var(--panel-2) 80%, transparent); }
     .stage-dock .dock-hint {
       font: 10px/1.2 var(--mono); color: var(--mute); max-width: 7.5rem;
       letter-spacing: 0.04em; text-transform: uppercase;
     }
     @media (max-width: 720px) {
-      .stage-dock { top: auto; bottom: 88px; transform: translate(-50%, 0); flex-wrap: wrap; justify-content: center; max-width: calc(100% - 24px); }
+      .stage-dock { flex-wrap: wrap; justify-content: center; }
     }
     .hud {
       position: absolute; left: 14px; bottom: 14px; right: 14px;
@@ -289,7 +289,7 @@
     .asm-list li.on { color: var(--ink); border-left: 2px solid var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
     .asm-list li .sub { display: block; color: var(--mute); font-size: 10px; margin-top: 2px; }
     .dim-pop {
-      position: absolute; left: 50%; top: 50%; transform: translate(-50%, calc(-50% - 64px));
+      position: absolute; left: 50%; top: 64px; transform: translateX(-50%);
       z-index: 5; width: 240px;
       background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
       padding: 14px; box-shadow: var(--shadow);
@@ -603,7 +603,7 @@
           <span id="stage-loading-text">Kapak / ölçü güncelleniyor…</span>
         </div>
         <div class="stage-dock" id="stage-dock" role="toolbar" aria-label="Animasyon ve düzenleme">
-          <span class="dock-hint">Orta kısayol</span>
+          <span class="dock-hint">Üst kısayol</span>
           <button type="button" class="btn ghost" id="undo-stage" title="Son değişikliği geri al (Ctrl+Z)">Geri al</button>
           <button type="button" class="btn cut" id="asm-play" title="Montaj animasyonu oynat / durdur">▶ Oynat</button>
           <button type="button" class="btn ghost hide" id="video-stop-stage" title="Video kaydını durdur">■ Video dur</button>
@@ -626,7 +626,7 @@
               <span id="asm-step-lab" class="hud-note">0/0</span>
             </div>
             <span class="hud-note" id="hud-live-sum">—</span>
-            <span class="hud-note">Orta: oynat/dur · geri al · düzenle · Video = WebM · Explode = ayrıştır</span>
+            <span class="hud-note">Üst: oynat/dur · geri al · düzenle · Video = WebM · Explode = ayrıştır</span>
           </div>
         </div>
       </main>
@@ -685,7 +685,7 @@
     }
   }
   </script>
-  <script type="module" src="/studio-3d.js?v=35"></script>
+  <script type="module" src="/studio-3d.js?v=36"></script>
   <script src="/nav-auth.js?v=6"></script>
 </body>
 </html>
