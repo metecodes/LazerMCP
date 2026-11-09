@@ -89,9 +89,15 @@ function panelLeafId(partId) {
 
 function matchGuidePart(partId, guidePartId) {
   const leaf = panelLeafId(partId);
-  const want = String(guidePartId || "").toLowerCase();
+  const want = String(guidePartId || "").toLowerCase().split("/").pop() || "";
   if (!leaf || !want) return false;
-  return leaf === want || leaf.endsWith(want) || leaf.includes(want);
+  // drawer-1 matches drawer-1 / drawer-1-front / … but not drawer-10
+  const drawerUnit = want.match(/^(drawer-\d+)$/);
+  if (drawerUnit) {
+    const base = drawerUnit[1];
+    return leaf === base || leaf.startsWith(base + "-");
+  }
+  return leaf === want || leaf.endsWith("/" + want) || leaf.endsWith(want);
 }
 
 function parseDividerMeta(partId) {
@@ -1140,7 +1146,7 @@ function applyAssemblyStep(step, animateIncoming) {
     });
   }
 
-  let incoming = null;
+  const incomingGroups = [];
   state.meshes.forEach((group) => {
     let kind = "hidden";
     let matchedOrder = null;
@@ -1156,7 +1162,7 @@ function applyAssemblyStep(step, animateIncoming) {
       kind = "hidden";
     } else if (matchedOrder === activeId) {
       kind = "active";
-    } else if (mateParts.has(matchedOrder)) {
+    } else if ([...mateParts].some((m) => matchGuidePart(matchedOrder, m) || m === matchedOrder)) {
       kind = "mate";
     } else {
       kind = "seated";
@@ -1166,7 +1172,7 @@ function applyAssemblyStep(step, animateIncoming) {
     if (!group.userData.baseMatrix || !group.userData.seated) return;
     const m = group.userData.baseMatrix.clone();
     if (animateIncoming && matchedOrder === activeId && group.userData.exploded) {
-      incoming = group;
+      incomingGroups.push(group);
       const from = group.userData.exploded.clone();
       const delta0 = from.clone().sub(group.userData.seated);
       const startM = group.userData.baseMatrix.clone();
@@ -1193,11 +1199,9 @@ function applyAssemblyStep(step, animateIncoming) {
   }
   syncHandleVisibility();
 
-  if (!incoming) return Promise.resolve();
-  const from = incoming.userData.exploded.clone();
-  const to = incoming.userData.seated.clone();
+  if (!incomingGroups.length) return Promise.resolve();
   const start = performance.now();
-  const dur = 900;
+  const dur = Math.min(1100, Math.max(450, 900 - incomingGroups.length * 40));
   return new Promise((resolve) => {
     const tick = (now) => {
       if (state.asmStep !== n) {
@@ -1206,15 +1210,21 @@ function applyAssemblyStep(step, animateIncoming) {
       }
       const u = Math.min(1, (now - start) / dur);
       const e = 1 - Math.pow(1 - u, 3);
-      const p = from.clone().lerp(to, e);
-      const delta = p.clone().sub(incoming.userData.seated);
-      const mm = incoming.userData.baseMatrix.clone();
-      mm.setPosition(new THREE.Vector3().setFromMatrixPosition(mm).add(delta));
-      incoming.matrix.copy(mm);
-      incoming.matrixWorldNeedsUpdate = true;
+      incomingGroups.forEach((incoming) => {
+        const from = incoming.userData.exploded.clone();
+        const to = incoming.userData.seated.clone();
+        const p = from.clone().lerp(to, e);
+        const delta = p.clone().sub(incoming.userData.seated);
+        const mm = incoming.userData.baseMatrix.clone();
+        mm.setPosition(new THREE.Vector3().setFromMatrixPosition(mm).add(delta));
+        incoming.matrix.copy(mm);
+        incoming.matrixWorldNeedsUpdate = true;
+      });
       if (u < 1) state.asmAnim = requestAnimationFrame(tick);
       else {
-        incoming.matrix.copy(incoming.userData.baseMatrix);
+        incomingGroups.forEach((incoming) => {
+          incoming.matrix.copy(incoming.userData.baseMatrix);
+        });
         state.asmAnim = null;
         resolve();
       }
@@ -1227,9 +1237,42 @@ function setAssemblyStep(step, animate) {
   return applyAssemblyStep(step, !!animate);
 }
 
+function analyzeAssemblySchema(guide, panels) {
+  const order = (guide && guide.assembly_order) || [];
+  const panelCount = (panels || state.meshes || []).length;
+  const drawers = order.filter((id) => /^drawer-\d+$/i.test(String(id).split("/").pop() || ""));
+  const carcass = order.filter((id) => {
+    const leaf = String(id).split("/").pop() || "";
+    return /^(bottom|front|back|left|right)$/i.test(leaf);
+  });
+  const fittings = order.filter((id) => {
+    const leaf = String(id).split("/").pop() || "";
+    return /^(divider-|shelf-|lid)/i.test(leaf);
+  });
+  const stepHold = panelCount >= 40 ? 320 : panelCount >= 20 ? 450 : 650;
+  const animMs = panelCount >= 40 ? 520 : 750;
+  return {
+    panelCount,
+    stepCount: order.length,
+    drawerCount: drawers.length,
+    carcassCount: carcass.length,
+    fittingCount: fittings.length,
+    order: order.slice(),
+    stepHoldMs: stepHold,
+    animBudgetMs: animMs,
+    analyzeHoldMs: panelCount >= 30 ? 1600 : 1100,
+    schemaHoldMs: 900,
+    speak:
+      "Analiz: " + panelCount + " panel · " + order.length + " montaj adımı"
+      + (drawers.length ? (" · " + drawers.length + " çekmece") : "")
+      + " · şema kuruluyor",
+  };
+}
+
 async function playAssemblyAnimation() {
   const guide = state.assemblyGuide;
-  const total = ((guide && guide.assembly_order) || []).length;
+  const schema = analyzeAssemblySchema(guide, (state.assembly && state.assembly.panels) || []);
+  const total = schema.stepCount;
   if (!total) {
     setStatus("Önce kutu üret — montaj sırası yok.", "bad");
     return;
@@ -1243,25 +1286,37 @@ async function playAssemblyAnimation() {
   state.asmPlaying = true;
   if ($("asm-play")) $("asm-play").textContent = "■ Dur";
 
-  // Peek exploded layout so "incoming from outside" is readable, then assemble.
+  // 1) Analyze — exploded overview so multi-part kits don't jump straight into chaos.
   state.meshes.forEach((g) => setPanelMaterial(g, "seated"));
   if ($("explode")) {
-    $("explode").value = "55";
-    $("explode-lab").textContent = "55%";
+    $("explode").value = "60";
+    $("explode-lab").textContent = "60%";
   }
-  applyExplode(0.55);
+  applyExplode(0.6);
   fitCamera();
-  await sleep(500);
+  setStatus(schema.speak + " · fiziksel NOT_VERIFIED", "ok");
+  await sleep(schema.analyzeHoldMs);
   if (!state.asmPlaying || state.asmPlayToken !== token) return;
 
+  // 2) Schema — empty → show planned order start.
   await setAssemblyStep(0, false);
   fitCameraSoon();
-  await sleep(350);
+  setStatus(
+    "Montaj şeması: gövde " + schema.carcassCount
+      + " · fitting " + schema.fittingCount
+      + " · çekmece " + schema.drawerCount
+      + " · adım " + schema.stepCount,
+    "ok"
+  );
+  await sleep(schema.schemaHoldMs);
+  if (!state.asmPlaying || state.asmPlayToken !== token) return;
+
+  // 3) Assemble by schema steps (drawer units are already grouped).
   for (let step = 1; step <= total; step += 1) {
     if (!state.asmPlaying || state.asmPlayToken !== token) return;
     await setAssemblyStep(step, true);
     fitCameraSoon();
-    if (step < total) await sleep(700);
+    if (step < total) await sleep(schema.stepHoldMs);
   }
   if (!state.asmPlaying || state.asmPlayToken !== token) return;
   stopAssemblyPlay();
@@ -1382,11 +1437,13 @@ async function orbitTurntable(seconds, token) {
 
 async function runAssemblyForVideo(token) {
   const guide = state.assemblyGuide;
-  const total = ((guide && guide.assembly_order) || []).length;
+  const schema = analyzeAssemblySchema(guide, (state.assembly && state.assembly.panels) || []);
+  const total = schema.stepCount;
   const controlsOn = view.controls ? view.controls.enabled : true;
   if (view.controls) view.controls.enabled = false;
 
   try {
+    // Phase A — analyze exploded kit (same for parametric + AI boxes).
     state.meshes.forEach((g) => setPanelMaterial(g, "seated"));
     if ($("explode")) {
       $("explode").value = "60";
@@ -1394,23 +1451,31 @@ async function runAssemblyForVideo(token) {
     }
     applyExplode(0.6);
     fitCamera();
-    await sleep(700);
+    setStatus(schema.speak + " (video)", "ok");
+    await sleep(schema.analyzeHoldMs);
     if (!state.videoExporting || state.asmPlayToken !== token) return false;
 
+    // Phase B — install montage schema, then assemble.
     state.asmPlaying = true;
-    if (total > 0) {
-      await setAssemblyStep(0, false);
-      fitCameraSoon();
-      await sleep(400);
-      for (let step = 1; step <= total; step += 1) {
-        if (!state.videoExporting || state.asmPlayToken !== token) return false;
-        await setAssemblyStep(step, true);
-        fitCameraSoon();
-        if (step < total) await sleep(550);
-      }
+    await setAssemblyStep(0, false);
+    fitCameraSoon();
+    setStatus(
+      "Video şema: gövde " + schema.carcassCount
+        + " · fitting " + schema.fittingCount
+        + " · çekmece " + schema.drawerCount,
+      "ok"
+    );
+    await sleep(schema.schemaHoldMs);
+    if (!state.videoExporting || state.asmPlayToken !== token) return false;
+
+    for (let step = 1; step <= total; step += 1) {
       if (!state.videoExporting || state.asmPlayToken !== token) return false;
-      await setAssemblyStep(total, false);
+      await setAssemblyStep(step, true);
+      fitCameraSoon();
+      if (step < total) await sleep(schema.stepHoldMs);
     }
+    if (!state.videoExporting || state.asmPlayToken !== token) return false;
+    await setAssemblyStep(total, false);
     if ($("explode")) {
       $("explode").value = "0";
       $("explode-lab").textContent = "0%";
@@ -1419,9 +1484,10 @@ async function runAssemblyForVideo(token) {
     fitCamera();
     await sleep(600);
     if (!state.videoExporting || state.asmPlayToken !== token) return false;
-    await orbitTurntable(4.5, token);
+    const orbitSec = schema.panelCount >= 40 ? 3.2 : 4.5;
+    await orbitTurntable(orbitSec, token);
     if (!state.videoExporting || state.asmPlayToken !== token) return false;
-    await sleep(500);
+    await sleep(400);
     return true;
   } finally {
     if (view.controls) view.controls.enabled = controlsOn;

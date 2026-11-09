@@ -795,21 +795,14 @@ def build_assembly_guide(box: dict[str, Any], summary: dict[str, Any] | None = N
             continue
         did = str(spec.get("id") or "drawer")
         label = str(spec.get("label_mm") or did)
-        for suffix, title in (
-            ("bottom", "taban"),
-            ("front", "ön"),
-            ("back", "arka"),
-            ("left", "sol"),
-            ("right", "sağ"),
-        ):
-            pid = f"{did}-{suffix}"
-            order.append(pid)
-            titles[pid] = (
-                f"Çekmece {did.replace('drawer-', '')} {title}",
-                f"Açık tepsiyi hücreye kaydır ({label} mm). Fiziksel kayma NOT_VERIFIED.",
-            )
+        # One montage step per tray (5 cut panels nest beside the carcass; video seats the unit).
+        order.append(did)
+        titles[did] = (
+            f"Çekmece {did.replace('drawer-', '')}",
+            f"Açık tepsiyi hücreye kaydır ({label} mm). Fiziksel kayma NOT_VERIFIED.",
+        )
         add_conn(
-            f"{did}-front",
+            did,
             "front",
             joint_type="drawer_seat",
             edge_hint="drawer→opening",

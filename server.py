@@ -1408,7 +1408,7 @@ async def api_auth_session(request: Request) -> Response:
     token = str((body or {}).get("access_token") or "")
     identity = verify_access_token(token)
     if not identity:
-        return JSONResponse({"success": True, "look_again": ["Google sign-in failed."]}, status_code=401)
+        return JSONResponse({"success": True, "look_again": ["Sign-in failed."]}, status_code=401)
     try:
         stored = upsert_user(identity)
     except Exception:
@@ -1421,6 +1421,75 @@ async def api_auth_session(request: Request) -> Response:
     except Exception as exc:
         from supabase_auth import SessionSecretError
 
+        if isinstance(exc, SessionSecretError) or "MCP_SESSION_SECRET" in str(exc):
+            return JSONResponse(
+                {"success": True, "look_again": ["Server session secret is not configured."]},
+                status_code=503,
+            )
+        raise
+    response = JSONResponse(
+        {
+            "success": True,
+            "user": principal,
+            "can_mint_keys": can_mint_keys(stored),
+            "access_ready": account_is_approved(stored),
+            "configured": True,
+        }
+    )
+    response.set_cookie(
+        "lmcp_sid",
+        sid,
+        httponly=True,
+        samesite="lax",
+        max_age=30 * 24 * 3600,
+        secure=_cookie_secure(request),
+        path="/",
+    )
+    return response
+
+
+@mcp.custom_route("/api/auth/password", methods=["POST"])
+async def api_auth_password(request: Request) -> Response:
+    """Email/password sign-in via Supabase password grant, then mint lmcp_sid."""
+    from supabase_auth import (
+        account_is_approved,
+        can_mint_keys,
+        configured,
+        password_grant,
+        principal_from_identity,
+        SessionSecretError,
+        upsert_user,
+        verify_access_token,
+        new_session,
+    )
+
+    if not configured():
+        return JSONResponse(
+            {"success": True, "look_again": ["Supabase is not configured."], "configured": False},
+            status_code=503,
+        )
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    email = str((body or {}).get("email") or "")
+    password = str((body or {}).get("password") or "")
+    granted, err = password_grant(email, password)
+    if not granted:
+        return JSONResponse({"success": True, "look_again": [err or "Sign-in failed."]}, status_code=401)
+    identity = granted.get("identity") if isinstance(granted.get("identity"), dict) else None
+    if not identity:
+        identity = verify_access_token(str(granted.get("access_token") or ""))
+    if not identity:
+        return JSONResponse({"success": True, "look_again": ["Sign-in failed."]}, status_code=401)
+    try:
+        stored = upsert_user(identity)
+    except Exception:
+        stored = dict(identity)
+    principal = principal_from_identity(identity, stored)
+    try:
+        sid = new_session(stored)
+    except Exception as exc:
         if isinstance(exc, SessionSecretError) or "MCP_SESSION_SECRET" in str(exc):
             return JSONResponse(
                 {"success": True, "look_again": ["Server session secret is not configured."]},

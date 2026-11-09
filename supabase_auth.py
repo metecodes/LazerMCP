@@ -222,19 +222,79 @@ def public_config(mcp_url: str) -> dict[str, Any]:
         "url": supabase_url() if configured() else "",
         "anon_key": supabase_anon_key() if configured() else "",
         "google": True,
+        "password": True,
         "mcp_url": mcp_url,
         "org_domains": org_domains(),
         "note": (
-            "Individuals must sign in with Google. "
-            "Organizations mint API keys after Google sign-in. "
+            "Sign in with Google or email and password. "
+            "Organizations mint API keys after sign-in. "
             "A bare MCP URL is not enough."
         ),
         "look_again": (
             []
             if ready
-            else ["Production needs an independent MCP_SESSION_SECRET. Google can finish but the site cannot keep you signed in."]
+            else ["Production needs an independent MCP_SESSION_SECRET. Sign-in can finish but the site cannot keep you signed in."]
         ),
     }
+
+
+def _identity_from_user_payload(payload: dict[str, Any]) -> dict[str, Any] | None:
+    if not isinstance(payload, dict) or not payload.get("id"):
+        return None
+    email = str(payload.get("email") or "")
+    meta = payload.get("user_metadata") if isinstance(payload.get("user_metadata"), dict) else {}
+    app = payload.get("app_metadata") if isinstance(payload.get("app_metadata"), dict) else {}
+    provider = str(app.get("provider") or meta.get("provider") or "email").strip().lower() or "email"
+    return {
+        "id": str(payload.get("id")),
+        "email": email,
+        "name": str(meta.get("full_name") or meta.get("name") or email or "user"),
+        "provider": provider,
+    }
+
+
+def password_grant(email: str, password: str) -> tuple[dict[str, Any] | None, str]:
+    """Exchange email/password for a Supabase access token. Never logs the password."""
+    mail = str(email or "").strip().lower()
+    pwd = str(password or "")
+    if not mail or "@" not in mail or not pwd:
+        return None, "Email and password are required."
+    if not configured():
+        return None, "Supabase is not configured."
+    body = json.dumps({"email": mail, "password": pwd}).encode("utf-8")
+    req = urllib.request.Request(
+        f"{supabase_url()}/auth/v1/token?grant_type=password",
+        data=body,
+        headers={
+            "apikey": supabase_anon_key(),
+            "Authorization": f"Bearer {supabase_anon_key()}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        detail = ""
+        try:
+            err = json.loads(exc.read().decode("utf-8"))
+            detail = str(err.get("error_description") or err.get("msg") or err.get("error") or "")
+        except Exception:
+            detail = ""
+        if exc.code in (400, 401, 422):
+            return None, detail or "Invalid email or password."
+        return None, detail or "Sign-in failed."
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, UnicodeDecodeError):
+        return None, "Sign-in failed."
+    if not isinstance(payload, dict):
+        return None, "Sign-in failed."
+    token = str(payload.get("access_token") or "").strip()
+    if not token:
+        return None, "Sign-in failed."
+    user = payload.get("user") if isinstance(payload.get("user"), dict) else {}
+    identity = _identity_from_user_payload(user) if user else None
+    return {"access_token": token, "identity": identity}, ""
 
 
 def verify_access_token(token: str | None) -> dict[str, Any] | None:
@@ -254,16 +314,7 @@ def verify_access_token(token: str | None) -> dict[str, Any] | None:
             payload = json.loads(resp.read().decode("utf-8"))
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, UnicodeDecodeError):
         return None
-    if not isinstance(payload, dict) or not payload.get("id"):
-        return None
-    email = str(payload.get("email") or "")
-    meta = payload.get("user_metadata") if isinstance(payload.get("user_metadata"), dict) else {}
-    return {
-        "id": str(payload.get("id")),
-        "email": email,
-        "name": str(meta.get("full_name") or meta.get("name") or email or "user"),
-        "provider": "google",
-    }
+    return _identity_from_user_payload(payload)
 
 
 def _users() -> list[dict[str, Any]]:

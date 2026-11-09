@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>LaserMCP — Giriş</title>
-  <meta name="description" content="LaserMCP hesabı: Google ile gir, kurumsal API anahtarı üret.">
+  <meta name="description" content="LaserMCP hesabı: Google veya e-posta ile gir, kurumsal API anahtarı üret.">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="icon" href="/favicon.ico" sizes="any">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
@@ -14,7 +14,7 @@
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="LaserMCP">
   <meta property="og:title" content="LaserMCP — Giriş">
-  <meta property="og:description" content="Google ile gir. Kurumsal hesap anahtar üretir.">
+  <meta property="og:description" content="Google veya e-posta ile gir. Kurumsal hesap anahtar üretir.">
   <meta property="og:image" content="https://mcp.metehanavci.com/og.png">
   <meta property="og:url" content="https://mcp.metehanavci.com/account">
   <meta name="twitter:card" content="summary_large_image">
@@ -61,12 +61,12 @@
       <a href="/connect" id="to-connect">Bağlama adımları</a>
     </nav>
     <p class="kicker" id="kicker">HESAP</p>
-    <h1 id="title">Google ile gir</h1>
-    <p class="lede" id="lede">Bireysel kullanıcı link yapıştırmaz. Google zorunlu. Kurumsal hesap anahtar üretir.</p>
+    <h1 id="title">Giriş yap</h1>
+    <p class="lede" id="lede">Google veya e-posta ve şifre ile gir. Kurumsal hesap anahtar üretir.</p>
 
     <div class="card hide" id="need-config">
       <p class="warn" id="cfg-note">Supabase henüz bağlı değil. Proje URL ve anon anahtarını sunucuya yaz.</p>
-      <p class="lede">SUPABASE_URL · SUPABASE_ANON_KEY · Google provider · Redirect: /auth/callback</p>
+      <p class="lede">SUPABASE_URL · SUPABASE_ANON_KEY · Google / Email provider · Redirect: /auth/callback</p>
     </div>
 
     <div class="card guest-only" id="signed-out">
@@ -74,6 +74,13 @@
         <svg viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
         <span id="google-label">Google ile devam et</span>
       </a>
+      <p class="lede" id="or-lab" style="margin:16px 0 8px;text-align:center">veya e-posta</p>
+      <form id="password-form" autocomplete="on">
+        <input id="login-email" type="email" name="email" autocomplete="username" required placeholder="e-posta">
+        <input id="login-password" type="password" name="password" autocomplete="current-password" required placeholder="şifre">
+        <button class="btn" type="submit" id="password-go" style="width:100%;margin-top:4px">Giriş yap</button>
+      </form>
+      <p class="warn" id="password-err" style="margin-top:10px"></p>
     </div>
 
     <div class="card hide" id="signed-in">
