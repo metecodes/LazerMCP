@@ -28,6 +28,7 @@ class DurableStudioTests(unittest.TestCase):
     def test_project_save_uses_atomic_remote_append(self):
         from projects import save_version
         with patch('projects.read_json', side_effect=AssertionError('local JSON used')), \
+             patch('projects.rows', return_value=[]), \
              patch('projects.rest', return_value={'project_id': 'existing', 'version': 3}) as request:
             result = save_version({'project_id': 'existing', 'project': 'Box'}, {'file_id': 'design.svg'})
             self.assertEqual(result['version'], 3)
@@ -126,3 +127,27 @@ class ProjectScopeTests(unittest.TestCase):
                     self.assertEqual(projects.project_history('p') is not None, visible, org)
             finally:
                 current_auth.reset(token)
+
+    def _save_into(self, org, project):
+        from keys import current_auth
+        import projects
+        token = current_auth.set({'id': 'u', 'email': 'u@x.com', 'organization_id': org} if org else None)
+        try:
+            with patch('projects._owner_org', side_effect=lambda p: str((p or {}).get('organization_id') or '')), \
+                 patch('projects.rows', side_effect=[[{'id': 'p', 'payload': project}], []]), \
+                 patch('projects.rest', return_value={'version': 1}) as request:
+                projects.save_version({'project_id': 'p', 'project': 'Box'}, {'file_id': 'new.svg'})
+            return request.call_args.kwargs['body']['p_id']
+        finally:
+            current_auth.reset(token)
+
+    def test_versions_cannot_be_appended_to_another_orgs_project(self):
+        owned = {'id': 'p', 'versions': [{'n': 1, 'file_id': 'a.svg', 'owner_org': 'org-a'}]}
+        self.assertEqual(self._save_into('org-a', owned), 'p')
+        # Someone else's id (or a guess) still saves the work, but as a new project.
+        self.assertNotEqual(self._save_into('org-b', owned), 'p')
+        self.assertNotEqual(self._save_into('', owned), 'p')
+
+    def test_guest_can_keep_revising_an_unowned_draft(self):
+        draft = {'id': 'p', 'versions': [{'n': 1, 'file_id': 'g.svg', 'owner_org': ''}]}
+        self.assertEqual(self._save_into('', draft), 'p')

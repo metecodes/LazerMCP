@@ -173,6 +173,34 @@ def _public_base(request: Request) -> str:
     return f"{proto}://{host}"
 
 
+def _client_ip(request: Request) -> str:
+    """Caller address for rate limits. Proxy headers are only trusted where the platform sets them."""
+    if IS_VERCEL:
+        real = (request.headers.get("x-real-ip") or "").strip()
+        if real:
+            return real
+        forwarded = (request.headers.get("x-forwarded-for") or "").split(",")[0].strip()
+        if forwarded:
+            return forwarded
+    return request.client.host if request.client else "anon"
+
+
+def _rate_limited() -> JSONResponse:
+    return JSONResponse(
+        {"success": True, "look_again": ["Rate limit. Try again later."]},
+        status_code=429,
+        headers={"Retry-After": "60"},
+    )
+
+
+# Studio is open to guests, so a whole classroom can sit behind one address: these are
+# abuse ceilings, not quotas. Previews stay on the in-memory window to keep scrubbing fast.
+STUDIO_PREVIEW_LIMIT = (3000, 300)
+STUDIO_WRITE_LIMIT = (600, 3600)
+PASSWORD_ADDRESS_LIMIT = (30, 900)
+PASSWORD_ACCOUNT_LIMIT = (10, 900)
+
+
 def _tool_public_base() -> str:
     if PUBLIC_BASE_URL:
         return PUBLIC_BASE_URL.rstrip("/")
@@ -512,7 +540,7 @@ class BearerGate:
 
             ident = str(key.get("organization_id") or key.get("id") or "anon")
             expensive = path.startswith("/api/generate") or path.startswith("/api/cad/") or path.startswith("/api/editor/")
-            if not check("http", ident, limit=30 if expensive else 60, window_sec=3600 if expensive else 60):
+            if not check("http", ident, limit=30 if expensive else 60, window_sec=3600 if expensive else 60, shared=expensive):
                 limited = b'{"success":true,"look_again":["Rate limit. Try again later."]}'
                 headers = [
                     (b"content-type", b"application/json"),
@@ -1506,6 +1534,16 @@ async def api_auth_password(request: Request) -> Response:
         body = {}
     email = str((body or {}).get("email") or "")
     password = str((body or {}).get("password") or "")
+    from persist.rate_limit import check
+
+    # Per address and per account, so one source cannot grind a password and one
+    # account cannot be ground from many sources.
+    address_ok = check("password-ip", _client_ip(request), limit=PASSWORD_ADDRESS_LIMIT[0],
+                       window_sec=PASSWORD_ADDRESS_LIMIT[1], shared=True)
+    account_ok = check("password-account", email.strip().lower(), limit=PASSWORD_ACCOUNT_LIMIT[0],
+                       window_sec=PASSWORD_ACCOUNT_LIMIT[1], shared=True)
+    if not (address_ok and account_ok):
+        return _rate_limited()
     granted, err = password_grant(email, password)
     if not granted:
         return JSONResponse({"success": True, "look_again": [err or "Sign-in failed."]}, status_code=401)
@@ -1574,6 +1612,10 @@ async def api_account(request: Request) -> Response:
 
     key = current_auth.get() or session_user(request.cookies.get("lmcp_sid"))
     if not key:
+        # Pages that only ask "is anyone signed in?" pass optional=1: a guest is a normal
+        # answer there, not an error for the browser console.
+        if (request.query_params.get("optional") or "").strip() in {"1", "true"}:
+            return JSONResponse({"success": True, "signed_in": False, "user": None})
         return JSONResponse({"success": True, "look_again": ["Sign in with Google."]}, status_code=401)
     stored = user_by_id(str(key.get("id") or "")) or {}
     uid = str(key.get("id") or "")
@@ -1610,7 +1652,7 @@ async def api_account_key_request(request: Request) -> Response:
     if not account_is_approved(stored):
         return JSONResponse({"success": False, "look_again": ["Hesabın admin onayını bekliyor."]}, status_code=403)
     ident = str(stored.get("email") or stored.get("id") or "user")
-    if not check("key-request", ident, limit=8, window_sec=3600):
+    if not check("key-request", ident, limit=8, window_sec=3600, shared=True):
         return JSONResponse({"success": True, "look_again": ["Rate limit. Try again later."]}, status_code=429)
     try:
         body = await request.json()
@@ -1650,7 +1692,7 @@ async def api_account_keys(request: Request) -> Response:
     from persist.rate_limit import check
 
     owner = str(key.get("id") or "")
-    if not check("mint", owner, limit=10, window_sec=3600):
+    if not check("mint", owner, limit=10, window_sec=3600, shared=True):
         return JSONResponse({"success": True, "look_again": ["Rate limit. Try again later."]}, status_code=429)
     created = create_key(
         str((body or {}).get("name") or "workshop"),
@@ -1779,7 +1821,7 @@ async def api_admin_users(request: Request) -> Response:
     if deny:
         return deny
     ident = str(actor.get("email") or actor.get("id") or "admin")
-    if not check("admin-search", ident, limit=60, window_sec=60):
+    if not check("admin-search", ident, limit=60, window_sec=60, shared=True):
         return JSONResponse({"success": True, "look_again": ["Rate limit. Try again later."]}, status_code=429)
     q = str(request.query_params.get("q") or "")
     return JSONResponse({"success": True, "users": search_users(q)})
@@ -1794,7 +1836,7 @@ async def api_admin_grant_org(request: Request) -> Response:
     if deny:
         return deny
     ident = str(actor.get("email") or actor.get("id") or "admin")
-    if not check("admin-grant", ident, limit=30, window_sec=3600):
+    if not check("admin-grant", ident, limit=30, window_sec=3600, shared=True):
         return JSONResponse({"success": True, "look_again": ["Rate limit. Try again later."]}, status_code=429)
     try:
         body = await request.json()
@@ -1815,7 +1857,7 @@ async def api_admin_set_model(request: Request) -> Response:
     if deny:
         return deny
     ident = str(actor.get("email") or actor.get("id") or "admin")
-    if not check("admin-model", ident, limit=30, window_sec=3600):
+    if not check("admin-model", ident, limit=30, window_sec=3600, shared=True):
         return JSONResponse({"success": True, "look_again": ["Rate limit. Try again later."]}, status_code=429)
     try:
         body = await request.json()
@@ -1845,7 +1887,7 @@ async def api_admin_set_approval(request: Request) -> Response:
     if deny:
         return deny
     ident = str(actor.get("email") or actor.get("id") or "admin")
-    if not check("admin-approval", ident, limit=60, window_sec=3600):
+    if not check("admin-approval", ident, limit=60, window_sec=3600, shared=True):
         return JSONResponse({"success": True, "look_again": ["Rate limit. Try again later."]}, status_code=429)
     try:
         body = await request.json()
@@ -1873,7 +1915,7 @@ async def api_admin_requests(request: Request) -> Response:
     if deny:
         return deny
     ident = str(actor.get("email") or actor.get("id") or "admin")
-    if not check("admin-request", ident, limit=40, window_sec=3600):
+    if not check("admin-request", ident, limit=40, window_sec=3600, shared=True):
         return JSONResponse({"success": True, "look_again": ["Rate limit. Try again later."]}, status_code=429)
     try:
         body = await request.json()
@@ -1965,8 +2007,8 @@ async def api_beta(request: Request) -> Response:
         body = {}
     from persist.rate_limit import check
 
-    ip = request.client.host if request.client else "anon"
-    if not check("beta", ip, limit=5, window_sec=3600):
+    ip = _client_ip(request)
+    if not check("beta", ip, limit=5, window_sec=3600, shared=True):
         return JSONResponse({"success": True, "look_again": ["Rate limit. Try again later."]}, status_code=429)
     email = str((body or {}).get("email") or "").strip()
     if not email or "@" not in email or "." not in email.split("@")[-1]:
@@ -2029,6 +2071,16 @@ async def api_studio_action(request: Request) -> Response:
     query_payload = {k: request.query_params.get(k) for k in request.query_params}
     body = {**query_payload, **body}
     verb = str(action or "").strip().lower()
+    if request.method == "POST":
+        from keys import current_auth
+        from persist.rate_limit import check
+
+        caller = current_auth.get() or {}
+        ident = str(caller.get("organization_id") or caller.get("id") or "") or _client_ip(request)
+        light = bool(body.get("preview") or body.get("fast")) or verb in {"cost", "ai_cost", "quote"}
+        limit, window = STUDIO_PREVIEW_LIMIT if light else STUDIO_WRITE_LIMIT
+        if not check("studio-preview" if light else "studio-write", ident, limit=limit, window_sec=window, shared=not light):
+            return _rate_limited()
     if verb in {"box", "studio_box", "parametric"}:
         return JSONResponse(create_studio_box(body, public_base_url=_public_base(request)))
     if verb in {"ai", "studio_ai", "design_ai"}:
@@ -2068,15 +2120,18 @@ async def api_studio_action(request: Request) -> Response:
         if body.get("prompt") or body.get("ai_prompt") or verb == "ai_cost":
             return JSONResponse(estimate_ai_prompt_cost(body))
         return JSONResponse(estimate_cost(body))
-    return JSONResponse(
-        studio_action(
+    try:
+        result = studio_action(
             action,
             name=str(body.get("name") or request.query_params.get("name") or ""),
             project_id=str(body.get("project_id") or request.query_params.get("project_id") or ""),
             role=str(body.get("role") or request.query_params.get("role") or "workshop"),
             payload=body,
         )
-    )
+    except ValueError as exc:
+        # A missing or foreign project id is the caller's mistake, not a server fault.
+        return JSONResponse({"success": False, "look_again": [str(exc)[:200]]}, status_code=400)
+    return JSONResponse(result)
 
 
 @mcp.custom_route("/api/assembly/{filename}", methods=["GET"])

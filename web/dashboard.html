@@ -319,7 +319,7 @@
     }
 
     async function load() {
-      const me = await api("/api/account");
+      const me = await api("/api/account?optional=1");
       const signed = Boolean(me.user);
       state.signedIn = signed;
       state.canMint = Boolean(me.can_mint_keys);
@@ -513,7 +513,7 @@
     };
     load();
   </script>
-  <script src="/nav-auth.js?v=4"></script>
+  <script src="/nav-auth.js?v=6"></script>
 <script src="/ui.js"></script>
 </body>
 </html>

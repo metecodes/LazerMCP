@@ -319,7 +319,7 @@
     async function sync(kind) {
       const token = accessToken || tokenFromUrl();
       if (!token) {
-        const me = await fetch("/api/account", { credentials: "same-origin" }).then((r) => r.json()).catch(() => ({}));
+        const me = await fetch("/api/account?optional=1", { credentials: "same-origin" }).then((r) => r.json()).catch(() => ({}));
         return me;
       }
       accessToken = token;
@@ -331,7 +331,7 @@
       });
       const created = await res.json().catch(() => ({}));
       if (!created.user) return created;
-      const me = await fetch("/api/account", { credentials: "same-origin" }).then((r) => r.json()).catch(() => ({}));
+      const me = await fetch("/api/account?optional=1", { credentials: "same-origin" }).then((r) => r.json()).catch(() => ({}));
       return me.user ? me : created;
     }
 
@@ -381,7 +381,7 @@
       });
       const data = await res.json();
       document.getElementById("new-key").textContent = data.token ? ((lang === "en" ? "shown once: " : "bir kez: ") + data.token) : (data.look_again || []).join(" ");
-      const me = await fetch("/api/account", { credentials: "same-origin" }).then((r) => r.json());
+      const me = await fetch("/api/account?optional=1", { credentials: "same-origin" }).then((r) => r.json());
       if (me.user) showUser(me);
     };
     document.getElementById("llm-save").onclick = async () => {
@@ -417,7 +417,7 @@
     };
     boot();
   </script>
-  <script src="/nav-auth.js?v=4"></script>
+  <script src="/nav-auth.js?v=6"></script>
 <script src="/ui.js"></script>
 </body>
 </html>

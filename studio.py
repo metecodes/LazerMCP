@@ -196,7 +196,8 @@ def studio_action(
         return {"success": True, "rows": list_calibrations()}
     if verb in {"projects", "project", "history"}:
         raw_limit = body.get("limit")
-        limit = None if raw_limit in (None, "", "all") else raw_limit
+        # The MCP tool has no limit argument; an unbounded list overflows an assistant's context.
+        limit = 80 if raw_limit in (None, "") else None if raw_limit == "all" else raw_limit
         if project_id or body.get("project_id"):
             pid = str(project_id or body.get("project_id") or "")
             hit = project_history(pid)

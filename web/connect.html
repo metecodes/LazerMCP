@@ -432,14 +432,14 @@
     apply();
   </script>
   <script>
-    fetch("/api/account", { credentials: "same-origin" }).then(function (r) { return r.json(); }).then(function (d) {
+    fetch("/api/account?optional=1", { credentials: "same-origin" }).then(function (r) { return r.json(); }).then(function (d) {
       if (!d || !d.user) return;
       me = d;
       document.body.classList.add("signed-in");
       paintAccount();
     }).catch(function () {});
   </script>
-  <script src="/nav-auth.js?v=4"></script>
+  <script src="/nav-auth.js?v=6"></script>
 <script src="/ui.js"></script>
 </body>
 </html>

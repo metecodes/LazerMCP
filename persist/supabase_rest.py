@@ -53,15 +53,38 @@ def _headers(json_body: bool = True) -> dict[str, str]:
 
 
 
-def storage_create_bucket(bucket: str, public: bool = True) -> None:
-    url = f"{supabase_url()}/storage/v1/bucket"
-    body = json.dumps({"id": bucket, "name": bucket, "public": public}).encode("utf-8")
-    req = urllib.request.Request(url, data=body, method="POST", headers=_headers())
+def storage_ensure_bucket(bucket: str, public: bool = False) -> None:
+    """Create the bucket if missing, and force the public flag on an existing one."""
+    headers = _headers()
+    create = urllib.request.Request(
+        f"{supabase_url()}/storage/v1/bucket",
+        data=json.dumps({"id": bucket, "name": bucket, "public": public}).encode("utf-8"),
+        method="POST",
+        headers=headers,
+    )
     try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
+        with urllib.request.urlopen(create, timeout=30) as resp:
+            resp.read()
+            return
+    except urllib.error.HTTPError as exc:
+        # 409: already exists — still enforce private/public below.
+        if exc.code not in {400, 409}:
+            raise
+    update = urllib.request.Request(
+        f"{supabase_url()}/storage/v1/bucket/{bucket}",
+        data=json.dumps({"public": public}).encode("utf-8"),
+        method="PUT",
+        headers=headers,
+    )
+    try:
+        with urllib.request.urlopen(update, timeout=30) as resp:
             resp.read()
     except urllib.error.HTTPError:
         pass
+
+
+def storage_create_bucket(bucket: str, public: bool = False) -> None:
+    storage_ensure_bucket(bucket, public=public)
 
 def storage_upload(bucket: str, path: str, data: bytes, mime: str) -> None:
 

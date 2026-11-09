@@ -53,7 +53,7 @@
     } finally { clearTimeout(timer); }
   });
   const jobs = lang === "en" ? "jobs" : "iş";
-  fetch("/api/account", { credentials: "same-origin" })
+  fetch("/api/account?optional=1", { credentials: "same-origin" })
     .then(function (r) { return r.json(); })
     .then(function (data) {
       if (!data || !data.user) return;

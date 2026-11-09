@@ -3042,7 +3042,7 @@ async function boot() {
   buildScene();
   wireUi();
   await loadProfiles();
-  const { data } = await api("/api/account");
+  const { data } = await api("/api/account?optional=1");
   if (data && data.user) document.body.classList.add("signed-in");
   const plans = await api("/api/plans");
   const planRows = (plans.data && plans.data.plans) || [];

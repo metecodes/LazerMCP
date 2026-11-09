@@ -23,7 +23,7 @@ function context() {
 
 test('Google click starts directly, locks duplicates, and recovers on back navigation', async()=>{
   const h=context(); let resolve;
-  h.c.fetch=async u=>u==='/api/account' ? {json:async()=>({})} : new Promise(r=>resolve=r);
+  h.c.fetch=async u=>u.startsWith('/api/account') ? {json:async()=>({})} : new Promise(r=>resolve=r);
   vm.runInNewContext(fs.readFileSync('web/nav-auth.js','utf8'),h.c);
   const link=h.node();link.href='https://app.example/account?next=%2Fconnect';
   const e={button:0,target:{closest:()=>link},preventDefault(){}};

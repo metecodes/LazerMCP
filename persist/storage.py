@@ -50,9 +50,11 @@ class StorageService:
 
     def put(self, storage_path: str, data: bytes, mime_type: str) -> None:
         if uses_supabase_app_db():
-            from persist.supabase_rest import storage_upload, storage_create_bucket
+            from persist.supabase_rest import storage_upload, storage_ensure_bucket
 
-            storage_create_bucket(storage_bucket(), public=True)
+            # Private: bytes leave only through the server's access check or a signed URL.
+            # Existing buckets are updated too — create alone would leave a public bucket public.
+            storage_ensure_bucket(storage_bucket(), public=False)
             storage_upload(storage_bucket(), storage_path, data, mime_type)
             return
         dest = (self.root() / storage_path).resolve()

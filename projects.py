@@ -111,6 +111,23 @@ def _load() -> dict[str, Any]:
     return raw if isinstance(raw, dict) else {}
 
 
+def _may_extend(project_id: str) -> bool:
+    """A caller-supplied project id may only add versions to a project the caller can see.
+
+    Unknown ids start a new project. Projects no organization owns (guest saves) stay open,
+    so a guest can keep revising their own draft.
+    """
+    if not uses_supabase_app_db():
+        return True
+    found = rows("lasermcp_projects", id=f"eq.{project_id}", limit=1)
+    project = found[0].get("payload") if found else None
+    if not isinstance(project, dict):
+        return True
+    if _project_visible(project, visible_scope(_current_principal())):
+        return True
+    return not any(isinstance(v, dict) and v.get("owner_org") for v in project.get("versions") or [])
+
+
 def save_version(parameters: dict[str, Any] | None, result: dict[str, Any] | None) -> dict[str, Any] | None:
     params = parameters or {}
     data = result or {}
@@ -120,6 +137,8 @@ def save_version(parameters: dict[str, Any] | None, result: dict[str, Any] | Non
         return None
     remote = uses_supabase_app_db()
     store = {} if remote else _load()
+    if pid and not _may_extend(pid):
+        pid = None  # not theirs: keep the work, but as a new project
     if not pid:
         pid = _slug(name or str(data.get("product") or "design")) + "-" + secrets.token_hex(2)
     # The assembly result is written by the Automatic Assembly stage before
