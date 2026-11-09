@@ -41,9 +41,15 @@
     });
     const data = await response.json();
     if (!response.ok || !data.user) throw new Error("session");
-    // A new account is intentionally held on the account page until an
-    // operator confirms payment and access. Do not send it on to the studio.
-    location.replace(data.access_ready === false ? "/account" : next);
+    // Pending accounts may finish designing in Studio; only keep them on
+    // /account when they were headed to a gated surface (dashboard/connect/admin).
+    if (data.access_ready === false) {
+      const pathOnly = (next.split("?")[0] || "/");
+      const studioOk = pathOnly === "/studio" || pathOnly.startsWith("/studio/");
+      location.replace(studioOk ? next : "/account?next=" + encodeURIComponent(next));
+    } else {
+      location.replace(next);
+    }
   } catch (error) {
     document.getElementById("title").textContent = "Giriş tamamlanamadı";
     document.getElementById("status").textContent = failed

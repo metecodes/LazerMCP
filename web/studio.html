@@ -307,8 +307,12 @@
           <p class="hint lead">Ölçüyü değiştir = eşleşen paneller yeniden kesilir. Tüm modeli ölçekleme. Kalınlık malzeme; X/Y/H ile büyümez.</p>
         </header>
         <div class="guest-banner guest-only" id="guest-note">
-          Parametrik kutu önizleme + «Kaydet ve indir» açıktır. Hesap geçmişi / kota için
-          <a href="/account?next=/studio">Google ile gir</a>. DXF plana bağlı olabilir.
+          Tasarla şimdi — hesap yalnızca «Kaydet ve indir» / geçmiş için.
+          <a href="/account?next=/studio">Giriş yap</a>. Önizleme misafire açıktır.
+        </div>
+        <div class="guest-banner hide" id="pending-note" role="status">
+          Hesabın onay bekliyor. Önizleme ve tasarım açık; SVG/DXF indirme onay sonrası.
+          <a href="/account">Hesap durumu</a>.
         </div>
         <div class="tabs" role="tablist">
           <button type="button" class="on" data-tab="box">Kutu</button>
@@ -324,6 +328,7 @@
             <label>Birim
               <select id="box-unit">
                 <option value="mm" selected>mm</option>
+                <option value="cm">cm</option>
                 <option value="in">inch</option>
               </select>
             </label>
@@ -407,10 +412,14 @@
           <p class="hint">Bölücü/raf = finger geçme. Çekmece = açık tepsi; kapağın üst ortasında yarım daire parmak deliği, tabanda W×D×H kazıma. Max 12. Çekmeceli kutuda ön duvar yok — çekmece kapakları ön yüzü oluşturur. Kayma boşluğu (zemin, yan/üst boşluk, tam çekiş yolu) dijital kontrol edilir; fiziksel kayma NOT_VERIFIED.</p>
           <label>Yükseltilmiş taban (mm)<input id="box-lift" type="number" value="0" min="0" step="0.5" title="Formdan ayarla; 3D tutamaç opsiyonel"></label>
           <label class="check"><input id="box-handles-3d" type="checkbox"> 3D ölçü tutamaçları (X/Y/H)</label>
+          <label class="check"><input id="box-part-labels" type="checkbox"> Parça adlarını SVG’ye yaz (ENGRAVE)</label>
           <p class="hint">Varsayılan kapalı — tutamaçlar yanlışlıkla “parça” gibi görünmesin. Ölçü: form veya panele tıkla.</p>
           <p class="hint" id="link-hint">Kapak / bölücü / raf / kerf / bump / SVG+DXF.</p>
           <div class="row2">
+            <button class="btn ghost" type="button" id="try-size">Başka ölçü dene</button>
             <button class="btn ghost" type="button" id="undo-box">Geri al</button>
+          </div>
+          <div class="row2">
             <button class="btn cut" type="button" id="make-box">Kaydet ve indir</button>
           </div>
           <button class="btn cut" type="button" id="export-video" title="3D montaj + tur videosu (WebM)" style="width:100%;margin-top:8px">Video indir</button>
@@ -423,6 +432,8 @@
               <option value="name_ornament" selected>İsim süsü</option>
               <option value="birdhouse">Kuş evi</option>
               <option value="christmas">Christmas süs</option>
+              <option value="flexible_box">Esnek kutu</option>
+              <option value="named_gift">İsimli hediye</option>
             </select>
           </label>
           <div id="maker-fields-name">
@@ -449,6 +460,14 @@
             </label>
             <label>Yazı (opsiyonel)<input id="maker-xtext" type="text" value="" maxlength="24" placeholder="2026"></label>
             <label>Boyut (mm)<input id="maker-size" type="number" value="80" min="40" max="200" step="1"></label>
+          </div>
+          <div id="maker-fields-boxish" class="hide">
+            <div class="row2">
+              <label>Genişlik X<input id="maker-fx" type="number" value="140" min="40" step="1"></label>
+              <label>Derinlik Y<input id="maker-fy" type="number" value="90" min="40" step="1"></label>
+            </div>
+            <label>Yükseklik H<input id="maker-fh" type="number" value="50" min="20" step="1"></label>
+            <label id="maker-gift-name-wrap" class="hide">Hediye yazısı<input id="maker-gift-text" type="text" value="İyi ki varsın" maxlength="32"></label>
           </div>
           <div class="row2">
             <label>Kalınlık (mm)<input id="maker-t" type="number" value="3" min="1" step="0.1"></label>
@@ -547,8 +566,10 @@
         </div>
         <p class="status" id="status"></p>
         <h2>Çıktı</h2>
+        <div class="guest-banner hide" id="export-cta" role="status"></div>
         <a class="btn ghost hide" id="dl-svg" href="#" download>SVG indir</a>
         <a class="btn ghost hide" id="dl-dxf" href="#" download>DXF indir</a>
+        <a class="btn ghost hide" id="dl-pdf" href="#" download>PDF indir</a>
         <a class="btn ghost hide" id="open-edit" href="#">2D editör</a>
         <p class="hint" id="video-hint">Video = sol paneldeki «Video indir» veya 3D HUD’daki 🎬. Fiziksel NOT_VERIFIED.</p>
         <label style="margin-top:12px">MCP dosya kimliği
@@ -576,10 +597,12 @@
               <button type="button" class="btn cut" id="asm-play" title="Montaj animasyonu">▶ Oynat</button>
               <button type="button" class="btn ghost" id="asm-next" title="Sonraki adım">▶</button>
               <button type="button" class="btn cut" id="export-video-hud" title="Montaj videosu indir">Video indir</button>
+              <button type="button" class="btn ghost" id="view-top" title="Üstten ortografik">Üstten</button>
               <input id="asm-step" type="range" min="0" max="1" value="0" style="width:110px">
               <span id="asm-step-lab" class="hud-note">0/0</span>
             </div>
-            <span class="hud-note">Oynat = montaj · Video = WebM indir · Explode = ayrıştır</span>
+            <span class="hud-note" id="hud-live-sum">—</span>
+            <span class="hud-note">Oynat = montaj · Video = WebM · Üstten = bölücü · Explode = ayrıştır</span>
           </div>
         </div>
       </main>
@@ -638,7 +661,7 @@
     }
   }
   </script>
-  <script type="module" src="/studio-3d.js?v=32"></script>
+  <script type="module" src="/studio-3d.js?v=34"></script>
   <script src="/nav-auth.js?v=6"></script>
 </body>
 </html>

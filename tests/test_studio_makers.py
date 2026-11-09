@@ -10,7 +10,7 @@ from studio_makers import MAKERS, build_maker, list_makers
 class StudioMakersTest(unittest.TestCase):
     def test_catalog_is_not_ai(self):
         rows = list_makers()
-        self.assertEqual(len(rows), 3)
+        self.assertEqual(len(rows), 5)
         for row in rows:
             self.assertFalse(row.get("ai"))
             self.assertIn(row["id"], MAKERS)
@@ -75,6 +75,18 @@ class StudioMakersTest(unittest.TestCase):
         part = built["primitives"][0]
         self.assertEqual(part["type"], "contour")
         self.assertGreaterEqual(len(part["points"]), 24)
+
+    def test_flexible_and_named_gift(self):
+        flex = build_maker("esnek_kutu", {"x": 140, "y": 90, "h": 50, "thickness": 3})
+        self.assertEqual(flex["summary"]["maker"], "flexible_box")
+        self.assertFalse(flex["summary"]["ai"])
+        self.assertEqual(flex["primitives"][0]["type"], "box")
+        gift = build_maker("hediye", {"text": "Ayşe", "x": 120, "y": 80, "h": 45})
+        self.assertEqual(gift["summary"]["maker"], "named_gift")
+        self.assertEqual(gift["summary"]["text"], "Ayşe")
+        texts = gift["parameters"].get("surface_texts") or []
+        self.assertTrue(texts)
+        self.assertEqual(texts[0]["text"], "Ayşe")
 
     def test_unknown_maker(self):
         with self.assertRaises(ValueError):

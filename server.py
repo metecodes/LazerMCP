@@ -90,10 +90,11 @@ PUBLIC_PATHS = {
     "/api/studio/calibrate",
     "/api/studio/projects",
     "/api/studio/coupon",
+    "/api/studio/pdf",
     "/styles.css",
     *BRAND_FILES,
 }
-PUBLIC_PREFIXES = ("/demo/", "/oauth/", "/.well-known/", "/auth/", "/files/", "/out/", "/edit/", "/api/assembly/")
+PUBLIC_PREFIXES = ("/demo/", "/oauth/", "/.well-known/", "/auth/", "/files/", "/out/", "/edit/", "/api/assembly/", "/models/")
 MCP_TOOLS = [
     "plan_laser_job",
     "create_from_reference",
@@ -461,8 +462,13 @@ class BearerGate:
             optional = None
             if method != "OPTIONS" and path.startswith("/api/") and not path.startswith("/api/auth/"):
                 optional = self._principal(scope)
+                # Pending/denied accounts still keep their identity on public Studio
+                # design routes so history and personal org tagging work. Only strip
+                # them from other public APIs (they remain guests there).
                 if optional and not self._approved(optional):
-                    optional = None
+                    studio_design = path.startswith("/api/studio/")
+                    if not studio_design:
+                        optional = None
             if not optional:
                 await self.app(scope, receive, send)
                 return
@@ -1311,6 +1317,19 @@ async def standard_house_model_page(request: Request) -> Response:
     return FileResponse(WEB_DIR / 'house-pencil-holder.html', media_type='text/html; charset=utf-8')
 
 
+@mcp.custom_route("/models/{slug}", methods=["GET"])
+async def model_landing_page(request: Request) -> Response:
+    from model_landings import get_model, render_model_html
+
+    slug = str(request.path_params.get("slug") or "").strip().lower()
+    if slug == "house-pencil-holder":
+        return FileResponse(WEB_DIR / "house-pencil-holder.html", media_type="text/html; charset=utf-8")
+    model = get_model(slug)
+    if not model:
+        return JSONResponse({"look_again": ["unknown model landing"]}, status_code=404)
+    return Response(render_model_html(model), media_type="text/html; charset=utf-8")
+
+
 @mcp.custom_route("/demo/{filename}", methods=["GET"])
 async def serve_demo(request: Request) -> Response:
     from demo_kits import demo_file
@@ -2057,7 +2076,7 @@ async def api_studio(request: Request) -> Response:
 @mcp.custom_route("/api/studio/{action}", methods=["GET", "POST"])
 async def api_studio_action(request: Request) -> Response:
     from studio import studio_action
-    from workshop import create_studio_ai, create_studio_box, create_studio_maker
+    from workshop import create_studio_ai, create_studio_box, create_studio_maker, create_studio_pdf
 
     action = request.path_params.get("action") or "profiles"
     body: dict[str, Any] = {}
@@ -2090,6 +2109,8 @@ async def api_studio_action(request: Request) -> Response:
         if request.method == "GET" or verb == "makers":
             body = {**body, "action": body.get("action") or "list"}
         return JSONResponse(create_studio_maker(body, public_base_url=_public_base(request)))
+    if verb in {"pdf", "control_pdf", "studio_pdf"}:
+        return JSONResponse(create_studio_pdf(body, public_base_url=_public_base(request)))
     if verb in {"stl", "to_stl", "svg_to_stl"}:
         from persist.storage import StorageService
         from workshop import create_studio_stl

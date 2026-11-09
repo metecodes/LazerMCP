@@ -52,6 +52,11 @@ const state = {
   aiLastResult: null,
   aiBusy: false,
   projectId: null,
+  signedIn: false,
+  accessReady: false,
+  topView: false,
+  nesting: null,
+  sizePresetIdx: 0,
 };
 
 const PANEL_DIMS = {
@@ -359,6 +364,8 @@ function buildScene() {
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 5000);
   camera.position.set(220, 180, 260);
+  const ortho = new THREE.OrthographicCamera(-200, 200, 200, -200, 0.1, 5000);
+  ortho.position.set(0, 0, 400);
   const controls = new OrbitControls(camera, canvas);
   controls.enableDamping = true;
   controls.dampingFactor = 0.08;
@@ -386,14 +393,24 @@ function buildScene() {
   state.woodGhost = new THREE.MeshStandardMaterial({
     color: 0xb8956a, transparent: true, opacity: 0.28, roughness: 0.9, metalness: 0.02, depthWrite: false,
   });
-  view = { renderer, scene, camera, controls, root, canvas };
+  view = { renderer, scene, camera, ortho, activeCamera: camera, controls, root, canvas };
 
   function resize() {
     const w = canvas.clientWidth || canvas.parentElement.clientWidth;
     const h = canvas.clientHeight || canvas.parentElement.clientHeight;
     renderer.setSize(w, h, false);
-    camera.aspect = w / Math.max(h, 1);
+    const aspect = w / Math.max(h, 1);
+    camera.aspect = aspect;
     camera.updateProjectionMatrix();
+    const cam = view.activeCamera;
+    if (cam.isOrthographicCamera) {
+      const half = Math.max(40, (cam.top - cam.bottom) / 2 || 200);
+      cam.left = -half * aspect;
+      cam.right = half * aspect;
+      cam.top = half;
+      cam.bottom = -half;
+      cam.updateProjectionMatrix();
+    }
   }
   resize();
   window.addEventListener("resize", resize);
@@ -412,7 +429,7 @@ function buildScene() {
   canvas.addEventListener("pointerdown", (ev) => {
     if (ev.button !== 0) return;
     pointerNDC(ev);
-    ray.setFromCamera(mouse, camera);
+    ray.setFromCamera(mouse, view.activeCamera || camera);
 
     // Resize handles first (lid sides)
     const handleHits = state.handleRoot
@@ -496,8 +513,8 @@ function buildScene() {
       controls.enabled = false;
       canvas.style.cursor = "grabbing";
       selectPanel(obj);
-      hideDimPop();
-      setStatus("Bölücüyü kaydır · Del = birleştir · bırakınca yenilenir", "ok");
+      openDividerDimPop(obj);
+      setStatus("Bölücüyü kaydır veya mm yaz · Del = birleştir", "ok");
       return;
     }
     if (obj) {
@@ -514,7 +531,7 @@ function buildScene() {
 
   canvas.addEventListener("pointermove", (ev) => {
     pointerNDC(ev);
-    ray.setFromCamera(mouse, camera);
+    ray.setFromCamera(mouse, view.activeCamera || camera);
     if (state.drag) {
       if (!ray.ray.intersectPlane(dragPlane, hitPoint)) return;
       const d = state.drag;
@@ -574,6 +591,9 @@ function buildScene() {
         d.group.matrixWorldNeedsUpdate = true;
       }
       $("sum-dims").textContent = "bölücü " + d.axis.toUpperCase() + (d.index + 1) + " → " + next + " mm";
+      if ($("dim-pop") && $("dim-pop").dataset.mode === "divider" && $("dim-pop-val")) {
+        $("dim-pop-val").value = String(next);
+      }
       return;
     }
     // Hover cursor on handles / dividers
@@ -635,7 +655,7 @@ function buildScene() {
 
   function frame() {
     controls.update();
-    renderer.render(scene, camera);
+    renderer.render(scene, view.activeCamera || camera);
     requestAnimationFrame(frame);
   }
   frame();
@@ -828,6 +848,8 @@ function hideDimPop() {
   delete $("dim-pop").dataset.mode;
   delete $("dim-pop").dataset.cellX;
   delete $("dim-pop").dataset.cellY;
+  delete $("dim-pop").dataset.divAxis;
+  delete $("dim-pop").dataset.divIndex;
   if ($("dim-pop-cell-wrap")) $("dim-pop-cell-wrap").classList.add("hide");
   if ($("dim-pop-val-wrap")) $("dim-pop-val-wrap").classList.remove("hide");
   if ($("dim-pop-title")) $("dim-pop-title").textContent = "Panel ölçüsü";
@@ -963,6 +985,7 @@ function paintSummary(summary) {
         : (rows.length + " adet (farklı hücre)");
     }
   }
+  paintLiveHudSummary();
 }
 
 function stopAssemblyPlay() {
@@ -1408,8 +1431,9 @@ function downloadBlob(blob, filename) {
 }
 
 async function orbitTurntable(seconds, token) {
-  if (!view.camera || !view.controls) return;
-  const cam = view.camera;
+  if (!view || !view.controls) return;
+  const cam = view.activeCamera || view.camera;
+  if (!cam) return;
   const controls = view.controls;
   const target = controls.target.clone();
   const offset = cam.position.clone().sub(target);
@@ -1698,6 +1722,7 @@ function paintNestStats() {
     panels.length + " panel · nest ≈ " +
     Math.round(sheetW) + " × " + Math.round(maxD) + " mm · " +
     "boşluk " + gap + " mm · alan ≈ " + Math.round(area) + " mm² · t=" + t + " mm";
+  paintLiveHudSummary();
 }
 
 function applyExplode(t) {
@@ -1756,13 +1781,101 @@ function fitCamera() {
   const size = box.getSize(new THREE.Vector3());
   const center = box.getCenter(new THREE.Vector3());
   const maxDim = Math.max(size.x, size.y, size.z, 40);
-  const dist = maxDim * 1.55;
   view.controls.target.copy(center);
-  view.camera.near = Math.max(0.1, maxDim / 200);
-  view.camera.far = Math.max(2000, maxDim * 20);
-  view.camera.updateProjectionMatrix();
-  view.camera.position.set(center.x + dist * 0.95, center.y + dist * 0.72, center.z + dist * 1.05);
+  if (state.topView && view.ortho) {
+    const aspect = (view.canvas.clientWidth || 1) / Math.max(view.canvas.clientHeight || 1, 1);
+    const half = Math.max(size.x, size.y, 40) * 0.62;
+    view.ortho.left = -half * aspect;
+    view.ortho.right = half * aspect;
+    view.ortho.top = half;
+    view.ortho.bottom = -half;
+    view.ortho.near = 0.1;
+    view.ortho.far = Math.max(2000, maxDim * 20);
+    view.ortho.position.set(center.x, center.y, center.z + maxDim * 2.2);
+    view.ortho.up.set(0, 1, 0);
+    view.ortho.lookAt(center);
+    view.ortho.updateProjectionMatrix();
+    view.controls.object = view.ortho;
+    view.activeCamera = view.ortho;
+  } else {
+    const dist = maxDim * 1.55;
+    const cam = view.camera;
+    cam.near = Math.max(0.1, maxDim / 200);
+    cam.far = Math.max(2000, maxDim * 20);
+    cam.updateProjectionMatrix();
+    cam.position.set(center.x + dist * 0.95, center.y + dist * 0.72, center.z + dist * 1.05);
+    view.controls.object = cam;
+    view.activeCamera = cam;
+  }
   view.controls.update();
+}
+
+function setTopView(on) {
+  state.topView = !!on;
+  if (!view) return;
+  const btn = $("view-top");
+  if (btn) btn.classList.toggle("cut", state.topView);
+  if (state.topView) {
+    view.controls.minPolarAngle = 0;
+    view.controls.maxPolarAngle = 0.02;
+    view.controls.enableRotate = false;
+    // Explode slightly so dividers are selectable from above; nest at 100% stays compatible.
+    const ex = Number(($("explode") && $("explode").value) || 0);
+    if (ex < 8) {
+      $("explode").value = "12";
+      $("explode-lab").textContent = "12%";
+      applyExplode(0.12);
+    }
+  } else {
+    view.controls.minPolarAngle = 0.18;
+    view.controls.maxPolarAngle = Math.PI * 0.49;
+    view.controls.enableRotate = true;
+  }
+  fitCamera();
+  setStatus(state.topView ? "Üstten görünüm — bölücü tut-çek veya mm yaz." : "Perspektif görünüm.", "ok");
+}
+
+function openDividerDimPop(group) {
+  const div = group && group.userData && group.userData.divider;
+  if (!div) return false;
+  const positions = (div.axis === "x"
+    ? (state.dividerXPos || (state.summary && state.summary.divider_x_pos) || [])
+    : (state.dividerYPos || (state.summary && state.summary.divider_y_pos) || [])).map(Number);
+  const pos = positions[div.index];
+  if (pos == null || Number.isNaN(pos)) return false;
+  $("dim-pop").classList.remove("hide");
+  $("dim-pop").dataset.mode = "divider";
+  $("dim-pop").dataset.divAxis = div.axis;
+  $("dim-pop").dataset.divIndex = String(div.index);
+  if ($("dim-pop-title")) $("dim-pop-title").textContent = "Bölücü konumu";
+  if ($("dim-pop-val-wrap")) $("dim-pop-val-wrap").classList.remove("hide");
+  if ($("dim-pop-cell-wrap")) $("dim-pop-cell-wrap").classList.add("hide");
+  $("dim-pop-label").textContent = "Bölücü " + div.axis.toUpperCase() + (div.index + 1) + " · mm (iç kenardan)";
+  $("dim-pop-val").value = String(Math.round(Number(pos) * 10) / 10);
+  return true;
+}
+
+function paintLiveHudSummary() {
+  const el = $("hud-live-sum");
+  if (!el) return;
+  const panels = (state.assembly && state.assembly.panels) || [];
+  const n = panels.length;
+  const s = state.summary || {};
+  const inner = (s.x_inner_mm != null)
+    ? (s.x_inner_mm + "×" + s.y_inner_mm + "×" + s.h_inner_mm)
+    : "—";
+  const outer = (s.x_outer_mm != null)
+    ? (s.x_outer_mm + "×" + s.y_outer_mm + "×" + s.h_outer_mm)
+    : "—";
+  let areaMm2 = 0;
+  panels.forEach((panel) => {
+    const xs = (panel.outline_local_mm || []).map((p) => p[0]);
+    const ys = (panel.outline_local_mm || []).map((p) => p[1]);
+    if (!xs.length) return;
+    areaMm2 += (Math.max(...xs) - Math.min(...xs)) * (Math.max(...ys) - Math.min(...ys));
+  });
+  const areaM2 = areaMm2 > 0 ? (areaMm2 / 1e6).toFixed(3) : "—";
+  el.textContent = n + " parça · iç " + inner + " · dış " + outer + " · alan " + areaM2 + " m²";
 }
 
 function fitCameraSoon() {
@@ -1899,11 +2012,26 @@ function paintExports(data) {
   if (authorized && fileId && document.body.classList.contains("signed-in") && !state.histLoading) {
     loadProjectHistory().catch(() => {});
   }
+  if (data.nesting) state.nesting = data.nesting;
   paintJoints(data);
+  const canDownload = state.signedIn && state.accessReady;
+  const cta = $("export-cta");
+  if (cta) {
+    if (!state.signedIn) {
+      cta.innerHTML = 'İndirmek için <a href="/account?next=/studio">giriş yap</a>. Önizleme misafire açık.';
+      cta.classList.remove("hide");
+    } else if (!state.accessReady) {
+      cta.innerHTML = 'Hesap onay bekliyor — önizleme açık. SVG/DXF <a href="/account">onay sonrası</a>.';
+      cta.classList.remove("hide");
+    } else {
+      cta.classList.add("hide");
+      cta.textContent = "";
+    }
+  }
   const svg = $("dl-svg");
   const dxf = $("dl-dxf");
   const edit = $("open-edit");
-  if (fileId) {
+  if (fileId && canDownload) {
     svg.href = state.svgUrl || ("/files/" + encodeURIComponent(fileId) + "?download=1");
     svg.setAttribute("download", fileId);
     svg.classList.remove("hide");
@@ -1913,12 +2041,26 @@ function paintExports(data) {
     svg.classList.add("hide");
     edit.classList.add("hide");
   }
-  if (state.dxfUrl || state.dxfId) {
+  if ((state.dxfUrl || state.dxfId) && canDownload) {
     dxf.href = state.dxfUrl || ("/files/" + encodeURIComponent(state.dxfId) + "?download=1");
     dxf.setAttribute("download", state.dxfId || "cut.dxf");
     dxf.classList.remove("hide");
-  } else if (!data.preview) {
+  } else if (!data.preview || !canDownload) {
     dxf.classList.add("hide");
+  }
+  const pdf = $("dl-pdf");
+  if (pdf) {
+    if (canDownload && (fileId || state.summary)) {
+      pdf.classList.remove("hide");
+      pdf.href = "#";
+      pdf.onclick = (ev) => {
+        ev.preventDefault();
+        downloadControlPdf().catch((e) => setStatus(String(e), "bad"));
+      };
+    } else {
+      pdf.classList.add("hide");
+      pdf.onclick = null;
+    }
   }
   if (data.stl_base64 || data.stl_url || data.stl_id) {
     const stl = $("dl-stl");
@@ -2067,6 +2209,7 @@ function boxBody() {
   if ($("box-material")) body.material = $("box-material").value;
   if ($("box-machine")) body.machine = $("box-machine").value;
   if ($("nest-gap")) body.nest_gap_mm = Number($("nest-gap").value) || 6;
+  if ($("box-part-labels")) body.engrave_part_names = !!$("box-part-labels").checked;
   // Custom divider layout from drag — only when count matches the form fields.
   const dx = body.dividers_x;
   const dy = body.dividers_y;
@@ -2539,6 +2682,35 @@ async function sendAiChat() {
   });
 }
 
+async function downloadControlPdf() {
+  if (!state.signedIn) {
+    setStatus("PDF için giriş yap.", "bad");
+    location.href = "/account?next=" + encodeURIComponent("/studio");
+    return;
+  }
+  if (!state.accessReady) {
+    setStatus("Hesap onay bekliyor — PDF onay sonrası.", "bad");
+    return;
+  }
+  setStatus("Kontrol baskısı PDF hazırlanıyor…");
+  const body = {
+    ...boxBody(),
+    file_id: state.fileId || undefined,
+    summary: state.summary || undefined,
+    nesting: state.nesting || undefined,
+  };
+  const { data } = await api("/api/studio/pdf", { method: "POST", body: JSON.stringify(body) });
+  if (!data.success || data.export_allowed === false || !data.pdf_base64) {
+    setStatus((data.look_again || []).join(" ") || "PDF üretilemedi.", "bad");
+    return;
+  }
+  const bin = atob(data.pdf_base64);
+  const buf = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+  downloadBlob(new Blob([buf], { type: "application/pdf" }), data.pdf_name || "studio-control.pdf");
+  setStatus("PDF indirildi — dijital kontrol baskısı; fiziksel NOT_VERIFIED.", "ok");
+}
+
 async function makeStl() {
   if (!state.fileId) {
     setStatus("Önce bir kutu veya AI tasarımı üretin.", "bad");
@@ -2573,15 +2745,26 @@ function syncMakerFields() {
   const name = $("maker-fields-name");
   const bird = $("maker-fields-bird");
   const xmas = $("maker-fields-xmas");
+  const boxish = $("maker-fields-boxish");
+  const giftWrap = $("maker-gift-name-wrap");
   if (name) name.classList.toggle("hide", kind !== "name_ornament");
   if (bird) bird.classList.toggle("hide", kind !== "birdhouse");
   if (xmas) xmas.classList.toggle("hide", kind !== "christmas");
+  if (boxish) boxish.classList.toggle("hide", kind !== "flexible_box" && kind !== "named_gift");
+  if (giftWrap) giftWrap.classList.toggle("hide", kind !== "named_gift");
   const hole = $("maker-hole");
-  if (hole) hole.closest("label").classList.toggle("hide", kind === "birdhouse");
+  if (hole) {
+    hole.closest("label").classList.toggle(
+      "hide",
+      kind === "birdhouse" || kind === "flexible_box" || kind === "named_gift"
+    );
+  }
   const note = $("maker-note");
   if (note) {
     if (kind === "birdhouse") note.textContent = "Finger-joint kuş evi — giriş deliği + kaldırılabilir çatı. AI yok. Fiziksel fit NOT_VERIFIED.";
     else if (kind === "christmas") note.textContent = "Yıldız / daire ası süsü — parametrik, AI yok.";
+    else if (kind === "flexible_box") note.textContent = "Menteşeli kapaklı esnek ölçü kutusu — AI yok. Fiziksel fit NOT_VERIFIED.";
+    else if (kind === "named_gift") note.textContent = "İsimli hediye kutusu — kapakta ENGRAVE yazı. AI yok.";
     else note.textContent = "İsim süsü + ası deliği + kazıma yazı. Fiziksel kuruluk NOT_VERIFIED.";
   }
 }
@@ -2602,6 +2785,13 @@ function makerBody() {
     body.y = Number(($("maker-by") && $("maker-by").value) || 100);
     body.h = Number(($("maker-bh") && $("maker-bh").value) || 100);
     body.entrance_mm = Number(($("maker-entrance") && $("maker-entrance").value) || 32);
+  } else if (kind === "flexible_box" || kind === "named_gift") {
+    body.x = Number(($("maker-fx") && $("maker-fx").value) || 140);
+    body.y = Number(($("maker-fy") && $("maker-fy").value) || 90);
+    body.h = Number(($("maker-fh") && $("maker-fh").value) || 50);
+    if (kind === "named_gift") {
+      body.text = ($("maker-gift-text") && $("maker-gift-text").value) || "İyi ki varsın";
+    }
   } else {
     body.shape = ($("maker-shape") && $("maker-shape").value) || "star";
     body.text = ($("maker-xtext") && $("maker-xtext").value) || "";
@@ -2794,6 +2984,17 @@ function wireUi() {
     };
   }
   $("make-box").onclick = () => {
+    if (!state.signedIn) {
+      setStatus("İndirmek için giriş yap. Önizleme misafire açık.", "bad");
+      location.href = "/account?next=" + encodeURIComponent("/studio");
+      return;
+    }
+    if (!state.accessReady) {
+      setStatus("Hesap onay bekliyor — önizleme açık, indirme onay sonrası.", "bad");
+      const note = $("pending-note");
+      if (note) note.classList.remove("hide");
+      return;
+    }
     pushUndo();
     clearGhostLid();
     makeBox({ preview: false, autoDownload: true }); // full SVG/DXF + trigger download
@@ -2921,6 +3122,31 @@ function wireUi() {
       setStatus("Hücre kilitlendi — kalan hücreler eşit dağıtılır.", "ok");
       return;
     }
+    if ($("dim-pop").dataset.mode === "divider") {
+      const axis = $("dim-pop").dataset.divAxis;
+      const idx = Number($("dim-pop").dataset.divIndex);
+      const next = Math.max(8, Number($("dim-pop-val").value) || 8);
+      const positions = (axis === "x"
+        ? (state.dividerXPos || (state.summary && state.summary.divider_x_pos) || [])
+        : (state.dividerYPos || (state.summary && state.summary.divider_y_pos) || [])).map(Number);
+      if (idx < 0 || idx >= positions.length) {
+        hideDimPop();
+        return;
+      }
+      positions[idx] = next;
+      pushUndo();
+      if (axis === "x") {
+        state.dividerXPos = positions.slice();
+        state.sx = null;
+      } else {
+        state.dividerYPos = positions.slice();
+        state.sy = null;
+      }
+      hideDimPop();
+      scheduleRebuild(true);
+      setStatus("Bölücü " + axis.toUpperCase() + (idx + 1) + " → " + next + " mm", "ok");
+      return;
+    }
     const field = $("dim-pop").dataset.field;
     const val = $("dim-pop-val").value;
     if (field) $(field).value = val;
@@ -2928,6 +3154,34 @@ function wireUi() {
     pushUndo();
     scheduleRebuild();
   };
+  if ($("view-top")) {
+    $("view-top").onclick = () => setTopView(!state.topView);
+  }
+  if ($("try-size")) {
+    $("try-size").onclick = () => {
+      const presets = [
+        [100, 80, 50],
+        [120, 90, 55],
+        [150, 100, 60],
+        [180, 120, 70],
+        [200, 150, 80],
+        [220, 140, 90],
+      ];
+      state.sizePresetIdx = (state.sizePresetIdx + 1) % presets.length;
+      const [x, y, h] = presets[state.sizePresetIdx];
+      pushUndo();
+      $("box-x").value = String(x);
+      $("box-y").value = String(y);
+      $("box-h").value = String(h);
+      if ($("box-unit") && $("box-unit").value === "cm") {
+        $("box-x").value = String(x / 10);
+        $("box-y").value = String(y / 10);
+        $("box-h").value = String(h / 10);
+      }
+      scheduleRebuild(true);
+      setStatus("Yakın ölçü denendi: " + $("box-x").value + "×" + $("box-y").value + "×" + $("box-h").value, "ok");
+    };
+  }
   window.addEventListener("keydown", (ev) => {
     const typing = ["INPUT", "TEXTAREA", "SELECT"].includes((ev.target && ev.target.tagName) || "")
       || (ev.target && ev.target.isContentEditable);
@@ -3355,7 +3609,14 @@ async function boot() {
   wireUi();
   await loadProfiles();
   const { data } = await api("/api/account?optional=1");
-  if (data && data.user) document.body.classList.add("signed-in");
+  state.signedIn = !!(data && data.user);
+  state.accessReady = !!(data && data.access_ready);
+  if (state.signedIn) document.body.classList.add("signed-in");
+  const pendingNote = $("pending-note");
+  if (pendingNote) {
+    pendingNote.classList.toggle("hide", !(state.signedIn && !state.accessReady));
+  }
+  paintExports({ preview: true, export_allowed: false });
   // Account history (Geçmiş tab + summary strip) for the signed-in principal.
   loadProjectHistory().catch(() => {});
   const plans = await api("/api/plans");
@@ -3365,9 +3626,24 @@ async function boot() {
     $("ai-gate").textContent = "AI Maker/Pro. Parametrik kutu ücretsiz kalır. MCP linki ayrı ve ince.";
   }
   const params = new URLSearchParams(location.search);
+  const tab = (params.get("tab") || "").trim();
+  if (tab) {
+    const btn = document.querySelector('.tabs button[data-tab="' + tab + '"]');
+    if (btn) btn.click();
+  }
+  const maker = (params.get("maker") || "").trim();
+  if (maker && $("maker-kind")) {
+    $("maker-kind").value = maker;
+    syncMakerFields();
+  }
   const file = params.get("file");
   if (file) await loadFile(file);
-  else await makeBox({ preview: true });
+  else if (tab === "makers" || maker) {
+    // Landing deep-link: stay on makers; don't force a parametric box rebuild noise.
+    setStatus("Maker şablonu hazır — «Parametrik üret».", "ok");
+  } else {
+    await makeBox({ preview: true });
+  }
 }
 
 boot().catch((err) => setStatus(String(err), "bad"));

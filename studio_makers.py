@@ -28,6 +28,20 @@ MAKERS = {
         "ai": False,
         "note": "Yıldız / daire ası süsü — parametrik, AI yok.",
     },
+    "flexible_box": {
+        "id": "flexible_box",
+        "label_tr": "Esnek kutu",
+        "label_en": "Flexible box",
+        "ai": False,
+        "note": "Menteşeli kapaklı parametrik kutu — ölçüleri serbest; AI yok.",
+    },
+    "named_gift": {
+        "id": "named_gift",
+        "label_tr": "İsimli hediye",
+        "label_en": "Named gift box",
+        "ai": False,
+        "note": "Çıkarılabilir kapaklı hediye kutusu + kapak kazıma yazı; AI yok.",
+    },
 }
 
 
@@ -285,6 +299,79 @@ def build_christmas(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def build_flexible_box(payload: dict[str, Any]) -> dict[str, Any]:
+    """Hinged-lid parametric box — flexible sizing, not AI."""
+    from studio_box import build_studio_box
+
+    body = {
+        "x": payload.get("x") or payload.get("width") or payload.get("w") or 140,
+        "y": payload.get("y") or payload.get("depth") or payload.get("d") or 90,
+        "h": payload.get("h") or payload.get("height") or 50,
+        "thickness": payload.get("thickness") or 3,
+        "lid": "hinged",
+        "lid_radius": payload.get("lid_radius") or 2,
+        "handle": payload.get("handle", True),
+        "material": payload.get("material") or "poplar_3mm",
+        "machine": payload.get("machine") or "payas_workshop",
+        "label": "flexible-box",
+        "project": "flexible-box",
+        "holding_nicks": False,
+        "surface_texts": [],
+    }
+    if payload.get("burn") not in (None, ""):
+        body["burn"] = payload.get("burn")
+    built = build_studio_box(body)
+    built["summary"] = {
+        **(built.get("summary") or {}),
+        "maker": "flexible_box",
+        "ai": False,
+    }
+    built["mode"] = "primitives"
+    return built
+
+
+def build_named_gift(payload: dict[str, Any]) -> dict[str, Any]:
+    """Removable-lid gift box with engraved name on the lid."""
+    from studio_box import build_studio_box
+
+    text = str(payload.get("text") or payload.get("name") or payload.get("label") or "Hediye").strip()
+    if not text:
+        raise ValueError("isimli hediye için yazı gerekli")
+    if len(text) > 32:
+        raise ValueError("yazı en fazla 32 karakter")
+    body = {
+        "x": payload.get("x") or payload.get("width") or payload.get("w") or 120,
+        "y": payload.get("y") or payload.get("depth") or payload.get("d") or 80,
+        "h": payload.get("h") or payload.get("height") or 45,
+        "thickness": payload.get("thickness") or 3,
+        "lid": "removable",
+        "lid_radius": payload.get("lid_radius") or 3,
+        "handle": True,
+        "material": payload.get("material") or "poplar_3mm",
+        "machine": payload.get("machine") or "payas_workshop",
+        "label": "named-gift",
+        "project": f"named-gift-{text[:20]}",
+        "holding_nicks": False,
+        "surface_texts": [{"text": text, "target_part": "named-gift.top", "height_mm": 7}],
+    }
+    if payload.get("burn") not in (None, ""):
+        body["burn"] = payload.get("burn")
+    built = build_studio_box(body)
+    # build_studio_box may clear surface_texts unless part-labels flag; force gift text.
+    params = dict(built.get("parameters") or {})
+    params["surface_texts"] = [{"text": text, "target_part": "named-gift.top", "height_mm": 7}]
+    params["holding_nicks"] = False
+    built["parameters"] = params
+    built["summary"] = {
+        **(built.get("summary") or {}),
+        "maker": "named_gift",
+        "text": text,
+        "ai": False,
+    }
+    built["mode"] = "primitives"
+    return built
+
+
 def build_maker(kind: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
     key = str(kind or "").strip().lower().replace("-", "_").replace(" ", "_")
     aliases = {
@@ -298,13 +385,27 @@ def build_maker(kind: str, payload: dict[str, Any] | None = None) -> dict[str, A
         "xmas": "christmas",
         "noel": "christmas",
         "yildiz": "christmas",
+        "esnek": "flexible_box",
+        "esnek_kutu": "flexible_box",
+        "flex_box": "flexible_box",
+        "flexible": "flexible_box",
+        "hediye": "named_gift",
+        "gift": "named_gift",
+        "named_gift_box": "named_gift",
+        "isimli_hediye": "named_gift",
     }
     key = aliases.get(key, key)
     if key not in MAKERS:
-        raise ValueError(f"unknown maker {kind!r}; use name_ornament|birdhouse|christmas")
+        raise ValueError(
+            f"unknown maker {kind!r}; use name_ornament|birdhouse|christmas|flexible_box|named_gift"
+        )
     body = payload or {}
     if key == "name_ornament":
         return build_name_ornament(body)
     if key == "birdhouse":
         return build_birdhouse(body)
+    if key == "flexible_box":
+        return build_flexible_box(body)
+    if key == "named_gift":
+        return build_named_gift(body)
     return build_christmas(body)

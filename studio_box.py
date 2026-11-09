@@ -20,7 +20,12 @@ def _i(value: Any, default: int = 0, lo: int = 0, hi: int = 12) -> int:
 
 
 def _unit_to_mm(value: float, unit: str) -> float:
-    return float(value) * 25.4 if str(unit).lower() in {"in", "inch", "inches"} else float(value)
+    key = str(unit or "mm").lower()
+    if key in {"in", "inch", "inches"}:
+        return float(value) * 25.4
+    if key in {"cm", "centimeter", "centimetre", "centimeters", "centimetres"}:
+        return float(value) * 10.0
+    return float(value)
 
 
 def equal_cells(inner: float, dividers: int, thickness: float) -> list[float]:
@@ -548,7 +553,7 @@ def build_studio_box(payload: dict[str, Any] | None = None) -> dict[str, Any]:
 
     h_usable = hi - raised - (0.0 if lid_raw == "open" else 0.0)
     summary = {
-        "unit": unit if unit in {"mm", "in", "inch", "inches"} else "mm",
+        "unit": unit if unit in {"mm", "cm", "in", "inch", "inches"} else "mm",
         "dimension_mode": "external" if str(body.get("dimension_mode") or "").lower() in {"external", "outside", "outer"} else "internal",
         "x_inner_mm": round(xi, 3),
         "y_inner_mm": round(yi, 3),
@@ -599,11 +604,26 @@ def build_studio_box(payload: dict[str, Any] | None = None) -> dict[str, Any]:
         "material": str(body.get("material") or "poplar_3mm"),
         "machine": str(body.get("machine") or "payas_workshop"),
         "what_you_see": "studio parametric finger-joint box",
+        "holding_nicks": bool(body.get("holding_nicks")) if body.get("holding_nicks") is not None else False,
         "FingerJoint_finger": finger_mult,
         "FingerJoint_space": finger_mult,
         "FingerJoint_style": "springs" if press_fit else "rectangular",
         "FingerJoint_play": max(0.0, min(0.4, play)),
     }
+    if body.get("engrave_part_names") or body.get("part_labels"):
+        label = str(box.get("label") or "studio-box")
+        texts = [
+            {"text": "ön", "target_part": f"{label}.front"},
+            {"text": "arka", "target_part": f"{label}.back"},
+            {"text": "sol", "target_part": f"{label}.left"},
+            {"text": "sağ", "target_part": f"{label}.right"},
+        ]
+        if lid_raw not in {"open", "none", "false", "0"}:
+            texts.append({"text": "kapak", "target_part": f"{label}.top"})
+        parameters["surface_texts"] = texts
+        summary["engrave_part_names"] = True
+    else:
+        parameters["surface_texts"] = list(body.get("surface_texts") or [])
     if body.get("nest_gap_mm") not in (None, ""):
         try:
             parameters["nest_gap_mm"] = max(2.0, min(30.0, float(body.get("nest_gap_mm"))))

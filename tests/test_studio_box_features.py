@@ -31,6 +31,16 @@ class StudioBoxFeaturesTests(unittest.TestCase):
         self.assertEqual(len(cells), 2)
         self.assertAlmostEqual(sum(cells) + 3, 100)
 
+    def test_cm_unit_and_part_labels(self):
+        built = build_studio_box({
+            "x": 12, "y": 8, "h": 4, "unit": "cm", "thickness": 3, "lid": "finger",
+            "engrave_part_names": True,
+        })
+        self.assertAlmostEqual(built["summary"]["x_inner_mm"], 120)
+        self.assertTrue(built["summary"].get("engrave_part_names"))
+        texts = built["parameters"].get("surface_texts") or []
+        self.assertTrue(any(t.get("text") == "ön" for t in texts))
+
     def test_build_open_box(self):
         built = build_studio_box({"x": 120, "y": 80, "h": 40, "thickness": 3, "lid": "open"})
         box = built["primitives"][0]

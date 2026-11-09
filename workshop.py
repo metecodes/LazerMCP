@@ -552,7 +552,7 @@ def create_studio_maker(body: dict[str, Any] | None = None, *, public_base_url: 
             "ok": False,
             "ai": False,
             "makers": list_makers(),
-            "look_again": ["maker required: name_ornament | birdhouse | christmas"],
+            "look_again": ["maker required: name_ornament | birdhouse | christmas | flexible_box | named_gift"],
             "plan": gate,
         }
     try:
@@ -604,9 +604,29 @@ def create_studio_maker(body: dict[str, Any] | None = None, *, public_base_url: 
         }
     final_status = str(result.get("final_status") or "BLOCKED")
     export_ok = final_status not in {"BLOCKED", "FAIL"} and bool(result.get("success"))
+    # Guests/pending still get 3D; downloads require an approved account (same as box).
+    principal = None
+    account_ok = False
+    try:
+        from keys import current_auth
+        from supabase_auth import account_is_approved
+
+        principal = current_auth.get()
+        account_ok = bool(principal) and account_is_approved(principal)
+    except Exception:
+        account_ok = False
+    if export_ok and not account_ok:
+        export_ok = False
+        looks_gate = (
+            ["Sign in to download maker SVG/DXF. 3D preview stays open for guests."]
+            if not principal
+            else ["Account pending approval — maker preview open; download unlocks after approval."]
+        )
+    else:
+        looks_gate = []
     file_id = result.get("file_id") if export_ok else None
     studio_url = f"{base.rstrip('/')}/studio?file={file_id}" if base and file_id else (f"/studio?file={file_id}" if file_id else None)
-    looks = list(result.get("look_again") or []) + [
+    looks = list(looks_gate) + list(result.get("look_again") or []) + [
         "Parametric maker — no AI / no LLM.",
         "Digital prototype only. Measure thickness and dry-fit before production.",
     ]
@@ -711,6 +731,34 @@ def create_studio_box(body: dict[str, Any] | None = None, *, public_base_url: st
         }
 
     preview = bool(payload.get("preview") or payload.get("fast"))
+    if not preview:
+        # Guest/pending may preview freely; authorized download needs an approved account.
+        try:
+            from keys import current_auth
+            from supabase_auth import account_is_approved
+
+            principal = current_auth.get()
+        except Exception:
+            principal = None
+        if not principal:
+            return {
+                "success": True,
+                "ok": False,
+                "export_allowed": False,
+                "final_status": "BLOCKED",
+                "look_again": ["Sign in to download SVG/DXF. Preview stays open for guests."],
+                "plan": gate,
+            }
+        if not account_is_approved(principal):
+            return {
+                "success": True,
+                "ok": False,
+                "export_allowed": False,
+                "final_status": "BLOCKED",
+                "look_again": ["Account pending approval — design/preview stays open; download unlocks after approval."],
+                "plan": gate,
+                "assembly": None,
+            }
     if preview:
         try:
             params = dict(built["parameters"] or {})
@@ -832,6 +880,75 @@ def create_studio_box(body: dict[str, Any] | None = None, *, public_base_url: st
         "look_again": looks,
         "plan": gate,
         "gate_skipped": False,
+        "nesting": result.get("nesting") or (result.get("extra") or {}).get("nesting"),
+    }
+
+
+def create_studio_pdf(body: dict[str, Any] | None = None, *, public_base_url: str | None = None) -> dict[str, Any]:
+    """Digital control-print PDF. Does not claim kerf/fit PASS. Physical remains NOT_VERIFIED."""
+    import base64
+
+    from plans import gate_job
+    from studio_pdf import create_studio_pdf as build_pdf
+
+    gate = gate_job("design")
+    if not gate.get("ok"):
+        return gate
+    payload = body or {}
+
+    try:
+        from keys import current_auth
+        from supabase_auth import account_is_approved
+
+        principal = current_auth.get()
+    except Exception:
+        principal = None
+    if not principal:
+        return {
+            "success": True,
+            "ok": False,
+            "export_allowed": False,
+            "look_again": ["Sign in to download the control PDF. Preview stays open for guests."],
+            "plan": gate,
+        }
+    if not account_is_approved(principal):
+        return {
+            "success": True,
+            "ok": False,
+            "export_allowed": False,
+            "look_again": ["Account pending approval — control PDF unlocks after approval."],
+            "plan": gate,
+        }
+
+    nesting = payload.get("nesting") if isinstance(payload.get("nesting"), dict) else None
+    summary = payload.get("summary") if isinstance(payload.get("summary"), dict) else None
+    file_id = str(payload.get("file_id") or "").strip() or None
+
+    # Rebuild summary from live box params when the client only sends form fields.
+    if not summary and (payload.get("x") or payload.get("width")):
+        try:
+            from studio_box import build_studio_box
+
+            summary = build_studio_box(payload).get("summary")
+        except (TypeError, ValueError):
+            summary = None
+
+    built = build_pdf(nesting=nesting, summary=summary, file_id=file_id)
+    pdf_bytes = built["pdf_bytes"]
+    name = built["pdf_name"]
+    return {
+        "success": True,
+        "export_allowed": True,
+        "pdf_id": name,
+        "pdf_name": name,
+        "pdf_base64": base64.b64encode(pdf_bytes).decode("ascii"),
+        "note": built.get("note"),
+        "physical": "NOT_VERIFIED",
+        "look_again": [
+            "Digital control print only — not a kerf or dry-fit PASS.",
+            "Physical cut / fit remain NOT_VERIFIED until measured.",
+        ],
+        "plan": gate,
     }
 
 
