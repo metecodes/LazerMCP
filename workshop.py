@@ -419,14 +419,19 @@ def estimate_cost(body: dict[str, Any] | None = None) -> dict[str, Any]:
 def estimate_ai_prompt_cost(body: dict[str, Any] | None = None) -> dict[str, Any]:
     """Dry-run LLM $ estimate for a prompt. Studio AI local path is $0 API."""
     from ai_cost import estimate_prompt_cost, list_models
-    from llm_keys import any_configured, list_status, provider_for_model
+    from ai_cost import MODEL_PRICES
+    from llm_guard import access, allowed_models, default_model
+    from llm_keys import any_configured, list_status
     from plans import gate_job
 
     payload = body or {}
     prompt = str(payload.get("prompt") or payload.get("ai_prompt") or payload.get("text") or "")
-    model = str(payload.get("model") or "gpt-4o-mini")
+    # The picked model prices the MCP-host column; Studio itself only calls an allowed one.
+    model = str(payload.get("model") or default_model())
     mode = str(payload.get("mode") or "mcp_thin")
     workshop_llm = any_configured()
+    llm_access = access(payload.get("model"))
+    studio_model = llm_access["model"]
     # Studio AI tab uses in-process planner — surface both quotes
     local = estimate_prompt_cost(
         prompt,
@@ -442,27 +447,48 @@ def estimate_ai_prompt_cost(body: dict[str, Any] | None = None) -> dict[str, Any
     )
     workshop = estimate_prompt_cost(
         prompt,
-        model=model,
+        model=studio_model,
         mode="mcp_thin",
         photo=bool(payload.get("has_photo") or payload.get("photo")),
     )
     gate = gate_job("platform_ai")
-    provider = provider_for_model(model)
+    provider = llm_access["provider"]
+    if llm_access["allow"]:
+        note = (
+            f"Atölye {provider} anahtarı kayıtlı → Stüdyo AI {studio_model} modeline çağrı yapar; fatura sağlayıcıya gider "
+            f"(LaserMCP lzr_ değil). Bir adresten günde en çok {llm_access['daily_per_ip']} AI isteği."
+        )
+    elif llm_access["reason"] == "signin":
+        note = "AI modeli yalnız onaylı hesapla giriş yapınca çalışır. Misafir istekleri yerel planner ile üretilir ($0)."
+    elif llm_access["reason"] == "pending":
+        note = "Hesabın onaylanınca AI modeli açılır. O zamana kadar yerel planner kullanılır ($0)."
+    elif llm_access["reason"] == "global_limit":
+        note = "AI modeli bugünlük kapalı (günlük sınır). Yerel planner kullanılır ($0)."
+    else:
+        note = "Stüdyo AI şu an yerel plan_laser_job kullanır → harici API $0. Hesap → LLM anahtarı eklenince sağlayıcıya gider."
     return {
         "success": True,
         "kind": "ai_prompt",
         "prompt_preview": prompt[:240],
-        "workshop_llm_keys": list_status(),
+        # This quote is open to guests: say which providers have a key, nothing about the key itself.
+        "workshop_llm_keys": [{"provider": row["provider"], "configured": row["configured"]} for row in list_status()],
         "studio_ai": {
-            **(workshop if workshop_llm else local),
+            **(workshop if llm_access["allow"] else local),
             "quota": {"used": gate.get("used"), "limit": gate.get("quota"), "plan": gate.get("plan_name")},
             "uses_workshop_key": workshop_llm,
             "provider": provider,
-            "note": (
-                f"Atölye {provider} anahtarı kayıtlı → Stüdyo AI bu modele çağrı yapabilir; fatura sağlayıcıya gider (LaserMCP lzr_ değil)."
-                if workshop_llm
-                else "Stüdyo AI şu an yerel plan_laser_job kullanır → harici API $0. Hesap → LLM anahtarı eklenince sağlayıcıya gider."
-            ),
+            "note": note,
+        },
+        "llm_access": {
+            "eligible": llm_access["allow"],
+            "reason": llm_access["reason"],
+            "model": studio_model,
+            "provider": provider,
+            "daily_per_ip": llm_access["daily_per_ip"],
+        },
+        "studio_models": {
+            "default": default_model(),
+            "allowed": [{"id": mid, "label": (MODEL_PRICES.get(mid) or {}).get("label") or mid} for mid in allowed_models()],
         },
         "mcp_host_ai": mcp,
         "models": list_models(),
@@ -1070,7 +1096,7 @@ def _compose_ai_chat_prompt(prompt: str, payload: dict[str, Any]) -> str:
     return head + "\n\n" + "\n\n".join(chunks)
 
 
-def _studio_ai_result(result: dict[str, Any], *, cost: dict[str, Any] | None = None, extra_look: list[str] | None = None, plan: dict[str, Any] | None = None, plan_job: dict[str, Any] | None = None, source: str = "prompt", public_base_url: str | None = None) -> dict[str, Any]:
+def _studio_ai_result(result: dict[str, Any], *, cost: dict[str, Any] | None = None, extra_look: list[str] | None = None, plan: dict[str, Any] | None = None, plan_job: dict[str, Any] | None = None, source: str = "prompt", public_base_url: str | None = None, lead_look: str = "") -> dict[str, Any]:
     from assembly_result import panels_for_viewer
 
     viewer = panels_for_viewer(result.get("assembly_result"))
@@ -1084,6 +1110,9 @@ def _studio_ai_result(result: dict[str, Any], *, cost: dict[str, Any] | None = N
     studio_url = f"{base}/studio?file={file_id}" if base and file_id else (f"/studio?file={file_id}" if file_id else None)
     if final_status == "BLOCKED":
         looks.insert(0, "BLOCKED — SVG/DXF not authorized. Read the notes below, fix in chat, then retry.")
+    if lead_look:
+        # Why the paid model did not answer comes before the reviewer's notes, which can be long.
+        looks.insert(0, lead_look)
     if studio_url:
         looks.append(f"Open in Studio 3D: {studio_url}")
     return {
@@ -1110,8 +1139,11 @@ def _studio_ai_result(result: dict[str, Any], *, cost: dict[str, Any] | None = N
     }
 
 
-def create_studio_ai(body: dict[str, Any] | None = None, *, public_base_url: str | None = None) -> dict[str, Any]:
-    """Studio AI: prompt and/or uploaded photo|svg|plt|dxf → 3D panels. Gated by platform_ai + quota."""
+def create_studio_ai(body: dict[str, Any] | None = None, *, public_base_url: str | None = None, client_ip: str = "") -> dict[str, Any]:
+    """Studio AI: prompt and/or uploaded photo|svg|plt|dxf → 3D panels. Gated by platform_ai + quota.
+
+    client_ip keys the daily cap on provider calls; without it the signed-in caller is the key.
+    """
     from job_planner import plan_laser_job
     from plans import entitled, gate_job
     import payas_cad
@@ -1162,7 +1194,7 @@ def create_studio_ai(body: dict[str, Any] | None = None, *, public_base_url: str
     cost = estimate_ai_prompt_cost(
         {
             "prompt": request or f"upload:{kind or 'file'}",
-            "model": payload.get("model") or "gpt-4o-mini",
+            "model": payload.get("model") or "",
             "has_photo": has_image,
             "mode": "studio_local",
         }
@@ -1252,15 +1284,16 @@ def create_studio_ai(body: dict[str, Any] | None = None, *, public_base_url: str
         )
 
     # --- Text prompt → workshop LLM (if key) else local planner ---
-    from llm_keys import get_raw_key, provider_for_model
+    from llm_guard import authorize
 
-    model_id = str(payload.get("model") or "gpt-4o-mini")
-    provider = provider_for_model(model_id)
     planner_mode = str(payload.get("planner") or "").lower()
     force_local = planner_mode in {"local", "rules", "plan_laser_job"}
     prefer_llm = planner_mode in {"llm", "provider", "openai", "anthropic", "external"}
-    api_key = None if force_local else get_raw_key(provider)
-    if prefer_llm and not api_key:
+    # The key is spent only past the guards: approved caller, allowed model, daily caps.
+    guard = {"allow": False, "reason": "local", "note": ""} if force_local else authorize(payload.get("model"), client_ip=client_ip)
+    model_id = str(guard.get("model") or "")
+    provider = str(guard.get("provider") or "")
+    if prefer_llm and guard["reason"] == "no_key":
         return {
             "success": True,
             "ok": False,
@@ -1270,15 +1303,25 @@ def create_studio_ai(body: dict[str, Any] | None = None, *, public_base_url: str
             "plan": gate,
         }
 
-    if api_key:
+    llm_error = ""
+    if guard["allow"]:
         try:
+            from ai_cost import usage_cost
+            from keys import current_auth
             from llm_client import plan_primitives_with_llm
+            from metering import record_usage
 
             llm_plan = plan_primitives_with_llm(
                 request,
                 model=model_id,
                 thickness=float(thickness) if thickness not in (None, "") else None,
             )
+            usage = dict(llm_plan.get("usage") or {})
+            usage["usd"] = usage_cost(model_id, usage.get("input_tokens") or 0, usage.get("output_tokens") or 0)
+            try:
+                record_usage(current_auth.get(), "studio_ai_llm", {"model": model_id, **usage})
+            except OSError:
+                pass  # the paid plan is still worth returning when the usage log cannot be written
             primitives = llm_plan.get("primitives") or []
             merged = dict(llm_plan.get("parameters") or {})
             merged.update(parameters)
@@ -1305,6 +1348,7 @@ def create_studio_ai(body: dict[str, Any] | None = None, *, public_base_url: str
                     "method": "workshop_llm",
                     "provider": provider,
                     "model": model_id,
+                    "usage": usage,
                 },
                 source="prompt_llm",
                 extra_look=[
@@ -1315,8 +1359,7 @@ def create_studio_ai(body: dict[str, Any] | None = None, *, public_base_url: str
         except Exception as exc:
             # Fall through to local planner; surface the LLM error in look_again.
             llm_error = str(exc)
-    else:
-        llm_error = ""
+    guard_note = str(guard.get("note") or "")
 
     plan = plan_laser_job(
         request,
@@ -1329,6 +1372,8 @@ def create_studio_ai(body: dict[str, Any] | None = None, *, public_base_url: str
         looks = list(plan.get("look_again") or [])
         if llm_error:
             looks.insert(0, f"Workshop LLM failed: {llm_error}")
+        if guard_note:
+            looks.insert(0, guard_note)
         return {
             "success": True,
             "ok": False,
@@ -1359,6 +1404,7 @@ def create_studio_ai(body: dict[str, Any] | None = None, *, public_base_url: str
         plan_job={k: plan.get(k) for k in ("summary", "next_tool", "method", "look_again") if k in plan},
         source="prompt",
         extra_look=looks,
+        lead_look=guard_note,
     )
 
 

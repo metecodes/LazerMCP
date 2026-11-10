@@ -5,7 +5,7 @@ from __future__ import annotations
 import unittest
 from unittest.mock import AsyncMock, patch
 
-from keys import current_auth
+import keys  # looked up at call time: test_auth reloads it, replacing current_auth
 
 
 PENDING = {
@@ -24,7 +24,7 @@ class PendingStudioGateTests(unittest.IsolatedAsyncioTestCase):
         seen = {}
 
         async def app(scope, receive, send):
-            seen["principal"] = current_auth.get()
+            seen["principal"] = keys.current_auth.get()
             body = b'{"success":true,"preview":true}'
             await send(
                 {
@@ -55,7 +55,7 @@ class PendingStudioGateTests(unittest.IsolatedAsyncioTestCase):
         seen = {}
 
         async def app(scope, receive, send):
-            seen["principal"] = current_auth.get()
+            seen["principal"] = keys.current_auth.get()
             body = b'{"success":true}'
             await send(
                 {

@@ -45,6 +45,37 @@ MODEL_PRICES: dict[str, dict[str, Any]] = {
         "output_per_mtok": 75.0,
         "provider": "anthropic",
     },
+    "claude-haiku-5-5": {
+        "label": "Claude Haiku 5.5",
+        "input_per_mtok": 0.10,
+        "output_per_mtok": 0.50,
+        "provider": "anthropic",
+    },
+    "claude-sonnet-5-5": {
+        "label": "Claude Sonnet 5.5",
+        "input_per_mtok": 2.0,
+        "output_per_mtok": 10.0,
+        "provider": "anthropic",
+    },
+    "claude-opus-5-5": {
+        "label": "Claude Opus 5.5",
+        "input_per_mtok": 4.0,
+        "output_per_mtok": 20.0,
+        "provider": "anthropic",
+    },
+    "claude-fable-5-1": {
+        "label": "Claude Fable 5.1",
+        "input_per_mtok": 10.0,
+        "output_per_mtok": 50.0,
+        "provider": "anthropic",
+    },
+    # Not confirmed on the provider's own price page — set LASERMCP_PRICE_GPT_6_ASTRA_IN/_OUT.
+    "gpt-6-astra": {
+        "label": "GPT Astra (estimate)",
+        "input_per_mtok": 10.0,
+        "output_per_mtok": 50.0,
+        "provider": "openai",
+    },
 }
 
 # Extra input tokens typical when the host AI has LaserMCP tools + instructions loaded.
@@ -92,6 +123,13 @@ def _price_row(model: str) -> dict[str, Any]:
         pass
     row["id"] = key if key in MODEL_PRICES else "gpt-4o-mini"
     return row
+
+
+def usage_cost(model: str, input_tokens: int, output_tokens: int) -> float:
+    """USD for the token counts a provider reported for one finished call."""
+    prices = _price_row(model)
+    usd = int(input_tokens or 0) * float(prices["input_per_mtok"]) + int(output_tokens or 0) * float(prices["output_per_mtok"])
+    return round(usd / 1_000_000.0, 6)
 
 
 def estimate_prompt_cost(

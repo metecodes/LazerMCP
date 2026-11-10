@@ -196,6 +196,11 @@ Hepsi isteğe bağlıdır.
 | `MCP_OUTPUT_DIR` | `output` veya Vercel `/tmp` | Kalıcı SVG klasörü |
 | `MCP_DATA_DIR` | `output/studio` | Profiller, kerf, projeler, kullanım, telemetry |
 | `LASERMCP_BETA` | `1` | `0` olursa Free/Maker/Pro kotaları uygulanır |
+| `LASERMCP_LLM_DEFAULT_MODEL` | `gpt-4o-mini` | Stüdyo AI’nin çağırdığı model (istek model vermezse veya listede olmayanı isterse) |
+| `LASERMCP_LLM_MODELS` | `gpt-4o-mini,gpt-4o,claude-haiku-4.5,claude-sonnet-4.5` | Stüdyo AI’nin çağırabileceği modeller. Tarayıcıdan gelen model yalnız bu listedeyse kullanılır |
+| `LASERMCP_AI_DAILY_PER_IP` | `10` | Bir adresten 24 saatte en çok kaç ücretli AI çağrısı. Aşılınca istek yerel planner ile ($0) üretilir |
+| `LASERMCP_AI_DAILY_GLOBAL` | `200` | Tüm site için 24 saatlik ücretli AI çağrı tavanı |
+| `LASERMCP_LLM_MAX_OUTPUT_TOKENS` | `2500` | Tek çağrının faturalayabileceği en çok çıktı token’ı |
 | `BLOB_READ_WRITE_TOKEN` | (boş) | Varsa SVG Vercel Blob’a yazılır; `svg_url` kalır |
 
 ## Vercel

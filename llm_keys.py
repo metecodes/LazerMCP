@@ -201,5 +201,8 @@ def provider_for_model(model: str) -> str:
     from ai_cost import MODEL_PRICES
 
     mid = str(model or "gpt-4o-mini").strip().lower()
-    row = MODEL_PRICES.get(mid) or MODEL_PRICES["gpt-4o-mini"]
+    row = MODEL_PRICES.get(mid)
+    if row is None:
+        # An allowlisted id without a price row still has to reach the right provider.
+        return "anthropic" if mid.startswith("claude") else "openai"
     return str(row.get("provider") or "openai")

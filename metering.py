@@ -36,7 +36,7 @@ def record_usage(key: dict[str, Any] | None, tool: str, extra: dict[str, Any] | 
     kid = (key or {}).get("id") or "anon"
     row = {"at": now_iso(), "key": kid, "name": (key or {}).get("name") or "anon", "tool": tool}
     if extra:
-        for field in ("file_id", "bytes", "final_status", "product"):
+        for field in ("file_id", "bytes", "final_status", "product", "model", "input_tokens", "output_tokens", "usd"):
             if extra.get(field) is not None:
                 row[field] = extra[field]
     append_jsonl("usage.jsonl", row)

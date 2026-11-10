@@ -2104,7 +2104,7 @@ async def api_studio_action(request: Request) -> Response:
     if verb in {"box", "studio_box", "parametric"}:
         return JSONResponse(create_studio_box(body, public_base_url=_public_base(request)))
     if verb in {"ai", "studio_ai", "design_ai"}:
-        return JSONResponse(create_studio_ai(body, public_base_url=_public_base(request)))
+        return JSONResponse(create_studio_ai(body, public_base_url=_public_base(request), client_ip=_client_ip(request)))
     if verb in {"maker", "makers", "ornament", "sus"}:
         if request.method == "GET" or verb == "makers":
             body = {**body, "action": body.get("action") or "list"}

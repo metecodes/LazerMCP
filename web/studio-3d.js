@@ -2398,21 +2398,45 @@ async function onAiFileChange() {
   }
 }
 
+// The server decides which models Studio may call; the picker only mirrors that list.
+function syncAiModels(models) {
+  const sel = $("ai-model");
+  const allowed = models && Array.isArray(models.allowed) ? models.allowed.filter((m) => m && m.id) : [];
+  if (!sel || !allowed.length) return;
+  const want = allowed.map((m) => m.id).join(",");
+  if (sel.dataset.synced === want) return;
+  const keep = sel.dataset.synced ? sel.value : "";
+  sel.textContent = "";
+  allowed.forEach((m) => {
+    const opt = document.createElement("option");
+    opt.value = m.id;
+    opt.textContent = m.label || m.id;
+    sel.appendChild(opt);
+  });
+  const ids = allowed.map((m) => m.id);
+  sel.value = ids.includes(keep) ? keep : (ids.includes(models.default) ? models.default : ids[0]);
+  sel.dataset.synced = want;
+}
+
 function paintAiCost(data) {
   const el = $("ai-cost-out");
   if (!el || !data) return;
   const studio = data.studio_ai || {};
   const mcp = data.mcp_host_ai || {};
   const keys = data.workshop_llm_keys || [];
-  const configured = keys.filter((k) => k.configured).map((k) => k.provider + ":" + (k.prefix || "ok"));
+  const configured = keys.filter((k) => k.configured).map((k) => k.provider);
+  const access = data.llm_access || {};
   const studioUsd = (studio.usd && studio.usd.total != null) ? Number(studio.usd.total) : 0;
   const mcpUsd = (mcp.usd && mcp.usd.total != null) ? Number(mcp.usd.total) : null;
   const tok = (mcp.tokens && mcp.tokens.input_total) || 0;
   const q = studio.quota || {};
+  syncAiModels(data.studio_models);
   const lines = [
-    "Stüdyo: " + (studio.uses_workshop_key
-      ? ("atölye " + (studio.provider || "LLM") + " ≈ $" + studioUsd.toFixed(5) + " (sizin API faturanız)")
+    "Stüdyo: " + (access.eligible
+      ? ((studio.model_label || access.model || "AI modeli") + " ≈ $" + studioUsd.toFixed(5) +
+        " · günde en çok " + (access.daily_per_ip != null ? access.daily_per_ip : "?") + " AI isteği")
       : "yerel planner $0"),
+    access.eligible ? "" : (studio.note || ""),
     "MCP host (" + (mcp.model_label || "model") + "): ≈ $" +
       (mcpUsd != null ? mcpUsd.toFixed(5) : "?") + " · ~" + tok + " in tok",
     "Kota: " + (q.used != null ? q.used + "/" + (q.limit || "?") : "—") +
@@ -2435,7 +2459,7 @@ function scheduleAiCost() {
 async function estimateAiCost() {
   const body = {
     prompt: ($("ai-prompt") && $("ai-prompt").value) || "",
-    model: ($("ai-model") && $("ai-model").value) || "gpt-4o-mini",
+    model: ($("ai-model") && $("ai-model").value) || "",
     has_photo: !!(state.attach && state.attach.kind === "photo"),
     mode: "mcp_thin",
   };
@@ -2576,7 +2600,7 @@ function buildAiBody(extra) {
     prompt: ($("ai-prompt") && $("ai-prompt").value) || "",
     thickness: Number($("ai-t") && $("ai-t").value) || 3,
     width_mm: Number($("ai-w") && $("ai-w").value) || 200,
-    model: ($("ai-model") && $("ai-model").value) || "gpt-4o-mini",
+    model: ($("ai-model") && $("ai-model").value) || "",
     messages: state.aiChat
       .filter((m) => m.role === "user" || m.role === "assistant")
       .slice(-12)
@@ -3118,7 +3142,13 @@ function wireUi() {
   if ($("ai-prompt")) {
     $("ai-prompt").addEventListener("input", scheduleAiCost);
   }
-  if ($("ai-model")) $("ai-model").onchange = scheduleAiCost;
+  if ($("ai-model")) {
+    $("ai-model").onchange = scheduleAiCost;
+    // First paint of the picker: the allowed models and the default come from the server.
+    api("/api/studio/ai_cost", { method: "POST", body: JSON.stringify({ prompt: "", model: "" }) })
+      .then(({ data }) => syncAiModels(data && data.studio_models))
+      .catch(() => {});
+  }
   if ($("ai-w")) $("ai-w").addEventListener("change", scheduleAiCost);
   $("dim-pop-cancel").onclick = hideDimPop;
   $("dim-pop-apply").onclick = () => {
