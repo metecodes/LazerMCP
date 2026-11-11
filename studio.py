@@ -13,6 +13,20 @@ from projects import list_projects, project_history, save_version
 from telemetry import emit, recent
 
 
+from contextvars import ContextVar
+
+# Set while Studio AI tries drafts it may throw away (first draft, repair attempts).
+quiet_drafts: ContextVar[bool] = ContextVar("lasermcp_quiet_drafts", default=False)
+
+
+def commit_draft(result: dict[str, Any]) -> dict[str, Any]:
+    """Record the draft the user actually receives: one project version, one quota use."""
+    if not result.get("draft_only") or not result.get("file_id"):
+        return result
+    result.pop("draft_only", None)
+    return finish_result(result)
+
+
 def _principal() -> dict[str, Any] | None:
     from keys import current_auth
 
@@ -71,6 +85,17 @@ def attach(extra: dict[str, Any], svg_bytes: bytes | None = None, primitives: li
 
 def finish_result(result: dict[str, Any], extra: dict[str, Any] | None = None) -> dict[str, Any]:
     from plans import apply_plan_to_result
+
+    if quiet_drafts.get():
+        # An intermediate AI attempt: the file exists, but it is not a project version and
+        # does not count against the quota. commit_draft() records the one the user gets.
+        result["draft_only"] = True
+        payload = extra or result
+        if result.get("parameters") is None and isinstance(payload.get("parameters"), dict):
+            result["parameters"] = payload.get("parameters")
+        if result.get("primitives") is None and isinstance(payload.get("primitives"), list):
+            result["primitives"] = payload.get("primitives")
+        return result
 
     payload = extra or result
     params = payload.get("parameters") if isinstance(payload.get("parameters"), dict) else {}

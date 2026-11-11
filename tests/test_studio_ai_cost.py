@@ -193,6 +193,31 @@ class LocalDraftTests(_Iso):
         self.assertFalse(any("photo" in line for line in out["look_again"]))
 
 
+class QuietDraftTests(_Iso):
+    """Real compiles: a repaired request leaves one project version and one quota use."""
+
+    def test_only_the_shown_draft_is_recorded(self):
+        from metering import designs_this_month
+        from projects import list_projects
+        from workshop import create_studio_ai
+
+        self.sign_in(APPROVED)
+        bad = {"primitives": [{"type": "panel", "label": "a", "w": 100, "h": 40, "edges": "FFFF"},
+                              {"type": "panel", "label": "b", "w": 100, "h": 40, "edges": "FFFF"}],
+               "parameters": {}, "summary": "bad", "usage": {"input_tokens": 10, "output_tokens": 10}}
+        good = {**PLAN, "summary": "good"}
+        with patch("plans.entitled", return_value=True), patch("plans.gate_job", return_value=GATE), \
+                patch("llm_client.plan_primitives_with_llm", side_effect=[bad, good]) as llm:
+            out = create_studio_ai({"prompt": ASK}, client_ip="203.0.113.7")
+        self.assertEqual(llm.call_count, 2, out.get("look_again"))
+        self.assertTrue(out["auto_repair"]["fixed"])
+        self.assertEqual(out["final_status"], "PROTOTYPE READY")
+        projects = list_projects(limit=None)
+        self.assertEqual(len(projects), 1)
+        self.assertEqual((projects[0].get("latest") or {}).get("n"), 1)
+        self.assertEqual(designs_this_month(APPROVED["id"]), 1)
+
+
 class ParseBoxTests(unittest.TestCase):
     def test_sizes_unit_and_lid(self):
         from ai_cache import parse_box_request

@@ -29,7 +29,8 @@ async function openStudio(browser, {query = '', boxFails = false, aiReply = null
     if (p === '/api/studio/profiles') return route.fulfill({json: {materials: [], machines: []}});
     if (p === '/api/studio/projects') {
       if (url.searchParams.get('project_id')) return route.fulfill({json: {success: true, project: {versions: [{n: 1, file_id: EVIL}]}}});
-      return route.fulfill({json: {success: true, projects: [{id: 'proj-1', name: EVIL, latest: {n: 1, final_status: EVIL}}]}});
+      return route.fulfill({json: {success: true, projects: [{id: 'proj-1', name: EVIL, latest: {n: 1, final_status: EVIL}},
+        {id: 'proj-2', name: 'eski kutu', latest: {n: 3, final_status: 'BLOCKED'}}]}});
     }
     if (p === '/api/studio/box') {
       const body = JSON.parse(req.postData() || '{}');
@@ -137,11 +138,20 @@ async function openStudio(browser, {query = '', boxFails = false, aiReply = null
     {
       const {page, errors} = await runAi({...base, ok: false, export_allowed: false, final_status: 'BLOCKED', file_id: null,
         auto_repair: {attempted: 2, fixed: false, issues: ['slot overlaps hole']},
-        scorecard: {final_gate: 'BLOCKED'},
+        scorecard: {final_gate: 'BLOCKED', digital: {Connections: 'FAIL', Safety: 'PASS', Assembly: 'NOT_VERIFIED'}},
         look_again: ['BLOCKED — SVG/DXF not authorized. Read the notes below, fix in chat, then retry.',
-          'Auto-repair tried 2 time(s) and could not pass the gate.', 'slot overlaps hole']});
+          'Auto-repair tried 2 time(s) and could not pass the gate.',
+          'female edge a.right (40.0 mm) has no matching f fingers',
+          'entrance role=structural has mates=[]; placement is not connection evidence',
+          'ASSEMBLY is NOT VERIFIED — cannot mark PASS', 'slot overlaps hole']});
       assert.match(await page.locator('#ai-block-title').textContent(), /Otomatik düzeltme bu sefer yetmedi/);
-      assert.match(await page.locator('#ai-block-text').innerText(), /slot overlaps hole/);
+      const blockText = await page.locator('#ai-block-text').innerText();
+      assert.match(blockText, /a parçasının sağ kenarındaki diş yuvalarına \(40 mm\) geçecek karşı parça yok/);
+      assert.match(blockText, /entrance parçası hiçbir parçaya bağlanmıyor/);
+      assert.match(blockText, /slot overlaps hole/); // unknown notes stay as written
+      assert.doesNotMatch(blockText, /NOT VERIFIED|mates=\[\]/);
+      assert.match(await page.locator('#gate-score').innerText(), /1 geçmedi, 1 geçti, 1 doğrulanmadı/);
+      assert.doesNotMatch(await page.locator('body').innerText(), /object Object/);
       assert.match(await page.locator('#ai-chat-log').innerText(), /2 kez otomatik düzeltmeyi denedim/);
       assert.doesNotMatch(await page.locator('body').innerText(), /BLOCKED/);
       assert.equal(await page.locator('#dl-svg').isVisible(), false);

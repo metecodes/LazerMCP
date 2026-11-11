@@ -1992,12 +1992,15 @@ function paintGate(data) {
       ];
     rows.forEach(([k, v]) => {
       const li = document.createElement("li");
-      li.innerHTML = "<strong>" + esc(k) + "</strong> · " + esc(friendlyStatus(v));
+      li.innerHTML = "<strong>" + esc(k) + "</strong> · " + esc(scoreValue(v));
       scoreEl.appendChild(li);
     });
   }
   if ($("gate-looks")) {
-    const looks = (data.look_again || []).map((x) => String(x || "")).filter((x) => x && !/^BLOCKED/i.test(x));
+    const blockedNow = data.final_status === "BLOCKED" || data.export_allowed === false;
+    const looks = blockedNow
+      ? userReasons(data)
+      : (data.look_again || []).map((x) => String(x || "")).filter((x) => x && !/^BLOCKED/i.test(x));
     $("gate-looks").textContent = looks.length ? looks.slice(0, 8).join("\n") : "";
   }
   // Lock download buttons only when a non-preview response forbids export.
@@ -2539,8 +2542,61 @@ function aiBlockReasons(data) {
 // only the concrete reasons stay.
 const GATE_NOISE = /^(BLOCKED|Open in Studio|Auto-repair|AI draft is digital|Studio AI used|Local draft was repaired|3D view is a nominal|Kerf digital status|Plain box with)/i;
 
+// The reviewer writes for engineers ("female edge a.right (40 mm) has no matching f
+// fingers"). Common notes get a plain Turkish sentence; anything unknown stays as is.
+const EDGE_TR = { bottom: "alt", right: "sağ", top: "üst", left: "sol" };
+const edgeTr = (part) => String(part).replace(/\.(bottom|right|top|left)\b/, (_, e) => " parçasının " + EDGE_TR[e]);
+const REASON_TR = [
+  [/^female edge (\S+) \(([\d.]+) mm\) has no matching f fingers/i,
+    (m) => edgeTr(m[1]) + " kenarındaki diş yuvalarına (" + Number(m[2]) + " mm) geçecek karşı parça yok."],
+  [/^male edge (\S+) \(([\d.]+) mm\) has no matching F holes/i,
+    (m) => edgeTr(m[1]) + " kenarındaki dişlerin (" + Number(m[2]) + " mm) geçeceği yuvalar yok."],
+  [/^slot on (\S+) has no explicit matching tab/i, (m) => m[1] + " parçasındaki yuvaya geçecek dil yok."],
+  [/^(\S+) role=structural has mates=\[\]/i, (m) => m[1] + " parçası hiçbir parçaya bağlanmıyor."],
+  [/^disconnected structural connection graph: (\d+) components/i,
+    (m) => "Parçalar " + m[1] + " ayrı gruba bölünmüş; hepsinin birbirine bağlanması gerekiyor."],
+  [/^box is missing (\w+) wall/i, (m) => "Kutunun " + (EDGE_TR[m[1]] || m[1]) + " duvarı eksik."],
+  [/^part \d+ ([\d.]+×[\d.]+) mm does not fit the ([\d×]+) mm bed/i,
+    (m) => m[1] + " mm'lik bir parça " + m[2] + " mm kesim tablasına sığmıyor."],
+  [/^thickness ([\d.]+) mm outside digital range/i, (m) => m[1] + " mm kalınlık desteklenen aralığın (1–12 mm) dışında."],
+  [/^self-intersections=(\d+)/i, (m) => "Çizimde kendi üstüne kesişen " + m[1] + " çizgi var."],
+  [/^unintended engraving overlaps=(\d+)/i, (m) => m[1] + " kazıma alanı birbirinin üstüne biniyor."],
+];
+// "X is NOT VERIFIED — cannot mark PASS" only restates that a check failed; the
+// concrete reason is already listed, so these lines are dropped for users.
+const RESTATED = /is NOT VERIFIED — cannot mark PASS$|^[A-Z0-9_ ]+ is (FAIL|BLOCKED)/;
+
+function translateReason(line) {
+  for (const [pattern, render] of REASON_TR) {
+    const m = String(line).match(pattern);
+    if (m) return render(m);
+  }
+  return line;
+}
+
 function userReasons(data) {
-  return aiBlockReasons(data).filter((line) => !GATE_NOISE.test(line) && !/^[a-z_]+: (FAIL|BLOCKED)$/i.test(line));
+  const out = [];
+  aiBlockReasons(data)
+    .filter((line) => !GATE_NOISE.test(line) && !RESTATED.test(line) && !/^[a-z_]+: (FAIL|BLOCKED)$/i.test(line))
+    .map(translateReason)
+    .forEach((line) => { if (!out.includes(line)) out.push(line); });
+  return out;
+}
+
+// Scorecard groups ("digital", "physical") are objects of check → status; show a count
+// instead of "[object Object]".
+function scoreValue(value) {
+  if (!value || typeof value !== "object") return friendlyStatus(value);
+  const counts = {};
+  Object.values(value).forEach((v) => {
+    const key = String(v || "").toUpperCase();
+    const label = key === "PASS" ? "geçti"
+      : (key === "FAIL" || key === "BLOCKED") ? "geçmedi"
+      : key.startsWith("NOT_VERIFIED") ? "doğrulanmadı"
+      : (key === "N/A" || key === "NA") ? null : key.toLowerCase();
+    if (label) counts[label] = (counts[label] || 0) + 1;
+  });
+  return Object.entries(counts).map(([k, n]) => n + " " + k).join(", ") || "—";
 }
 
 function friendlyStatus(status) {
@@ -3583,7 +3639,7 @@ function paintSummaryHistory(projects) {
     const li = document.createElement("li");
     li.innerHTML = "<strong>" + esc(p.name || p.id) + "</strong>"
       + "<span class=\"sub\">v" + esc(latest.n || p.versions || "?")
-      + " · " + esc(latest.final_status || "—") + "</span>";
+      + " · " + esc(friendlyStatus(latest.final_status) || "—") + "</span>";
     li.onclick = () => openHistoryProject(p).catch((e) => setStatus(String(e), "bad"));
     list.appendChild(li);
   });
@@ -3624,7 +3680,7 @@ async function loadHistoryVersions(projectId) {
     versions.forEach((ver) => {
       const li = document.createElement("li");
       li.innerHTML = "<strong>v" + esc(ver.n || "?") + "</strong>"
-        + "<span class=\"sub\">" + esc(ver.final_status || "—")
+        + "<span class=\"sub\">" + esc(friendlyStatus(ver.final_status) || "—")
         + " · " + esc(ver.at || "")
         + (ver.file_id ? (" · " + esc(ver.file_id)) : "") + "</span>";
       li.onclick = () => {
@@ -3691,7 +3747,7 @@ async function loadProjectHistory() {
       const li = document.createElement("li");
       li.innerHTML = "<strong>" + esc(p.name || p.id) + "</strong>"
         + "<span class=\"sub\">v" + esc(latest.n || p.versions || "?")
-        + " · " + esc(latest.final_status || "—")
+        + " · " + esc(friendlyStatus(latest.final_status) || "—")
         + " · " + esc(p.updated || "")
         + (latest.file_id ? (" · " + esc(latest.file_id)) : "") + "</span>";
       li.onclick = () => openHistoryProject(p).catch((e) => setStatus(String(e), "bad"));

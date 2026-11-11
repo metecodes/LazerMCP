@@ -1215,11 +1215,17 @@ class _PaidDrafts:
         return plan
 
     def design(self, plan: dict[str, Any]) -> dict[str, Any]:
+        """Compile a candidate without recording it; commit_draft() records the winner."""
         import payas_cad
+        from studio import quiet_drafts
 
         merged = dict(plan.get("parameters") or {})
         merged.update(self.parameters)
-        return payas_cad.create_design(primitives=plan.get("primitives") or [], parameters=merged, public_base_url=self.base)
+        token = quiet_drafts.set(True)
+        try:
+            return payas_cad.create_design(primitives=plan.get("primitives") or [], parameters=merged, public_base_url=self.base)
+        finally:
+            quiet_drafts.reset(token)
 
     def usage(self) -> dict[str, Any]:
         return {**self.total, "usd": round(float(self.total["usd"]), 6)}
@@ -1297,6 +1303,10 @@ def _studio_llm_draft(
     plan = drafts.call(request, model_id, "low")
     result = drafts.design(plan)
     plan, result, info = drafts.repair(request, plan, result, model_id=model_id, client_ip=client_ip)
+    from studio import commit_draft
+
+    # Only the draft shown to the user becomes a project version and uses quota.
+    result = commit_draft(result)
     if not _draft_blocked(result):
         cache_put(cache_key(model_id, request, thickness), {**plan, "model": model_id})
     return result, plan, drafts.usage(), info
@@ -1609,11 +1619,19 @@ def create_studio_ai(body: dict[str, Any] | None = None, *, public_base_url: str
         }
     merged = dict(args.get("parameters") or {}) if isinstance(args.get("parameters"), dict) else {}
     merged.update(parameters)
-    result = payas_cad.create_design(
-        primitives=primitives,
-        parameters=merged,
-        public_base_url=base,
-    )
+    from studio import commit_draft, quiet_drafts
+
+    # Compiled quietly: if a repair replaces it, the discarded draft must not become a
+    # project version or use quota. commit_draft() below records whichever is shown.
+    token = quiet_drafts.set(True)
+    try:
+        result = payas_cad.create_design(
+            primitives=primitives,
+            parameters=merged,
+            public_base_url=base,
+        )
+    finally:
+        quiet_drafts.reset(token)
     repair_info: dict[str, Any] | None = None
     if _draft_blocked(result) and not force_local and not llm_error:
         # The free draft failed the gate: let the model fix it (paid, capped) rather than
@@ -1627,6 +1645,7 @@ def create_studio_ai(body: dict[str, Any] | None = None, *, public_base_url: str
             )
             if repair_info.get("attempted"):
                 plan = {**plan, "usage": drafts.usage(), "repair_model": verdict.get("model")}
+    result = commit_draft(result)
     looks = [
         "AI draft is digital only. Confirm joints and dry-fit before cutting.",
         "Studio AI used the local planner — no external LLM API charge from LaserMCP."
