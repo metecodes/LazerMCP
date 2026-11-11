@@ -28,6 +28,8 @@ PLAN = {
 DESIGN = {"success": True, "final_status": "PROTOTYPE READY", "file_id": "t.svg", "look_again": []}
 # Not a plain box: plain "W×D×H kutu" prompts are drafted locally at $0 and never reach a model.
 ASK = "telefon standı ve kartvizitlik"
+# Not a plain box either, but one the local planner can still draft when no model answers.
+LOCAL_OK = "kapaklı kalemlik 3 bölmeli"
 
 
 class _Iso(unittest.TestCase):
@@ -175,7 +177,7 @@ class StudioAiTests(_Iso):
             return create_studio_ai(body, **kwargs), llm
 
     def test_guest_prompt_is_served_by_the_local_planner(self):
-        out, llm = self._run({"prompt": ASK, "model": "gpt-4o"}, client_ip="203.0.113.7")
+        out, llm = self._run({"prompt": LOCAL_OK, "model": "gpt-4o"}, client_ip="203.0.113.7")
         llm.assert_not_called()
         self.assertEqual(out["source"], "prompt")
         self.assertTrue(any("Sign in" in note for note in out["look_again"]))
@@ -195,7 +197,7 @@ class StudioAiTests(_Iso):
             # Distinct prompts: a repeated one would be served from the draft cache for free.
             _, llm = self._run({"prompt": f"{ASK} {n}"}, client_ip="203.0.113.7")
             llm.assert_called_once()
-        out, llm = self._run({"prompt": f"{ASK} 10"}, client_ip="203.0.113.7")
+        out, llm = self._run({"prompt": LOCAL_OK}, client_ip="203.0.113.7")
         llm.assert_not_called()
         self.assertEqual(out["source"], "prompt")
         self.assertTrue(out["look_again"][0].startswith("Daily AI limit reached"))
@@ -210,7 +212,7 @@ class StudioAiTests(_Iso):
                 patch("payas_cad.create_design", return_value=blocked), \
                 patch("assembly_result.panels_for_viewer", return_value={"success": True, "panels": []}), \
                 patch("llm_client.plan_primitives_with_llm", return_value=PLAN) as llm:
-            out = create_studio_ai({"prompt": ASK}, client_ip="203.0.113.7")
+            out = create_studio_ai({"prompt": LOCAL_OK}, client_ip="203.0.113.7")
         llm.assert_not_called()
         self.assertIn("limit", out["look_again"][0])
         self.assertTrue(out["look_again"][1].startswith("BLOCKED"))

@@ -165,6 +165,48 @@ class SimpleBoxTests(unittest.TestCase):
             self.assertFalse(simple_box_request(text), text)
 
 
+class LocalDraftTests(_Iso):
+    """Real local drafts (no mocked create_design): what Studio does without a model key."""
+
+    def _ai(self, prompt):
+        from workshop import create_studio_ai
+
+        with patch("plans.entitled", return_value=True), patch("plans.gate_job", return_value=GATE):
+            return create_studio_ai({"prompt": prompt}, client_ip="203.0.113.7")
+
+    def test_plain_box_keeps_the_typed_sizes_and_passes(self):
+        out = self._ai("180x120x70 kutu")
+        self.assertEqual(out["final_status"], "PROTOTYPE READY")
+        self.assertTrue(out["export_allowed"])
+        self.assertEqual(out["plan_job"]["method"], "studio_box")
+        self.assertIn("180×120×70 mm", out["plan_job"]["summary"])
+
+    def test_typed_prompt_is_not_treated_as_a_photo_job(self):
+        out = self._ai("kapaklı kalemlik 3 bölmeli")
+        self.assertNotIn("REFERENCE_FIDELITY is NOT VERIFIED — cannot mark PASS", out.get("look_again") or [])
+        self.assertEqual(out["final_status"], "PROTOTYPE READY")
+
+    def test_undrawable_prompt_says_what_to_do_instead(self):
+        out = self._ai("telefon standı")
+        self.assertFalse(out["ok"])
+        self.assertTrue(any("180x120x70 kapaklı kutu" in line for line in out["look_again"]))
+        self.assertFalse(any("photo" in line for line in out["look_again"]))
+
+
+class ParseBoxTests(unittest.TestCase):
+    def test_sizes_unit_and_lid(self):
+        from ai_cache import parse_box_request
+
+        self.assertEqual(parse_box_request("180x120x70 kutu"), {"x": 180, "y": 120, "h": 70, "unit": "mm", "lid": "open"})
+        self.assertEqual(parse_box_request("kapaklı kutu 20cm x 15,5cm x 8cm")["unit"], "cm")
+        self.assertEqual(parse_box_request("kapaklı kutu 20cm x 15,5cm x 8cm")["y"], 15.5)
+        self.assertEqual(parse_box_request("kapaklı kutu 20cm x 15cm x 8cm")["lid"], "finger")
+        self.assertEqual(parse_box_request("200x100x60 kayar kapaklı kutu")["lid"], "sliding")
+        self.assertEqual(parse_box_request("200x100x60 açık kutu")["lid"], "open")
+        self.assertIsNone(parse_box_request("telefon standı"))
+        self.assertIsNone(parse_box_request("180x120x70 kutu çekmeceli"))
+
+
 class StudioFormTests(unittest.TestCase):
     def test_form_is_whitelisted_and_stored_with_the_box(self):
         from studio_box import build_studio_box, studio_form_snapshot

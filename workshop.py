@@ -1551,15 +1551,49 @@ def create_studio_ai(body: dict[str, Any] | None = None, *, public_base_url: str
             llm_error = str(exc)
     guard_note = str(guard.get("note") or "")
 
-    plan = plan_laser_job(
-        request,
-        what_you_see=str(payload.get("what_you_see") or request),
-        has_photo=False,
-    )
+    from ai_cache import parse_box_request
+
+    box_request = parse_box_request(raw_prompt) if simple_box else None
+    if box_request:
+        # Same parametric engine as the Box tab: it honours the typed sizes and passes the
+        # gate, where the generic planner drew a default-sized box.
+        from studio_box import build_studio_box
+
+        built = build_studio_box(
+            {
+                **box_request,
+                "thickness": float(thickness) if thickness not in (None, "") else 3,
+                "material": payload.get("material") or "poplar_3mm",
+                "machine": payload.get("machine") or "payas_workshop",
+            }
+        )
+        dims = f"{box_request['x']:g}×{box_request['y']:g}×{box_request['h']:g} {box_request['unit']}"
+        plan = {
+            "method": "studio_box",
+            "summary": f"{dims} finger-joint box, lid: {box_request['lid']}",
+            "next_arguments": {"primitives": built["primitives"], "parameters": built["parameters"]},
+        }
+    else:
+        # The typed request is not a photo description: passing it as what_you_see made the
+        # planner treat every prompt as a photo job and the reviewer demand reference
+        # evidence that cannot exist, so every local draft was BLOCKED.
+        plan = plan_laser_job(
+            request,
+            what_you_see=str(payload.get("what_you_see") or ""),
+            has_photo=False,
+        )
     args = plan.get("next_arguments") if isinstance(plan.get("next_arguments"), dict) else {}
     primitives = args.get("primitives") if isinstance(args.get("primitives"), list) else []
     if not primitives:
-        looks = list(plan.get("look_again") or [])
+        # The planner's own notes talk to an assistant about photos; a Studio user needs
+        # to know what will work instead.
+        looks = [
+            "Bu tasarımı yerel planlayıcı çizemiyor; AI modeli şu an kullanılamıyor."
+            if guard.get("reason") not in {"signin", "pending", "ip_limit", "global_limit"}
+            else "Bu tasarım için AI modeli gerekiyor.",
+            "Şimdilik: ölçülü bir kutu yaz (ör. «180x120x70 kapaklı kutu»), Süs sekmesindeki hazır şablonları "
+            "kullan ya da SVG/DXF/fotoğraf yükle.",
+        ]
         if llm_error:
             looks.insert(0, f"Workshop LLM failed: {llm_error}")
         if guard_note:

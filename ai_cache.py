@@ -55,6 +55,40 @@ def simple_box_request(prompt: str) -> bool:
     return bool(_BOX_WORDS.search(text) and _DIMS.search(text) and not _EXTRA.search(text))
 
 
+_NUM = r"(\d+(?:[.,]\d+)?)"
+_DIMS3 = re.compile(_NUM + r"\s*(?:mm|cm)?\s*[x×*]\s*" + _NUM + r"\s*(?:mm|cm)?\s*[x×*]\s*" + _NUM, re.I)
+_LIDS = (
+    ("sliding", re.compile(r"(kayar|sürgü|surgu|sliding|slide)", re.I)),
+    ("removable", re.compile(r"(çıkarılabilir|cikarilabilir|takılır|removable)", re.I)),
+    ("open", re.compile(r"(açık|acik|kapaksız|kapaksiz|open)", re.I)),
+    ("finger", re.compile(r"(kapak|lid|closed|kapalı|kapali)", re.I)),
+)
+
+
+def parse_box_request(prompt: str) -> dict[str, Any] | None:
+    """Sizes and lid of a plain box prompt, for the parametric box engine.
+
+    The local planner ignores typed sizes ("180x120x70" became 80×80×120), so a plain
+    box is built by the same engine as the Box tab. Returns None for anything else.
+    """
+    text = str(prompt or "")
+    if not simple_box_request(text):
+        return None
+    match = _DIMS3.search(text)
+    if not match:
+        return None
+    x, y, h = (float(v.replace(",", ".")) for v in match.groups())
+    if min(x, y, h) <= 0:
+        return None
+    lid = "open"
+    for name, pattern in _LIDS:
+        if pattern.search(text):
+            lid = name
+            break
+    unit = "cm" if re.search(r"\d\s*cm\b|\bcm\b", text, re.I) else "mm"
+    return {"x": x, "y": y, "h": h, "unit": unit, "lid": lid}
+
+
 def _normalize(prompt: str) -> str:
     # Turkish dotted capital İ casefolds to "i" + combining dot; drop the dot so
     # "KARTVİZİT" and "kartvizit" share one cache entry.
