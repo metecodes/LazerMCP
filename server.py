@@ -1746,9 +1746,9 @@ async def api_account_keys_revoke(request: Request) -> Response:
 
 @mcp.custom_route("/api/account/llm-keys", methods=["GET", "POST", "DELETE"])
 async def api_account_llm_keys(request: Request) -> Response:
-    """Workshop OpenAI/Anthropic keys — not LaserMCP lzr_ platform keys."""
+    """Operator-only OpenAI/Anthropic keys. Users never bring their own key."""
     from keys import current_auth
-    from llm_keys import delete_key, list_status, save_key
+    from llm_keys import delete_key, list_status, save_key, stored_keys_are_temporary
     from supabase_auth import account_is_approved, is_admin, session_user, user_by_id
 
     key = current_auth.get() or session_user(request.cookies.get("lmcp_sid"))
@@ -1758,6 +1758,15 @@ async def api_account_llm_keys(request: Request) -> Response:
     if not account_is_approved(stored):
         return JSONResponse({"success": False, "look_again": ["Hesabın admin onayını bekliyor."]}, status_code=403)
 
+    if not is_admin(stored):
+        return JSONResponse(
+            {
+                "success": False,
+                "look_again": ["AI modelini LaserMCP sağlar; anahtar eklemen gerekmez."],
+            },
+            status_code=403,
+        )
+
     if request.method == "GET":
         return JSONResponse(
             {
@@ -1765,17 +1774,9 @@ async def api_account_llm_keys(request: Request) -> Response:
                 "kind": "workshop_llm",
                 "note": "OpenAI / Claude atölye anahtarları. LaserMCP lzr_ Bearer anahtarı değil.",
                 "keys": list_status(),
-                "can_edit": is_admin(stored),
+                "can_edit": True,
+                "stored_is_temporary": stored_keys_are_temporary(),
             }
-        )
-
-    if not is_admin(stored):
-        return JSONResponse(
-            {
-                "success": False,
-                "look_again": ["Yalnız operatör (admin) OpenAI/Claude anahtarı kaydeder."],
-            },
-            status_code=403,
         )
 
     try:

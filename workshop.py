@@ -465,7 +465,7 @@ def estimate_ai_prompt_cost(body: dict[str, Any] | None = None) -> dict[str, Any
     elif llm_access["reason"] == "global_limit":
         note = "AI modeli bugünlük kapalı (günlük sınır). Yerel planner kullanılır ($0)."
     else:
-        note = "Stüdyo AI şu an yerel plan_laser_job kullanır → harici API $0. Hesap → LLM anahtarı eklenince sağlayıcıya gider."
+        note = "AI modeli şu an kapalı; Stüdyo AI yerel planner ile üretir ($0). Anahtar eklemen gerekmez."
     return {
         "success": True,
         "kind": "ai_prompt",
@@ -494,7 +494,7 @@ def estimate_ai_prompt_cost(body: dict[str, Any] | None = None) -> dict[str, Any
         "models": list_models(),
         "recommendation": (
             "Basit kutu/kapak/süs → parametrik Stüdyo / Süs ($0 API). "
-            "Serbest prompt → atölye OpenAI/Claude anahtarı (Hesap → LLM) veya MCP host."
+            "Serbest prompt → Stüdyo AI (modeli LaserMCP sağlar, anahtar gerekmez) veya MCP host."
         ),
         "look_again": list(mcp.get("look_again") or []),
     }
@@ -1298,7 +1298,7 @@ def create_studio_ai(body: dict[str, Any] | None = None, *, public_base_url: str
             "success": True,
             "ok": False,
             "look_again": [
-                f"No workshop {provider} key. Add it at Account → LLM (not LaserMCP lzr_), or set env OPENAI_API_KEY / ANTHROPIC_API_KEY.",
+                "The AI model is not switched on for this site yet. Use the local planner, or try again later.",
             ],
             "plan": gate,
         }

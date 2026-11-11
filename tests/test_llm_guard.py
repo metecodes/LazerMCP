@@ -258,6 +258,40 @@ class RouteTests(_Iso):
             self.assertTrue(call.kwargs["client_ip"])
 
 
+class OperatorKeyTests(_Iso):
+    def _client(self):
+        from mcp.server.transport_security import TransportSecuritySettings
+        from starlette.testclient import TestClient
+
+        import server
+
+        app = server.mcp.streamable_http_app(
+            streamable_http_path="/mcp", stateless_http=True, json_response=True,
+            transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
+        )
+        return TestClient(app)
+
+    def test_users_cannot_read_or_add_provider_keys(self):
+        user = {"id": "u-ok", "email": "student@example.com", "approval_status": "approved"}
+        with patch("supabase_auth.session_user", return_value=user), \
+                patch("supabase_auth.user_by_id", return_value=user), self._client() as client:
+            client.cookies.set("lmcp_sid", "x")
+            self.assertEqual(client.get("/api/account/llm-keys").status_code, 403)
+            posted = client.post("/api/account/llm-keys", json={"provider": "openai", "key": "sk-user-key-1234567890"})
+            self.assertEqual(posted.status_code, 403)
+            self.assertNotIn("sk-", client.get("/api/account/llm-keys").text)
+        from llm_keys import list_status
+
+        self.assertFalse(any(row["source"] == "stored" for row in list_status()))
+
+    def test_quote_does_not_send_users_to_add_a_key(self):
+        from workshop import estimate_ai_prompt_cost
+
+        os.environ.pop("OPENAI_API_KEY", None)
+        quote = estimate_ai_prompt_cost({"prompt": "kutu"})
+        self.assertNotIn("Hesap → LLM", str(quote))
+
+
 class _Reply(io.BytesIO):
     def __enter__(self):
         return self

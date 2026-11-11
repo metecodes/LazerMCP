@@ -1,7 +1,8 @@
 """Workshop-owned OpenAI / Anthropic API keys — NOT LaserMCP lzr_ platform keys.
 
-Operators enter provider keys (env or Account → LLM). Raw keys never leave the server
-after save; API responses expose only provider + prefix + configured flag.
+Only the operator supplies provider keys (env, or Account → LLM as admin); users never
+bring their own. Raw keys never leave the server after save; the admin view exposes only
+provider + prefix + configured flag.
 """
 
 from __future__ import annotations
@@ -127,6 +128,11 @@ def list_status(*, owner: str = WORKSHOP_OWNER) -> list[dict[str, Any]]:
             }
         )
     return rows
+
+
+def stored_keys_are_temporary() -> bool:
+    """On Vercel the store sits in /tmp unless MCP_DATA_DIR points somewhere durable."""
+    return os.environ.get("VERCEL") == "1" and not (os.environ.get("MCP_DATA_DIR") or "").strip()
 
 
 def any_configured() -> bool:

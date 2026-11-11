@@ -2423,8 +2423,6 @@ function paintAiCost(data) {
   if (!el || !data) return;
   const studio = data.studio_ai || {};
   const mcp = data.mcp_host_ai || {};
-  const keys = data.workshop_llm_keys || [];
-  const configured = keys.filter((k) => k.configured).map((k) => k.provider);
   const access = data.llm_access || {};
   const studioUsd = (studio.usd && studio.usd.total != null) ? Number(studio.usd.total) : 0;
   const mcpUsd = (mcp.usd && mcp.usd.total != null) ? Number(mcp.usd.total) : null;
@@ -2441,7 +2439,6 @@ function paintAiCost(data) {
       (mcpUsd != null ? mcpUsd.toFixed(5) : "?") + " · ~" + tok + " in tok",
     "Kota: " + (q.used != null ? q.used + "/" + (q.limit || "?") : "—") +
       (q.plan ? " · " + q.plan : ""),
-    "LLM anahtar: " + (configured.length ? configured.join(", ") : "yok → Hesap → LLM"),
     data.recommendation || "",
   ];
   el.textContent = lines.filter(Boolean).join("\n");
