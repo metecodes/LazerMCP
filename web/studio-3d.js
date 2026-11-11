@@ -127,6 +127,17 @@ function linkedDims(partId) {
 
 const $ = (id) => document.getElementById(id);
 
+// Every server or user string that reaches innerHTML goes through this: project names
+// come from prompts and are shared with the whole organization.
+function esc(value) {
+  return String(value == null ? "" : value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 function setStatus(text, kind) {
   const el = $("status");
   el.textContent = text || "";
@@ -299,13 +310,39 @@ function showOptimisticLid() {
   state.ghostLidAnim = requestAnimationFrame(tick);
 }
 
+function httpProblem(status) {
+  if (status === 429) return "Çok sık istek — birkaç saniye bekleyip tekrar dene.";
+  if (status === 401 || status === 403) return "Bu işlem için giriş gerekiyor.";
+  if (status === 404) return "Bulunamadı (dosya silinmiş veya süresi dolmuş olabilir).";
+  if (status >= 500) return "Sunucu şu an yanıt veremedi (HTTP " + status + "). Biraz sonra tekrar dene.";
+  return "İstek başarısız (HTTP " + status + ").";
+}
+
+// Never throws for HTTP or network failures: callers always get {res, data} and a
+// failed call carries success:false plus a readable look_again line.
 async function api(url, opts) {
-  const res = await fetch(url, {
-    credentials: "same-origin",
-    headers: { "Content-Type": "application/json", ...(opts && opts.headers) },
-    ...opts,
-  });
-  const data = await res.json().catch(() => ({}));
+  const options = opts || {};
+  let res;
+  try {
+    res = await fetch(url, {
+      credentials: "same-origin",
+      ...options,
+      headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+    });
+  } catch (err) {
+    if (err && err.name === "AbortError") throw err;
+    return {
+      res: { ok: false, status: 0 },
+      data: { success: false, network_error: true, look_again: ["Bağlantı kurulamadı — internetini kontrol edip tekrar dene."] },
+    };
+  }
+  let data = await res.json().catch(() => null);
+  if (!data || typeof data !== "object") data = {};
+  if (!res.ok) {
+    data.success = false;
+    data.http_status = res.status;
+    if (!Array.isArray(data.look_again) || !data.look_again.length) data.look_again = [httpProblem(res.status)];
+  }
   return { res, data };
 }
 
@@ -1044,8 +1081,8 @@ function paintAssemblyGuide(guide) {
   steps.forEach((s) => {
     const li = document.createElement("li");
     li.dataset.step = String(s.step);
-    li.innerHTML = "<strong>" + s.step + ". " + (s.title_tr || s.part_id) + "</strong>"
-      + "<span class=\"sub\">" + (s.detail_tr || "") + "</span>";
+    li.innerHTML = "<strong>" + esc(s.step) + ". " + esc(s.title_tr || s.part_id) + "</strong>"
+      + "<span class=\"sub\">" + esc(s.detail_tr || "") + "</span>";
     li.onclick = () => {
       stopAssemblyPlay();
       setAssemblyStep(s.step, true);
@@ -1055,10 +1092,10 @@ function paintAssemblyGuide(guide) {
   (guide.connections || []).forEach((c) => {
     const li = document.createElement("li");
     li.dataset.cid = c.connection_id || "";
-    li.innerHTML = "<strong>" + (c.connection_id || "?") + "</strong> "
-      + (c.part_a || "?") + " ↔ " + (c.part_b || "?")
-      + "<span class=\"sub\">" + (c.joint_type || "") + (c.edge_hint ? " · " + c.edge_hint : "")
-      + " · " + (c.physical_fit || "NOT_VERIFIED") + "</span>";
+    li.innerHTML = "<strong>" + esc(c.connection_id || "?") + "</strong> "
+      + esc(c.part_a || "?") + " ↔ " + esc(c.part_b || "?")
+      + "<span class=\"sub\">" + esc(c.joint_type || "") + (c.edge_hint ? " · " + esc(c.edge_hint) : "")
+      + " · " + esc(c.physical_fit || "NOT_VERIFIED") + "</span>";
     li.onclick = () => {
       stopAssemblyPlay();
       highlightConnection(c);
@@ -1922,11 +1959,11 @@ function paintGate(data) {
       ? true
       : (data.export_allowed !== false && status !== "BLOCKED" && status !== "FAIL")
   );
-  if ($("sum-val")) $("sum-val").textContent = status;
+  if ($("sum-val")) $("sum-val").textContent = friendlyStatus(status);
   if ($("sum-export")) {
     $("sum-export").textContent = exportOk
       ? (isPreview ? "son kayıt indirilebilir" : "izinli")
-      : (isPreview && !state.fileId ? "önizleme — henüz kayıt yok" : "BLOCKED");
+      : (isPreview && !state.fileId ? "önizleme — henüz kayıt yok" : "kapalı (kontrolden geçmedi)");
   }
   if ($("gate-badge")) {
     if (isPreview) {
@@ -1934,7 +1971,7 @@ function paintGate(data) {
         ? "PREVIEW_ONLY (gate atlandı) — son kayıtlı SVG hâlâ indirilebilir."
         : "PREVIEW_ONLY — Final Gate / nest atlandı. Henüz kayıt yok.";
     } else if (status === "BLOCKED") {
-      $("gate-badge").textContent = "BLOCKED — SVG/DXF yetkisiz. look_again’e bak.";
+      $("gate-badge").textContent = "Kontrolden geçmedi — SVG/DXF indirme kapalı. Notlara bak.";
     } else if (status === "PROTOTYPE READY" || status === "DIGITAL_PROTOTYPE_READY") {
       $("gate-badge").textContent = "DIGITAL PROTOTYPE READY — fiziksel fit NOT_VERIFIED.";
     } else {
@@ -1955,12 +1992,12 @@ function paintGate(data) {
       ];
     rows.forEach(([k, v]) => {
       const li = document.createElement("li");
-      li.innerHTML = "<strong>" + k + "</strong> · " + String(v);
+      li.innerHTML = "<strong>" + esc(k) + "</strong> · " + esc(friendlyStatus(v));
       scoreEl.appendChild(li);
     });
   }
   if ($("gate-looks")) {
-    const looks = data.look_again || [];
+    const looks = (data.look_again || []).map((x) => String(x || "")).filter((x) => x && !/^BLOCKED/i.test(x));
     $("gate-looks").textContent = looks.length ? looks.slice(0, 8).join("\n") : "";
   }
   // Lock download buttons only when a non-preview response forbids export.
@@ -1975,7 +2012,7 @@ function paintGate(data) {
   if ($("make-box")) {
     $("make-box").disabled = false;
     $("make-box").title = (!isPreview && status === "BLOCKED")
-      ? "Son kayıt BLOCKED — düzeltip tekrar kaydet"
+      ? "Son kayıt kontrolden geçmedi — düzeltip tekrar kaydet"
       : "";
   }
 }
@@ -2109,7 +2146,7 @@ function paintExports(data) {
     if (data.preview || data.gate_skipped) {
       saveHint.textContent = "Önizleme kaydetmez / gate yok. «Kaydet ve indir» = Final Gate + SVG.";
     } else if (data.final_status === "BLOCKED" || data.export_allowed === false) {
-      saveHint.textContent = "BLOCKED — indirme yok. Gate / look_again listesine bak.";
+      saveHint.textContent = "Kontrolden geçmedi — indirme kapalı. Notlardaki sorunu düzeltip tekrar kaydet.";
     } else if (fileId) {
       const dxfNote = (state.dxfUrl || state.dxfId) ? " SVG/DXF indirilebilir." : " SVG indirilebilir (DXF plana bağlı).";
       saveHint.textContent = "Kayıtlı: " + fileId + " —" + dxfNote;
@@ -2150,6 +2187,7 @@ function snapshotForm() {
     material: $("box-material") ? $("box-material").value : "poplar_3mm",
     machine: $("box-machine") ? $("box-machine").value : "payas_workshop",
     nest_gap: $("nest-gap") ? $("nest-gap").value : "6",
+    part_labels: $("box-part-labels") ? $("box-part-labels").checked : false,
   };
 }
 
@@ -2180,6 +2218,7 @@ function restoreForm(snap) {
   if ($("box-div-walls") && snap.div_walls != null) $("box-div-walls").checked = !!snap.div_walls;
   if ($("box-div-bottom") && snap.div_bottom != null) $("box-div-bottom").checked = !!snap.div_bottom;
   $("box-lift").value = snap.bottom_lift || 0;
+  if ($("box-part-labels") && snap.part_labels != null) $("box-part-labels").checked = !!snap.part_labels;
   state.dividerXPos = Array.isArray(snap.dividerXPos) ? snap.dividerXPos.slice() : null;
   state.dividerYPos = Array.isArray(snap.dividerYPos) ? snap.dividerYPos.slice() : null;
   state.lockedCellsX = snap.lockedCellsX ? { ...snap.lockedCellsX } : {};
@@ -2263,9 +2302,16 @@ async function makeBox(opts) {
     ? "Hızlı önizleme — kapak/ölçü 3D’ye işleniyor…"
     : "Parametrik kesim kaydediliyor (kalınlık sabit, eklemler güncellenir)…");
   const body = { ...boxBody(), preview };
+  if (!preview) {
+    body.studio_form = snapshotForm(); // lets a reopened file restore this form
+    if (state.editProjectId) body.project_id = state.editProjectId; // new version, same project
+  }
   try {
     const { data } = await api("/api/studio/box", { method: "POST", body: JSON.stringify(body) });
-    if (gen !== state.rebuildGen) return; // newer request won
+    // A newer live preview supersedes an older one. A save is never dropped: its file,
+    // links and download must still land even if the user kept editing meanwhile.
+    const stale = gen !== state.rebuildGen;
+    if (stale && preview) return;
     if (!data.success && data.ok === false) {
       setStatus((data.look_again || []).join(" ") || "Kota veya plan engeli.", "bad");
       paintExports(data);
@@ -2275,13 +2321,13 @@ async function makeBox(opts) {
       setStatus((data.look_again || []).join(" ") || "Üretim başarısız.", "bad");
       return;
     }
-    if (data.assembly) loadAssembly(data.assembly);
+    if (data.assembly && !stale) loadAssembly(data.assembly);
     paintExports(data);
     if (data.file_id) {
       history.replaceState(null, "", "/studio?file=" + encodeURIComponent(data.file_id));
     }
     if (!preview && (data.final_status === "BLOCKED" || data.export_allowed === false)) {
-      setStatus("BLOCKED — indirme yok. " + ((data.look_again || [])[0] || "Gate başarısız."), "bad");
+      setStatus("Kontrolden geçmedi — indirme kapalı. " + ((userReasons(data)[0]) || "Ölçüleri kontrol edip tekrar kaydet."), "bad");
     } else {
       setStatus(
         preview
@@ -2489,6 +2535,22 @@ function aiBlockReasons(data) {
   return merged;
 }
 
+// Users see plain Turkish, not gate jargon: status banners and boilerplate are dropped,
+// only the concrete reasons stay.
+const GATE_NOISE = /^(BLOCKED|Open in Studio|Auto-repair|AI draft is digital|Studio AI used|Local draft was repaired|3D view is a nominal|Kerf digital status|Plain box with)/i;
+
+function userReasons(data) {
+  return aiBlockReasons(data).filter((line) => !GATE_NOISE.test(line) && !/^[a-z_]+: (FAIL|BLOCKED)$/i.test(line));
+}
+
+function friendlyStatus(status) {
+  const s = String(status || "");
+  if (s === "BLOCKED" || s === "FAIL") return "kontrolden geçmedi";
+  if (s === "PROTOTYPE READY" || s === "DIGITAL_PROTOTYPE_READY") return "hazır (dijital prototip)";
+  if (s === "PREVIEW_ONLY") return "önizleme";
+  return s;
+}
+
 function aiChatScopeKey(projectId, fileId) {
   const pid = String(projectId || "").trim();
   const fid = String(fileId || "").trim();
@@ -2503,7 +2565,10 @@ function aiChatStorageKey(scope) {
 
 function loadAiChat(scope) {
   try {
-    const raw = sessionStorage.getItem(aiChatStorageKey(scope));
+    // localStorage keeps the thread after the tab closes; the server copy (studio_chat on
+    // the saved version) brings it back on another device. Fall back to the old session copy.
+    const key = aiChatStorageKey(scope);
+    const raw = localStorage.getItem(key) || sessionStorage.getItem(key);
     if (!raw) return [];
     const rows = JSON.parse(raw);
     if (!Array.isArray(rows)) return [];
@@ -2523,7 +2588,7 @@ function loadAiChat(scope) {
 
 function saveAiChat() {
   try {
-    sessionStorage.setItem(
+    localStorage.setItem(
       aiChatStorageKey(state.aiChatKey || "draft"),
       JSON.stringify((state.aiChat || []).slice(-80))
     );
@@ -2541,6 +2606,17 @@ function bindAiChatScope(projectId, fileId) {
   paintAiChat();
 }
 
+// A reopened file brings its saved chat; only fills an empty local thread, never overwrites.
+function seedAiChatFromServer(rows) {
+  if (!Array.isArray(rows) || !rows.length || (state.aiChat || []).length) return;
+  state.aiChat = rows
+    .filter((m) => m && typeof m === "object" && m.text)
+    .map((m) => ({ role: m.role === "assistant" ? "assistant" : "user", text: String(m.text), tone: "", at: Date.now() }))
+    .slice(-80);
+  saveAiChat();
+  paintAiChat();
+}
+
 function paintAiChat() {
   const log = $("ai-chat-log");
   if (!log) return;
@@ -2548,7 +2624,7 @@ function paintAiChat() {
   if (!state.aiChat.length) {
     const empty = document.createElement("div");
     empty.className = "ai-msg system";
-    empty.textContent = "Üretim ve gate notları burada akar. BLOCKED olursa metni oku, sohbetten düzelt, tekrar dene.";
+    empty.textContent = "Üretim notları burada akar. Bir sorun çıkarsa önce kendim düzeltmeyi denerim; olmazsa sohbetten ne değişsin yaz.";
     log.appendChild(empty);
     return;
   }
@@ -2574,15 +2650,22 @@ function showAiBlocked(data) {
   const box = $("ai-block");
   const text = $("ai-block-text");
   const title = $("ai-block-title");
-  const reasons = aiBlockReasons(data);
-  const body = reasons.join("\n") || "Final Gate BLOCKED — ayrıntı yok. Promptu sadeleştirip tekrar dene.";
-  if (title) title.textContent = "BLOCKED — indirme yok";
+  const reasons = userReasons(data);
+  const tried = Number((data.auto_repair && data.auto_repair.attempted) || 0);
+  const body = reasons.join("\n") || "Ayrıntı gelmedi. İsteği biraz sadeleştirip tekrar dene.";
+  if (title) {
+    title.textContent = tried
+      ? "Otomatik düzeltme bu sefer yetmedi — indirme kapalı"
+      : "Tasarım kontrolden geçmedi — indirme kapalı";
+  }
   if (text) text.textContent = body;
   if (box) box.classList.remove("hide");
-  // Banner keeps the full gate text; chat only gets a short pointer to avoid spam.
-  const summary = reasons[0]
-    ? ("BLOCKED — " + reasons[0] + (reasons.length > 1 ? (" (+" + (reasons.length - 1) + " not)") : "") + ". Ayrıntı yukarıdaki uyarıda.")
-    : "BLOCKED — indirme yok. Ayrıntı yukarıdaki uyarıda.";
+  // Banner keeps the full list; chat gets one friendly line and what to do next.
+  const first = reasons[0] ? (": " + reasons[0] + (reasons.length > 1 ? (" (+" + (reasons.length - 1) + " not)") : "")) : "";
+  const summary = (tried
+    ? ("Sorunları " + tried + " kez otomatik düzeltmeyi denedim ama tamamı çözülmedi" + first)
+    : ("Tasarımda bir sorun kaldı" + first))
+    + ". Sohbette neyin değişmesini istediğini yaz ya da «Tekrar dene»ye bas, yeniden düzelteyim.";
   appendAiChat("assistant", summary, "bad");
   if ($("gate-looks")) $("gate-looks").textContent = body;
 }
@@ -2638,11 +2721,23 @@ function applyAiResult(data, { fromChat } = {}) {
   paintGate(data);
   if (blocked) {
     showAiBlocked(data);
-    setStatus("BLOCKED — " + ((aiBlockReasons(data)[0]) || "Gate başarısız. Sohbetten düzeltip tekrar dene."), "bad");
+    setStatus("Kontrolden geçmedi — " + ((userReasons(data)[0]) || "sohbetten düzeltip tekrar dene."), "bad");
     return false;
   }
   hideAiBlocked();
-  const okLine = "Hazır (" + (data.source || "ai") + "). " + ((data.look_again || [])[0] || data.final_status || "OK");
+  const repair = data.auto_repair || {};
+  if (repair.fixed) {
+    // The user never sees the block itself: only that we caught and fixed it.
+    const n = (repair.issues || []).length;
+    const fixedLine = "✓ İlk taslakta " + (n ? n + " sorun" : "bir sorun") + " bulduk ve otomatik düzelttik. "
+      + "Tasarım kontrolden geçti, indirebilirsin.";
+    appendAiChat("assistant", fixedLine, "ok");
+    setStatus(fixedLine, "ok");
+    if (data.file_id) history.replaceState(null, "", "/studio?file=" + encodeURIComponent(data.file_id));
+    if (fromChat && data.speak) appendAiChat("system", String(data.speak));
+    return true;
+  }
+  const okLine = "Hazır. " + (((data.plan_job || {}).summary) || "Tasarım kontrolden geçti, indirebilirsin.");
   appendAiChat("assistant", okLine, "ok");
   setStatus(okLine, "ok");
   if (data.file_id) {
@@ -2693,9 +2788,9 @@ async function makeAi() {
 }
 
 async function retryAi() {
-  appendAiChat("system", "Önceki BLOCKED notlarıyla tekrar deneniyor…");
+  appendAiChat("system", "Önceki notlarla tekrar deneniyor…");
   await runStudioAi({
-    label: "BLOCKED sonrası tekrar deneniyor…",
+    label: "Sorunlar düzeltilerek tekrar deneniyor…",
     extra: { retry: true },
   });
 }
@@ -2871,7 +2966,7 @@ async function makeMaker() {
     $("sum-val").textContent = data.final_status || "DIGITAL_PROTOTYPE";
     if (data.final_status === "BLOCKED" || data.export_allowed === false) {
       setStatus(
-        "BLOCKED — " + label + " indirme yok. " + ((data.look_again || [])[0] || "Gate başarısız."),
+        label + " kontrolden geçmedi — indirme kapalı. " + ((userReasons(data)[0]) || "Ölçüleri kontrol edip tekrar dene."),
         "bad"
       );
     } else if (panels && panels.length) {
@@ -3028,9 +3123,13 @@ function wireUi() {
       if (note) note.classList.remove("hide");
       return;
     }
+    // A pending live preview would otherwise fire after this click and supersede the save.
+    clearTimeout(state.rebuildTimer);
+    state.rebuildTimer = null;
     pushUndo();
     clearGhostLid();
-    makeBox({ preview: false, autoDownload: true }); // full SVG/DXF + trigger download
+    makeBox({ preview: false, autoDownload: true }) // full SVG/DXF + trigger download
+      .catch((err) => setStatus(String(err), "bad"));
   };
   function bumpCount(id, delta, lo, hi) {
     const el = $(id);
@@ -3057,6 +3156,8 @@ function wireUi() {
       if (state.fileId) return;
       ev.preventDefault();
       setStatus("Önce «Kaydet ve indir» ile dosyayı kaydet.", "bad");
+      clearTimeout(state.rebuildTimer);
+      state.rebuildTimer = null;
       makeBox({ preview: false, autoDownload: true }).catch((e) => setStatus(String(e), "bad"));
     });
   }
@@ -3314,9 +3415,26 @@ async function loadFile(fileId) {
     dxf_url: data.dxf_url,
   });
   if (data.success && (data.panels || []).length) {
+    const form = data.studio_form && typeof data.studio_form === "object" ? data.studio_form : null;
+    if (form) {
+      // Restore the exact box form this file was saved from, so the next edit starts here
+      // and a save adds a version to the same project instead of a stranger default box.
+      pushUndo();
+      restoreForm({ ...snapshotForm(), ...form });
+      state.sx = null;
+      state.sy = null;
+      if (data.project_id) state.editProjectId = String(data.project_id);
+    } else {
+      state.editProjectId = null;
+    }
     loadAssembly(data);
-    paintExports(exportsFor());
-    setStatus("Açıldı: " + (data.file_id || fileId), "ok");
+    paintExports({ ...exportsFor(), project: data.project_id || null });
+    seedAiChatFromServer(data.studio_chat);
+    setStatus(
+      "Açıldı: " + (data.file_id || fileId)
+        + (form ? " — form bu dosyanın ölçüleriyle dolduruldu." : " — bu dosyanın kayıtlı formu yok; düzenleme yeni kutu başlatır."),
+      form ? "ok" : "bad"
+    );
     return;
   }
   if (res.ok && data.file_id) {
@@ -3328,7 +3446,8 @@ async function loadFile(fileId) {
     });
     if ($("sum-panels")) $("sum-panels").textContent = "0";
     ["asm-steps", "asm-joints"].forEach((id) => { if ($(id)) $(id).innerHTML = ""; });
-    paintExports(exportsFor());
+    paintExports({ ...exportsFor(), project: data.project_id || null });
+    seedAiChatFromServer(data.studio_chat);
     $("sum-note").textContent = "Düz kesim sayfası — bu dosya için 3D montaj yok.";
     setStatus("Düz kesim dosyası açıldı (3D montaj yok) — SVG/DXF indirilebilir.", "ok");
     return;
@@ -3389,9 +3508,9 @@ async function loadCalibrations() {
   }
   rows.slice().reverse().forEach((r) => {
     const li = document.createElement("li");
-    li.innerHTML = "<strong>" + (r.material || "?") + "</strong> @ " + (r.machine || "?")
-      + "<span class=\"sub\">bar " + (r.measured_bar_mm != null ? r.measured_bar_mm : "?")
-      + " mm → burn " + (r.burn != null ? r.burn : "?") + " · " + (r.at || "") + "</span>";
+    li.innerHTML = "<strong>" + esc(r.material || "?") + "</strong> @ " + esc(r.machine || "?")
+      + "<span class=\"sub\">bar " + esc(r.measured_bar_mm != null ? r.measured_bar_mm : "?")
+      + " mm → burn " + esc(r.burn != null ? r.burn : "?") + " · " + esc(r.at || "") + "</span>";
     li.onclick = () => {
       if (r.burn != null && $("box-burn")) $("box-burn").value = String(r.burn);
       if (r.material && $("box-material")) $("box-material").value = r.material;
@@ -3458,9 +3577,9 @@ function paintSummaryHistory(projects) {
   rows.forEach((p) => {
     const latest = p.latest || {};
     const li = document.createElement("li");
-    li.innerHTML = "<strong>" + (p.name || p.id) + "</strong>"
-      + "<span class=\"sub\">v" + (latest.n || p.versions || "?")
-      + " · " + (latest.final_status || "—") + "</span>";
+    li.innerHTML = "<strong>" + esc(p.name || p.id) + "</strong>"
+      + "<span class=\"sub\">v" + esc(latest.n || p.versions || "?")
+      + " · " + esc(latest.final_status || "—") + "</span>";
     li.onclick = () => openHistoryProject(p).catch((e) => setStatus(String(e), "bad"));
     list.appendChild(li);
   });
@@ -3500,10 +3619,10 @@ async function loadHistoryVersions(projectId) {
     }
     versions.forEach((ver) => {
       const li = document.createElement("li");
-      li.innerHTML = "<strong>v" + (ver.n || "?") + "</strong>"
-        + "<span class=\"sub\">" + (ver.final_status || "—")
-        + " · " + (ver.at || "")
-        + (ver.file_id ? (" · " + ver.file_id) : "") + "</span>";
+      li.innerHTML = "<strong>v" + esc(ver.n || "?") + "</strong>"
+        + "<span class=\"sub\">" + esc(ver.final_status || "—")
+        + " · " + esc(ver.at || "")
+        + (ver.file_id ? (" · " + esc(ver.file_id)) : "") + "</span>";
       li.onclick = () => {
         const fid = ver.file_id;
         if (!fid) {
@@ -3566,11 +3685,11 @@ async function loadProjectHistory() {
     projects.forEach((p) => {
       const latest = p.latest || {};
       const li = document.createElement("li");
-      li.innerHTML = "<strong>" + (p.name || p.id) + "</strong>"
-        + "<span class=\"sub\">v" + (latest.n || p.versions || "?")
-        + " · " + (latest.final_status || "—")
-        + " · " + (p.updated || "")
-        + (latest.file_id ? (" · " + latest.file_id) : "") + "</span>";
+      li.innerHTML = "<strong>" + esc(p.name || p.id) + "</strong>"
+        + "<span class=\"sub\">v" + esc(latest.n || p.versions || "?")
+        + " · " + esc(latest.final_status || "—")
+        + " · " + esc(p.updated || "")
+        + (latest.file_id ? (" · " + esc(latest.file_id)) : "") + "</span>";
       li.onclick = () => openHistoryProject(p).catch((e) => setStatus(String(e), "bad"));
       list.appendChild(li);
     });

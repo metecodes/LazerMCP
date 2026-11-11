@@ -2076,6 +2076,17 @@ async def api_studio(request: Request) -> Response:
 
 @mcp.custom_route("/api/studio/{action}", methods=["GET", "POST"])
 async def api_studio_action(request: Request) -> Response:
+    from metering import anon_id_for, anon_identity
+
+    # Guests are counted per address, not as one shared "anon" quota.
+    token = anon_identity.set(anon_id_for(_client_ip(request)))
+    try:
+        return await _api_studio_action(request)
+    finally:
+        anon_identity.reset(token)
+
+
+async def _api_studio_action(request: Request) -> Response:
     from studio import studio_action
     from workshop import create_studio_ai, create_studio_box, create_studio_maker, create_studio_pdf
 
@@ -2178,6 +2189,14 @@ async def api_assembly(request: Request) -> Response:
             payload["dxf_id"] = context.get("dxf_id")
             payload["dxf_url"] = f"/files/{quote(str(context.get('dxf_id')), safe='')}"
         payload["final_status"] = (context.get("review") or {}).get("final_status") if isinstance(context.get("review"), dict) else None
+        stored = context.get("parameters") or {}
+        form = stored.get("studio_form")
+        if isinstance(form, dict) and form:
+            # Studio restores its box form from this, so editing a reopened file starts from it.
+            payload["studio_form"] = form
+        chat = stored.get("studio_chat")
+        if isinstance(chat, list) and chat:
+            payload["studio_chat"] = chat[-20:]
         return JSONResponse(payload, headers={"Cache-Control": "private, no-store"})
     except FileNotFoundError:
         return _editor_denied({"reason": "unknown"}, True, filename)

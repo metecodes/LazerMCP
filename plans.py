@@ -138,7 +138,7 @@ def gate_job(feature: str = "design") -> dict[str, Any]:
 
     key = current_auth.get()
     plan = get_plan(resolve_plan_id(key))
-    used = designs_this_month((key or {}).get("id") or "anon")
+    used = designs_this_month((key or {}).get("id") or None)  # guests: per-address id from metering
     quota = int(plan.get("designs_per_month") or 0)
     info = {
         "success": True,

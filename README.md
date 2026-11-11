@@ -196,8 +196,12 @@ Hepsi isteğe bağlıdır.
 | `MCP_OUTPUT_DIR` | `output` veya Vercel `/tmp` | Kalıcı SVG klasörü |
 | `MCP_DATA_DIR` | `output/studio` | Profiller, kerf, projeler, kullanım, telemetry |
 | `LASERMCP_BETA` | `1` | `0` olursa Free/Maker/Pro kotaları uygulanır |
-| `LASERMCP_LLM_DEFAULT_MODEL` | `gpt-4o-mini` | Stüdyo AI’nin çağırdığı model (istek model vermezse veya listede olmayanı isterse) |
-| `LASERMCP_LLM_MODELS` | `gpt-4o-mini,gpt-4o,claude-haiku-4.5,claude-sonnet-4.5` | Stüdyo AI’nin çağırabileceği modeller. Tarayıcıdan gelen model yalnız bu listedeyse kullanılır |
+| `LASERMCP_LLM_DEFAULT_MODEL` | (boş) | Stüdyo AI’nin çağırdığı model (istek model vermezse veya listede olmayanı isterse). Boşsa listedeki, anahtarı tanımlı ilk model: Anthropic anahtarı varsa `claude-haiku-5-5`, yalnız OpenAI varsa `gpt-4o-mini` |
+| `LASERMCP_LLM_MODELS` | `claude-haiku-5-5,gpt-4o-mini,claude-sonnet-5-5,gpt-4o,claude-haiku-4.5,claude-sonnet-4.5` | Stüdyo AI’nin çağırabileceği modeller (ucuzdan pahalıya). Tarayıcıdan gelen model yalnız bu listedeyse kullanılır |
+| `LASERMCP_LLM_REPAIR_MODEL` | (taslak modeli) | Gate BLOCKED derse yapılan tek otomatik düzeltmenin modeli; listede olmalı (ör. `claude-sonnet-5-5`) |
+| `LASERMCP_AI_AUTO_REPAIR` | `1` | `0` olursa BLOCKED taslak için otomatik düzeltme çağrısı yapılmaz. Düzeltme de günlük tavanlardan düşer. Yerel planlayıcının BLOCKED taslağı da (AI hakkı olan kullanıcıda) modelle düzeltilir |
+| `LASERMCP_AI_REPAIR_ATTEMPTS` | `2` | BLOCKED taslak başına en çok kaç ücretli düzeltme denemesi (0–3). İkinci deneme daha derin düşünür. Düzelirse kullanıcı “sorun bulduk, düzelttik” görür |
+| `LASERMCP_AI_CACHE_DAYS` | `7` | Gate’i geçen AI taslakları bu kadar gün aynı istek için ücretsiz yeniden kullanılır (`0` = kapalı). “W×D×H kutu” gibi düz kutu istekleri hiç modele gitmez ($0) |
 | `LASERMCP_AI_DAILY_PER_IP` | `10` | Bir adresten 24 saatte en çok kaç ücretli AI çağrısı. Aşılınca istek yerel planner ile ($0) üretilir |
 | `LASERMCP_AI_DAILY_GLOBAL` | `200` | Tüm site için 24 saatlik ücretli AI çağrı tavanı |
 | `LASERMCP_LLM_MAX_OUTPUT_TOKENS` | `2500` | Tek çağrının faturalayabileceği en çok çıktı token’ı |

@@ -2,11 +2,29 @@
 
 from __future__ import annotations
 
+import hashlib
+from contextvars import ContextVar
 from typing import Any
 
 from datetime import datetime, timezone
 
 from studio_store import append_jsonl, data_dir, now_iso, read_json, write_json
+
+# Who an unsigned caller counts as. Without this every guest shared one "anon" quota,
+# so one busy guest closed the free quota for all of them. The HTTP layer sets it per
+# request from the caller's address (only a digest is stored).
+anon_identity: ContextVar[str] = ContextVar("lasermcp_anon_identity", default="anon")
+
+
+def anon_id_for(address: str) -> str:
+    raw = str(address or "").strip()
+    if not raw or raw == "anon":
+        return "anon"
+    return "anon:" + hashlib.sha256(raw.encode("utf-8")).hexdigest()[:12]
+
+
+def _anon() -> str:
+    return anon_identity.get() or "anon"
 
 
 def _month_key() -> str:
@@ -33,7 +51,7 @@ def _bump_counter(key_id: str) -> int:
 
 
 def record_usage(key: dict[str, Any] | None, tool: str, extra: dict[str, Any] | None = None) -> None:
-    kid = (key or {}).get("id") or "anon"
+    kid = (key or {}).get("id") or _anon()
     row = {"at": now_iso(), "key": kid, "name": (key or {}).get("name") or "anon", "tool": tool}
     if extra:
         for field in ("file_id", "bytes", "final_status", "product", "model", "input_tokens", "output_tokens", "usd"):
@@ -72,7 +90,7 @@ def usage_summary(limit: int = 200) -> dict[str, Any]:
 
 
 def designs_this_month(key_id: str | None) -> int:
-    kid = str(key_id or "anon")
+    kid = str(key_id or _anon())
     month = _month_key()
     durable = _counters().get(month)
     if isinstance(durable, dict) and kid in durable:

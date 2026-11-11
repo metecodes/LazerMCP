@@ -552,7 +552,7 @@
             <button class="btn cut" type="button" id="make-ai">AI ile üret</button>
           </div>
           <div id="ai-block" class="ai-block hide" role="alert">
-            <p class="ai-block-title" id="ai-block-title">BLOCKED — indirme yok</p>
+            <p class="ai-block-title" id="ai-block-title">Tasarım kontrolden geçmedi — indirme kapalı</p>
             <p class="ai-block-text" id="ai-block-text"></p>
             <div class="row2">
               <button class="btn cut" type="button" id="ai-retry">Tekrar dene</button>
@@ -571,7 +571,7 @@
             <p class="kicker" style="margin:0 0 6px">Maliyet paneli</p>
             <p id="ai-cost-out" style="margin:0">AI modelini LaserMCP sağlar; anahtar eklemen gerekmez. Model kapalıyken yerel planner çalışır ($0).</p>
           </div>
-          <p class="hint" id="ai-gate">Maker/Pro gerekir. Kota dolunca kesilir. BLOCKED olursa uyarı + sohbetten düzeltip tekrar dene.</p>
+          <p class="hint" id="ai-gate">Maker/Pro gerekir. Kota dolunca kesilir. Taslakta sorun çıkarsa önce otomatik düzeltilir; olmazsa sohbetten düzeltip tekrar dene.</p>
         </div>
         <div class="pane" id="pane-stl">
           <p class="hint">2D SVG kesim konturları mm ölçeğinde ekstrüde edilir. Genişlik/derinlik SVG’den gelir — AI uydurmaz.</p>
@@ -684,7 +684,7 @@
     }
   }
   </script>
-  <script type="module" src="/studio-3d.js?v=38"></script>
+  <script type="module" src="/studio-3d.js?v=40"></script>
   <script src="/nav-auth.js?v=6"></script>
 </body>
 </html>

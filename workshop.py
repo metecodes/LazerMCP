@@ -742,10 +742,13 @@ def create_studio_box(body: dict[str, Any] | None = None, *, public_base_url: st
     from toolbox import render_toolbox
     import payas_cad
 
-    gate = gate_job("design")
-    if not gate.get("ok"):
-        return gate
     payload = body or {}
+    preview = bool(payload.get("preview") or payload.get("fast"))
+    gate = gate_job("design")
+    # A live preview writes no file and spends no quota, so a full monthly quota must not
+    # freeze the 3D view; only the gated save stops here.
+    if not gate.get("ok") and not preview:
+        return gate
     try:
         built = build_studio_box(payload)
     except (TypeError, ValueError) as exc:
@@ -756,7 +759,6 @@ def create_studio_box(body: dict[str, Any] | None = None, *, public_base_url: st
             "plan": gate,
         }
 
-    preview = bool(payload.get("preview") or payload.get("fast"))
     if not preview:
         # Guest/pending may preview freely; authorized download needs an approved account.
         try:
@@ -1096,7 +1098,7 @@ def _compose_ai_chat_prompt(prompt: str, payload: dict[str, Any]) -> str:
     return head + "\n\n" + "\n\n".join(chunks)
 
 
-def _studio_ai_result(result: dict[str, Any], *, cost: dict[str, Any] | None = None, extra_look: list[str] | None = None, plan: dict[str, Any] | None = None, plan_job: dict[str, Any] | None = None, source: str = "prompt", public_base_url: str | None = None, lead_look: str = "") -> dict[str, Any]:
+def _studio_ai_result(result: dict[str, Any], *, cost: dict[str, Any] | None = None, extra_look: list[str] | None = None, plan: dict[str, Any] | None = None, plan_job: dict[str, Any] | None = None, source: str = "prompt", public_base_url: str | None = None, lead_look: str = "", repair: dict[str, Any] | None = None) -> dict[str, Any]:
     from assembly_result import panels_for_viewer
 
     viewer = panels_for_viewer(result.get("assembly_result"))
@@ -1108,6 +1110,10 @@ def _studio_ai_result(result: dict[str, Any], *, cost: dict[str, Any] | None = N
     file_id = result.get("file_id") if export_ok else None
     base = (public_base_url or "").rstrip("/")
     studio_url = f"{base}/studio?file={file_id}" if base and file_id else (f"/studio?file={file_id}" if file_id else None)
+    info = dict(repair or {})
+    note = _repair_note(info)
+    if note:
+        looks.insert(0, note)
     if final_status == "BLOCKED":
         looks.insert(0, "BLOCKED — SVG/DXF not authorized. Read the notes below, fix in chat, then retry.")
     if lead_look:
@@ -1136,7 +1142,164 @@ def _studio_ai_result(result: dict[str, Any], *, cost: dict[str, Any] | None = N
         "cost": cost,
         "look_again": looks,
         "plan": plan,
+        # Studio reads this to say "found N issues, fixed them" instead of showing a block.
+        "auto_repair": {
+            "attempted": int(info.get("attempted") or 0),
+            "fixed": bool(info.get("fixed")),
+            "issues": list(info.get("issues") or [])[:6],
+        },
     }
+
+
+def _chat_for_storage(messages: Any, limit: int = 20) -> list[dict[str, str]]:
+    """Last user/assistant turns of the Studio AI chat, trimmed for a project version."""
+    if not isinstance(messages, list):
+        return []
+    rows: list[dict[str, str]] = []
+    for row in messages[-limit:]:
+        if not isinstance(row, dict):
+            continue
+        role = str(row.get("role") or "").strip().lower()
+        text = str(row.get("text") or row.get("content") or "").strip()
+        if role in {"user", "assistant"} and text:
+            rows.append({"role": role, "text": text[:600]})
+    return rows
+
+
+def _draft_blocked(result: dict[str, Any]) -> bool:
+    return not result.get("success") or str(result.get("final_status") or "BLOCKED") in {"BLOCKED", "FAIL"}
+
+
+def _gate_issues(result: dict[str, Any], limit: int = 10) -> list[str]:
+    """The reviewer's notes on a blocked draft, without the generic status banner lines."""
+    rows = []
+    for raw in result.get("look_again") or []:
+        line = str(raw or "").strip()
+        if line and not line.upper().startswith(("BLOCKED", "OPEN IN STUDIO")) and line not in rows:
+            rows.append(line[:300])
+    return rows[:limit]
+
+
+class _PaidDrafts:
+    """Paid provider calls for one Studio AI request: drafts, repairs and their summed usage."""
+
+    def __init__(self, *, thickness: Any, parameters: dict[str, Any], base: str) -> None:
+        self.thickness = float(thickness) if thickness not in (None, "") else None
+        self.parameters = parameters
+        self.base = base
+        self.total = {"input_tokens": 0, "output_tokens": 0, "usd": 0.0, "calls": 0}
+
+    def call(self, text: str, model: str, effort: str) -> dict[str, Any]:
+        from ai_cost import usage_cost
+        from keys import current_auth
+        from llm_client import plan_primitives_with_llm
+        from metering import record_usage
+
+        plan = plan_primitives_with_llm(text, model=model, thickness=self.thickness, effort=effort)
+        usage = dict(plan.get("usage") or {})
+        usage["usd"] = usage_cost(
+            model,
+            usage.get("input_tokens") or 0,
+            usage.get("output_tokens") or 0,
+            usage.get("cache_read_tokens") or 0,
+            usage.get("cache_write_tokens") or 0,
+        )
+        try:
+            record_usage(current_auth.get(), "studio_ai_llm", {"model": model, **usage})
+        except OSError:
+            pass  # the paid plan is still worth returning when the usage log cannot be written
+        self.total["input_tokens"] += int(usage.get("input_tokens") or 0)
+        self.total["output_tokens"] += int(usage.get("output_tokens") or 0)
+        self.total["usd"] = round(self.total["usd"] + float(usage["usd"]), 6)
+        self.total["calls"] += 1
+        return plan
+
+    def design(self, plan: dict[str, Any]) -> dict[str, Any]:
+        import payas_cad
+
+        merged = dict(plan.get("parameters") or {})
+        merged.update(self.parameters)
+        return payas_cad.create_design(primitives=plan.get("primitives") or [], parameters=merged, public_base_url=self.base)
+
+    def usage(self) -> dict[str, Any]:
+        return {**self.total, "usd": round(float(self.total["usd"]), 6)}
+
+    def repair(
+        self,
+        request: str,
+        plan: dict[str, Any],
+        result: dict[str, Any],
+        *,
+        model_id: str,
+        client_ip: str,
+    ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+        """Fix a BLOCKED draft from the gate's own notes before the user ever sees it.
+
+        Up to repair_attempts() paid tries, each passing the daily caps; the second try
+        thinks harder (effort high). Returns (plan, result, info) where info says what
+        was wrong and whether it was fixed, so Studio can say "fixed it" instead of
+        showing a block.
+        """
+        from llm_client import repair_prompt
+        from llm_guard import auto_repair_enabled, authorize, repair_attempts, repair_model
+
+        issues = _gate_issues(result)
+        info: dict[str, Any] = {"attempted": 0, "fixed": False, "issues": issues, "error": ""}
+        if not _draft_blocked(result) or not auto_repair_enabled():
+            return plan, result, info
+        fixer = repair_model(model_id)
+        current_plan, current_result = plan, result
+        for attempt in range(repair_attempts()):
+            if not authorize(fixer, client_ip=client_ip).get("allow"):
+                break
+            info["attempted"] = attempt + 1
+            try:
+                notes = _gate_issues(current_result) or issues
+                text = repair_prompt(request, current_plan.get("primitives") or [], notes)
+                fixed_plan = self.call(text, fixer, "medium" if attempt == 0 else "high")
+                fixed = self.design(fixed_plan)
+            except Exception as exc:  # keep the best draft so far and its gate notes
+                info["error"] = str(exc)[:160]
+                break
+            current_plan, current_result = fixed_plan, fixed
+            if not _draft_blocked(fixed):
+                info["fixed"] = True
+                return fixed_plan, fixed, info
+        # Not fixed: show the latest attempt, whose notes are the freshest.
+        return current_plan, current_result, info
+
+
+def _repair_note(info: dict[str, Any]) -> str:
+    if info.get("fixed"):
+        return f"Auto-repair: the first draft had {len(info.get('issues') or []) or 'a'} gate issue(s); fixed automatically."
+    if info.get("attempted"):
+        return f"Auto-repair tried {info['attempted']} time(s) and could not pass the gate."
+    return ""
+
+
+def _studio_llm_draft(
+    request: str,
+    *,
+    model_id: str,
+    thickness: Any,
+    parameters: dict[str, Any],
+    base: str,
+    client_ip: str,
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]:
+    """One paid draft, repaired automatically when the gate BLOCKS it.
+
+    Returns (design result, plan, summed usage, repair info). Raises when the first draft
+    fails, so the caller can fall back to the local planner. A good draft is cached.
+    """
+    from ai_cache import cache_key, put as cache_put
+
+    drafts = _PaidDrafts(thickness=thickness, parameters=parameters, base=base)
+    plan = drafts.call(request, model_id, "low")
+    result = drafts.design(plan)
+    plan, result, info = drafts.repair(request, plan, result, model_id=model_id, client_ip=client_ip)
+    if not _draft_blocked(result):
+        cache_put(cache_key(model_id, request, thickness), {**plan, "model": model_id})
+    return result, plan, drafts.usage(), info
 
 
 def create_studio_ai(body: dict[str, Any] | None = None, *, public_base_url: str | None = None, client_ip: str = "") -> dict[str, Any]:
@@ -1190,6 +1353,10 @@ def create_studio_ai(body: dict[str, Any] | None = None, *, public_base_url: str
         parameters["material"] = payload["material"]
     if payload.get("machine"):
         parameters["machine"] = payload["machine"]
+    chat = _chat_for_storage(payload.get("messages"))
+    if chat:
+        # Kept with the version, so the thread comes back on another device or tab.
+        parameters["studio_chat"] = chat
 
     cost = estimate_ai_prompt_cost(
         {
@@ -1284,13 +1451,27 @@ def create_studio_ai(body: dict[str, Any] | None = None, *, public_base_url: str
         )
 
     # --- Text prompt → workshop LLM (if key) else local planner ---
-    from llm_guard import authorize
+    from ai_cache import cache_key, simple_box_request
+    from llm_guard import access, authorize
 
     planner_mode = str(payload.get("planner") or "").lower()
     force_local = planner_mode in {"local", "rules", "plan_laser_job"}
     prefer_llm = planner_mode in {"llm", "provider", "openai", "anthropic", "external"}
-    # The key is spent only past the guards: approved caller, allowed model, daily caps.
-    guard = {"allow": False, "reason": "local", "note": ""} if force_local else authorize(payload.get("model"), client_ip=client_ip)
+    in_conversation = bool(payload.get("messages") or payload.get("prior_look_again") or payload.get("retry"))
+    # A plain "W×D×H box" is drafted as well by the local planner: never pay a model for it.
+    simple_box = not prefer_llm and not in_conversation and simple_box_request(raw_prompt)
+    guard: dict[str, Any]
+    cached = None
+    if force_local or simple_box:
+        guard = {"allow": False, "reason": "local", "note": ""}
+    else:
+        verdict = access(payload.get("model"))
+        if verdict["allow"]:
+            # A draft that already passed the gate for this exact request costs nothing to reuse.
+            from ai_cache import get as cache_get
+
+            cached = cache_get(cache_key(str(verdict.get("model") or ""), request, thickness))
+        guard = verdict if cached else authorize(payload.get("model"), client_ip=client_ip)
     model_id = str(guard.get("model") or "")
     provider = str(guard.get("provider") or "")
     if prefer_llm and guard["reason"] == "no_key":
@@ -1303,28 +1484,40 @@ def create_studio_ai(body: dict[str, Any] | None = None, *, public_base_url: str
             "plan": gate,
         }
 
+    if cached:
+        merged = dict(cached.get("parameters") or {})
+        merged.update(parameters)
+        result = payas_cad.create_design(primitives=cached["primitives"], parameters=merged, public_base_url=base)
+        return _studio_ai_result(
+            result,
+            cost={**cost, "usd": {**dict(cost.get("usd") or {}), "total": 0.0}},
+            plan=design_gate,
+            public_base_url=base,
+            plan_job={
+                "summary": cached.get("summary"),
+                "method": "workshop_llm_cache",
+                "provider": provider,
+                "model": model_id,
+                "usage": {"input_tokens": 0, "output_tokens": 0, "usd": 0.0, "cached": True},
+            },
+            source="prompt_llm",
+            extra_look=[
+                "AI draft is digital only. Confirm joints and dry-fit before cutting.",
+                "Same request was drafted before — reused that draft, no new AI charge.",
+            ],
+        )
+
     llm_error = ""
     if guard["allow"]:
         try:
-            from ai_cost import usage_cost
-            from keys import current_auth
-            from llm_client import plan_primitives_with_llm
-            from metering import record_usage
-
-            llm_plan = plan_primitives_with_llm(
+            result, llm_plan, usage, repair_info = _studio_llm_draft(
                 request,
-                model=model_id,
-                thickness=float(thickness) if thickness not in (None, "") else None,
+                model_id=model_id,
+                thickness=thickness,
+                parameters=parameters,
+                base=base,
+                client_ip=client_ip,
             )
-            usage = dict(llm_plan.get("usage") or {})
-            usage["usd"] = usage_cost(model_id, usage.get("input_tokens") or 0, usage.get("output_tokens") or 0)
-            try:
-                record_usage(current_auth.get(), "studio_ai_llm", {"model": model_id, **usage})
-            except OSError:
-                pass  # the paid plan is still worth returning when the usage log cannot be written
-            primitives = llm_plan.get("primitives") or []
-            merged = dict(llm_plan.get("parameters") or {})
-            merged.update(parameters)
             cost = estimate_ai_prompt_cost(
                 {
                     "prompt": request,
@@ -1333,11 +1526,10 @@ def create_studio_ai(body: dict[str, Any] | None = None, *, public_base_url: str
                     "mode": "mcp_thin",
                 }
             )
-            result = payas_cad.create_design(
-                primitives=primitives,
-                parameters=merged,
-                public_base_url=base,
-            )
+            looks = [
+                "AI draft is digital only. Confirm joints and dry-fit before cutting.",
+                f"Studio AI used workshop {provider} key — billed to that provider, not LaserMCP lzr_.",
+            ]
             return _studio_ai_result(
                 result,
                 cost=cost,
@@ -1351,10 +1543,8 @@ def create_studio_ai(body: dict[str, Any] | None = None, *, public_base_url: str
                     "usage": usage,
                 },
                 source="prompt_llm",
-                extra_look=[
-                    "AI draft is digital only. Confirm joints and dry-fit before cutting.",
-                    f"Studio AI used workshop {provider} key — billed to that provider, not LaserMCP lzr_.",
-                ],
+                extra_look=looks,
+                repair=repair_info,
             )
         except Exception as exc:
             # Fall through to local planner; surface the LLM error in look_again.
@@ -1390,21 +1580,39 @@ def create_studio_ai(body: dict[str, Any] | None = None, *, public_base_url: str
         parameters=merged,
         public_base_url=base,
     )
+    repair_info: dict[str, Any] | None = None
+    if _draft_blocked(result) and not force_local and not llm_error:
+        # The free draft failed the gate: let the model fix it (paid, capped) rather than
+        # hand the user a block. Callers who may not use the model keep the local result.
+        verdict = access(payload.get("model"))
+        if verdict["allow"]:
+            drafts = _PaidDrafts(thickness=thickness, parameters=parameters, base=base)
+            local_plan = {"primitives": primitives, "parameters": args.get("parameters") or {}}
+            _, result, repair_info = drafts.repair(
+                request, local_plan, result, model_id=str(verdict.get("model") or ""), client_ip=client_ip
+            )
+            if repair_info.get("attempted"):
+                plan = {**plan, "usage": drafts.usage(), "repair_model": verdict.get("model")}
     looks = [
         "AI draft is digital only. Confirm joints and dry-fit before cutting.",
-        "Studio AI used the local planner — no external LLM API charge from LaserMCP.",
+        "Studio AI used the local planner — no external LLM API charge from LaserMCP."
+        if not (repair_info or {}).get("attempted")
+        else "Local draft was repaired by the workshop model (billed to the workshop key).",
     ]
     if llm_error:
         looks.insert(0, f"Workshop LLM failed ({llm_error}); fell back to local planner.")
+    if simple_box:
+        looks.insert(0, "Plain box with all three sizes → drafted by the local planner at $0 (the Box tab edits it live).")
     return _studio_ai_result(
         result,
         cost=cost,
         plan=design_gate,
         public_base_url=base,
-        plan_job={k: plan.get(k) for k in ("summary", "next_tool", "method", "look_again") if k in plan},
+        plan_job={k: plan.get(k) for k in ("summary", "next_tool", "method", "look_again", "usage", "repair_model") if k in plan},
         source="prompt",
         extra_look=looks,
         lead_look=guard_note,
+        repair=repair_info,
     )
 
 

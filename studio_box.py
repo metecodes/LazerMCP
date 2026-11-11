@@ -345,6 +345,40 @@ def volume_liters(x_inner: float, y_inner: float, h_usable: float) -> float:
     return round((x_inner * y_inner * max(0.0, h_usable)) / 1_000_000.0, 4)
 
 
+STUDIO_FORM_KEYS = (
+    "unit", "dimension_mode", "lid", "x", "y", "h", "thickness", "finger", "burn", "press_fit",
+    "bump_d", "handle", "handle_w", "lid_r", "lid_open", "dividers_x", "dividers_y", "shelves",
+    "drawers", "div_walls", "div_bottom", "bottom_lift", "dividerXPos", "dividerYPos",
+    "lockedCellsX", "lockedCellsY", "material", "machine", "nest_gap", "part_labels",
+)
+
+
+def _form_value(value: Any) -> Any:
+    if isinstance(value, bool) or value is None:
+        return value
+    if isinstance(value, (int, float)):
+        return value if value == value and abs(value) < 1e6 else None
+    if isinstance(value, str):
+        return value[:40]
+    if isinstance(value, list):
+        nums = [v for v in value[:16] if isinstance(v, (int, float)) and not isinstance(v, bool)]
+        return nums
+    if isinstance(value, dict):
+        return {
+            str(k)[:8]: v
+            for k, v in list(value.items())[:16]
+            if isinstance(v, (int, float)) and not isinstance(v, bool)
+        }
+    return None
+
+
+def studio_form_snapshot(raw: Any) -> dict[str, Any]:
+    """Whitelisted copy of the Studio box form, safe to store with a project version."""
+    if not isinstance(raw, dict):
+        return {}
+    return {key: _form_value(raw[key]) for key in STUDIO_FORM_KEYS if key in raw}
+
+
 def build_studio_box(payload: dict[str, Any] | None = None) -> dict[str, Any]:
     """Return {primitives, parameters, summary} for create_design / studio."""
     body = payload or {}
@@ -631,6 +665,14 @@ def build_studio_box(payload: dict[str, Any] | None = None) -> dict[str, Any]:
             pass
     if press_fit:
         parameters["FingerJoint_surround"] = max(0.1, min(2.0, bump_d))
+
+    form = studio_form_snapshot(body.get("studio_form"))
+    if form:
+        # Stored with the version so reopening the file restores the editable form.
+        parameters["studio_form"] = form
+    if str(body.get("project_id") or "").strip():
+        # save_version only extends a project the caller owns; otherwise it starts a new one.
+        parameters["project_id"] = str(body.get("project_id")).strip()[:80]
 
     burn = body.get("burn")
     burn_set = burn not in (None, "")

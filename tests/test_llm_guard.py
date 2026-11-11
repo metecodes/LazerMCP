@@ -26,6 +26,8 @@ PLAN = {
     "usage": {"input_tokens": 400, "output_tokens": 1000},
 }
 DESIGN = {"success": True, "final_status": "PROTOTYPE READY", "file_id": "t.svg", "look_again": []}
+# Not a plain box: plain "W×D×H kutu" prompts are drafted locally at $0 and never reach a model.
+ASK = "telefon standı ve kartvizitlik"
 
 
 class _Iso(unittest.TestCase):
@@ -173,14 +175,14 @@ class StudioAiTests(_Iso):
             return create_studio_ai(body, **kwargs), llm
 
     def test_guest_prompt_is_served_by_the_local_planner(self):
-        out, llm = self._run({"prompt": "180x120x70 kutu", "model": "gpt-4o"}, client_ip="203.0.113.7")
+        out, llm = self._run({"prompt": ASK, "model": "gpt-4o"}, client_ip="203.0.113.7")
         llm.assert_not_called()
         self.assertEqual(out["source"], "prompt")
         self.assertTrue(any("Sign in" in note for note in out["look_again"]))
 
     def test_approved_prompt_uses_an_allowed_model_only(self):
         self.sign_in(APPROVED)
-        out, llm = self._run({"prompt": "180x120x70 kutu", "model": "claude-opus-4.5"}, client_ip="203.0.113.7")
+        out, llm = self._run({"prompt": ASK, "model": "claude-opus-4.5"}, client_ip="203.0.113.7")
         self.assertEqual(llm.call_args.kwargs["model"], "gpt-4o-mini")
         self.assertEqual(out["source"], "prompt_llm")
         self.assertEqual(out["plan_job"]["model"], "gpt-4o-mini")
@@ -189,10 +191,11 @@ class StudioAiTests(_Iso):
 
     def test_eleventh_prompt_of_the_day_falls_back_without_a_charge(self):
         self.sign_in(APPROVED)
-        for _ in range(10):
-            _, llm = self._run({"prompt": "180x120x70 kutu"}, client_ip="203.0.113.7")
+        for n in range(10):
+            # Distinct prompts: a repeated one would be served from the draft cache for free.
+            _, llm = self._run({"prompt": f"{ASK} {n}"}, client_ip="203.0.113.7")
             llm.assert_called_once()
-        out, llm = self._run({"prompt": "180x120x70 kutu"}, client_ip="203.0.113.7")
+        out, llm = self._run({"prompt": f"{ASK} 10"}, client_ip="203.0.113.7")
         llm.assert_not_called()
         self.assertEqual(out["source"], "prompt")
         self.assertTrue(out["look_again"][0].startswith("Daily AI limit reached"))
@@ -207,7 +210,7 @@ class StudioAiTests(_Iso):
                 patch("payas_cad.create_design", return_value=blocked), \
                 patch("assembly_result.panels_for_viewer", return_value={"success": True, "panels": []}), \
                 patch("llm_client.plan_primitives_with_llm", return_value=PLAN) as llm:
-            out = create_studio_ai({"prompt": "180x120x70 kutu"}, client_ip="203.0.113.7")
+            out = create_studio_ai({"prompt": ASK}, client_ip="203.0.113.7")
         llm.assert_not_called()
         self.assertIn("limit", out["look_again"][0])
         self.assertTrue(out["look_again"][1].startswith("BLOCKED"))
@@ -218,9 +221,9 @@ class StudioAiTests(_Iso):
         svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 4 3"><path d="M0 0 H4 V3 H0 Z"/></svg>'
         _, llm = self._run({"svg": svg}, client_ip="203.0.113.7")
         llm.assert_not_called()
-        _, llm = self._run({"prompt": "180x120x70 kutu", "planner": "local"}, client_ip="203.0.113.7")
+        _, llm = self._run({"prompt": ASK, "planner": "local"}, client_ip="203.0.113.7")
         llm.assert_not_called()
-        _, llm = self._run({"prompt": "180x120x70 kutu"}, client_ip="203.0.113.7")
+        _, llm = self._run({"prompt": ASK}, client_ip="203.0.113.7")
         llm.assert_called_once()
 
     def test_public_quote_says_nothing_about_the_key_itself(self):
@@ -333,12 +336,18 @@ class ClientTests(_Iso):
             old = plan_primitives_with_llm("kutu", model="claude-haiku-4.5")
             new = plan_primitives_with_llm("kutu", model="claude-sonnet-5-5")
             mini = plan_primitives_with_llm("kutu", model="gpt-4o-mini")
-        self.assertEqual(old["usage"], {"input_tokens": 11, "output_tokens": 22})
+        self.assertEqual(old["usage"], {"input_tokens": 11, "output_tokens": 22, "cache_read_tokens": 0, "cache_write_tokens": 0})
         self.assertEqual(mini["usage"], {"input_tokens": 5, "output_tokens": 6})
         self.assertEqual([row.get("max_tokens") for row in sent], [1200, 1200, 1200])
         self.assertIn("temperature", sent[0])
         self.assertEqual(sent[1]["model"], "claude-sonnet-5-5")
         self.assertNotIn("temperature", sent[1])
+        # Current Claude models draft at low effort; the fixed system prompt is cacheable.
+        self.assertEqual(sent[1]["output_config"], {"effort": "low"})
+        self.assertNotIn("output_config", sent[0])
+        self.assertEqual(sent[1]["system"][0]["cache_control"], {"type": "ephemeral"})
+        self.assertIn("Primitive grammar", sent[1]["system"][0]["text"])
+        self.assertEqual(sent[1]["system"][0]["text"], sent[2]["messages"][0]["content"])
 
     def test_cut_off_reply_is_reported_as_the_cap(self):
         import json

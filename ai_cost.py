@@ -125,10 +125,26 @@ def _price_row(model: str) -> dict[str, Any]:
     return row
 
 
-def usage_cost(model: str, input_tokens: int, output_tokens: int) -> float:
-    """USD for the token counts a provider reported for one finished call."""
+def usage_cost(
+    model: str,
+    input_tokens: int,
+    output_tokens: int,
+    cache_read_tokens: int = 0,
+    cache_write_tokens: int = 0,
+) -> float:
+    """USD for the token counts a provider reported for one finished call.
+
+    Anthropic reports prompt-cache reads/writes apart from input_tokens: reads bill at
+    0.1× and 5-minute writes at 1.25× the input rate.
+    """
     prices = _price_row(model)
-    usd = int(input_tokens or 0) * float(prices["input_per_mtok"]) + int(output_tokens or 0) * float(prices["output_per_mtok"])
+    rate_in = float(prices["input_per_mtok"])
+    usd = (
+        int(input_tokens or 0) * rate_in
+        + int(cache_read_tokens or 0) * rate_in * 0.1
+        + int(cache_write_tokens or 0) * rate_in * 1.25
+        + int(output_tokens or 0) * float(prices["output_per_mtok"])
+    )
     return round(usd / 1_000_000.0, 6)
 
 
@@ -209,7 +225,7 @@ def estimate_prompt_cost(
     if compare_models:
         result["try"] = {
             mid: _quick(text, mid, mode, photo)
-            for mid in ("gpt-4o-mini", "gpt-4o", "claude-haiku-4.5", "claude-sonnet-4.5")
+            for mid in ("claude-haiku-5-5", "gpt-4o-mini", "claude-sonnet-5-5", "gpt-4o")
         }
     return result
 

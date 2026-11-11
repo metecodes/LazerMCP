@@ -9,6 +9,9 @@ Environment (all optional):
   LASERMCP_LLM_DEFAULT_MODEL     model used when the request names none, or one not allowed
   LASERMCP_AI_DAILY_PER_IP       provider calls per address per 24 h (default 10)
   LASERMCP_AI_DAILY_GLOBAL       provider calls for the whole site per 24 h (default 200)
+  LASERMCP_LLM_REPAIR_MODEL      allowed model for the one automatic repair after a BLOCKED draft
+  LASERMCP_AI_AUTO_REPAIR        0 turns automatic repair off (default on; it counts against the caps)
+  LASERMCP_AI_REPAIR_ATTEMPTS    paid repair tries per BLOCKED draft, 0-3 (default 2; the 2nd thinks harder)
 A limit of 0 means no provider calls at all.
 """
 
@@ -17,7 +20,8 @@ from __future__ import annotations
 import os
 from typing import Any
 
-DEFAULT_MODELS = ("gpt-4o-mini", "gpt-4o", "claude-haiku-4.5", "claude-sonnet-4.5")
+# Cheapest capable first: default_model() picks the first one whose provider has a key.
+DEFAULT_MODELS = ("claude-haiku-5-5", "gpt-4o-mini", "claude-sonnet-5-5", "gpt-4o", "claude-haiku-4.5", "claude-sonnet-4.5")
 DAY_SEC = 86400
 _BLOCKED_STATES = {"pending", "denied", "trial_expired"}
 
@@ -51,7 +55,43 @@ def allowed_models() -> list[str]:
 
 
 def default_model() -> str:
-    return _wanted_default() or allowed_models()[0]
+    """The operator's choice, else the first allowed model whose provider has a key.
+
+    DEFAULT_MODELS is ordered cheapest-capable first, so an install with only an
+    Anthropic key drafts on Claude Haiku 5.5 instead of falling back to the local planner.
+    """
+    wanted = _wanted_default()
+    if wanted:
+        return wanted
+    models = allowed_models()
+    try:
+        from llm_keys import get_raw_key, provider_for_model
+
+        for mid in models:
+            if get_raw_key(provider_for_model(mid)):
+                return mid
+    except Exception:
+        pass
+    return models[0]
+
+
+def repair_model(draft_model: str) -> str:
+    """Model for the single automatic repair turn after a BLOCKED draft.
+
+    LASERMCP_LLM_REPAIR_MODEL may name a stronger allowed model; by default the draft
+    model repairs its own work (no extra price tier).
+    """
+    wanted = str(os.environ.get("LASERMCP_LLM_REPAIR_MODEL") or "").strip().lower()
+    return wanted if wanted and wanted in allowed_models() else draft_model
+
+
+def repair_attempts() -> int:
+    """Paid repair tries after a BLOCKED draft (default 2, at most 3). Each passes the caps."""
+    return max(0, min(3, _int_env("LASERMCP_AI_REPAIR_ATTEMPTS", 2)))
+
+
+def auto_repair_enabled() -> bool:
+    return str(os.environ.get("LASERMCP_AI_AUTO_REPAIR") or "1").strip().lower() not in {"0", "false", "no", "off"}
 
 
 def resolve_model(requested: Any = "") -> str:

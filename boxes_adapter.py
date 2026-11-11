@@ -90,6 +90,9 @@ _STUDIO_ARGS = {
     "use_test",
     # Added by calibrate.apply_stored_burn once a kerf coupon was measured; not a Boxes.py arg.
     "calibration",
+    # Studio bookkeeping stored with a project version (form to reopen, AI chat thread).
+    "studio_form",
+    "studio_chat",
 }
 _LATEST_ALIASES = {
     "laser mcp",
