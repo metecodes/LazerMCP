@@ -2737,7 +2737,11 @@ function applyAiResult(data, { fromChat } = {}) {
     if (fromChat && data.speak) appendAiChat("system", String(data.speak));
     return true;
   }
-  const okLine = "Hazır. " + (((data.plan_job || {}).summary) || "Tasarım kontrolden geçti, indirebilirsin.");
+  // Only model/box summaries describe the design; the generic planner's summary is a note
+  // to an assistant ("Compose the mill/house…") and must not reach the user.
+  const job = data.plan_job || {};
+  const userSummary = ["workshop_llm", "workshop_llm_cache", "studio_box"].includes(job.method) ? job.summary : "";
+  const okLine = "Hazır. " + (userSummary || "Tasarım kontrolden geçti, indirebilirsin.");
   appendAiChat("assistant", okLine, "ok");
   setStatus(okLine, "ok");
   if (data.file_id) {
