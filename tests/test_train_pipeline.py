@@ -91,6 +91,39 @@ class CollectTests(unittest.TestCase):
         self.assertEqual(teacher.call_count, 5)
 
 
+class ReportTests(unittest.TestCase):
+    """What comes back from the training machine must be enough to diagnose a bad run."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="train-report-")
+        env = {"MCP_DATA_DIR": tempfile.mkdtemp(prefix="train-data-"), "LASERMCP_AI_CACHE_DAYS": "0"}
+        patcher = mock.patch.dict(os.environ, env)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_refused_draft_is_recorded_with_its_gate_notes_and_the_draft(self):
+        bad = {"primitives": [{"type": "panel", "label": "a", "w": 80, "h": 60, "edges": "FFFF"}, {"type": "panel", "label": "b", "w": 80, "h": 60, "edges": "ffff"}], "parameters": {}, "summary": "", "usage": {}}
+        with mock.patch("llm_client.plan_primitives_with_llm", side_effect=lambda *a, **k: json.loads(json.dumps(bad))):
+            train.main(["--out", self.tmp, "collect", "--teacher", "gpt-5.5", "--count", "2", "--spend"])
+        rows = train._read_jsonl(Path(self.tmp) / train.REJECTED)
+        self.assertEqual(len(rows), 2)
+        self.assertTrue(rows[0]["notes"])
+        self.assertIn("FFFF", rows[0]["draft"])
+        report = (Path(self.tmp) / train.REPORT).read_text(encoding="utf-8")
+        self.assertIn("kept: 0   rejected: 2   yield: 0%", report)
+        self.assertIn("why drafts were refused", report)
+
+    def test_provider_errors_are_logged_but_stay_retryable(self):
+        with mock.patch("llm_client.plan_primitives_with_llm", side_effect=ValueError("LLM reply was not JSON")):
+            train.main(["--out", self.tmp, "collect", "--teacher", "gpt-5.5", "--count", "2", "--spend"])
+        self.assertEqual(train._read_jsonl(Path(self.tmp) / train.REJECTED), [])
+        self.assertEqual(len(train._read_jsonl(Path(self.tmp) / train.ERRORS)), 2)
+        self.assertIn("LLM reply was not JSON", train.build_report(Path(self.tmp)))
+
+    def test_report_on_an_empty_folder_does_not_fail(self):
+        self.assertEqual(train.main(["--out", self.tmp, "report"]), 0)
+
+
 class BuildTests(unittest.TestCase):
     def _examples(self, n):
         rows = []

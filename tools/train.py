@@ -46,6 +46,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 OUT = ROOT / "output" / "train"
 EXAMPLES = "examples.jsonl"
 REJECTED = "rejected.jsonl"
+ERRORS = "errors.jsonl"
+REPORT = "report.txt"
 # Base model to tune. Providers retire snapshots: if `start` reports an unknown model, pass
 # the current fine-tunable small model with --base.
 DEFAULT_BASE = "gpt-4o-mini-2024-07-18"
@@ -103,9 +105,17 @@ def studio_request(prompt: str) -> str:
 # --- collect -----------------------------------------------------------------------------
 
 
-def collect_one(row: dict[str, Any], teacher: str, effort: str = "medium") -> tuple[list[dict[str, Any]], float, str]:
-    """Teacher drafts one request. Returns (examples, usd spent, reason when nothing was kept)."""
+def collect_one(
+    row: dict[str, Any], teacher: str, effort: str = "medium", detail: dict[str, Any] | None = None
+) -> tuple[list[dict[str, Any]], float, str]:
+    """Teacher drafts one request. Returns (examples, usd spent, reason when nothing was kept).
+
+    `detail`, when given, is filled with what a person needs to diagnose a failure: every
+    gate note and the draft that was refused, or the full provider error.
+    """
     import workshop
+
+    detail = detail if detail is not None else {}
 
     prompt, thickness = str(row["prompt"]), row.get("thickness") or 3.0
     request = studio_request(prompt)
@@ -118,6 +128,7 @@ def collect_one(row: dict[str, Any], teacher: str, effort: str = "medium") -> tu
         plan = drafts.call(request, teacher, effort)
         result = drafts.design(plan)
     except Exception as exc:
+        detail["error"] = str(exc)[:600]
         return [], float(drafts.usage()["usd"]), "error:" + str(exc)[:120]
     examples: list[dict[str, Any]] = []
     base = {"prompt_id": row["id"], "prompt": prompt, "thickness": float(thickness), "teacher": teacher}
@@ -126,6 +137,10 @@ def collect_one(row: dict[str, Any], teacher: str, effort: str = "medium") -> tu
         first = plan
         plan, result, info = drafts.repair(request, plan, result, model_id=teacher, client_ip="train")
         if workshop._draft_blocked(result):
+            detail["first_notes"] = notes
+            detail["notes"] = workshop._gate_issues(result) or notes
+            detail["repair"] = {k: info.get(k) for k in ("attempted", "error")}
+            detail["draft"] = json.dumps(plan.get("primitives") or [], ensure_ascii=False, separators=(",", ":"))[:4000]
             return [], float(drafts.usage()["usd"]), "blocked:" + "; ".join(notes[:2])[:160]
         if not info.get("free"):
             # A real repair turn: teaches the model to fix a blocked draft from the gate notes.
@@ -163,7 +178,8 @@ def cmd_collect(args: argparse.Namespace) -> int:
         if spent >= args.max_usd:
             print(f"stopped: budget ${args.max_usd:.2f} reached")
             break
-        examples, usd, why = collect_one(row, teacher, args.effort)
+        detail: dict[str, Any] = {}
+        examples, usd, why = collect_one(row, teacher, args.effort, detail)
         spent = round(spent + usd, 6)
         if examples:
             kept += 1
@@ -175,7 +191,10 @@ def cmd_collect(args: argparse.Namespace) -> int:
             if not why.startswith("error:"):
                 # A provider error (wrong key, outage) says nothing about the request: leave it
                 # for the next run instead of marking it as tried.
-                _append(out / REJECTED, {"prompt_id": row["id"], "prompt": row["prompt"], "why": why, "usd": usd})
+                _append(out / REJECTED, {"prompt_id": row["id"], "prompt": row["prompt"], "teacher": teacher, "why": why, "usd": usd, **detail})
+            else:
+                # Kept apart: read by `report`, never by the resume logic.
+                _append(out / ERRORS, {"prompt_id": row["id"], "prompt": row["prompt"], "teacher": teacher, "at": time.strftime("%Y-%m-%dT%H:%M:%S"), **detail})
             errors_in_a_row = errors_in_a_row + 1 if why.startswith("error:") else 0
         print(f"[{i}/{len(todo)}] {'kept' if examples else 'drop'} ${spent:.3f} {row['prompt'][:60]} {why[:70]}", flush=True)
         if errors_in_a_row >= 5:
@@ -183,6 +202,70 @@ def cmd_collect(args: argparse.Namespace) -> int:
             print("stopped: 5 provider errors in a row — check the key and the teacher model id")
             break
     print(f"\nkept {kept}, dropped {failed}, spent ${spent:.3f}. File: {out / EXAMPLES}")
+    write_report(out)
+    return 0
+
+
+# --- report ------------------------------------------------------------------------------
+
+
+def _shape(note: str) -> str:
+    """A gate note with its numbers blanked, so the same problem groups together."""
+    import re
+
+    text = re.sub(r"[0-9]+(?:[.,][0-9]+)?", "#", str(note))
+    return " ".join(text.split())[:90]
+
+
+def build_report(out: Path) -> str:
+    """What a run produced and why drafts were refused: short enough to paste or push."""
+    from collections import Counter
+
+    rows = _read_jsonl(out / EXAMPLES)
+    kept = [r for r in rows if r.get("kind") == "draft"]
+    repairs = [r for r in rows if r.get("kind") == "repair"]
+    rejected = _read_jsonl(out / REJECTED)
+    errors = _read_jsonl(out / ERRORS)
+    tried = len(kept) + len(rejected)
+    teachers = sorted({str(r.get("teacher")) for r in kept + rejected + errors if r.get("teacher")})
+    lines = [
+        "LaserMCP training data report  " + time.strftime("%Y-%m-%d %H:%M"),
+        "teachers: " + (", ".join(teachers) or "-"),
+        f"requests tried: {tried}   kept: {len(kept)}   rejected: {len(rejected)}   yield: {(100.0 * len(kept) / tried if tried else 0):.0f}%",
+        f"repair examples: {len(repairs)}   provider errors (not counted as tried): {len(errors)}",
+    ]
+    notes = Counter(_shape(n) for r in rejected for n in (r.get("notes") or [r.get("why") or "?"]))
+    if notes:
+        lines.append("")
+        lines.append("why drafts were refused (gate notes, most common first; one draft can have several):")
+        lines += [f"  {count:4d}  {text}" for text, count in notes.most_common(15)]
+    errs = Counter(_shape(r.get("error") or "?") for r in errors)
+    if errs:
+        lines.append("")
+        lines.append("provider errors:")
+        lines += [f"  {count:4d}  {text}" for text, count in errs.most_common(8)]
+    if rejected:
+        lines.append("")
+        lines.append("three refused drafts (request, then the start of the draft):")
+        for r in rejected[-3:]:
+            lines.append(f"  - {r.get('prompt')}")
+            lines.append("    " + str(r.get("draft") or "")[:400])
+    if kept:
+        lines.append("")
+        lines.append("kept requests (latest):")
+        lines += [f"  - {r.get('prompt')} ({r.get('parts')} parts)" for r in kept[-8:]]
+    return chr(10).join(lines) + chr(10)
+
+
+def write_report(out: Path) -> str:
+    text = build_report(out)
+    out.mkdir(parents=True, exist_ok=True)
+    (out / REPORT).write_text(text, encoding="utf-8")
+    return text
+
+
+def cmd_report(args: argparse.Namespace) -> int:
+    sys.stdout.buffer.write(write_report(Path(args.out)).encode("utf-8"))
     return 0
 
 
@@ -344,6 +427,7 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--spend", action="store_true")
     s.set_defaults(fn=cmd_start)
     sub.add_parser("status", help="job state and the model id when done").set_defaults(fn=cmd_status)
+    sub.add_parser("report", help="yield and the reasons drafts were refused (also written to report.txt)").set_defaults(fn=cmd_report)
     args = ap.parse_args(argv)
     return int(args.fn(args))
 
