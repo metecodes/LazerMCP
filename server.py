@@ -1797,6 +1797,70 @@ async def api_account_llm_keys(request: Request) -> Response:
         return JSONResponse({"success": False, "look_again": [str(exc)]}, status_code=400)
 
 
+def _verify_provider_key(provider: str, raw: str) -> str:
+    """"ok", "bad" (provider rejected it) or "unknown" (could not reach the provider)."""
+    import urllib.error
+    import urllib.request
+
+    if provider == "openai":
+        req = urllib.request.Request("https://api.openai.com/v1/models", headers={"authorization": f"Bearer {raw}"})
+    else:
+        req = urllib.request.Request(
+            "https://api.anthropic.com/v1/models", headers={"x-api-key": raw, "anthropic-version": "2023-06-01"}
+        )
+    try:
+        with urllib.request.urlopen(req, timeout=8):
+            return "ok"
+    except urllib.error.HTTPError as exc:
+        return "bad" if exc.code in {401, 403} else "unknown"
+    except Exception:
+        return "unknown"
+
+
+@mcp.custom_route("/api/account/my-llm-keys", methods=["GET", "POST", "DELETE"])
+async def api_account_my_llm_keys(request: Request) -> Response:
+    """A signed-in user's own OpenAI/Anthropic key for Studio AI. The key is never returned."""
+    from keys import current_auth
+    from llm_keys import delete_user_key, normalize_provider, save_user_key, user_status
+    from persist.rate_limit import check
+    from supabase_auth import account_is_approved, session_user, user_by_id
+
+    key = current_auth.get() or session_user(request.cookies.get("lmcp_sid"))
+    if not key or not str(key.get("id") or ""):
+        return JSONResponse({"success": False, "look_again": ["Giriş gerekli."]}, status_code=401)
+    stored = user_by_id(str(key.get("id") or "")) or key
+    if not account_is_approved(stored):
+        return JSONResponse({"success": False, "look_again": ["Hesabın admin onayını bekliyor."]}, status_code=403)
+    user_id = str(key.get("id"))
+    headers = {"Cache-Control": "private, no-store"}
+    if request.method == "GET":
+        return JSONResponse({"success": True, "kind": "own_llm", "keys": user_status(user_id)}, headers=headers)
+    if not check("own-llm-key", user_id, limit=10, window_sec=600):
+        return _rate_limited()
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    body = body if isinstance(body, dict) else {}
+    try:
+        provider = normalize_provider(body.get("provider"))
+        if request.method == "DELETE":
+            return JSONResponse({**delete_user_key(user_id, provider), "keys": user_status(user_id)}, headers=headers)
+        raw = str(body.get("key") or body.get("api_key") or "").strip()
+        if len(raw) < 20:
+            raise ValueError("API anahtarı geçersiz görünüyor.")
+        verdict = _verify_provider_key(provider, raw)
+        if verdict == "bad":
+            raise ValueError("Sağlayıcı bu anahtarı kabul etmedi. Anahtarı kontrol edip tekrar dene.")
+        saved = save_user_key(user_id, provider, raw)
+    except ValueError as exc:
+        return JSONResponse({"success": False, "look_again": [str(exc)]}, status_code=400, headers=headers)
+    except Exception:
+        return JSONResponse({"success": False, "look_again": ["Anahtar şu an kaydedilemedi. Biraz sonra tekrar dene."]}, status_code=503, headers=headers)
+    note = "Anahtar doğrulandı ve şifreli kaydedildi." if verdict == "ok" else "Anahtar şifreli kaydedildi (sağlayıcıya ulaşılamadığı için doğrulanamadı)."
+    return JSONResponse({**saved, "verified": verdict == "ok", "look_again": [note], "keys": user_status(user_id)}, headers=headers)
+
+
 def _admin_actor(request: Request):
     from keys import current_auth
     from supabase_auth import is_admin, session_user, user_by_id

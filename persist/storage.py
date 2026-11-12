@@ -66,8 +66,11 @@ class StorageService:
             from persist.supabase_rest import storage_download
 
             return storage_download(storage_bucket(), storage_path)
-        dest = (self.root() / storage_path).resolve()
-        if self.root() not in dest.parents and dest != self.root():
+        # Resolve both sides: on Windows a temp dir can be spelled with 8.3 short names, and
+        # comparing a resolved path with an unresolved root rejected every stored object.
+        root = self.root().resolve()
+        dest = (root / storage_path).resolve()
+        if root not in dest.parents and dest != root:
             raise FileNotFoundError(storage_path)
         if not dest.is_file():
             raise FileNotFoundError(storage_path)

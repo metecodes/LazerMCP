@@ -31,7 +31,8 @@ class RoutingTests(_Iso):
 
     def test_plain_box_in_a_chat_turn_or_forced_llm_still_uses_the_model(self):
         self.sign_in(APPROVED)
-        _, llm, _ = self._run({"prompt": "180x120x70 kutu", "messages": [{"role": "user", "text": "kapak sürgülü olsun"}]})
+        _, llm, _ = self._run({"prompt": "180x120x70 kutu", "messages": [{"role": "user", "text": "180x120x70 kutu"}, {"role": "assistant", "text": "Hazır"},
+                                                                    {"role": "user", "text": "kapak sürgülü olsun"}]})
         llm.assert_called_once()
         _, llm, _ = self._run({"prompt": "200x100x50 kutu", "planner": "llm"})
         llm.assert_called_once()

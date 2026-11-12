@@ -539,7 +539,7 @@
             <label>Kalınlık (mm)<input id="ai-t" type="number" value="3" min="1" step="0.1"></label>
             <label>Hedef genişlik (mm)<input id="ai-w" type="number" value="200" min="20" step="1" title="Foto/SVG bu genişliğe ölçeklenir"></label>
           </div>
-          <label>Maliyet modeli
+          <label>AI modeli
             <select id="ai-model">
               <option value="gpt-4o-mini" selected>GPT-4o mini</option>
               <option value="gpt-4o">GPT-4o</option>
@@ -547,6 +547,7 @@
               <option value="claude-sonnet-4.5">Claude Sonnet</option>
             </select>
           </label>
+          <p class="hint" id="ai-own-key" style="margin:4px 0 8px">Daha güçlü model (GPT‑6 Astra, Claude) için <a href="/account">kendi API anahtarını bağla</a>.</p>
           <div class="row2">
             <button class="btn ghost" type="button" id="ai-cost-btn">Maliyet tahmin</button>
             <button class="btn cut" type="button" id="make-ai">AI ile üret</button>
@@ -684,7 +685,7 @@
     }
   }
   </script>
-  <script type="module" src="/studio-3d.js?v=42"></script>
+  <script type="module" src="/studio-3d.js?v=43"></script>
   <script src="/nav-auth.js?v=6"></script>
 </body>
 </html>

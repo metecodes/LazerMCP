@@ -69,6 +69,13 @@ MODEL_PRICES: dict[str, dict[str, Any]] = {
         "output_per_mtok": 50.0,
         "provider": "anthropic",
     },
+    # Third-party listings (Nov 2026); confirm on the provider's page or override via env.
+    "gpt-5.5": {
+        "label": "GPT-5.5",
+        "input_per_mtok": 5.0,
+        "output_per_mtok": 30.0,
+        "provider": "openai",
+    },
     # Not confirmed on the provider's own price page — set LASERMCP_PRICE_GPT_6_ASTRA_IN/_OUT.
     "gpt-6-astra": {
         "label": "GPT Astra (estimate)",

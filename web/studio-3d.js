@@ -2465,6 +2465,12 @@ function syncAiModels(models) {
   const ids = allowed.map((m) => m.id);
   sel.value = ids.includes(keep) ? keep : (ids.includes(models.default) ? models.default : ids[0]);
   sel.dataset.synced = want;
+  const hint = $("ai-own-key");
+  if (hint) {
+    hint.innerHTML = models.own_key
+      ? 'Kendi anahtarın bağlı — seçtiğin model senin hesabından ücretlendirilir. <a href="/account">Anahtarı yönet</a>'
+      : 'Daha güçlü model (GPT‑6 Astra, Claude) için <a href="/account">kendi API anahtarını bağla</a>.';
+  }
 }
 
 function paintAiCost(data) {
@@ -2481,7 +2487,9 @@ function paintAiCost(data) {
   const lines = [
     "Stüdyo: " + (access.eligible
       ? ((studio.model_label || access.model || "AI modeli") + " ≈ $" + studioUsd.toFixed(5) +
-        " · günde en çok " + (access.daily_per_ip != null ? access.daily_per_ip : "?") + " AI isteği")
+        (access.own_key
+          ? " · kendi anahtarın (taslak başına; düzeltme olursa 2–3 katı)"
+          : " · günde en çok " + (access.daily_per_ip != null ? access.daily_per_ip : "?") + " AI isteği"))
       : "yerel planner $0"),
     access.eligible ? "" : (studio.note || ""),
     "MCP host (" + (mcp.model_label || "model") + "): ≈ $" +
@@ -2796,7 +2804,7 @@ function applyAiResult(data, { fromChat } = {}) {
   // Only model/box summaries describe the design; the generic planner's summary is a note
   // to an assistant ("Compose the mill/house…") and must not reach the user.
   const job = data.plan_job || {};
-  const userSummary = ["workshop_llm", "workshop_llm_cache", "studio_box"].includes(job.method) ? job.summary : "";
+  const userSummary = ["workshop_llm", "workshop_llm_cache", "studio_box", "studio_maker"].includes(job.method) ? job.summary : "";
   const okLine = "Hazır. " + (userSummary || "Tasarım kontrolden geçti, indirebilirsin.");
   appendAiChat("assistant", okLine, "ok");
   setStatus(okLine, "ok");
@@ -3080,6 +3088,8 @@ function wireUi() {
       if (btn.dataset.tab === "makers") syncMakerFields();
       if (btn.dataset.tab === "calibrate") loadCalibrations().catch(() => {});
       if (btn.dataset.tab === "history") loadProjectHistory().catch(() => {});
+      // The model list depends on the account (own key → Astra etc.): load it with the tab.
+      if (btn.dataset.tab === "ai") scheduleAiCost();
     };
   });
   $("box-lid").onchange = () => {

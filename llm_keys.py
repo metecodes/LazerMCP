@@ -212,3 +212,102 @@ def provider_for_model(model: str) -> str:
         # An allowlisted id without a price row still has to reach the right provider.
         return "anthropic" if mid.startswith("claude") else "openai"
     return str(row.get("provider") or "openai")
+
+
+# --- Personal keys (bring your own key) -------------------------------------------------
+# A signed-in user may store their own provider key and have Studio AI bill it. These
+# never mix with the workshop keys above: no env fallback, one encrypted object per user
+# in the same private storage that holds design files (durable on hosted installs).
+
+OWN_KEY_DEFAULT_MODEL = {"openai": "gpt-6-astra", "anthropic": "claude-sonnet-5-5"}
+
+
+def _user_path(user_id: str) -> str:
+    digest = hashlib.sha256(str(user_id).encode("utf-8")).hexdigest()[:40]
+    return f"secrets/llm/{digest}.json"
+
+
+def _require_real_secret() -> None:
+    hosted = os.environ.get("VERCEL") == "1" or (os.environ.get("MCP_ENV") or "").lower() == "production"
+    if hosted and not ((os.environ.get("LASERMCP_SECRETS_KEY") or "").strip() or (os.environ.get("MCP_SESSION_SECRET") or "").strip()):
+        raise ValueError("Sunucuda şifreleme anahtarı (LASERMCP_SECRETS_KEY) tanımlı değil; kişisel anahtar saklanamaz.")
+
+
+def _load_user(user_id: str) -> dict[str, Any]:
+    import json
+
+    from persist.storage import StorageService
+
+    try:
+        raw = json.loads(StorageService().get(_user_path(user_id)).decode("utf-8"))
+    except Exception:  # missing object, storage hiccup or corrupt blob: treated as no key
+        return {}
+    return raw if isinstance(raw, dict) else {}
+
+
+def _save_user(user_id: str, rows: dict[str, Any]) -> None:
+    import json
+
+    from persist.storage import StorageService
+
+    StorageService().put(_user_path(user_id), json.dumps(rows).encode("utf-8"), "application/json")
+
+
+def user_status(user_id: str) -> list[dict[str, Any]]:
+    """What the owner may see about their own keys: provider, prefix, date. Never the key."""
+    if not user_id:
+        return []
+    rows = _load_user(user_id)
+    out = []
+    for provider in PROVIDERS:
+        row = rows.get(provider) if isinstance(rows.get(provider), dict) else {}
+        out.append(
+            {
+                "provider": provider,
+                "configured": bool(row.get("ciphertext")),
+                "prefix": str(row.get("prefix") or ""),
+                "updated_at": row.get("updated_at"),
+                "default_model": OWN_KEY_DEFAULT_MODEL[provider],
+            }
+        )
+    return out
+
+
+def user_providers(user_id: str) -> list[str]:
+    return [row["provider"] for row in user_status(user_id) if row["configured"]]
+
+
+def get_user_key(user_id: str, provider: str) -> str | None:
+    """Server-only. The user's own decrypted key, or None. Never falls back to workshop keys."""
+    if not user_id:
+        return None
+    row = _load_user(user_id).get(normalize_provider(provider))
+    if not isinstance(row, dict) or not row.get("ciphertext"):
+        return None
+    try:
+        return _decrypt(str(row["ciphertext"]))
+    except ValueError:
+        return None
+
+
+def save_user_key(user_id: str, provider: str, raw_key: str) -> dict[str, Any]:
+    if not user_id:
+        raise ValueError("Giriş gerekli.")
+    _require_real_secret()
+    key = normalize_provider(provider)
+    text = str(raw_key or "").strip()
+    if len(text) < 20 or re.search(r"\s", text):
+        raise ValueError("API anahtarı geçersiz görünüyor (çok kısa ya da boşluk içeriyor).")
+    rows = _load_user(user_id)
+    rows[key] = {"ciphertext": _encrypt(text), "prefix": _prefix(text), "updated_at": now_iso()}
+    _save_user(user_id, rows)
+    return {"success": True, "provider": key, "configured": True, "prefix": _prefix(text)}
+
+
+def delete_user_key(user_id: str, provider: str) -> dict[str, Any]:
+    key = normalize_provider(provider)
+    rows = _load_user(user_id)
+    existed = bool(rows.pop(key, None))
+    if existed:
+        _save_user(user_id, rows)
+    return {"success": True, "provider": key, "deleted": existed, "configured": False}

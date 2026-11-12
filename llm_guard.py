@@ -82,7 +82,12 @@ def repair_model(draft_model: str) -> str:
     model repairs its own work (no extra price tier).
     """
     wanted = str(os.environ.get("LASERMCP_LLM_REPAIR_MODEL") or "").strip().lower()
-    return wanted if wanted and wanted in allowed_models() else draft_model
+    if wanted and wanted in allowed_models():
+        return wanted
+    from ai_cost import MODEL_PRICES
+
+    # The operator sets this env, so any priced model is trusted for the repair turn.
+    return wanted if wanted and wanted in MODEL_PRICES else draft_model
 
 
 def repair_attempts() -> int:
@@ -97,7 +102,27 @@ def auto_repair_enabled() -> bool:
 def resolve_model(requested: Any = "") -> str:
     """The browser only suggests a model; anything outside the allowlist becomes the default."""
     mid = str(requested or "").strip().lower()
-    return mid if mid in allowed_models() else default_model()
+    if mid in allowed_models():
+        return mid
+    if mid and _is_admin_caller():
+        # Admins may try any priced model (e.g. gpt-5.5, gpt-6-astra) without exposing
+        # its cost to every user through the allowlist.
+        from ai_cost import MODEL_PRICES
+
+        if mid in MODEL_PRICES:
+            return mid
+    return default_model()
+
+
+def _is_admin_caller() -> bool:
+    try:
+        from keys import current_auth
+        from supabase_auth import is_admin
+
+        caller = current_auth.get() or {}
+        return caller.get("role") == "admin" or is_admin(caller)
+    except Exception:
+        return False
 
 
 def _caller_state() -> tuple[dict[str, Any], str]:
@@ -134,10 +159,52 @@ def _note(reason: str) -> str:
     return ""
 
 
+def own_key_access(requested_model: Any = "") -> dict[str, Any] | None:
+    """The caller's own provider key, if they stored one and it serves the wanted model.
+
+    With an own key the bill is theirs, so any priced model is open (GPT-6 Astra included)
+    and the site's daily caps do not apply. An empty or unpriced request falls to the
+    provider's default for own keys. Returns None when the caller has no usable own key.
+    """
+    from ai_cost import MODEL_PRICES
+    from llm_keys import OWN_KEY_DEFAULT_MODEL, provider_for_model, user_providers
+
+    caller, reason = _caller_state()
+    user_id = str(caller.get("id") or "")
+    if reason or not user_id:
+        return None
+    try:
+        mine = user_providers(user_id)
+    except Exception:
+        return None
+    if not mine:
+        return None
+    mid = str(requested_model or "").strip().lower()
+    if mid in MODEL_PRICES and provider_for_model(mid) in mine:
+        model = mid
+    elif mid in MODEL_PRICES or mid in allowed_models():
+        return None  # they picked a model of a provider they hold no key for: workshop path
+    else:
+        model = OWN_KEY_DEFAULT_MODEL[mine[0]]
+    return {
+        "allow": True,
+        "reason": "",
+        "note": "",
+        "model": model,
+        "provider": provider_for_model(model),
+        "daily_per_ip": None,
+        "own_key": True,
+        "key_owner": user_id,
+    }
+
+
 def access(requested_model: Any = "") -> dict[str, Any]:
-    """Would this caller reach the workshop key? Never counts against a limit."""
+    """Would this caller reach a provider key? Never counts against a limit."""
     from llm_keys import get_raw_key, provider_for_model
 
+    own = own_key_access(requested_model)
+    if own:
+        return own
     model = resolve_model(requested_model)
     provider = provider_for_model(model)
     reason = ""
@@ -162,8 +229,8 @@ def authorize(requested_model: Any = "", *, client_ip: str = "") -> dict[str, An
     from persist.rate_limit import check
 
     verdict = access(requested_model)
-    if not verdict["allow"]:
-        return verdict
+    if not verdict["allow"] or verdict.get("own_key"):
+        return verdict  # refused, or the caller's own key: their bill, no site caps
     caller = _caller_state()[0]
     who = str(client_ip or "").strip() or "caller:" + str(caller.get("organization_id") or caller.get("id") or "anon")
     reason = ""

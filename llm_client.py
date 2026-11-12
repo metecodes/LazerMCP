@@ -158,6 +158,10 @@ def _openai_chat(api_key: str, model: str, user_text: str, effort: str = "low") 
     else:
         # Reasoning-era models reject a custom temperature and take the newer cap field.
         body["max_completion_tokens"] = output_cap()
+        if str(model).startswith(("gpt-5", "gpt-6")):
+            # Hidden reasoning counts as output: give it room, and keep its depth per turn.
+            body["reasoning_effort"] = effort if effort in {"low", "medium", "high"} else "low"
+            body["max_completion_tokens"] = max(output_cap(), 8000)
     data = _http_json(
         "https://api.openai.com/v1/chat/completions",
         headers={"authorization": f"Bearer {api_key}"},
@@ -230,6 +234,7 @@ def plan_primitives_with_llm(
     model: str = "gpt-4o-mini",
     thickness: float | None = None,
     effort: str = "low",
+    key_owner: str = "",
 ) -> dict[str, Any]:
     """Call workshop provider key → CAD primitives JSON. Raises ValueError on failure.
 
@@ -237,9 +242,17 @@ def plan_primitives_with_llm(
     passes a model from the allowlist.
     """
     provider = provider_for_model(model)
-    api_key = get_raw_key(provider)
-    if not api_key:
-        raise ValueError(f"No {provider} API key configured (Account → LLM or env)")
+    if key_owner:
+        # The caller's own key: never fall back to the workshop key on their behalf.
+        from llm_keys import get_user_key
+
+        api_key = get_user_key(key_owner, provider)
+        if not api_key:
+            raise ValueError(f"Kendi {provider} anahtarın bulunamadı (Hesap → Kendi AI anahtarım)")
+    else:
+        api_key = get_raw_key(provider)
+        if not api_key:
+            raise ValueError(f"No {provider} API key configured (Account → LLM or env)")
     user = str(prompt or "").strip()
     if thickness not in (None, ""):
         user += f"\nMaterial thickness_mm={float(thickness)}"

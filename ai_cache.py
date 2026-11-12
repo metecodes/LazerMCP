@@ -89,6 +89,60 @@ def parse_box_request(prompt: str) -> dict[str, Any] | None:
     return {"x": x, "y": y, "h": h, "unit": unit, "lid": lid}
 
 
+_MAKER_WORDS = (
+    ("birdhouse", re.compile(r"(kuş\s*ev|kus\s*ev|kuş\s*yuva|kus\s*yuva|bird\s*house)", re.I)),
+    ("named_gift", re.compile(r"(hediye\s*kutu|gift\s*box)", re.I)),
+    ("flexible_box", re.compile(r"(menteşeli\s*kutu|menteseli\s*kutu|esnek\s*kutu|flexible\s*box|hinged\s*box)", re.I)),
+    ("christmas", re.compile(r"(yılbaşı|yilbasi|noel|christmas|xmas)", re.I)),
+    ("name_ornament", re.compile(r"(isim\s*süs|isim\s*sus|isimlik|anahtarlık|anahtarlik|isim\s*plaka|name\s*(tag|plate|ornament)|keychain)", re.I)),
+)
+# Asks beyond what a fixed recipe can draw: leave those to the model.
+_MAKER_EXTRA = re.compile(r"(çekmece|cekmece|drawer|raf|shelf|tekerlek|wheel|dişli|disli|gear|motor|iki\s*kat|2\s*kat|bölme|bolme)", re.I)
+_QUOTED = re.compile(r"[\"“”«»'‘’]([^\"“”«»'‘’]{1,32})[\"“”«»'‘’]")
+_WRITTEN = re.compile(r"(\S{1,24})\s+(?:yazan|yazılı|yazili|yazsın|yazsin|isimli)", re.I)
+_HOLE = re.compile(r"(?:ø|çap|cap)\s*" + _NUM + r"|" + _NUM + r"\s*mm\s*(?:giriş|giris|delik)", re.I)
+
+
+def match_maker(prompt: str) -> dict[str, Any] | None:
+    """A fixed parametric recipe that already draws what a short prompt asks for.
+
+    Returns {"maker": id, ...parameters} or None. Recipes pass the gate every time and
+    cost nothing, where a model drafting the same thing from loose panels was BLOCKED.
+    """
+    text = str(prompt or "").strip()
+    if not text or len(text) > 160 or "\n" in text or _MAKER_EXTRA.search(text):
+        return None
+    kind = next((name for name, pattern in _MAKER_WORDS if pattern.search(text)), None)
+    if not kind:
+        return None
+    out: dict[str, Any] = {"maker": kind}
+    quoted = _QUOTED.search(text)
+    written = _WRITTEN.search(text)
+    label = (quoted.group(1) if quoted else written.group(1) if written else "").strip()
+    if kind == "name_ornament":
+        if not label:
+            return None  # a name plate without the name would print a placeholder
+        out["text"] = label
+        return out
+    if label:
+        out["text"] = label
+    if kind == "christmas":
+        out["shape"] = "circle" if re.search(r"(daire|yuvarlak|top|circle|ball)", text, re.I) else "star"
+        size = re.search(_NUM + r"\s*(mm|cm)", text, re.I)
+        if size:
+            out["size"] = float(size.group(1).replace(",", ".")) * (10 if size.group(2).lower() == "cm" else 1)
+        return out
+    dims = _DIMS3.search(text)
+    if dims:
+        scale = 10 if re.search(r"\d\s*cm\b", text, re.I) else 1
+        out["x"], out["y"], out["h"] = (float(v.replace(",", ".")) * scale for v in dims.groups())
+    if kind == "birdhouse":
+        hole = _HOLE.search(_DIMS3.sub(" ", text))
+        if hole:
+            out["entrance_mm"] = float((hole.group(1) or hole.group(2)).replace(",", "."))
+    return out
+
+
 def _normalize(prompt: str) -> str:
     # Turkish dotted capital İ casefolds to "i" + combining dot; drop the dot so
     # "KARTVİZİT" and "kartvizit" share one cache entry.

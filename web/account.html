@@ -127,6 +127,24 @@
           <p class="ok" id="llm-note"></p>
         </div>
       </div>
+      <div id="own-llm" class="hide" style="margin-top:22px;padding-top:16px;border-top:1px solid var(--line)">
+        <p class="kicker" style="margin:0 0 8px;font:11px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--cut)">Kendi AI anahtarım</p>
+        <p class="lede">İsteğe bağlı. Kendi OpenAI ya da Claude anahtarını bağlarsan Stüdyo AI en güçlü modelleri (GPT‑6 Astra, GPT‑5.5, Claude) senin anahtarınla çağırır. Ücret senin sağlayıcı hesabından çıkar; günlük site sınırı uygulanmaz. Anahtar şifreli saklanır ve bir daha gösterilmez.</p>
+        <div id="own-llm-status" class="lede" style="margin:8px 0"></div>
+        <div style="margin-top:12px">
+          <select id="own-llm-provider">
+            <option value="openai">OpenAI (GPT‑6 Astra)</option>
+            <option value="anthropic">Anthropic (Claude)</option>
+          </select>
+          <input id="own-llm-key" type="password" autocomplete="off" placeholder="sk-… / sk-ant-…">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+            <button class="btn" type="button" id="own-llm-save">Bağla</button>
+            <button class="btn ghost" type="button" id="own-llm-delete">Anahtarı kaldır</button>
+            <a class="btn ghost" href="/studio?tab=ai">Stüdyo AI’ya git</a>
+          </div>
+          <p class="ok" id="own-llm-note"></p>
+        </div>
+      </div>
       <div id="keys" style="margin-top:22px;padding-top:16px;border-top:1px solid var(--line)">
         <p class="kicker" style="margin:0 0 8px;font:11px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--cut)">Platform API (lzr_)</p>
         <p class="lede" id="keys-lede">Cursor / otomasyon için LaserMCP Bearer anahtarı. OpenAI/Claude anahtarı değil; Stüdyo AI için anahtar gerekmez.</p>
@@ -299,6 +317,34 @@
       const operator = Boolean(approved && data.admin);
       document.getElementById("llm-keys").classList.toggle("hide", !operator);
       if (operator) loadLlmStatus();
+      // Any approved account may connect its own provider key for Studio AI.
+      document.getElementById("own-llm").classList.toggle("hide", !approved);
+      if (approved) loadOwnLlm();
+    }
+
+    function paintOwnLlm(rows) {
+      const el = document.getElementById("own-llm-status");
+      const on = (rows || []).filter((r) => r.configured);
+      el.textContent = on.length
+        ? on.map((r) => r.provider + ": " + (r.prefix || "bağlı") + " → " + r.default_model).join(" · ")
+        : "Bağlı anahtar yok. Stüdyo AI, LaserMCP’nin sağladığı modelle çalışır.";
+    }
+
+    async function loadOwnLlm() {
+      const res = await fetch("/api/account/my-llm-keys", { credentials: "same-origin" }).then((r) => r.json()).catch(() => ({}));
+      paintOwnLlm(res.keys);
+    }
+
+    async function ownLlm(method, body) {
+      const note = document.getElementById("own-llm-note");
+      note.textContent = method === "POST" ? "Anahtar doğrulanıyor…" : "";
+      const res = await fetch("/api/account/my-llm-keys", {
+        method, credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify(body)
+      });
+      const data = await res.json().catch(() => ({}));
+      note.textContent = (data.look_again || []).join(" ") || (data.success ? (method === "DELETE" ? "Anahtar kaldırıldı." : "Kaydedildi.") : "İşlem başarısız.");
+      if (data.keys) paintOwnLlm(data.keys); else loadOwnLlm();
+      return data;
     }
 
     async function loadLlmStatus() {
@@ -379,6 +425,13 @@
       const me = await fetch("/api/account?optional=1", { credentials: "same-origin" }).then((r) => r.json());
       if (me.user) showUser(me);
     };
+    document.getElementById("own-llm-save").onclick = async () => {
+      const input = document.getElementById("own-llm-key");
+      const data = await ownLlm("POST", { provider: document.getElementById("own-llm-provider").value, key: input.value });
+      if (data.success) input.value = "";
+    };
+    document.getElementById("own-llm-delete").onclick = () =>
+      ownLlm("DELETE", { provider: document.getElementById("own-llm-provider").value });
     document.getElementById("llm-save").onclick = async () => {
       const res = await fetch("/api/account/llm-keys", {
         method: "POST",

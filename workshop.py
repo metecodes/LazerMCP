@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import secrets
 from typing import Any
 
@@ -453,7 +454,25 @@ def estimate_ai_prompt_cost(body: dict[str, Any] | None = None) -> dict[str, Any
     )
     gate = gate_job("platform_ai")
     provider = llm_access["provider"]
-    if llm_access["allow"]:
+    own_models: list[dict[str, str]] = []
+    if llm_access.get("own_key"):
+        from llm_keys import user_providers
+
+        mine = user_providers(str(llm_access.get("key_owner") or ""))
+        own_models = [
+            {"id": mid, "label": str(row.get("label") or mid)}
+            for mid, row in MODEL_PRICES.items()
+            # "gpt-5" is a legacy alias served by an older model; not offered to paying keys.
+            if row.get("provider") in mine and mid != "gpt-5"
+        ]
+        # Strongest first: the people who connect a key want the top model.
+        own_models.sort(key=lambda m: -float(MODEL_PRICES[m["id"]]["output_per_mtok"]))
+    if llm_access.get("own_key"):
+        note = (
+            f"Kendi {provider} anahtarın bağlı → Stüdyo AI {studio_model} modelini senin anahtarınla çağırır; "
+            "fatura senin sağlayıcı hesabına gider. Günlük site sınırı uygulanmaz."
+        )
+    elif llm_access["allow"]:
         note = (
             f"Atölye {provider} anahtarı kayıtlı → Stüdyo AI {studio_model} modeline çağrı yapar; fatura sağlayıcıya gider "
             f"(LaserMCP lzr_ değil). Bir adresten günde en çok {llm_access['daily_per_ip']} AI isteği."
@@ -485,11 +504,16 @@ def estimate_ai_prompt_cost(body: dict[str, Any] | None = None) -> dict[str, Any
             "model": studio_model,
             "provider": provider,
             "daily_per_ip": llm_access["daily_per_ip"],
+            "own_key": bool(llm_access.get("own_key")),
         },
-        "studio_models": {
-            "default": default_model(),
-            "allowed": [{"id": mid, "label": (MODEL_PRICES.get(mid) or {}).get("label") or mid} for mid in allowed_models()],
-        },
+        "studio_models": (
+            {"default": studio_model, "allowed": own_models, "own_key": True}
+            if own_models
+            else {
+                "default": default_model(),
+                "allowed": [{"id": mid, "label": (MODEL_PRICES.get(mid) or {}).get("label") or mid} for mid in allowed_models()],
+            }
+        ),
         "mcp_host_ai": mcp,
         "models": list_models(),
         "recommendation": (
@@ -1180,10 +1204,43 @@ def _gate_issues(result: dict[str, Any], limit: int = 10) -> list[str]:
     return rows[:limit]
 
 
+_EDGE_NOTE = re.compile(r"^(?:female|male) edge (\S+)\.(bottom|right|top|left) \(", re.I)
+_EDGE_INDEX = {"bottom": 0, "right": 1, "top": 2, "left": 3}
+
+
+def _straighten_unmatched_edges(primitives: list[Any], notes: list[str]) -> list[Any] | None:
+    """Free repair: a finger edge the gate says has no partner becomes a straight edge.
+
+    Only panels named in the notes change, and only those edges. Returns None when no
+    note applies. The caller recompiles and keeps the result only if the gate passes, so
+    parts that are genuinely unconnected still fail and go on to the model.
+    """
+    wanted: dict[str, set[int]] = {}
+    for note in notes:
+        hit = _EDGE_NOTE.match(str(note))
+        if hit:
+            wanted.setdefault(hit.group(1).lower(), set()).add(_EDGE_INDEX[hit.group(2).lower()])
+    if not wanted:
+        return None
+    changed = False
+    out: list[Any] = []
+    for part in primitives:
+        label = str((part or {}).get("label") or "").lower() if isinstance(part, dict) else ""
+        edges = str(part.get("edges") or "") if isinstance(part, dict) else ""
+        if label in wanted and len(edges) == 4:
+            fixed = "".join("e" if i in wanted[label] and ch in "fF" else ch for i, ch in enumerate(edges))
+            if fixed != edges:
+                part = {**part, "edges": fixed}
+                changed = True
+        out.append(part)
+    return out if changed else None
+
+
 class _PaidDrafts:
     """Paid provider calls for one Studio AI request: drafts, repairs and their summed usage."""
 
-    def __init__(self, *, thickness: Any, parameters: dict[str, Any], base: str) -> None:
+    def __init__(self, *, thickness: Any, parameters: dict[str, Any], base: str, key_owner: str = "") -> None:
+        self.key_owner = key_owner  # set when the caller's own provider key pays
         self.thickness = float(thickness) if thickness not in (None, "") else None
         self.parameters = parameters
         self.base = base
@@ -1195,7 +1252,8 @@ class _PaidDrafts:
         from llm_client import plan_primitives_with_llm
         from metering import record_usage
 
-        plan = plan_primitives_with_llm(text, model=model, thickness=self.thickness, effort=effort)
+        extra = {"key_owner": self.key_owner} if self.key_owner else {}
+        plan = plan_primitives_with_llm(text, model=model, thickness=self.thickness, effort=effort, **extra)
         usage = dict(plan.get("usage") or {})
         usage["usd"] = usage_cost(
             model,
@@ -1253,7 +1311,19 @@ class _PaidDrafts:
         info: dict[str, Any] = {"attempted": 0, "fixed": False, "issues": issues, "error": ""}
         if not _draft_blocked(result) or not auto_repair_enabled():
             return plan, result, info
-        fixer = repair_model(model_id)
+        straightened = _straighten_unmatched_edges(plan.get("primitives") or [], issues)
+        if straightened:
+            try:
+                free_plan = {**plan, "primitives": straightened}
+                free_result = self.design(free_plan)
+                if not _draft_blocked(free_result):
+                    info["fixed"] = True
+                    info["free"] = True
+                    return free_plan, free_result, info
+            except Exception:
+                pass  # the paid repair below still gets its turn
+        # An own-key caller keeps their chosen model; the workshop may name a stronger fixer.
+        fixer = model_id if self.key_owner else repair_model(model_id)
         current_plan, current_result = plan, result
         for attempt in range(repair_attempts()):
             if not authorize(fixer, client_ip=client_ip).get("allow"):
@@ -1291,6 +1361,7 @@ def _studio_llm_draft(
     parameters: dict[str, Any],
     base: str,
     client_ip: str,
+    key_owner: str = "",
 ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]:
     """One paid draft, repaired automatically when the gate BLOCKS it.
 
@@ -1299,8 +1370,9 @@ def _studio_llm_draft(
     """
     from ai_cache import cache_key, put as cache_put
 
-    drafts = _PaidDrafts(thickness=thickness, parameters=parameters, base=base)
-    plan = drafts.call(request, model_id, "low")
+    drafts = _PaidDrafts(thickness=thickness, parameters=parameters, base=base, key_owner=key_owner)
+    # Own key: the user chose to pay for quality, so the first draft already thinks more.
+    plan = drafts.call(request, model_id, "medium" if key_owner else "low")
     result = drafts.design(plan)
     plan, result, info = drafts.repair(request, plan, result, model_id=model_id, client_ip=client_ip)
     from studio import commit_draft
@@ -1467,9 +1539,35 @@ def create_studio_ai(body: dict[str, Any] | None = None, *, public_base_url: str
     planner_mode = str(payload.get("planner") or "").lower()
     force_local = planner_mode in {"local", "rules", "plan_laser_job"}
     prefer_llm = planner_mode in {"llm", "provider", "openai", "anthropic", "external"}
-    in_conversation = bool(payload.get("messages") or payload.get("prior_look_again") or payload.get("retry"))
+    # Studio always sends the thread, and a first request is a thread of one user turn (the
+    # prompt itself); only earlier turns, gate notes or a retry make it a revision.
+    turns = [m for m in (payload.get("messages") or []) if isinstance(m, dict) and str(m.get("text") or m.get("content") or "").strip()]
+    in_conversation = bool(len(turns) > 1 or payload.get("prior_look_again") or payload.get("retry"))
+    fresh = not prefer_llm and not in_conversation
+    from ai_cache import match_maker
+
+    recipe = match_maker(raw_prompt) if fresh and not force_local else None
+    if recipe:
+        # A fixed recipe already draws this (bird house, gift box, name plate…): it passes
+        # the gate every time and costs nothing.
+        made = create_studio_maker(
+            {**recipe, "thickness": thickness or 3, "material": payload.get("material"), "machine": payload.get("machine")},
+            public_base_url=base,
+        )
+        if made.get("success") and str(made.get("final_status")) not in {"BLOCKED", "FAIL"}:
+            from studio_makers import MAKERS
+
+            label = MAKERS.get(str(made.get("maker")), {}).get("label_tr") or str(made.get("maker"))
+            return {
+                **made,
+                "ok": bool(made.get("export_allowed")),
+                "source": "prompt",
+                "plan_job": {"method": "studio_maker", "maker": made.get("maker"), "summary": f"{label} — hazır şablondan, ölçüler Süs sekmesinden değiştirilebilir."},
+                "cost": cost,
+                "auto_repair": {"attempted": 0, "fixed": False, "issues": []},
+            }
     # A plain "W×D×H box" is drafted as well by the local planner: never pay a model for it.
-    simple_box = not prefer_llm and not in_conversation and simple_box_request(raw_prompt)
+    simple_box = fresh and simple_box_request(raw_prompt)
     guard: dict[str, Any]
     cached = None
     if force_local or simple_box:
@@ -1527,6 +1625,7 @@ def create_studio_ai(body: dict[str, Any] | None = None, *, public_base_url: str
                 parameters=parameters,
                 base=base,
                 client_ip=client_ip,
+                key_owner=str(guard.get("key_owner") or ""),
             )
             cost = estimate_ai_prompt_cost(
                 {
@@ -1538,7 +1637,9 @@ def create_studio_ai(body: dict[str, Any] | None = None, *, public_base_url: str
             )
             looks = [
                 "AI draft is digital only. Confirm joints and dry-fit before cutting.",
-                f"Studio AI used workshop {provider} key — billed to that provider, not LaserMCP lzr_.",
+                f"Studio AI used your own {provider} key ({model_id}) — billed to your provider account."
+                if guard.get("own_key")
+                else f"Studio AI used workshop {provider} key — billed to that provider, not LaserMCP lzr_.",
             ]
             return _studio_ai_result(
                 result,
@@ -1551,6 +1652,7 @@ def create_studio_ai(body: dict[str, Any] | None = None, *, public_base_url: str
                     "provider": provider,
                     "model": model_id,
                     "usage": usage,
+                    "own_key": bool(guard.get("own_key")),
                 },
                 source="prompt_llm",
                 extra_look=looks,
@@ -1638,7 +1740,7 @@ def create_studio_ai(body: dict[str, Any] | None = None, *, public_base_url: str
         # hand the user a block. Callers who may not use the model keep the local result.
         verdict = access(payload.get("model"))
         if verdict["allow"]:
-            drafts = _PaidDrafts(thickness=thickness, parameters=parameters, base=base)
+            drafts = _PaidDrafts(thickness=thickness, parameters=parameters, base=base, key_owner=str(verdict.get("key_owner") or ""))
             local_plan = {"primitives": primitives, "parameters": args.get("parameters") or {}}
             _, result, repair_info = drafts.repair(
                 request, local_plan, result, model_id=str(verdict.get("model") or ""), client_ip=client_ip

@@ -202,6 +202,7 @@ Hepsi isteğe bağlıdır.
 | `LASERMCP_AI_AUTO_REPAIR` | `1` | `0` olursa BLOCKED taslak için otomatik düzeltme çağrısı yapılmaz. Düzeltme de günlük tavanlardan düşer. Yerel planlayıcının BLOCKED taslağı da (AI hakkı olan kullanıcıda) modelle düzeltilir |
 | `LASERMCP_AI_REPAIR_ATTEMPTS` | `2` | BLOCKED taslak başına en çok kaç ücretli düzeltme denemesi (0–3). İkinci deneme daha derin düşünür. Düzelirse kullanıcı “sorun bulduk, düzelttik” görür |
 | `LASERMCP_AI_CACHE_DAYS` | `7` | Gate’i geçen AI taslakları bu kadar gün aynı istek için ücretsiz yeniden kullanılır (`0` = kapalı). “W×D×H kutu” gibi düz kutu istekleri hiç modele gitmez ($0) |
+| `LASERMCP_SECRETS_KEY` | (`MCP_SESSION_SECRET`) | Saklanan sağlayıcı anahtarlarını şifreler. Barındırılan kurulumda ikisi de yoksa kullanıcılar kendi anahtarını (Hesap → Kendi AI anahtarım) kaydedemez. Kendi anahtarını bağlayan onaylı kullanıcı fiyatı bilinen her modeli (ör. `gpt-6-astra`) kendi hesabına faturalanarak kullanır; günlük site tavanları ona uygulanmaz |
 | `LASERMCP_AI_DAILY_PER_IP` | `10` | Bir adresten 24 saatte en çok kaç ücretli AI çağrısı. Aşılınca istek yerel planner ile ($0) üretilir |
 | `LASERMCP_AI_DAILY_GLOBAL` | `200` | Tüm site için 24 saatlik ücretli AI çağrı tavanı |
 | `LASERMCP_LLM_MAX_OUTPUT_TOKENS` | `2500` | Tek çağrının faturalayabileceği en çok çıktı token’ı |
