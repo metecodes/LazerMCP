@@ -101,6 +101,91 @@ def studio_request(prompt: str) -> str:
     return _compose_ai_chat_prompt(prompt, {"messages": [{"role": "user", "text": prompt}]})
 
 
+# --- quality -----------------------------------------------------------------------------
+# The gate proves a draft can be cut and joined. It does not prove the draft is what was
+# asked for: a small model often answers any request with the example box from its own
+# system prompt, and that passes the gate. Training on such rows teaches exactly that.
+
+_EXAMPLE_TEXTS = ("Name", "PAYAS")
+_SIZE_WORD = None  # compiled on first use
+
+
+def _stated_sizes(prompt: str) -> tuple[list[float], list[float]]:
+    """(the W x D x H triple in mm, single sizes such as "50 mm wide") typed in a request."""
+    import re
+
+    from ai_cache import _DIMS3
+    from llm_client import _CM_SIZE
+
+    global _SIZE_WORD
+    if _SIZE_WORD is None:
+        _SIZE_WORD = re.compile(r"([0-9]+(?:[.,][0-9]+)?)\s*mm\s*(?:genişlik|yükseklik|wide|tall)", re.I)
+    triple: list[float] = []
+    hit = _DIMS3.search(prompt)
+    if hit:
+        scale = 10.0 if _CM_SIZE.search(prompt) else 1.0
+        triple = [float(v.replace(",", ".")) * scale for v in hit.groups()]
+    singles = [float(v.replace(",", ".")) for v in _SIZE_WORD.findall(prompt)]
+    return triple, singles
+
+
+def _design_sizes(primitives: list[Any]) -> list[float]:
+    out: list[float] = []
+    for part in primitives:
+        if isinstance(part, dict):
+            for key in ("x", "y", "h", "w", "d"):
+                try:
+                    out.append(float(part[key]))
+                except (KeyError, TypeError, ValueError):
+                    pass
+    return out
+
+
+def quality_problems(prompt: str, primitives: list[Any]) -> list[str]:
+    """Why an approved draft is still a bad training example, or [] when it looks faithful."""
+    from ai_cache import _QUOTED
+
+    prompt = str(prompt or "")
+    text = json.dumps(primitives, ensure_ascii=False)
+    sizes = _design_sizes(primitives)
+    problems: list[str] = []
+
+    def near(value: float) -> bool:
+        # Inner or outer size, with or without the sheet thickness: all count as honoured.
+        return any(abs(value - size) <= 7.0 for size in sizes)
+
+    triple, singles = _stated_sizes(prompt)
+    if triple and sum(near(v) for v in triple) < 2:
+        problems.append("ignores the stated size " + "x".join(f"{v:g}" for v in triple))
+    for value in singles:
+        if not near(value):
+            problems.append(f"ignores the stated {value:g} mm")
+    for part in primitives:
+        if not isinstance(part, dict):
+            continue
+        dims = tuple(part.get(k) for k in ("x", "y", "h"))
+        if str(part.get("type")) == "box" and dims == (180, 120, 70) and not triple:
+            problems.append("copies the example box from the system prompt")
+        holes = part.get("holes") if isinstance(part.get("holes"), list) else []
+        if (part.get("w"), part.get("h")) == (100, 40) and any(isinstance(h, dict) and (h.get("x"), h.get("y")) == (50, 34) for h in holes):
+            problems.append("copies the example panel from the system prompt")
+    for word in _EXAMPLE_TEXTS:
+        if f'"value": "{word}"' in text and word.casefold() not in prompt.casefold():
+            problems.append(f"copies the example text {word}")
+    quoted = _QUOTED.search(prompt)
+    if quoted and quoted.group(1).strip().casefold() not in text.casefold():
+        problems.append("leaves out the requested text " + quoted.group(1).strip())
+    return list(dict.fromkeys(problems))
+
+
+def example_problems(example: dict[str, Any]) -> list[str]:
+    try:
+        prims = json.loads(str(example.get("assistant") or "")).get("primitives") or []
+    except (ValueError, AttributeError):
+        return ["broken JSON"]
+    return quality_problems(str(example.get("prompt") or ""), prims)
+
+
 # --- collect -----------------------------------------------------------------------------
 
 
@@ -146,6 +231,12 @@ def collect_one(
             from llm_client import repair_prompt
 
             examples.append({**base, "kind": "repair", "user": user_text(repair_prompt(request, first.get("primitives") or [], notes), thickness), "assistant": answer_json(plan)})
+    problems = quality_problems(prompt, plan.get("primitives") or [])
+    if problems:
+        # Cuttable, but not what was asked for: never a training example.
+        detail["notes"] = ["quality: " + p for p in problems]
+        detail["draft"] = json.dumps(plan.get("primitives") or [], ensure_ascii=False, separators=(",", ":"))[:4000]
+        return [], float(drafts.usage()["usd"]), "quality:" + "; ".join(problems)[:160]
     panels = len((result.get("assembly_result") or {}).get("parts") or [])
     examples.insert(0, {**base, "kind": "draft", "user": user_text(request, thickness), "assistant": answer_json(plan), "parts": panels})
     return examples, float(drafts.usage()["usd"]), ""
@@ -229,13 +320,20 @@ def build_report(out: Path) -> str:
     rejected = _read_jsonl(out / REJECTED)
     errors = _read_jsonl(out / ERRORS)
     tried = len(kept) + len(rejected)
+    flawed = [(r, example_problems(r)) for r in kept]
+    flawed = [(r, why) for r, why in flawed if why]
     teachers = sorted({str(r.get("teacher")) for r in kept + rejected + errors if r.get("teacher")})
     lines = [
         "LaserMCP training data report  " + time.strftime("%Y-%m-%d %H:%M"),
         "teachers: " + (", ".join(teachers) or "-"),
         f"requests tried: {tried}   kept: {len(kept)}   rejected: {len(rejected)}   yield: {(100.0 * len(kept) / tried if tried else 0):.0f}%",
         f"repair examples: {len(repairs)}   provider errors (not counted as tried): {len(errors)}",
+        f"kept examples that are faithful to the request: {len(kept) - len(flawed)} of {len(kept)}   true yield: {(100.0 * (len(kept) - len(flawed)) / tried if tried else 0):.0f}%",
     ]
+    if flawed:
+        lines.append("")
+        lines.append("kept by the gate but left out of training (not what was asked for):")
+        lines += [f"  - {r.get('prompt')}: {'; '.join(why)}" for r, why in flawed[:25]]
     notes = Counter(_shape(n) for r in rejected for n in (r.get("notes") or [r.get("why") or "?"]))
     if notes:
         lines.append("")
@@ -254,8 +352,9 @@ def build_report(out: Path) -> str:
             lines.append("    " + str(r.get("draft") or "")[:400])
     if kept:
         lines.append("")
-        lines.append("kept requests (latest):")
-        lines += [f"  - {r.get('prompt')} ({r.get('parts')} parts)" for r in kept[-8:]]
+        lines.append("faithful examples (latest), with the start of each design:")
+        good = [r for r in kept if not example_problems(r)]
+        lines += [f"  - {r.get('prompt')} ({r.get('parts')} parts)  {str(r.get('assistant'))[:160]}" for r in good[-12:]]
     return chr(10).join(lines) + chr(10)
 
 
@@ -291,7 +390,10 @@ def usable(example: dict[str, Any]) -> bool:
     except ValueError:
         return False
     prims = data.get("primitives") if isinstance(data, dict) else None
-    return bool(isinstance(prims, list) and prims and str(example.get("user") or "").strip() and len(str(example["assistant"])) < 24000)
+    if not (isinstance(prims, list) and prims and str(example.get("user") or "").strip() and len(str(example["assistant"])) < 24000):
+        return False
+    # Rows collected before the quality check existed are judged here.
+    return not quality_problems(str(example.get("prompt") or ""), prims)
 
 
 def split(examples: list[dict[str, Any]], valid_share: float = 0.1, seed: int = 7) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
