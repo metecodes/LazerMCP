@@ -89,10 +89,9 @@ def answer_json(plan: dict[str, Any]) -> str:
 
 def user_text(text: str, thickness: Any) -> str:
     """Same bytes as llm_client.plan_primitives_with_llm sends for this request."""
-    out = str(text or "").strip()
-    if thickness not in (None, ""):
-        out += f"\nMaterial thickness_mm={float(thickness)}"
-    return out
+    from llm_client import request_text
+
+    return request_text(text, thickness)
 
 
 def studio_request(prompt: str) -> str:
@@ -162,6 +161,9 @@ def cmd_collect(args: argparse.Namespace) -> int:
         print(f"collect: up to {args.count} requests to {teacher}, stopping at ${args.max_usd:.2f}. Re-run with --spend to start.")
         return 2
     out = Path(args.out)
+    if args.retry_rejected and (out / REJECTED).is_file():
+        # After the gate or the repairs improve, earlier refusals deserve another try.
+        (out / REJECTED).replace(out / (REJECTED + "." + time.strftime("%Y%m%d-%H%M%S") + ".old"))
     done = {r.get("prompt_id") for r in _read_jsonl(out / EXAMPLES)} | {r.get("prompt_id") for r in _read_jsonl(out / REJECTED)}
     todo = [r for r in make_prompts(args.count + len(done), seed=args.seed) if r["id"] not in done][: args.count]
 
@@ -417,6 +419,7 @@ def main(argv: list[str] | None = None) -> int:
     c.add_argument("--effort", default="medium", choices=["low", "medium", "high"])
     c.add_argument("--seed", type=int, default=1)
     c.add_argument("--spend", action="store_true")
+    c.add_argument("--retry-rejected", action="store_true", help="try earlier refused requests again")
     c.set_defaults(fn=cmd_collect)
     b = sub.add_parser("build", help="examples.jsonl -> train.jsonl / valid.jsonl")
     b.add_argument("--epochs", type=int, default=3)

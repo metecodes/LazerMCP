@@ -1237,6 +1237,145 @@ def _straighten_unmatched_edges(primitives: list[Any], notes: list[str]) -> list
     return out if changed else None
 
 
+_FEATURE_NOTE = re.compile(r"^(?:hole|slot) on \S+.* leaves (?:the wall|its actual outline)", re.I)
+# Which inner box sizes span each face: (width key, height key).
+_BOX_FACES = {"front": ("x", "h"), "back": ("x", "h"), "left": ("y", "h"), "right": ("y", "h"), "bottom": ("x", "y"), "lid": ("x", "y")}
+
+
+def _number(value: Any) -> float | None:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _fit_features(features: Any, width: float, height: float, pad: float) -> tuple[Any, bool]:
+    """Holes and slots of one face, moved (or shrunk) to lie inside width x height."""
+    if not isinstance(features, dict):
+        return features, False
+    out, changed = dict(features), False
+    for key in ("holes", "slots"):
+        rows = features.get(key)
+        if not isinstance(rows, list):
+            continue
+        kept = []
+        for row in rows:
+            x, y = (_number(row.get("x")), _number(row.get("y"))) if isinstance(row, dict) else (None, None)
+            if x is None or y is None:
+                kept.append(row)
+                continue
+            if key == "holes":
+                half_w = half_h = (_number(row.get("d")) or 0.0) / 2.0
+            else:
+                half_w, half_h = (_number(row.get("w")) or 0.0) / 2.0, (_number(row.get("h")) or 0.0) / 2.0
+            new = dict(row)
+            if key == "slots":
+                # A slot wider than its face is cut down to fit; its thin side is left alone.
+                if half_w * 2 > width - 2 * pad:
+                    half_w = max(0.0, (width - 2 * pad) / 2.0)
+                    new["w"] = round(half_w * 2, 2)
+                if half_h * 2 > height - 2 * pad:
+                    half_h = max(0.0, (height - 2 * pad) / 2.0)
+                    new["h"] = round(half_h * 2, 2)
+            if half_w <= 0 or half_h <= 0 or half_w * 2 > width - 2 * pad or half_h * 2 > height - 2 * pad:
+                changed = True  # cannot fit on this face at all: leave it out
+                continue
+            new["x"] = round(min(max(x, pad + half_w), width - pad - half_w), 2)
+            new["y"] = round(min(max(y, pad + half_h), height - pad - half_h), 2)
+            changed = changed or new != row
+            kept.append(new)
+        out[key] = kept
+    return (out, True) if changed else (features, False)
+
+
+def _pull_features_inside(primitives: list[Any], notes: list[str], thickness: float) -> list[Any] | None:
+    """Free repair: holes and slots the gate says leave their part are moved inside it.
+
+    Models often place a hole at 0,0 or on the edge. Each one is moved the shortest way
+    to a safe margin, on box walls and flat panels. Returns None when no note asks for it
+    or nothing moved; the caller recompiles and keeps the result only if the gate passes.
+    """
+    if not any(_FEATURE_NOTE.match(str(note)) for note in notes):
+        return None
+    pad = float(thickness or 3.0) + 2.5
+    changed = False
+    out: list[Any] = []
+    for part in primitives:
+        if not isinstance(part, dict):
+            out.append(part)
+            continue
+        kind = str(part.get("type") or "").lower()
+        new = part
+        if kind == "box":
+            sizes = {k: _number(part.get(k)) for k in ("x", "y", "h")}
+            if all(v and v > 0 for v in sizes.values()):
+                walls = part.get("walls") if isinstance(part.get("walls"), dict) else {}
+                fixed_walls = dict(walls)
+                for face, (wk, hk) in _BOX_FACES.items():
+                    holder = fixed_walls if face in walls else part if isinstance(part.get(face), dict) else None
+                    if holder is None:
+                        continue
+                    fitted, moved = _fit_features(holder.get(face), sizes[wk], sizes[hk], pad)
+                    if moved:
+                        changed = True
+                        if holder is fixed_walls:
+                            fixed_walls[face] = fitted
+                        else:
+                            new = {**new, face: fitted}
+                if fixed_walls != walls:
+                    new = {**new, "walls": fixed_walls}
+        elif kind == "panel":
+            width, height = _number(part.get("w")), _number(part.get("h"))
+            if width and height:
+                fitted, moved = _fit_features(part, width, height, pad)
+                if moved:
+                    changed = True
+                    new = fitted
+        out.append(new)
+    return out if changed else None
+
+
+_AXLE_NOTE = re.compile(r"^front hole .* has no coaxial back hole", re.I)
+_AXLE_WORDS = re.compile(r"(tekerlek|teker|wheel|aks|axle|mil\b|shaft|pervane|propeller|rotor|dişli|disli|gear|makara|pulley|motor|dönen|donen|turning|spinning)", re.I)
+
+
+def _declare_mount_holes(primitives: list[Any], notes: list[str], request: str) -> list[Any] | None:
+    """Free repair: undeclared front-wall holes become mounting holes when nothing turns.
+
+    The gate reads a bare front hole as an axle and wants its twin in the back wall. For
+    a request with no wheel, shaft or motor in it, such a hole is a screw hole: say so.
+    Requests that do mention a turning part are left for the model to fix properly.
+    """
+    if not any(_AXLE_NOTE.match(str(note)) for note in notes) or _AXLE_WORDS.search(str(request or "")):
+        return None
+    changed = False
+    out: list[Any] = []
+    for part in primitives:
+        walls = part.get("walls") if isinstance(part, dict) and str(part.get("type") or "").lower() == "box" else None
+        front = walls.get("front") if isinstance(walls, dict) else None
+        holes = front.get("holes") if isinstance(front, dict) else None
+        if isinstance(holes, list) and any(isinstance(h, dict) and not h.get("purpose") for h in holes):
+            marked = [{**h, "purpose": "mount"} if isinstance(h, dict) and not h.get("purpose") else h for h in holes]
+            part = {**part, "walls": {**walls, "front": {**front, "holes": marked}}}
+            changed = True
+        out.append(part)
+    return out if changed else None
+
+
+def _free_repairs(primitives: list[Any], notes: list[str], thickness: float, request: str = "") -> list[Any] | None:
+    """Every code-only fix that applies to these gate notes, or None when none does."""
+    current, changed = primitives, False
+    for fix in (
+        lambda p: _straighten_unmatched_edges(p, notes),
+        lambda p: _pull_features_inside(p, notes, thickness),
+        lambda p: _declare_mount_holes(p, notes, request),
+    ):
+        fixed = fix(current)
+        if fixed:
+            current, changed = fixed, True
+    return current if changed else None
+
+
 class _PaidDrafts:
     """Paid provider calls for one Studio AI request: drafts, repairs and their summed usage."""
 
@@ -1318,7 +1457,7 @@ class _PaidDrafts:
         info: dict[str, Any] = {"attempted": 0, "fixed": False, "issues": issues, "error": ""}
         if not _draft_blocked(result) or not auto_repair_enabled():
             return plan, result, info
-        straightened = _straighten_unmatched_edges(plan.get("primitives") or [], issues)
+        straightened = _free_repairs(plan.get("primitives") or [], issues, self.thickness or 3.0, request)
         if straightened:
             try:
                 free_plan = {**plan, "primitives": straightened}

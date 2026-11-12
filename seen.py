@@ -72,7 +72,9 @@ def check_what_you_see(primitives: list[Any] | None, what_you_see: str | None) -
             if _propellers(parts) and int(blades or 0) != 4:
                 out.append({"status": "FAIL", "note": "what_you_see says 4 blades — set propeller.blades=4"})
 
-    if _requested(text, ("kapı", "kapi", "door", "pencere", "pencereler", "window", "windows")):
+    # A door sign or door hanger names where the thing goes; it does not ask for an opening.
+    opening_text = re.sub(r"\b(?:kapı|kapi)\s+(?:isimli\w*|tabela\w*|ask\w*|süs\w*|sus\w*)|\bdoor\s+(?:sign|hanger|plate|plaque)s?\b", " ", text)
+    if _requested(opening_text, ("kapı", "kapi", "door", "pencere", "pencereler", "window", "windows")):
         if not _has_slots(parts):
             out.append({"status": "FAIL", "note": "what_you_see has a door/window — cut slots on the front wall"})
         else:

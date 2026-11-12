@@ -30,6 +30,7 @@ Design rules (follow all of them):
 - Use the user's stated sizes exactly. If none are stated, pick ONE sensible overall size and keep every other size consistent with it.
 - Every panel that touches another must share a joint: matching edge letters (f male fingers ↔ F female finger holes). A free edge is "e".
 - Keep features inside their panel with at least 2 × thickness margin from any edge; holes and slots must not overlap.
+- A hole in a box's front wall is read as an axle and needs the same hole (same d, same y) in the back wall. If it is not an axle, say what it is: "purpose":"mount" (screw), "vent", "cable", "entrance" or "window".
 - Prefer the fewest parts that do the job. Put doors/windows as slots on a wall, never as separate sliding parts.
 - Engraved text uses markings with operation "engrave"; keep text height >= 6 mm.
 - Never claim physical fit, kerf or assembly was verified.
@@ -242,6 +243,27 @@ def _anthropic_chat(api_key: str, model: str, user_text: str, effort: str = "low
     return "\n".join(texts), tokens
 
 
+_CM_SIZE = re.compile(
+    r"(\d+(?:[.,]\d+)?)\s*(?:cm)?\s*[x×*]\s*(\d+(?:[.,]\d+)?)\s*(?:cm)?\s*[x×*]\s*(\d+(?:[.,]\d+)?)\s*cm\b", re.I
+)
+
+
+def request_text(prompt: str, thickness: Any = None) -> str:
+    """The exact user message for one planning call. Training files are built with it too.
+
+    Sizes typed in centimetres get a millimetre line: small models copied "27.5x3x10.5 cm"
+    as millimetres and drew a 3 mm deep box.
+    """
+    user = str(prompt or "").strip()
+    sizes = _CM_SIZE.search(user)
+    if sizes and "Sizes in mm:" not in user:
+        mm = "x".join(f"{float(v.replace(',', '.')) * 10:g}" for v in sizes.groups())
+        user += f"\nSizes in mm: {mm}"
+    if thickness not in (None, ""):
+        user += f"\nMaterial thickness_mm={float(thickness)}"
+    return user
+
+
 def repair_prompt(prompt: str, primitives: list[Any], gate_notes: list[str]) -> str:
     """User text for one repair turn: the request, the draft that was BLOCKED, and why."""
     draft = json.dumps(primitives, ensure_ascii=False, separators=(",", ":"))[:6000]
@@ -280,9 +302,7 @@ def plan_primitives_with_llm(
         api_key = get_raw_key(provider)
         if not api_key:
             raise ValueError(f"No {provider} API key configured (Account → LLM or env)")
-    user = str(prompt or "").strip()
-    if thickness not in (None, ""):
-        user += f"\nMaterial thickness_mm={float(thickness)}"
+    user = request_text(prompt, thickness)
     if provider == "local":
         from llm_keys import own_endpoint
 
