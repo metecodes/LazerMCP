@@ -51,7 +51,17 @@ def allowed_models() -> list[str]:
     default = _wanted_default()
     if default and default not in ids:
         ids.insert(0, default)
+    if tuned_ready() and TUNED_ID not in ids:
+        # Selectable once trained; it becomes the default only through LASERMCP_LLM_DEFAULT_MODEL.
+        ids.append(TUNED_ID)
     return list(dict.fromkeys(ids))
+
+
+TUNED_ID = "lasermcp-tuned"
+
+
+def tuned_ready() -> bool:
+    return bool(str(os.environ.get("LASERMCP_TUNED_MODEL") or "").strip())
 
 
 def default_model() -> str:
@@ -180,6 +190,8 @@ def own_key_access(requested_model: Any = "") -> dict[str, Any] | None:
     if not mine:
         return None
     mid = str(requested_model or "").strip().lower()
+    if mid == TUNED_ID:
+        return None  # the tuned model lives in the workshop's provider account, not theirs
     if mid in MODEL_PRICES and provider_for_model(mid) in mine:
         model = mid
     elif mid in MODEL_PRICES or mid in allowed_models():

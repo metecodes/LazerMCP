@@ -462,8 +462,9 @@ def estimate_ai_prompt_cost(body: dict[str, Any] | None = None) -> dict[str, Any
         own_models = [
             {"id": mid, "label": str(row.get("label") or mid)}
             for mid, row in MODEL_PRICES.items()
-            # "gpt-5" is a legacy alias served by an older model; not offered to paying keys.
-            if row.get("provider") in mine and mid != "gpt-5"
+            # "gpt-5" is a legacy alias served by an older model, and the tuned model lives in
+            # the workshop's provider account: neither is offered to a caller's own key.
+            if row.get("provider") in mine and mid not in {"gpt-5", "lasermcp-tuned"}
         ]
         # Strongest first: the people who connect a key want the top model.
         own_models.sort(key=lambda m: -float(MODEL_PRICES[m["id"]]["output_per_mtok"]))
@@ -1277,11 +1278,17 @@ class _PaidDrafts:
         import payas_cad
         from studio import quiet_drafts
 
+        import copy
+
         merged = dict(plan.get("parameters") or {})
         merged.update(self.parameters)
         token = quiet_drafts.set(True)
         try:
-            return payas_cad.create_design(primitives=plan.get("primitives") or [], parameters=merged, public_base_url=self.base)
+            # The compiler writes its own bookkeeping (ids, roles, operations) into the parts
+            # it is given. On a copy, the plan stays what the model wrote: that is what the
+            # repair prompt quotes, the draft cache stores and the training set records.
+            primitives = copy.deepcopy(plan.get("primitives") or [])
+            return payas_cad.create_design(primitives=primitives, parameters=merged, public_base_url=self.base)
         finally:
             quiet_drafts.reset(token)
 

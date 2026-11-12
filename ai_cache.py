@@ -34,7 +34,11 @@ _DIMS = re.compile(r"\d+(?:[.,]\d+)?\s*(?:mm|cm)?\s*[x×*]\s*\d+(?:[.,]\d+)?\s*(
 _EXTRA = re.compile(
     r"\b(stand|standı|tutucu|holder|lamba|lamp|ev|house|kuş|kus|bird|robot|araba|car|oyuncak|toy|"
     r"bulmaca|puzzle|saat|clock|logo|resim|çizim|cizim|figür|figur|harf|isim|name|menteşe|mentese|"
-    r"hinge|dişli|disli|gear|tekerlek|wheel|çekmece|cekmece|drawer|raf|shelf|kapı|kapi|door|pencere|window)",
+    r"hinge|dişli|disli|gear|tekerlek|wheel|çekmece|cekmece|drawer|raf|shelf|kapı|kapi|door|pencere|window|"
+    # Features the plain box engine cannot draw; without these a "4 bölmeli kutu" came out empty.
+    r"bölme|bolme|compartment|divider|ayraç|ayrac|delik|hole|drain|havalandırma|havalandirma|vent|"
+    r"sap|handle|kulp|tutamak|kat|pil|battery|anahtar|switch|usb|ekran|lcd|arduino|raspberry|motor|servo|"
+    r"desen|pattern|yaz|engrave|kazı|kazi)",
     re.I,
 )
 

@@ -61,6 +61,24 @@ def system_prompt() -> str:
     return _SYSTEM_CACHE[0]
 
 
+# The workshop's own fine-tuned model. Studio calls it by this id; the provider id (an
+# "ft:..." name, case-sensitive) comes from LASERMCP_TUNED_MODEL. tools/train.py makes it.
+TUNED_ID = "lasermcp-tuned"
+
+
+def tuned_model() -> str:
+    return str(os.environ.get("LASERMCP_TUNED_MODEL") or "").strip()
+
+
+def tuned_system_prompt() -> str:
+    """What the tuned model was trained with: the contract and rules, without the grammar.
+
+    It learned the grammar from examples, so every call saves those input tokens. Training
+    files and live calls must use these exact bytes — change it and the model must be retrained.
+    """
+    return SYSTEM_PROMPT + _DESIGN_RULES
+
+
 # Current Claude models take an effort level instead of sampling settings; low effort
 # keeps the hidden reasoning (billed as output) small for a JSON drafting task.
 _EFFORT_MODELS = ("claude-haiku-5", "claude-sonnet-5", "claude-opus-5", "claude-fable-5")
@@ -143,16 +161,23 @@ def _tokens(usage: Any, in_field: str, out_field: str) -> dict[str, int]:
     return {"input_tokens": int(row.get(in_field) or 0), "output_tokens": int(row.get(out_field) or 0)}
 
 
-def _openai_chat(api_key: str, model: str, user_text: str, effort: str = "low") -> tuple[str, dict[str, int]]:
+def _openai_chat(api_key: str, model: str, user_text: str, effort: str = "low", base_url: str = "") -> tuple[str, dict[str, int]]:
+    """OpenAI chat completions, or any server speaking the same API when base_url is given."""
+    from llm_keys import LOCAL_PREFIX
+
+    tuned = model == TUNED_ID
+    if tuned and not tuned_model():
+        raise ValueError("LASERMCP_TUNED_MODEL is not set")
+    local_name = str(model)[len(LOCAL_PREFIX):] if str(model).startswith(LOCAL_PREFIX) else ""
     body: dict[str, Any] = {
-        "model": _OPENAI_IDS.get(model, model),
+        "model": tuned_model() if tuned else local_name or _OPENAI_IDS.get(model, model),
         "response_format": {"type": "json_object"},
         "messages": [
-            {"role": "system", "content": system_prompt()},
+            {"role": "system", "content": tuned_system_prompt() if tuned else system_prompt()},
             {"role": "user", "content": user_text},
         ],
     }
-    if model in _OPENAI_IDS:
+    if tuned or local_name or model in _OPENAI_IDS:
         body["temperature"] = 0.2
         body["max_tokens"] = output_cap()
     else:
@@ -163,9 +188,11 @@ def _openai_chat(api_key: str, model: str, user_text: str, effort: str = "low") 
             body["reasoning_effort"] = effort if effort in {"low", "medium", "high"} else "low"
             body["max_completion_tokens"] = max(output_cap(), 8000)
     data = _http_json(
-        "https://api.openai.com/v1/chat/completions",
+        (base_url or "https://api.openai.com/v1") + "/chat/completions",
         headers={"authorization": f"Bearer {api_key}"},
         body=body,
+        # A small model on a laptop GPU writes a design in minutes, not seconds.
+        timeout=600.0 if base_url else 45.0,
     )
     choices = data.get("choices") or []
     if not choices:
@@ -256,7 +283,11 @@ def plan_primitives_with_llm(
     user = str(prompt or "").strip()
     if thickness not in (None, ""):
         user += f"\nMaterial thickness_mm={float(thickness)}"
-    if provider == "openai":
+    if provider == "local":
+        from llm_keys import own_endpoint
+
+        content, usage = _openai_chat(api_key, model, user, effort, base_url=own_endpoint(model))
+    elif provider == "openai":
         content, usage = _openai_chat(api_key, model, user, effort)
     else:
         content, usage = _anthropic_chat(api_key, model, user, effort)

@@ -139,8 +139,29 @@ def any_configured() -> bool:
     return any(r["configured"] for r in list_status())
 
 
+LOCAL_PREFIX = "local:"
+
+
+def own_endpoint(model: Any) -> str:
+    """Base URL of a self-hosted, OpenAI-compatible server that serves this model, or "".
+
+    "local:<name>" is any model on the operator's own machine (Ollama, llama.cpp…): no
+    provider bill. "lasermcp-tuned" goes there too once LASERMCP_TUNED_BASE_URL is set.
+    Both URLs come from the environment only, never from a request.
+    """
+    mid = str(model or "").strip().lower()
+    if mid.startswith(LOCAL_PREFIX) and len(mid) > len(LOCAL_PREFIX):
+        return str(os.environ.get("LASERMCP_LOCAL_BASE_URL") or "http://127.0.0.1:11434/v1").strip().rstrip("/")
+    if mid == "lasermcp-tuned":
+        return str(os.environ.get("LASERMCP_TUNED_BASE_URL") or "").strip().rstrip("/")
+    return ""
+
+
 def get_raw_key(provider: str, *, owner: str = WORKSHOP_OWNER) -> str | None:
     """Server-only. Returns decrypted or env key. Never send to clients."""
+    if str(provider or "").strip().lower() == "local":
+        # A self-hosted server needs no provider key; an optional token guards a tunnel.
+        return str(os.environ.get("LASERMCP_LOCAL_API_KEY") or "").strip() or "local"
     key = normalize_provider(provider)
     env_val = _env_key(key)
     if env_val:
@@ -207,6 +228,8 @@ def provider_for_model(model: str) -> str:
     from ai_cost import MODEL_PRICES
 
     mid = str(model or "gpt-4o-mini").strip().lower()
+    if own_endpoint(mid):
+        return "local"
     row = MODEL_PRICES.get(mid)
     if row is None:
         # An allowlisted id without a price row still has to reach the right provider.

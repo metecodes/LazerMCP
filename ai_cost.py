@@ -69,6 +69,14 @@ MODEL_PRICES: dict[str, dict[str, Any]] = {
         "output_per_mtok": 50.0,
         "provider": "anthropic",
     },
+    # The workshop's fine-tuned model (LASERMCP_TUNED_MODEL). Fine-tuned small models bill
+    # above their base rate; set LASERMCP_PRICE_LASERMCP_TUNED_IN/_OUT to the real figures.
+    "lasermcp-tuned": {
+        "label": "LaserMCP (eğitilmiş)",
+        "input_per_mtok": 0.30,
+        "output_per_mtok": 1.20,
+        "provider": "openai",
+    },
     # Third-party listings (Nov 2026); confirm on the provider's page or override via env.
     "gpt-5.5": {
         "label": "GPT-5.5",
@@ -119,6 +127,11 @@ def _price_row(model: str) -> dict[str, Any]:
         "opus": "claude-opus-4.5",
     }
     key = aliases.get(key, key)
+    from llm_keys import own_endpoint
+
+    if own_endpoint(key):
+        # Served from the operator's own machine: no provider bills these tokens.
+        return {"label": (MODEL_PRICES.get(key) or {}).get("label") or key, "input_per_mtok": 0.0, "output_per_mtok": 0.0, "provider": "local", "id": key}
     row = dict(MODEL_PRICES.get(key) or MODEL_PRICES["gpt-4o-mini"])
     env_key = re.sub(r"[^A-Z0-9]+", "_", key.upper())
     try:

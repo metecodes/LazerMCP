@@ -1,0 +1,352 @@
+"""Train LaserMCP's own Studio AI model: a small open model tuned on gate-approved designs.
+
+A "teacher" model drafts thousands of varied requests. The LaserMCP gate keeps only the
+drafts it approves, so nobody labels data by hand. A small model is then fine-tuned on
+those pairs and served as the Studio id "lasermcp-tuned". The whole plan, with setup, is
+in docs/MODEL_TRAINING.md.
+
+Free path (a model on this machine; nothing is billed), from the repository root:
+  .venv/Scripts/python.exe tools/train.py collect --count 50          (teacher: local:lasermcp-teacher)
+  .venv/Scripts/python.exe tools/train.py build
+  -> fine-tune on Kaggle with tools/kaggle_finetune.py, install the result in Ollama
+  .venv/Scripts/python.exe tools/ai_eval.py --model lasermcp-tuned
+
+Paid path (a provider's model as teacher and fine-tuner): pass --teacher <provider model>
+and --spend to collect, then `start --spend` and `status`. Those bill the OPENAI_API_KEY /
+ANTHROPIC_API_KEY in your environment and refuse to run without --spend.
+
+collect can be stopped and re-run: it resumes. Everything is written under output/train/
+(not committed).
+
+Limits to keep in mind: the gate checks joints and sizes, not whether a design is a good
+phone stand — read a sample of examples.jsonl before training. A tuned model is only worth
+serving if tools/ai_eval.py scores it above the model it started from.
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+import random
+import sys
+import tempfile
+import time
+import urllib.error
+import urllib.request
+import uuid
+from pathlib import Path
+from typing import Any
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+OUT = ROOT / "output" / "train"
+EXAMPLES = "examples.jsonl"
+REJECTED = "rejected.jsonl"
+# Base model to tune. Providers retire snapshots: if `start` reports an unknown model, pass
+# the current fine-tunable small model with --base.
+DEFAULT_BASE = "gpt-4o-mini-2024-07-18"
+MIN_EXAMPLES = 10  # the provider's floor; a useful model needs a few hundred
+
+
+def _read_jsonl(path: Path) -> list[dict[str, Any]]:
+    if not path.is_file():
+        return []
+    rows = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        try:
+            row = json.loads(line)
+        except ValueError:
+            continue  # a line cut off by an interrupted run
+        if isinstance(row, dict):
+            rows.append(row)
+    return rows
+
+
+def _append(path: Path, row: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+
+
+def answer_json(plan: dict[str, Any]) -> str:
+    """The reply the tuned model must learn: exactly the JSON contract of the system prompt."""
+    return json.dumps(
+        {
+            "primitives": plan.get("primitives") or [],
+            "parameters": plan.get("parameters") if isinstance(plan.get("parameters"), dict) else {},
+            "summary": str(plan.get("summary") or "")[:240],
+        },
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+
+
+def user_text(text: str, thickness: Any) -> str:
+    """Same bytes as llm_client.plan_primitives_with_llm sends for this request."""
+    out = str(text or "").strip()
+    if thickness not in (None, ""):
+        out += f"\nMaterial thickness_mm={float(thickness)}"
+    return out
+
+
+def studio_request(prompt: str) -> str:
+    """How Studio phrases a first request to the model (the prompt plus its one-turn thread)."""
+    from workshop import _compose_ai_chat_prompt
+
+    return _compose_ai_chat_prompt(prompt, {"messages": [{"role": "user", "text": prompt}]})
+
+
+# --- collect -----------------------------------------------------------------------------
+
+
+def collect_one(row: dict[str, Any], teacher: str, effort: str = "medium") -> tuple[list[dict[str, Any]], float, str]:
+    """Teacher drafts one request. Returns (examples, usd spent, reason when nothing was kept)."""
+    import workshop
+
+    prompt, thickness = str(row["prompt"]), row.get("thickness") or 3.0
+    request = studio_request(prompt)
+    drafts = workshop._PaidDrafts(
+        thickness=thickness,
+        parameters={"project": prompt[:48], "what_you_see": prompt, "thickness": float(thickness)},
+        base="",
+    )
+    try:
+        plan = drafts.call(request, teacher, effort)
+        result = drafts.design(plan)
+    except Exception as exc:
+        return [], float(drafts.usage()["usd"]), "error:" + str(exc)[:120]
+    examples: list[dict[str, Any]] = []
+    base = {"prompt_id": row["id"], "prompt": prompt, "thickness": float(thickness), "teacher": teacher}
+    if workshop._draft_blocked(result):
+        notes = workshop._gate_issues(result)
+        first = plan
+        plan, result, info = drafts.repair(request, plan, result, model_id=teacher, client_ip="train")
+        if workshop._draft_blocked(result):
+            return [], float(drafts.usage()["usd"]), "blocked:" + "; ".join(notes[:2])[:160]
+        if not info.get("free"):
+            # A real repair turn: teaches the model to fix a blocked draft from the gate notes.
+            from llm_client import repair_prompt
+
+            examples.append({**base, "kind": "repair", "user": user_text(repair_prompt(request, first.get("primitives") or [], notes), thickness), "assistant": answer_json(plan)})
+    panels = len((result.get("assembly_result") or {}).get("parts") or [])
+    examples.insert(0, {**base, "kind": "draft", "user": user_text(request, thickness), "assistant": answer_json(plan), "parts": panels})
+    return examples, float(drafts.usage()["usd"]), ""
+
+
+def cmd_collect(args: argparse.Namespace) -> int:
+    from train_prompts import make_prompts
+
+    from llm_keys import own_endpoint
+
+    teacher = args.teacher.strip().lower()
+    if not own_endpoint(teacher) and not args.spend:
+        print(f"collect: up to {args.count} requests to {teacher}, stopping at ${args.max_usd:.2f}. Re-run with --spend to start.")
+        return 2
+    out = Path(args.out)
+    done = {r.get("prompt_id") for r in _read_jsonl(out / EXAMPLES)} | {r.get("prompt_id") for r in _read_jsonl(out / REJECTED)}
+    todo = [r for r in make_prompts(args.count + len(done), seed=args.seed) if r["id"] not in done][: args.count]
+
+    # Throwaway state and no daily caps: this is the operator's own batch, not site traffic.
+    os.environ["MCP_DATA_DIR"] = tempfile.mkdtemp(prefix="lasermcp-train-")
+    os.environ["LASERMCP_AI_CACHE_DAYS"] = "0"
+    os.environ["LASERMCP_AI_DAILY_PER_IP"] = "1000000"
+    os.environ["LASERMCP_AI_DAILY_GLOBAL"] = "1000000"
+    os.environ["LASERMCP_LLM_MODELS"] = teacher
+    os.environ.pop("LASERMCP_LLM_REPAIR_MODEL", None)
+
+    spent, kept, failed, errors_in_a_row = 0.0, 0, 0, 0
+    for i, row in enumerate(todo, 1):
+        if spent >= args.max_usd:
+            print(f"stopped: budget ${args.max_usd:.2f} reached")
+            break
+        examples, usd, why = collect_one(row, teacher, args.effort)
+        spent = round(spent + usd, 6)
+        if examples:
+            kept += 1
+            errors_in_a_row = 0
+            for ex in examples:
+                _append(out / EXAMPLES, {**ex, "usd": usd if ex["kind"] == "draft" else 0.0})
+        else:
+            failed += 1
+            if not why.startswith("error:"):
+                # A provider error (wrong key, outage) says nothing about the request: leave it
+                # for the next run instead of marking it as tried.
+                _append(out / REJECTED, {"prompt_id": row["id"], "prompt": row["prompt"], "why": why, "usd": usd})
+            errors_in_a_row = errors_in_a_row + 1 if why.startswith("error:") else 0
+        print(f"[{i}/{len(todo)}] {'kept' if examples else 'drop'} ${spent:.3f} {row['prompt'][:60]} {why[:70]}", flush=True)
+        if errors_in_a_row >= 5:
+            # A wrong key or model id fails every call; do not walk the whole list.
+            print("stopped: 5 provider errors in a row — check the key and the teacher model id")
+            break
+    print(f"\nkept {kept}, dropped {failed}, spent ${spent:.3f}. File: {out / EXAMPLES}")
+    return 0
+
+
+# --- build -------------------------------------------------------------------------------
+
+
+def to_chat(example: dict[str, Any], system: str) -> dict[str, Any]:
+    return {
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": str(example["user"])},
+            {"role": "assistant", "content": str(example["assistant"])},
+        ]
+    }
+
+
+def usable(example: dict[str, Any]) -> bool:
+    """Drop rows the tuned model must not copy: broken JSON, empty designs, giant outputs."""
+    try:
+        data = json.loads(str(example.get("assistant") or ""))
+    except ValueError:
+        return False
+    prims = data.get("primitives") if isinstance(data, dict) else None
+    return bool(isinstance(prims, list) and prims and str(example.get("user") or "").strip() and len(str(example["assistant"])) < 24000)
+
+
+def split(examples: list[dict[str, Any]], valid_share: float = 0.1, seed: int = 7) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Train/validation by request, so a draft and its own repair never straddle the split."""
+    seen: set[str] = set()
+    rows = []
+    for ex in examples:
+        key = hashlib.sha256((str(ex.get("user")) + "\x00" + str(ex.get("assistant"))).encode("utf-8")).hexdigest()
+        if usable(ex) and key not in seen:
+            seen.add(key)
+            rows.append(ex)
+    ids = sorted({str(ex.get("prompt_id") or ex.get("user")) for ex in rows})
+    random.Random(seed).shuffle(ids)
+    held = set(ids[: int(len(ids) * valid_share)]) if len(ids) >= 20 else set()
+    train = [ex for ex in rows if str(ex.get("prompt_id") or ex.get("user")) not in held]
+    valid = [ex for ex in rows if str(ex.get("prompt_id") or ex.get("user")) in held]
+    return train, valid
+
+
+def cmd_build(args: argparse.Namespace) -> int:
+    from ai_cost import estimate_tokens
+    from llm_client import tuned_system_prompt
+
+    out = Path(args.out)
+    train, valid = split(_read_jsonl(out / EXAMPLES))
+    if len(train) < MIN_EXAMPLES:
+        print(f"only {len(train)} usable examples in {out / EXAMPLES}; need at least {MIN_EXAMPLES} (a few hundred to be useful). Run collect first.")
+        return 1
+    system = tuned_system_prompt()
+    tokens = 0
+    for name, rows in (("train.jsonl", train), ("valid.jsonl", valid)):
+        lines = [json.dumps(to_chat(ex, system), ensure_ascii=False) for ex in rows]
+        (out / name).write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+        if name == "train.jsonl":
+            tokens = sum(estimate_tokens(line) for line in lines)
+    rate = float(os.environ.get("LASERMCP_TUNE_PRICE_PER_MTOK") or 3.0)
+    usd = tokens * args.epochs * rate / 1_000_000.0
+    repairs = sum(1 for ex in train if ex.get("kind") == "repair")
+    print(f"train {len(train)} ({repairs} repair turns), validation {len(valid)}")
+    print(f"~{tokens:,} training tokens x {args.epochs} epochs ~ ${usd:.2f} at ${rate:g}/1M (estimate; check the provider's price)")
+    if len(train) < 200:
+        print("note: under 200 examples the tuned model rarely beats the base model. Collect more before `start`.")
+    return 0
+
+
+# --- start / status ----------------------------------------------------------------------
+
+
+def _key() -> str:
+    key = str(os.environ.get("OPENAI_API_KEY") or "").strip()
+    if not key:
+        raise SystemExit("OPENAI_API_KEY is not set in this terminal. Set it yourself; never paste it into a chat.")
+    return key
+
+
+def _api(method: str, path: str, *, body: bytes | None = None, content_type: str = "application/json") -> dict[str, Any]:
+    req = urllib.request.Request("https://api.openai.com/v1" + path, data=body, method=method, headers={"authorization": f"Bearer {_key()}", "content-type": content_type})
+    try:
+        with urllib.request.urlopen(req, timeout=300) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")[:400]
+        raise SystemExit(f"provider HTTP {exc.code}: {detail}") from exc
+
+
+def multipart(path: Path, purpose: str = "fine-tune") -> tuple[bytes, str]:
+    boundary = "lasermcp" + uuid.uuid4().hex
+    head = (
+        f'--{boundary}\r\nContent-Disposition: form-data; name="purpose"\r\n\r\n{purpose}\r\n'
+        f'--{boundary}\r\nContent-Disposition: form-data; name="file"; filename="{path.name}"\r\n'
+        "Content-Type: application/jsonl\r\n\r\n"
+    ).encode("utf-8")
+    return head + path.read_bytes() + f"\r\n--{boundary}--\r\n".encode("utf-8"), f"multipart/form-data; boundary={boundary}"
+
+
+def cmd_start(args: argparse.Namespace) -> int:
+    out = Path(args.out)
+    train, valid = out / "train.jsonl", out / "valid.jsonl"
+    if not train.is_file() or not train.read_text(encoding="utf-8").strip():
+        print("no train.jsonl — run `build` first")
+        return 1
+    if not args.spend:
+        print(f"start: uploads {train.name} and begins a paid fine-tuning job on {args.base}. Re-run with --spend to start.")
+        return 2
+    files = {}
+    for name, path in (("training_file", train), ("validation_file", valid)):
+        if path.is_file() and path.read_text(encoding="utf-8").strip():
+            body, ctype = multipart(path)
+            files[name] = _api("POST", "/files", body=body, content_type=ctype)["id"]
+            print(f"uploaded {path.name} -> {files[name]}")
+    spec = {"model": args.base, "suffix": "lasermcp", **files}
+    if args.epochs:
+        spec["hyperparameters"] = {"n_epochs": args.epochs}
+    job = _api("POST", "/fine_tuning/jobs", body=json.dumps(spec).encode("utf-8"))
+    (out / "job.json").write_text(json.dumps({"id": job.get("id"), "base": args.base, "at": time.strftime("%Y-%m-%dT%H:%M:%S")}, indent=1), encoding="utf-8")
+    print(f"job {job.get('id')} is {job.get('status')}. Check it with: tools/train.py status")
+    return 0
+
+
+def cmd_status(args: argparse.Namespace) -> int:
+    path = Path(args.out) / "job.json"
+    if not path.is_file():
+        print("no job started yet — run `start`")
+        return 1
+    job = _api("GET", "/fine_tuning/jobs/" + json.loads(path.read_text(encoding="utf-8"))["id"])
+    print(f"status: {job.get('status')}   trained tokens: {job.get('trained_tokens')}")
+    if job.get("error") and (job["error"] or {}).get("message"):
+        print("error:", job["error"]["message"])
+    model = job.get("fine_tuned_model")
+    if model:
+        print(f"\nmodel ready: {model}")
+        print("1) locally:  set LASERMCP_TUNED_MODEL to that id, then run tools/ai_eval.py --model lasermcp-tuned --spend")
+        print("2) if it beats the base model: add LASERMCP_TUNED_MODEL in Vercel; add LASERMCP_LLM_DEFAULT_MODEL=lasermcp-tuned to make it the default")
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    ap.add_argument("--out", default=str(OUT), help="working folder (default output/train)")
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    c = sub.add_parser("collect", help="teacher model drafts requests; gate-approved drafts are kept")
+    c.add_argument("--teacher", default="local:lasermcp-teacher", help="local:<name> is free; a provider model id bills your key")
+    c.add_argument("--count", type=int, default=300)
+    c.add_argument("--max-usd", type=float, default=20.0)
+    c.add_argument("--effort", default="medium", choices=["low", "medium", "high"])
+    c.add_argument("--seed", type=int, default=1)
+    c.add_argument("--spend", action="store_true")
+    c.set_defaults(fn=cmd_collect)
+    b = sub.add_parser("build", help="examples.jsonl -> train.jsonl / valid.jsonl")
+    b.add_argument("--epochs", type=int, default=3)
+    b.set_defaults(fn=cmd_build)
+    s = sub.add_parser("start", help="upload the files and start the fine-tuning job")
+    s.add_argument("--base", default=DEFAULT_BASE)
+    s.add_argument("--epochs", type=int, default=0, help="0 lets the provider choose")
+    s.add_argument("--spend", action="store_true")
+    s.set_defaults(fn=cmd_start)
+    sub.add_parser("status", help="job state and the model id when done").set_defaults(fn=cmd_status)
+    args = ap.parse_args(argv)
+    return int(args.fn(args))
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

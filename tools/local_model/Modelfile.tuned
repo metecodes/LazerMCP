@@ -1,0 +1,8 @@
+# The fine-tuned model downloaded from Kaggle (see tools/kaggle_finetune.py).
+# Put lasermcp.gguf next to this file, then:
+#   ollama create lasermcp -f tools/local_model/Modelfile.tuned
+# It was trained with the short system prompt, so a smaller context is enough.
+FROM ./lasermcp.gguf
+PARAMETER num_ctx 4096
+PARAMETER temperature 0.2
+PARAMETER num_predict 2500

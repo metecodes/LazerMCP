@@ -1,0 +1,408 @@
+{
+ "version": 1,
+ "note": "Fixed Studio AI benchmark. Change it rarely: scores are only comparable on the same set.",
+ "prompts": [
+  {
+   "id": "template-01",
+   "category": "template",
+   "prompt": "kuş evi",
+   "expect_method": "studio_maker",
+   "expect_maker": "birdhouse"
+  },
+  {
+   "id": "template-02",
+   "category": "template",
+   "prompt": "150x120x140 kuş evi 28 mm giriş",
+   "expect_method": "studio_maker",
+   "expect_maker": "birdhouse"
+  },
+  {
+   "id": "template-03",
+   "category": "template",
+   "prompt": "birdhouse 160x130x150",
+   "expect_method": "studio_maker",
+   "expect_maker": "birdhouse"
+  },
+  {
+   "id": "template-04",
+   "category": "template",
+   "prompt": "'Elif' yazan anahtarlık",
+   "expect_method": "studio_maker",
+   "expect_maker": "name_ornament"
+  },
+  {
+   "id": "template-05",
+   "category": "template",
+   "prompt": "\"Deniz\" yazan isimlik",
+   "expect_method": "studio_maker",
+   "expect_maker": "name_ornament"
+  },
+  {
+   "id": "template-06",
+   "category": "template",
+   "prompt": "yılbaşı yıldız süsü 9 cm",
+   "expect_method": "studio_maker",
+   "expect_maker": "christmas"
+  },
+  {
+   "id": "template-07",
+   "category": "template",
+   "prompt": "yuvarlak yılbaşı süsü 80 mm",
+   "expect_method": "studio_maker",
+   "expect_maker": "christmas"
+  },
+  {
+   "id": "template-08",
+   "category": "template",
+   "prompt": "'İyi ki doğdun' yazan hediye kutusu 12cm x 8cm x 5cm",
+   "expect_method": "studio_maker",
+   "expect_maker": "named_gift"
+  },
+  {
+   "id": "template-09",
+   "category": "template",
+   "prompt": "menteşeli kutu 140x90x50",
+   "expect_method": "studio_maker",
+   "expect_maker": "flexible_box"
+  },
+  {
+   "id": "box-01",
+   "category": "box",
+   "prompt": "180x120x70 kutu",
+   "expect_method": "local"
+  },
+  {
+   "id": "box-02",
+   "category": "box",
+   "prompt": "100x100x100 mm kapaklı kutu",
+   "expect_method": "local"
+  },
+  {
+   "id": "box-03",
+   "category": "box",
+   "prompt": "20x15x8 cm kutu",
+   "expect_method": "local"
+  },
+  {
+   "id": "box-04",
+   "category": "box",
+   "prompt": "box 200x150x60",
+   "expect_method": "local"
+  },
+  {
+   "id": "box-05",
+   "category": "box",
+   "prompt": "250x180x90 kapaksız kutu",
+   "expect_method": "local"
+  },
+  {
+   "id": "holder-01",
+   "category": "holder",
+   "prompt": "telefon standı",
+   "min_panels": 2,
+   "max_panels": 6
+  },
+  {
+   "id": "holder-02",
+   "category": "holder",
+   "prompt": "tablet standı, 10 inç tablet için",
+   "min_panels": 2,
+   "max_panels": 6
+  },
+  {
+   "id": "holder-03",
+   "category": "holder",
+   "prompt": "masaüstü kalemlik, 3 bölmeli",
+   "min_panels": 5,
+   "max_panels": 12
+  },
+  {
+   "id": "holder-04",
+   "category": "holder",
+   "prompt": "kartvizitlik, 90x55 mm kartlar için",
+   "min_panels": 3,
+   "max_panels": 8
+  },
+  {
+   "id": "holder-05",
+   "category": "holder",
+   "prompt": "kulaklık askısı, masaüstü",
+   "min_panels": 2,
+   "max_panels": 6
+  },
+  {
+   "id": "holder-06",
+   "category": "holder",
+   "prompt": "peçetelik",
+   "min_panels": 3,
+   "max_panels": 6
+  },
+  {
+   "id": "holder-07",
+   "category": "holder",
+   "prompt": "kitap desteği, L şeklinde",
+   "min_panels": 2,
+   "max_panels": 5
+  },
+  {
+   "id": "holder-08",
+   "category": "holder",
+   "prompt": "baharat rafı, 2 katlı, 300 mm genişlik",
+   "min_panels": 4,
+   "max_panels": 10
+  },
+  {
+   "id": "holder-09",
+   "category": "holder",
+   "prompt": "anahtar askılığı, duvara asılan, 5 kancalı",
+   "min_panels": 1,
+   "max_panels": 8
+  },
+  {
+   "id": "holder-10",
+   "category": "holder",
+   "prompt": "laptop standı, 15 derece eğimli",
+   "min_panels": 2,
+   "max_panels": 6
+  },
+  {
+   "id": "holder-11",
+   "category": "holder",
+   "prompt": "bardak altlığı tutucu, 6 altlık için",
+   "min_panels": 3,
+   "max_panels": 8
+  },
+  {
+   "id": "holder-12",
+   "category": "holder",
+   "prompt": "uzaktan kumanda standı, 3 kumanda için",
+   "min_panels": 4,
+   "max_panels": 10
+  },
+  {
+   "id": "storage-01",
+   "category": "storage",
+   "prompt": "çekmeceli kutu 200x150x80",
+   "min_panels": 8,
+   "max_panels": 16
+  },
+  {
+   "id": "storage-02",
+   "category": "storage",
+   "prompt": "2 çekmeceli masaüstü düzenleyici",
+   "min_panels": 9,
+   "max_panels": 22
+  },
+  {
+   "id": "storage-03",
+   "category": "storage",
+   "prompt": "3 raflı küçük kitaplık, 300x150x400 mm",
+   "min_panels": 5,
+   "max_panels": 10
+  },
+  {
+   "id": "storage-04",
+   "category": "storage",
+   "prompt": "4 bölmeli vida kutusu 240x160x40",
+   "min_panels": 6,
+   "max_panels": 12
+  },
+  {
+   "id": "storage-05",
+   "category": "storage",
+   "prompt": "çay poşeti kutusu, 6 bölmeli, kapaklı",
+   "min_panels": 7,
+   "max_panels": 16
+  },
+  {
+   "id": "storage-06",
+   "category": "storage",
+   "prompt": "sürgülü kapaklı kalem kutusu 220x70x40",
+   "min_panels": 5,
+   "max_panels": 8,
+   "expect_method": "local"
+  },
+  {
+   "id": "storage-07",
+   "category": "storage",
+   "prompt": "takı kutusu, içi 2 katlı",
+   "min_panels": 6,
+   "max_panels": 18
+  },
+  {
+   "id": "storage-08",
+   "category": "storage",
+   "prompt": "alet çantası, saplı, 350x150x200",
+   "min_panels": 5,
+   "max_panels": 10
+  },
+  {
+   "id": "storage-09",
+   "category": "storage",
+   "prompt": "oyun kartı kutusu, 2 deste için",
+   "min_panels": 5,
+   "max_panels": 10
+  },
+  {
+   "id": "storage-10",
+   "category": "storage",
+   "prompt": "dosya tepsisi A4, 2 katlı",
+   "min_panels": 5,
+   "max_panels": 12
+  },
+  {
+   "id": "decor-01",
+   "category": "decor",
+   "prompt": "masa lambası gövdesi, kare, 120x120x200, yanları desenli",
+   "min_panels": 4,
+   "max_panels": 8
+  },
+  {
+   "id": "decor-02",
+   "category": "decor",
+   "prompt": "saksı kılıfı 120x120x110, altı delikli",
+   "min_panels": 5,
+   "max_panels": 6
+  },
+  {
+   "id": "decor-03",
+   "category": "decor",
+   "prompt": "mumluk, tealight için, 4 yanı pencereli",
+   "min_panels": 4,
+   "max_panels": 7
+  },
+  {
+   "id": "decor-04",
+   "category": "decor",
+   "prompt": "fotoğraf çerçevesi 10x15 cm, ayaklı",
+   "min_panels": 2,
+   "max_panels": 5
+  },
+  {
+   "id": "decor-05",
+   "category": "decor",
+   "prompt": "duvar saati kadranı, 250 mm çap, rakamlar kazınmış",
+   "min_panels": 1,
+   "max_panels": 3
+  },
+  {
+   "id": "decor-06",
+   "category": "decor",
+   "prompt": "kapı isimliği 'Atölye' yazılı, 200x60 mm, iki vida delikli",
+   "min_panels": 1,
+   "max_panels": 2
+  },
+  {
+   "id": "decor-07",
+   "category": "decor",
+   "prompt": "ev şeklinde gece lambası kutusu, pencereli",
+   "min_panels": 5,
+   "max_panels": 9
+  },
+  {
+   "id": "decor-08",
+   "category": "decor",
+   "prompt": "masa takvimi standı, küp bloklar için",
+   "min_panels": 3,
+   "max_panels": 8
+  },
+  {
+   "id": "stem-01",
+   "category": "stem",
+   "prompt": "Arduino Uno kutusu, USB ve güç girişi açık",
+   "min_panels": 5,
+   "max_panels": 7
+  },
+  {
+   "id": "stem-02",
+   "category": "stem",
+   "prompt": "Raspberry Pi 4 kasası, havalandırma delikli",
+   "min_panels": 5,
+   "max_panels": 7
+  },
+  {
+   "id": "stem-03",
+   "category": "stem",
+   "prompt": "9V pil ve anahtar için küçük devre kutusu 80x60x35",
+   "min_panels": 5,
+   "max_panels": 7
+  },
+  {
+   "id": "stem-04",
+   "category": "stem",
+   "prompt": "2 tekerlekli robot şasisi, 2 DC motor ve sarhoş teker için",
+   "min_panels": 1,
+   "max_panels": 8
+  },
+  {
+   "id": "stem-05",
+   "category": "stem",
+   "prompt": "SG90 servo için braket",
+   "min_panels": 1,
+   "max_panels": 5
+  },
+  {
+   "id": "stem-06",
+   "category": "stem",
+   "prompt": "breadboard tutucu taban, 170x60 mm breadboard için",
+   "min_panels": 1,
+   "max_panels": 6
+  },
+  {
+   "id": "stem-07",
+   "category": "stem",
+   "prompt": "16x2 LCD ekran için ön panelli kutu",
+   "min_panels": 5,
+   "max_panels": 7
+  },
+  {
+   "id": "stem-08",
+   "category": "stem",
+   "prompt": "güneş paneli için 45 derece eğimli stant, panel 110x60 mm",
+   "min_panels": 2,
+   "max_panels": 6
+  },
+  {
+   "id": "english-01",
+   "category": "english",
+   "prompt": "phone stand for a 75 mm wide phone",
+   "min_panels": 2,
+   "max_panels": 6
+  },
+  {
+   "id": "english-02",
+   "category": "english",
+   "prompt": "desk organizer with 3 compartments and a drawer",
+   "min_panels": 8,
+   "max_panels": 18
+  },
+  {
+   "id": "english-03",
+   "category": "english",
+   "prompt": "wall shelf 400 mm wide with two brackets",
+   "min_panels": 3,
+   "max_panels": 5
+  },
+  {
+   "id": "english-04",
+   "category": "english",
+   "prompt": "coaster holder for six 100 mm round coasters",
+   "min_panels": 3,
+   "max_panels": 8
+  },
+  {
+   "id": "english-05",
+   "category": "english",
+   "prompt": "small tool tray 250x120x50 with a center divider",
+   "min_panels": 5,
+   "max_panels": 8
+  },
+  {
+   "id": "english-06",
+   "category": "english",
+   "prompt": "planter box 150x150x120 with drainage holes",
+   "min_panels": 5,
+   "max_panels": 6
+  }
+ ]
+}
