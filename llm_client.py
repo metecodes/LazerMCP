@@ -181,6 +181,9 @@ def _openai_chat(api_key: str, model: str, user_text: str, effort: str = "low", 
     if tuned or local_name or model in _OPENAI_IDS:
         body["temperature"] = 0.2
         body["max_tokens"] = output_cap()
+        if local_name and str(os.environ.get("LASERMCP_LOCAL_THINK") or "").strip().lower() in {"0", "off", "none", "false"}:
+            # Thinking models (Qwen3, Qwen3.5) would spend the output cap on hidden reasoning.
+            body["reasoning_effort"] = "none"
     else:
         # Reasoning-era models reject a custom temperature and take the newer cap field.
         body["max_completion_tokens"] = output_cap()
