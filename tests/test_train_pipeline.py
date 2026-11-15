@@ -52,12 +52,13 @@ class CollectTests(unittest.TestCase):
         self.addCleanup(patcher.stop)
 
     def test_approved_draft_becomes_an_example_in_the_live_request_format(self):
-        row = {"id": "t1-00001", "prompt": "kalemlik 3 bölmeli", "thickness": 3.0}
+        # The fake teacher draws one plain box, so the request must be one a plain box answers.
+        row = {"id": "t1-00001", "prompt": "kalemlik", "thickness": 3.0}
         with mock.patch("llm_client.plan_primitives_with_llm", side_effect=_teacher):
             examples, usd, why = train.collect_one(row, "gpt-5.5")
         self.assertEqual(why, "")
         self.assertEqual([e["kind"] for e in examples], ["draft"])
-        self.assertIn("Studio chat so far:\nUser: kalemlik 3 bölmeli", examples[0]["user"])
+        self.assertIn("Studio chat so far:\nUser: kalemlik", examples[0]["user"])
         self.assertTrue(examples[0]["user"].endswith("Material thickness_mm=3.0"))
         self.assertEqual(json.loads(examples[0]["assistant"])["primitives"], BOX["primitives"])
         self.assertGreater(usd, 0)
@@ -268,8 +269,10 @@ class LocalModelTests(unittest.TestCase):
         tmp = tempfile.mkdtemp(prefix="train-local-")
         sent = {}
         env = {"MCP_DATA_DIR": tempfile.mkdtemp(prefix="train-data-"), "OPENAI_API_KEY": ""}
-        with mock.patch.dict(os.environ, env), mock.patch("llm_client._http_json", side_effect=self._http(sent)):
+        one = [{"id": "t1-00001", "prompt": "bana bir kalemlik", "thickness": 3.0}]  # a plain box answers it
+        with mock.patch.dict(os.environ, env), mock.patch("llm_client._http_json", side_effect=self._http(sent)), mock.patch("train_prompts.make_prompts", return_value=one):
             self.assertEqual(train.main(["--out", tmp, "collect", "--count", "1"]), 0)
+        self.assertFalse((Path(tmp) / train.LOCK).exists())
         rows = train._read_jsonl(Path(tmp) / train.EXAMPLES)
         self.assertEqual((len(rows), rows[0]["teacher"], rows[0]["usd"]), (1, "local:lasermcp-teacher", 0.0))
 

@@ -30,6 +30,7 @@ import hashlib
 import json
 import os
 import random
+import re
 import sys
 import tempfile
 import time
@@ -175,7 +176,112 @@ def quality_problems(prompt: str, primitives: list[Any]) -> list[str]:
     quoted = _QUOTED.search(prompt)
     if quoted and quoted.group(1).strip().casefold() not in text.casefold():
         problems.append("leaves out the requested text " + quoted.group(1).strip())
+    problems += shape_problems(prompt, primitives)
     return list(dict.fromkeys(problems))
+
+
+# --- faithfulness: is it the object that was asked for? ------------------------------------
+# The first pilots kept "a phone stand", "a bridge model" and "a 4-tier shoe shelf" answered
+# by one closed box of the right size, and "a desk organizer" as one flat sheet. The gate
+# approves those and the size check is happy, but a model tuned on them learns to draw a box
+# for everything, which the free box engine already does. The grammar has no shelf or divider
+# key, so the checks read what a design really holds: parts, cutouts, engravings, a lid.
+
+# Objects a lone box never answers. Word-bounded so "fotoğraf" is not "raf", "masaüstü" not
+# "masa", "design" not "sign" and "card" not "car".
+_NOT_A_BOX = re.compile(
+    r"\b(stand\w*|raf\w*|shel(?:f|ves)|bookshelf|kitaplık\w*|rack|askılı\w*|sandalye\w*|chair|"
+    r"masa|masası|table|köprü\w*|bridge|rüzgar gülü\w*|pinwheel|terazi\w*|scale|araba\w*|car|"
+    r"kamyon\w*|truck|rampa\w*|ramp|çerçeve\w*|frame|saat\w*|clock|isimli\w*|sign|"
+    r"kitap desteği|bookend|braket\w*|bracket|motor tutucu|motor mount|şasi\w*|chassis|"
+    r"taban\w*|base plate|zar kulesi|dice tower|düzenleyici\w*|organizer)\b",
+    re.I,
+)
+# Objects that may be a single flat part.
+_FLAT = re.compile(r"\b(isimli\w*|sign|kadran\w*|clock face|şasi\w*|chassis|taban\w*|base plate|çerçeve\w*|frame)\b", re.I)
+
+# (requested feature in the prompt, what the design must hold, why the draft is dropped)
+_FEATURE_RULES: tuple[tuple[re.Pattern[str], str, str], ...] = (
+    (re.compile(r"bölme|compartment|katlı|raflı|\bshel(?:f|ves)\b|\btiers?\b|çekmece|drawer|kanca|hook|ayaklı|arkadan destekli|with a stand|back support", re.I), "parts", "is one part, but the request needs more (compartments, shelves, a drawer, hooks or a support)"),
+    (re.compile(r"tekerlek|\bwheels?\b", re.I), "round", "has no wheel"),
+    (re.compile(r"delik|\bholes?\b|havalandırma|\bvent|kablo|cable|tahliye|drain|pencere|window|giriş|entrance|door opening|para yuvası|coin slot|\busb|\bports?\b|vida|screw|\bm3\b|duvara|wall mounted|for the wall", re.I), "cutout", "has no hole, slot or port although one was asked for"),
+    (re.compile(r"desen|pattern", re.I), "pattern", "has no pattern"),
+    (re.compile(r"kapak|\blid\b", re.I), "lid", "has no lid"),
+    (re.compile(r"rakam|numbers", re.I), "marks", "has no engraved numbers"),
+    (re.compile(r"derece|tilted|degrees", re.I), "parts", "is one part, so it cannot hold the requested angle"),
+)
+_SIZE_KEYS = {"box": ("x", "y", "h"), "panel": ("w", "h"), "triangle": ("w", "h"), "disc": ("d",)}
+
+
+def design_facts(primitives: list[Any]) -> dict[str, Any]:
+    """What a design physically holds, read from its primitives."""
+    facts: dict[str, Any] = {"parts": 0, "boxes": 0, "types": set(), "cutouts": 0, "marks": 0, "lid": False, "broken": []}
+
+    def walk(node: Any) -> None:
+        if isinstance(node, dict):
+            for key, value in node.items():
+                if key in ("holes", "slots", "ports") and isinstance(value, list):
+                    facts["cutouts"] += len(value)  # finger_holes are joints, not cutouts
+                elif key == "markings" and isinstance(value, list):
+                    facts["marks"] += len(value)
+                walk(value)
+        elif isinstance(node, list):
+            for item in node:
+                walk(item)
+
+    for part in primitives:
+        if not isinstance(part, dict) or not isinstance(part.get("type"), str):
+            facts["broken"].append("has a part that is not an object with a type")
+            continue
+        kind = part["type"]
+        if kind == "marking":  # an engraving on another part, not a part of its own
+            facts["marks"] += 1
+            continue
+        facts["types"].add(kind)
+        try:
+            count = max(1, int(part.get("count") or 1))
+        except (TypeError, ValueError):
+            count = 1
+        facts["parts"] += count
+        if kind == "box":
+            facts["boxes"] += count
+            lid = part.get("lid")
+            if lid and str(lid).strip().lower() not in {"false", "0", "none", "no"}:
+                facts["lid"] = True
+        for key in _SIZE_KEYS.get(kind, ()):
+            if key not in part:
+                continue
+            try:
+                if float(part[key]) <= 0:
+                    facts["broken"].append(f"has a {kind} with {key} = {part[key]}")
+            except (TypeError, ValueError):
+                facts["broken"].append(f"has a {kind} with a non-number {key}")
+        walk(part)
+    return facts
+
+
+def shape_problems(prompt: str, primitives: list[Any]) -> list[str]:
+    """Why a design is not the object that was asked for, or [] when it plausibly is."""
+    facts = design_facts(primitives)
+    problems = list(facts["broken"])
+    types = facts["types"]
+    not_a_box = _NOT_A_BOX.search(prompt)
+    if not_a_box and types == {"box"} and facts["boxes"] == 1:
+        problems.append(f"draws a single box for a {not_a_box.group(1)}")
+    if facts["parts"] == 1 and types and types <= {"panel", "disc", "contour", "polygon"} and not _FLAT.search(prompt):
+        problems.append("draws one flat part for a 3D object")
+    have = {
+        "parts": facts["parts"] >= 2,
+        "round": bool(types & {"disc", "contour", "polygon"}),
+        "cutout": facts["cutouts"] >= 1,
+        "pattern": facts["cutouts"] >= 3 or facts["marks"] >= 1,
+        "lid": facts["lid"] or facts["parts"] >= 2,
+        "marks": facts["marks"] >= 1,
+    }
+    for pattern, need, why in _FEATURE_RULES:
+        if pattern.search(prompt) and not have[need]:
+            problems.append(why)
+    return problems
 
 
 def example_problems(example: dict[str, Any]) -> list[str]:
@@ -243,8 +349,6 @@ def collect_one(
 
 
 def cmd_collect(args: argparse.Namespace) -> int:
-    from train_prompts import make_prompts
-
     from llm_keys import own_endpoint
 
     teacher = args.teacher.strip().lower()
@@ -252,6 +356,37 @@ def cmd_collect(args: argparse.Namespace) -> int:
         print(f"collect: up to {args.count} requests to {teacher}, stopping at ${args.max_usd:.2f}. Re-run with --spend to start.")
         return 2
     out = Path(args.out)
+    lock = _take_lock(out)
+    if lock is None:
+        return 3
+    try:
+        return _collect(args, teacher, out)
+    finally:
+        lock.unlink(missing_ok=True)
+
+
+LOCK = "collect.lock"
+
+
+def _take_lock(out: Path) -> Path | None:
+    """One collect per folder. Two runs on the same folder (the first pilot) both resume from
+    the same file, draft every request twice and interleave their rows."""
+    out.mkdir(parents=True, exist_ok=True)
+    lock = out / LOCK
+    try:
+        fd = os.open(str(lock), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except FileExistsError:
+        held = lock.read_text(encoding="utf-8", errors="replace").strip() if lock.is_file() else ""
+        print(f"collect: another collect is using {out} ({held or 'no details'}). Wait for it, or use another --out. If no collect is running (it crashed), delete {lock}.")
+        return None
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        fh.write(f"pid {os.getpid()} since {time.strftime('%Y-%m-%d %H:%M:%S')}")
+    return lock
+
+
+def _collect(args: argparse.Namespace, teacher: str, out: Path) -> int:
+    from train_prompts import make_prompts
+
     if args.retry_rejected and (out / REJECTED).is_file():
         # After the gate or the repairs improve, earlier refusals deserve another try.
         (out / REJECTED).replace(out / (REJECTED + "." + time.strftime("%Y%m%d-%H%M%S") + ".old"))

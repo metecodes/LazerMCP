@@ -29,7 +29,7 @@ echo "== Python environment ($PY)"
 .venv/bin/python -m pip install --quiet -r requirements.txt
 
 echo "== Base model"
-ollama pull phi4-mini
+ollama pull qwen3:4b
 ollama create lasermcp-teacher -f tools/local_model/Modelfile.teacher
 
 echo "== Check: one free request through the real pipeline"

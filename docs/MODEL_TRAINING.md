@@ -34,7 +34,7 @@ Aşağıdaki komutlar Windows yoluyla yazıldı; Mac'te `.venv/Scripts/python.ex
 | 2 | Pilot: 50 istek, kaç tanesi kontrolden geçiyor | bilgisayarın | `tools/train.py collect --count 50` |
 | 3 | Asıl veri: en az 300 onaylı örnek | bilgisayarın (gece boyu) | `tools/train.py collect --count 2000` |
 | 4 | Eğitim dosyaları | bilgisayarın | `tools/train.py build` |
-| 5 | İnce ayar | Kaggle | `tools/kaggle_finetune.py` |
+| 5 | İnce ayar (varsayılan taban: Qwen3 4B Instruct) | Kaggle | `tools/kaggle_finetune.py` |
 | 6 | Eğitilmiş modeli kur ve ölç | bilgisayarın | aşağıda |
 | 7 | Döngü: eğitilmiş modeli öğretmen yapıp 3–6'yı tekrarla | | `collect --teacher local:lasermcp` |
 | 8 | Yayın: yalnızca ölçüm iyiyse | Vercel + tünel | aşağıda |
@@ -48,7 +48,7 @@ modeller ücretsizdir ve `--spend` istemez.
 2. Taban modeli indir ve LaserMCP'nin uzun istemine yetecek bağlamla kaydet:
 
 ```bash
-ollama pull phi4-mini
+ollama pull qwen3:4b
 ```
 
 ```bash
@@ -56,7 +56,12 @@ ollama create lasermcp-teacher -f tools/local_model/Modelfile.teacher
 ```
 
 Başka bir taban model denemek için `Modelfile.teacher` içindeki `FROM` satırını değiştir.
-Ticari kullanımdan önce seçtiğin modelin lisansını oku.
+Ticari kullanımdan önce seçtiğin modelin lisansını oku. Qwen3 düşünen bir modeldir:
+toplama sırasında `LASERMCP_LOCAL_THINK=off` ayarla, yoksa çıktı sınırı gizli düşünmeye
+harcanır.
+
+Aynı klasöre aynı anda tek bir `collect` çalışabilir (`collect.lock`). İkinci bir collect
+reddedilir. Çöken bir collect kilidi bırakırsa dosyayı elle sil.
 
 ### 6. Eğitilmiş modeli kurmak ve ölçmek
 
@@ -91,6 +96,12 @@ Studio kendiliğinden ücretsiz yerel planlayıcıya düşer. Bu adım henüz ku
   düzeltmeyi uygular ve yalnızca kontrolden geçeni `output/train/examples.jsonl` dosyasına
   yazar. Düzeltilen taslaklar ayrıca "reddedilen taslak + kontrol notu → düzeltilmiş
   taslak" örneği olur. Durdurulup yeniden başlatılabilir.
+- **Sadakat filtresi** (`train.quality_problems`): Kontrol yalnızca parçanın kesilip
+  birleşebileceğini kanıtlar. Kontrolden geçse bile şu taslaklar eğitime girmez: sistem
+  istemindeki örneği kopyalayan, yazılan ölçüyü ya da yazıyı yok sayan, stand, raf, sandalye,
+  köprü ya da düzenleyici için tek bir kutu çizen, 3B bir nesne için tek bir düz levha çizen,
+  istenen bölme/raf/çekmece/delik/kapak/tekerlek/desen/rakamı içermeyen ve bozuk ya da sıfır
+  ölçülü parça taşıyan taslaklar. `build` aynı kuralı eski satırlara da uygular.
 - **Kısa sistem istemi**: Eğitilmiş model grameri örneklerden öğrenir; hem eğitimde hem
   kullanımda gramersiz kısa istem kullanılır (`llm_client.tuned_system_prompt`). Bu istem
   değişirse model yeniden eğitilmelidir.
@@ -107,10 +118,17 @@ Studio kendiliğinden ücretsiz yerel planlayıcıya düşer. Bu adım henüz ku
 
 ## Bilinmeyenler
 
-- Hiçbir adım gerçek bir modelle denenmedi; hat sahte bir modelle uçtan uca test edildi.
-- 4 GB'a sığan bir modelin kontrolden ne sıklıkla geçeceği bilinmiyor; pilot gösterecek.
+- İlk pilotlar (14 Kasım 2026, istek başına 20'şer, `output/train_cmp/`): kontrolden geçme
+  oranı qwen3:4b'de %62, phi4-mini'de %21, qwen3.5:4b'de %6 oldu. Sadakat filtresi
+  sonradan uygulandığında qwen3:4b'nin 25 satırından yalnızca 1'i (kapaklı Arduino kutusu), phi4'ün 4 satırından
+  hiçbiri kaldı. Geri kalanların çoğu doğru ölçüde düz bir kutuydu. Gerçek verim düşük:
+  300 iyi örnek için binlerce istek gerekebilir.
 - Hız: tahminen istek başı 30–90 saniye, yani 2000 istek birkaç gece sürebilir.
-- `tools/kaggle_finetune.py` otomatik testlerin dışında; kütüphane sürümleri değişmiş olabilir.
+- `tools/kaggle_finetune.py` hiç çalıştırılmadı. Konuşma işaretlerini taban modelin kendi
+  şablonundan okur, eski ve yeni TRL argüman adlarına uyum sağlar ve bu yardımcılar
+  testlidir. Eğitimin kendisi denenmedi.
+- Ollama, GGUF içindeki sohbet şablonunu okuyamazsa `Modelfile.tuned` dosyasına taban
+  modelin `TEMPLATE` satırı eklenmelidir.
 - Küçük bir model büyük ihtimalle gpt-4o-mini kadar iyi olmayacak. Hedef, ücretsiz yerel
   planlayıcıdan belirgin iyi olması.
 

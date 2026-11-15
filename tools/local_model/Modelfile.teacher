@@ -1,8 +1,11 @@
 # Untrained base model with enough context for LaserMCP's full grammar prompt.
-#   ollama pull phi4-mini
+#   ollama pull qwen3:4b
 #   ollama create lasermcp-teacher -f tools/local_model/Modelfile.teacher
+# First pilots (Nov 2026, 20 requests each): qwen3:4b kept 62% of drafts at the gate,
+# phi4-mini 21%, qwen3.5:4b 6%. Run collect with LASERMCP_LOCAL_THINK=off so a thinking
+# model does not spend the output cap on hidden reasoning.
 # Any chat model that fits your GPU works: change FROM and re-create.
-FROM phi4-mini
+FROM qwen3:4b
 PARAMETER num_ctx 8192
 PARAMETER temperature 0.5
 PARAMETER num_predict 2500
