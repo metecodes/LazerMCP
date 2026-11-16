@@ -37,15 +37,45 @@ class KitTests(unittest.TestCase):
     def test_furniture_stands_up_in_the_viewer_frame(self):
         parts, _ = pk.expand_kits([{"type": "shelf_unit", "w": 300, "d": 150, "h": 400, "shelves": 2}], {"thickness": 3})
         pose = {p["label"]: p["placement"] for p in parts}
-        self.assertEqual(pose["top"]["origin"][1], 400)            # height runs along y
-        self.assertEqual(pose["back"]["origin"], [0, 0, 0])        # back wall away from the viewer
+        self.assertEqual(pose["top"]["origin"][1], 394)            # height runs along y (inner height)
         self.assertEqual(pose["back"]["v"], [0, 1, 0])
-        self.assertEqual(pose["bottom"]["origin"], [0, 0, 150])    # open front at z = depth
-        self.assertEqual(pose["shelf-1"]["origin"][1], 200)
-        bench, _ = pk.expand_kits([{"type": "bench", "w": 300, "d": 120, "h": 150}], {"thickness": 3})
-        self.assertEqual(next(p for p in bench if p["label"] == "top")["placement"]["origin"][1], 150)
+        self.assertEqual(pose["back"]["origin"][2], 0)             # back wall away from the viewer
+        self.assertEqual(pose["bottom"]["origin"][2], 147)         # open front towards the viewer
+        self.assertEqual(pose["shelf-1"]["origin"][1], 197)
         tray, _ = pk.expand_kits([{"type": "organizer", "w": 240, "d": 120, "h": 60, "compartments": 2}], {"thickness": 3})
         self.assertEqual(next(p for p in tray if p["label"] == "bottom")["placement"]["v"], [0, 1, 0])
+
+    def test_walls_sit_outside_the_inner_volume_so_joints_meet_exactly(self):
+        import payas_cad
+
+        kits = (
+            {"type": "shelf_unit", "w": 300, "d": 150, "h": 400, "shelves": 3},
+            {"type": "bench", "w": 300, "d": 120, "h": 150, "back_brace": True},
+            {"type": "organizer", "w": 240, "d": 120, "h": 60, "compartments": 3},
+        )
+        for kit in kits:
+            with self.subTest(kit=kit["type"]):
+                built = payas_cad.create_design(primitives=[kit], parameters={"thickness": 3})
+                joints = built["assembly"]["explicit_panel_assembly"]["joints"]
+                self.assertTrue(joints)
+                # Mating edges coincide: no wall is shifted by its own thickness.
+                self.assertEqual(max(j["world_edge_error_mm"] for j in joints), 0)
+                tabs = [d for d in built.get("tab_slot_debug") or [] if d.get("tab_id")]
+                self.assertTrue(all(d["result"] == "PASS" and abs(d["insertion_depth_mm"] - 3) < 0.01 for d in tabs))
+        # The outer size is the size that was asked for.
+        parts, _ = pk.expand_kits([{"type": "shelf_unit", "w": 300, "d": 150, "h": 400, "shelves": 1}], {"thickness": 3})
+        size = {p["label"]: (p["w"], p["h"]) for p in parts}
+        self.assertEqual(size["bottom"], (294, 147))               # 300 - 2 walls, 150 - back
+        self.assertEqual(size["left"], (147, 394))                 # 400 - bottom - top
+
+    def test_the_viewer_outline_shows_the_finger_joints(self):
+        import payas_cad
+        from assembly_result import panels_for_viewer
+
+        built = payas_cad.create_design(primitives=[{"type": "shelf_unit", "w": 300, "d": 150, "h": 400, "shelves": 2}], parameters={"thickness": 3})
+        points = {p["label"]: len(p["outline_local_mm"]) for p in panels_for_viewer(built["assembly_result"])["panels"]}
+        for wall in ("bottom", "top", "left", "right", "back"):
+            self.assertGreater(points[wall], 40, wall)
 
     def test_two_kits_keep_their_labels_apart(self):
         kits = [{"type": "bench", "w": 300, "d": 120, "h": 150}, {"type": "organizer", "w": 240, "d": 120, "h": 60, "compartments": 2}]

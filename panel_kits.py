@@ -77,63 +77,86 @@ def screw_holes(part: dict[str, Any], t: float) -> None:
 
 
 # --- families ---------------------------------------------------------------------------------
+# Every family is built around its INNER volume: x in [0, wi], y in [0, di], z in [0, hi].
+# A panel's nominal rectangle lies on a face of that volume and its thickness grows
+# OUTWARDS, which is the Boxes.py finger-joint contract (nominal sizes are inner sizes, the
+# fingers pass through the neighbour's thickness). Placing a wall's thickness inside the
+# volume instead left every tab 1.5 mm short of its slot. W, D, H are the outer sizes the
+# user asked for.
+NX, NY = [-1, 0, 0], [0, -1, 0]
+
+
+def _floor(wi: float, di: float, z: float = 0.0, label: str = "bottom") -> dict[str, Any]:
+    return panel(label, wi, di, [wi, 0, z], NX, Y)          # thickness below (normal -z)
+
+
+def _left(di: float, hi: float, label: str = "left") -> dict[str, Any]:
+    return panel(label, di, hi, [0, di, 0], NY, Z)           # thickness at x < 0
+
+
+def _right(wi: float, di: float, hi: float, label: str = "right") -> dict[str, Any]:
+    return panel(label, di, hi, [wi, 0, 0], Y, Z)            # thickness at x > wi
+
+
+def _back(wi: float, di: float, hi: float, label: str = "back") -> dict[str, Any]:
+    return panel(label, wi, hi, [wi, di, 0], NX, Z)          # thickness at y > di
+
 
 def carcass(W: float, D: float, H: float, t: float, middle: int, top: bool = True) -> tuple[list, list]:
     """Bookshelf / cubby / wall shelf: sides, bottom, optional top, back, shelves in between."""
-    parts = [
-        panel("bottom", W, D, [0, 0, 0], X, Y),
-        panel("left", D, H, [0, 0, 0], Y, Z),
-        panel("right", D, H, [W, 0, 0], Y, Z),
-        panel("back", W, H, [0, D, 0], X, Z),
-    ]
+    wi, di, hi = W - 2 * t, D - t, H - (2 * t if top else t)
+    parts = [_floor(wi, di), _left(di, hi), _right(wi, di, hi), _back(wi, di, hi)]
     pairs = [("bottom", "left"), ("bottom", "right"), ("back", "bottom"), ("back", "left"), ("back", "right")]
     if top:
-        parts.insert(1, panel("top", W, D, [0, 0, H], X, Y))
+        parts.insert(1, panel("top", wi, di, [0, 0, hi], X, Y))   # thickness above
         pairs += [("top", "left"), ("top", "right"), ("back", "top")]
-    tab_len = r1(D / 3)
+    tab_len = r1(di / 3)
     for i in range(1, middle + 1):
-        z = r1(H * i / (middle + 1))
+        z = r1(hi * i / (middle + 1))
         label = f"shelf-{i}"
-        parts.append(panel(label, W - t, D, [t, 0, z], X, Y))
-        tab_into(parts, label, "L", (-t / 2, D / 2, t, tab_len), "left", (D / 2, z + t / 2, tab_len, t))
-        tab_into(parts, label, "R", (W - t + t / 2, D / 2, t, tab_len), "right", (D / 2, z + t / 2, tab_len, t))
+        parts.append(panel(label, wi, di, [0, 0, z], X, Y))
+        tab_into(parts, label, "L", (-t / 2, di / 2, t, tab_len), "left", (di / 2, z + t / 2, tab_len, t))
+        tab_into(parts, label, "R", (wi + t / 2, di / 2, t, tab_len), "right", (di / 2, z + t / 2, tab_len, t))
     return parts, pairs
 
 
 def bench(W: float, D: float, H: float, t: float, back: bool) -> tuple[list, list]:
     """Bench / side table / monitor riser / doll-house table: a top on two legs."""
+    wi, di, hi = W - 2 * t, D - (t if back else 0), H - t
     parts = [
-        panel("top", W, D, [0, 0, H], X, Y),
-        panel("left-leg", D, H, [0, 0, 0], Y, Z),
-        panel("right-leg", D, H, [W, 0, 0], Y, Z),
+        panel("top", wi, di, [0, 0, hi], X, Y),
+        _left(di, hi, "left-leg"),
+        _right(wi, di, hi, "right-leg"),
     ]
     pairs = [("top", "left-leg"), ("top", "right-leg")]
     if back:
-        parts.append(panel("back-brace", W, H, [0, D, 0], X, Z))
+        parts.append(_back(wi, di, hi, "back-brace"))
         pairs += [("back-brace", "top"), ("back-brace", "left-leg"), ("back-brace", "right-leg")]
     return parts, pairs
 
 
 def organizer(W: float, D: float, H: float, t: float, cells: int) -> tuple[list, list]:
     """Open tray of five panels with (cells - 1) dividers held by tabs in the floor and walls."""
+    wi, di, hi = W - 2 * t, D - 2 * t, H - t
     parts = [
-        panel("bottom", W, D, [0, 0, 0], X, Y),
-        panel("front", W, H, [0, 0, 0], X, Z),
-        panel("back", W, H, [0, D, 0], X, Z),
-        panel("left", D, H, [0, 0, 0], Y, Z),
-        panel("right", D, H, [W, 0, 0], Y, Z),
+        _floor(wi, di),
+        panel("front", wi, hi, [0, 0, 0], X, Z),                # thickness at y < 0
+        _back(wi, di, hi),
+        _left(di, hi),
+        _right(wi, di, hi),
     ]
     pairs = [("bottom", "front"), ("bottom", "back"), ("bottom", "left"), ("bottom", "right"),
              ("front", "left"), ("front", "right"), ("back", "left"), ("back", "right")]
-    dw, dh = D - t, H - t
-    lb, lw = r1(dw / 3), r1(dh / 3)
+    lb, lw = r1(di / 3), r1(hi / 3)
     for i in range(1, cells):
-        x = r1(W * i / cells - t / 2)
+        x = r1(wi * i / cells - t / 2)
         label = f"divider-{i}"
-        parts.append(panel(label, dw, dh, [x, 0, t], Y, Z))
-        tab_into(parts, label, "B", (dw / 2, -t / 2, lb, t), "bottom", (x + t / 2, dw / 2, t, lb))
-        tab_into(parts, label, "F", (-t / 2, dh / 2, t, lw), "front", (x + t / 2, t + dh / 2, t, lw))
-        tab_into(parts, label, "K", (dw + t / 2, dh / 2, t, lw), "back", (x + t / 2, t + dh / 2, t, lw))
+        parts.append(panel(label, di, hi, [x, 0, 0], Y, Z))     # thickness from x to x + t
+        mid = x + t / 2
+        # The floor and the back wall are drawn mirrored in x (their thickness faces out).
+        tab_into(parts, label, "B", (di / 2, -t / 2, lb, t), "bottom", (wi - mid, di / 2, t, lb))
+        tab_into(parts, label, "F", (-t / 2, hi / 2, t, lw), "front", (mid, hi / 2, t, lw))
+        tab_into(parts, label, "K", (di + t / 2, hi / 2, t, lw), "back", (wi - mid, hi / 2, t, lw))
     return parts, pairs
 
 
@@ -200,7 +223,7 @@ def expand_kit(kit: dict[str, Any], thickness: float) -> tuple[list[dict[str, An
         if _truthy(kit.get("wall_holes"), False):
             screw_holes(find(parts, "back"), t)
         target = "top" if any(p["label"] == "top" for p in parts) else "back"
-        stand_up(parts, D)
+        stand_up(parts, D - t)
     elif kind == "bench":
         parts, pairs = bench(W, D, H, t, _truthy(kit.get("back_brace"), False))
         target = "top"

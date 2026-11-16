@@ -141,6 +141,37 @@ def build(assembly: dict[str, Any] | None, *, file_id: str | None = None, projec
             "thickness": assembly.get("thickness"), "debug": debug, "source": "automatic_assembly"}
 
 
+def _with_fingers(geom: dict[str, Any], pts: list[Any], thickness: float) -> list[Any]:
+    """The outline the 3D view draws for an explicitly placed panel, finger joints included.
+
+    Box walls already carry their fingered outline. A placed panel's stored outline is its
+    rectangle plus tabs (the reviewer checks slots and tabs against that), while the cut
+    file gets its f/F edges from Boxes.py: without this the view showed plain rectangles
+    for parts that are cut with fingers. Display only; nothing is validated against it.
+    """
+    edges = str(geom.get("edges") or "")[:4]
+    cut = geom.get("_cut_geometry") if isinstance(geom.get("_cut_geometry"), dict) else {}
+    if not any(c in "fF" for c in edges) or (cut.get("outer_cut") or {}).get("edge_profiles"):
+        return pts
+    try:
+        from shapely.geometry import Polygon
+
+        from composite_assembly import _rect
+
+        w, h = float(geom.get("w") or 0), float(geom.get("h") or 0)
+        if w <= 0 or h <= 0:
+            return pts
+        shape = Polygon(_rect(w, h, edges.ljust(4, "e"), thickness)["outer_cut"]["points"])
+        for tab in cut.get("tabs") or geom.get("tabs") or []:
+            if isinstance(tab, dict) and tab.get("materialized") and len(tab.get("points") or []) >= 3:
+                shape = shape.union(Polygon(tab["points"]))
+        if shape.geom_type != "Polygon" or not shape.is_valid:
+            return pts
+        return [(float(x), float(y)) for x, y in list(shape.exterior.coords)[:-1]]
+    except (TypeError, ValueError):
+        return pts
+
+
 def panels_for_viewer(result: dict[str, Any] | None) -> dict[str, Any]:
     """JSON mesh payload for Three.js. Never invents placements; dry-fit stays NOT_VERIFIED."""
     from assembled_view import outline
@@ -161,7 +192,7 @@ def panels_for_viewer(result: dict[str, Any] | None) -> dict[str, Any]:
         geom = _geometry_from_transform(row)
         if geom is None:
             continue
-        pts = outline(geom)
+        pts = _with_fingers(geom, outline(geom), thickness)
         if len(pts) < 3:
             continue
         cut = (geom.get("_cut_geometry") or {}) if isinstance(geom.get("_cut_geometry"), dict) else {}

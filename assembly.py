@@ -566,7 +566,7 @@ def check_assembly(
         "tab_slot_pairs": sum(1 for joint in joints if joint.get("kind") == "tab-slot"),
         "tab_slot_debug": joint_debug,
         "placement_diagnostics": placement_diagnostics,
-        "physical_parts": [{"id": p.get("physical_part_id"), "role":p.get("role"), "placement": p.get("placement"),"normal":_normal(p), "placement_source": p.get("placement_source") or (p.get("placement") or {}).get("source"), "outer_cut": (p.get("_cut_geometry") or {}).get("outer_cut"),"inner_cuts":(p.get("_cut_geometry") or {}).get("inner_cuts") or []} for p in physical_parts],
+        "physical_parts": [{"id": p.get("physical_part_id"), "role":p.get("role"), "placement": p.get("placement"),"normal":_normal(p), "placement_source": p.get("placement_source") or (p.get("placement") or {}).get("source"), "edges": p.get("edges"), "w": p.get("w"), "h": p.get("h"), "tabs": (p.get("_cut_geometry") or {}).get("tabs") or [], "outer_cut": (p.get("_cut_geometry") or {}).get("outer_cut"),"inner_cuts":(p.get("_cut_geometry") or {}).get("inner_cuts") or []} for p in physical_parts],
         "logical_groups": composite["logical_groups"],
         "derived_constraints": composite["derived_constraints"],
         "transform_validation":transform_validation,
