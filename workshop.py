@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 import secrets
 from typing import Any
@@ -1530,6 +1531,64 @@ def _studio_llm_draft(
     return result, plan, drafts.usage(), info
 
 
+def _agent_requested(payload: dict[str, Any]) -> bool:
+    """`agent: true` in the request, or LASERMCP_STUDIO_AGENT=1 to make it the default."""
+    if "agent" in payload:
+        return str(payload.get("agent")).strip().lower() not in {"", "0", "false", "no", "none"}
+    return str(os.environ.get("LASERMCP_STUDIO_AGENT") or "").strip().lower() in {"1", "true", "on", "yes"}
+
+
+def _studio_agent_run(payload: dict[str, Any], *, request: str, parameters: dict[str, Any], cost: dict[str, Any],
+                      gate: dict[str, Any], base: str, client_ip: str) -> dict[str, Any]:
+    """One Studio request handled by studio_agent.run_agent (same tools as an MCP client)."""
+    from llm_guard import authorize
+    from plans import gate_job
+    from studio_agent import run_agent
+
+    def refused(*notes: str, **extra: Any) -> dict[str, Any]:
+        return {"success": True, "ok": False, "look_again": [n for n in notes if n], "plan": gate, **extra}
+
+    guard = authorize(payload.get("model"), client_ip=client_ip)
+    if not guard.get("allow"):
+        return refused(str(guard.get("note") or "") or "The step-by-step AI needs a model: add your own AI key in Account, or pick a model that is switched on.")
+    image = None
+    raw_image = str(payload.get("image_base64") or payload.get("photo_base64") or "")
+    if raw_image:
+        photo_gate = gate_job("photo")
+        if not photo_gate.get("ok"):
+            return {**photo_gate, "ok": False, "success": True}
+        media = "image/jpeg"
+        if raw_image.strip().lower().startswith("data:") and "," in raw_image:
+            head, raw_image = raw_image.split(",", 1)
+            media = head[5:].split(";")[0].strip().lower() or media
+        if media not in {"image/jpeg", "image/png", "image/webp", "image/gif"}:
+            return refused("The picture must be JPG, PNG or WebP.")
+        image = {"media": media, "data": raw_image.strip()}
+    choices = {k: parameters[k] for k in ("thickness", "material", "machine") if k in parameters}
+    for key in ("holding_nicks", "surface_texts"):
+        if key in payload:
+            choices[key] = payload[key]
+    model_id, provider = str(guard.get("model") or ""), str(guard.get("provider") or "")
+    try:
+        run = run_agent(request, model=model_id, key_owner=str(guard.get("key_owner") or ""), image=image,
+                        thickness=parameters.get("thickness"), choices=choices)
+    except ValueError as exc:
+        return refused(f"The AI model did not answer: {exc}")
+    agent = {k: run.get(k) for k in ("message", "steps", "turns", "questions", "stopped")}
+    plan_job = {"summary": run.get("message"), "method": "studio_agent", "provider": provider, "model": model_id, "usage": run.get("usage")}
+    if not run.get("design"):
+        return refused(run.get("message") or "", "" if run.get("message") else "The AI finished without a design.", agent=agent, plan_job=plan_job, cost=cost)
+    looks = [
+        "AI draft is digital only. Confirm joints and dry-fit before cutting.",
+        f"Studio AI used your own {provider} key ({model_id}) — billed to your provider account."
+        if guard.get("own_key") else f"Studio AI used workshop {provider} key — billed to that provider, not LaserMCP lzr_.",
+    ]
+    result = _studio_ai_result(run["design"], cost=cost, plan=gate, public_base_url=base, plan_job=plan_job,
+                               source="agent", extra_look=looks, lead_look=str(run.get("message") or ""))
+    result["agent"] = agent
+    return result
+
+
 def create_studio_ai(body: dict[str, Any] | None = None, *, public_base_url: str | None = None, client_ip: str = "") -> dict[str, Any]:
     """Studio AI: prompt and/or uploaded photo|svg|plt|dxf → 3D panels. Gated by platform_ai + quota.
 
@@ -1594,6 +1653,13 @@ def create_studio_ai(body: dict[str, Any] | None = None, *, public_base_url: str
             "mode": "studio_local",
         }
     )
+
+    # --- Agent: the model works with the server's own tools, step by step ---
+    if _agent_requested(payload):
+        return _studio_agent_run(
+            payload, request=request or raw_prompt, parameters=parameters, cost=cost,
+            gate=design_gate, base=base, client_ip=client_ip,
+        )
 
     # --- Photo / image → trace ---
     if has_image:

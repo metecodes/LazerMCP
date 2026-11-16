@@ -1,0 +1,13 @@
+{
+  "note": "Image benchmark for tools/vision_eval.py. The model sees only the image. See that file's docstring for the fields.",
+  "images": [
+    {
+      "id": "cut-house-01",
+      "file": "cut-house-01.png",
+      "kind": "cut_sheet",
+      "about": "İki katlı bebek evi kesim planı: pencereli ön duvar, arka duvar, taban, yan duvarlar, çatı ve süs parçaları (taç, kapı, yıldız)",
+      "min_panels": 5,
+      "max_panels": 10
+    }
+  ]
+}
