@@ -63,6 +63,21 @@ harcanır.
 Aynı klasöre aynı anda tek bir `collect` çalışabilir (`collect.lock`). İkinci bir collect
 reddedilir. Çöken bir collect kilidi bırakırsa dosyayı elle sil.
 
+### Hazır modeli kurmak (eğitmeden)
+
+Eğitilmiş model projeyle birlikte gelir; ağırlıklar (2,5 GB) git'te değil, gizli Kaggle veri
+setinde (`metecodes/lasermcp-model`) durur. Tek komut indirir, Ollama'ya `lasermcp` adıyla
+kaydeder ve gerçek kontrolden bir tasarım geçirerek dener:
+
+```bash
+.venv/Scripts/python.exe tools/local_model/install_tuned.py
+```
+
+Stüdyo'da kullanmak için sunucunun çalıştığı yerde `LASERMCP_TUNED_MODEL=lasermcp` ve
+`LASERMCP_TUNED_BASE_URL=http://127.0.0.1:11434/v1` ayarla; model listesine `lasermcp-tuned`
+eklenir. Güncel model üçüncü turun modelidir (58 soruda 41, istek başına ~6 sn). Yalnızca
+yazılı isteklerde çalışır: görsel görmez ve Stüdyo ajanının araç döngüsünü süremez.
+
 ### 6. Eğitilmiş modeli kurmak ve ölçmek
 
 Kaggle'dan inen `lasermcp.gguf` dosyasını `tools/local_model/` içine koy:
