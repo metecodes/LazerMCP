@@ -34,7 +34,8 @@ CORE = (
     "inspect_design", "export_dxf", "export_svg",
 )
 PARAMETER_TOOLS = frozenset({"create_design", "create_from_reference"})
-PHOTO_KEYS = frozenset({"what_you_see", "reference", "has_photo", "reference_image", "reference_id"})
+PHOTO_KEYS = frozenset({"what_you_see", "reference", "has_photo", "reference_image", "reference_id",
+                        "reference_job", "reference_mode", "reference_parts"})
 RESULT_CHARS = 6000  # what the model reads back from one tool call
 STRING_CHARS = 600   # one string inside a result (SVG, base64 and file bodies are far longer)
 

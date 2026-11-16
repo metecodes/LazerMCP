@@ -116,7 +116,7 @@ class LoopTests(unittest.TestCase):
         self.assertEqual(run["questions"], [])
 
     def test_a_typed_request_is_never_treated_as_a_photo(self):
-        photoish = {"primitives": SHELF["primitives"], "parameters": {**SHELF["parameters"], "what_you_see": "kitaplık", "reference": {"mm": 300}}}
+        photoish = {"primitives": SHELF["primitives"], "parameters": {**SHELF["parameters"], "what_you_see": "kitaplık", "reference": {"mm": 300}, "reference_job": True, "reference_mode": "structural"}}
         step = scripted(call("create_design", photoish), say("Hazır."))
         run = sa.run_agent("kitaplık", model="local:test", step=step)
         self.assertTrue(run["success"], run["steps"])
