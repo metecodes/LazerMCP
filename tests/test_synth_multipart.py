@@ -34,6 +34,19 @@ class KitTests(unittest.TestCase):
         self.assertEqual(kit, {"type": "shelf_unit", "w": 300, "d": 150, "h": 400, "shelves": 3})
         self.assertEqual(pk.expand_kits([box], None), ([box], None))
 
+    def test_furniture_stands_up_in_the_viewer_frame(self):
+        parts, _ = pk.expand_kits([{"type": "shelf_unit", "w": 300, "d": 150, "h": 400, "shelves": 2}], {"thickness": 3})
+        pose = {p["label"]: p["placement"] for p in parts}
+        self.assertEqual(pose["top"]["origin"][1], 400)            # height runs along y
+        self.assertEqual(pose["back"]["origin"], [0, 0, 0])        # back wall away from the viewer
+        self.assertEqual(pose["back"]["v"], [0, 1, 0])
+        self.assertEqual(pose["bottom"]["origin"], [0, 0, 150])    # open front at z = depth
+        self.assertEqual(pose["shelf-1"]["origin"][1], 200)
+        bench, _ = pk.expand_kits([{"type": "bench", "w": 300, "d": 120, "h": 150}], {"thickness": 3})
+        self.assertEqual(next(p for p in bench if p["label"] == "top")["placement"]["origin"][1], 150)
+        tray, _ = pk.expand_kits([{"type": "organizer", "w": 240, "d": 120, "h": 60, "compartments": 2}], {"thickness": 3})
+        self.assertEqual(next(p for p in tray if p["label"] == "bottom")["placement"]["v"], [0, 1, 0])
+
     def test_two_kits_keep_their_labels_apart(self):
         kits = [{"type": "bench", "w": 300, "d": 120, "h": 150}, {"type": "organizer", "w": 240, "d": 120, "h": 60, "compartments": 2}]
         parts, _ = pk.expand_kits(kits, {})

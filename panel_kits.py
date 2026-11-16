@@ -13,7 +13,8 @@ for shelves and dividers that meet a panel in its middle.
 
 Sizes are outer millimetres: w = width (x), d = depth (y), h = height (z). `shelves` counts
 every board that carries something, the bottom included. A panel's thickness grows along
-its normal (u x v).
+its normal (u x v). Shelf units and benches are placed standing up for the Studio's 3D view
+(y up, open front towards the viewer); an organizer is seen from above like a box.
 """
 
 from __future__ import annotations
@@ -136,6 +137,24 @@ def organizer(W: float, D: float, H: float, t: float, cells: int) -> tuple[list,
     return parts, pairs
 
 
+def stand_up(parts: list[dict[str, Any]], depth: float) -> None:
+    """Turn a kit built with z = height into the Studio viewer's frame, where y is up.
+
+    The 3D view draws placements as they are and its camera has y up, with +z towards the
+    viewer: a standard box is seen looking into its opening. Furniture built with z as
+    height therefore lay on its back. This is one rigid quarter turn about x (height
+    becomes y, the open front faces the viewer at z = depth), so every joint, tab and slot
+    keeps fitting exactly as before; the cut parts do not change at all.
+    """
+    for part in parts:
+        pose = part["placement"]
+        x, y, z = pose["origin"]
+        pose["origin"] = [r1(x), r1(z), r1(depth - y)]
+        for axis in ("u", "v"):
+            ax, ay, az = pose[axis]
+            pose[axis] = [ax, az, -ay]
+
+
 # --- expansion --------------------------------------------------------------------------------
 
 def is_kit(part: Any) -> bool:
@@ -181,9 +200,11 @@ def expand_kit(kit: dict[str, Any], thickness: float) -> tuple[list[dict[str, An
         if _truthy(kit.get("wall_holes"), False):
             screw_holes(find(parts, "back"), t)
         target = "top" if any(p["label"] == "top" for p in parts) else "back"
+        stand_up(parts, D)
     elif kind == "bench":
         parts, pairs = bench(W, D, H, t, _truthy(kit.get("back_brace"), False))
         target = "top"
+        stand_up(parts, D)
     else:
         cells = _count(kit, "compartments", 1)
         if W / cells < 8 * t:
