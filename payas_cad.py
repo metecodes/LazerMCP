@@ -478,6 +478,10 @@ def create_design(
         elif svg:
             built = import_svg_document(svg, parameters)
         else:
+            if primitives:
+                # Kits (shelf_unit, bench, organizer) become placed, joined panels here, once.
+                from panel_kits import expand_kits
+                primitives, parameters = expand_kits(primitives, parameters)
             built = compile_design(preset=preset, primitives=primitives, parameters=parameters)
     except Exception as exc:
         message = str(exc)

@@ -46,6 +46,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 OUT = ROOT / "output" / "train"
 EXAMPLES = "examples.jsonl"
+SYNTHETIC = "synthetic.jsonl"  # tools/synth_multipart.py: gate-checked multi-part designs
 REJECTED = "rejected.jsonl"
 ERRORS = "errors.jsonl"
 REPORT = "report.txt"
@@ -272,6 +273,13 @@ def design_facts(primitives: list[Any]) -> dict[str, Any]:
 
 def shape_problems(prompt: str, primitives: list[Any]) -> list[str]:
     """Why a design is not the object that was asked for, or [] when it plausibly is."""
+    try:
+        # A kit is one line in the draft but many parts on the bench: judge what it becomes.
+        from panel_kits import expand_kits
+
+        primitives = expand_kits(primitives, {})[0] or primitives
+    except (TypeError, ValueError) as exc:
+        return [f"has a kit that cannot be built: {exc}"]
     facts = design_facts(primitives)
     problems = list(facts["broken"])
     types = facts["types"]
@@ -568,7 +576,10 @@ def cmd_build(args: argparse.Namespace) -> int:
     from llm_client import tuned_system_prompt
 
     out = Path(args.out)
-    train, valid = split(_read_jsonl(out / EXAMPLES))
+    synthetic = _read_jsonl(out / SYNTHETIC)
+    if synthetic:
+        print(f"+ {len(synthetic)} synthetic multi-part rows from {out / SYNTHETIC}")
+    train, valid = split(_read_jsonl(out / EXAMPLES) + synthetic)
     if len(train) < MIN_EXAMPLES:
         print(f"only {len(train)} usable examples in {out / EXAMPLES}; need at least {MIN_EXAMPLES} (a few hundred to be useful). Run collect first.")
         return 1

@@ -132,6 +132,19 @@ Studio kendiliğinden ücretsiz yerel planlayıcıya düşer. Bu adım henüz ku
   ölçüm: ücretsiz planlayıcı 24, eğitilmemiş qwen3:8b 28, **eğitilmiş model 34** (istek
   başına 4–10 sn). Model `metecodes/lasermcp-model`, adaptör `metecodes/lasermcp-lora`
   (gizli Kaggle veri setleri).
+- İkinci tur (16 Kasım 2026): `tools/synth_multipart.py` ile kontrolden geçen 300 çok parçalı
+  örnek (kitaplık, raf, sehpa, bölmeli düzenleyici) eklendi; 621 eğitim satırı, 63 dakika.
+  Sonuç **32/58**, ilk modelden (34) iyi değil. Model çok parçalı çizmeyi deniyor ama panel
+  koordinatlarını yanlış hesaplıyor (dik olmayan birleşim, hizasız dil-yuva) ve aile dışı
+  isteklerde (telefon standı, eğimli stand) aynı kalıbı yanlış yere uyguluyor. Varsayılan
+  `lasermcp` ilk model olarak kaldı; ikincisi `lasermcp-v2`. Eğitim `kaggle kernels push`
+  ile tarayıcısız çalışır (output/kaggle_kernel).
+- Üçüncü tur (16 Kasım 2026): model koordinat yazmak yerine kalıp seçiyor. `panel_kits.py`
+  üç kalıp türü ekler (`shelf_unit`, `bench`, `organizer`); paneller, parmak geçmeler ve
+  dil-yuvalar kodla hesaplanır. Aynı 300 çok parçalı istek kalıp biçiminde yeniden üretildi
+  (örnek başına ~316 karakter). Sonuç **41/58 (%71)**, istek başına ortalama 6 sn. Varsayılan
+  `lasermcp` artık bu model; öncekiler `lasermcp-v1` ve `lasermcp-v2`. Kalan hatalar:
+  çekmeceli tasarımlar, düz tek parçalar için hiç parça çizmeme, kutu duvarından taşan yuvalar.
 - Kaggle'da indirme: notebook panelinden ve veri seti sayfasından tarayıcıyla inmedi.
   Çalışan yol: notebook'ta `kagglehub.dataset_upload`, bilgisayarda `kaggle datasets
   download` (anahtar `~/.kaggle/access_token`).

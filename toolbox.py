@@ -58,6 +58,7 @@ ASSEMBLY_TYPES = frozenset(
 )
 
 GRAMMAR = {
+    "kits": __import__("panel_kits").GRAMMAR,
     "edges": (
         "rectangularWall edges are bottom,right,top,left. "
         "e=straight, f=male fingers, F=female finger holes, "
