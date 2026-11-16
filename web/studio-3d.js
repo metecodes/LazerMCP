@@ -2750,6 +2750,12 @@ function buildAiBody(extra) {
       .slice(-12)
       .map((m) => ({ role: m.role, text: m.text })),
   };
+  if ($("ai-agent") && $("ai-agent").checked) {
+    // The agent works with the server's own tools; these are the choices those tools ask for.
+    body.agent = true;
+    body.holding_nicks = !($("ai-nicks") && $("ai-nicks").value === "false");
+    body.surface_texts = [];
+  }
   if (state.aiLastResult) {
     body.prior_status = state.aiLastResult.final_status || "";
     body.prior_look_again = aiBlockReasons(state.aiLastResult).slice(0, 12);
@@ -2773,9 +2779,53 @@ function buildAiBody(extra) {
   return Object.assign(body, extra || {});
 }
 
+const AGENT_TOOL_LABELS = {
+  plan_laser_job: "Plan çıkarıldı",
+  create_design: "Tasarım çizildi",
+  create_from_reference: "Görselden tasarım çizildi",
+  validate_assembly: "Montaj kontrol edildi",
+  validate_svg: "Kesim dosyası kontrol edildi",
+  render_preview: "Önizleme hazırlandı",
+  search_joint_templates: "Birleşim şablonları arandı",
+  inspect_design: "Tasarım incelendi",
+};
+
+// One chat line per step the agent took, so the user can follow the plan and the retries.
+function agentStepLines(agent) {
+  const lines = [];
+  ((agent && agent.steps) || []).forEach((step, i) => {
+    if (step.say) {
+      lines.push("💬 " + String(step.say));
+      return;
+    }
+    const name = AGENT_TOOL_LABELS[step.tool] || String(step.tool || "araç");
+    let line = (i + 1) + ". " + name;
+    if (step.final_status === "BLOCKED") line += " — kontrolden geçmedi, düzeltiliyor";
+    else if (step.error_code === "PROJECT_CHOICES_REQUIRED") line += " — senden bir seçim gerekiyor";
+    else if (!step.ok) line += " — olmadı";
+    else if (step.final_status) line += " — kontrolden geçti";
+    if (step.notes && step.notes.length && step.final_status === "BLOCKED") line += ": " + String(step.notes[0]).slice(0, 140);
+    lines.push(line);
+  });
+  return lines;
+}
+
 function applyAiResult(data, { fromChat } = {}) {
   state.aiLastResult = data;
   if (data.cost) paintAiCost(data.cost);
+  const agent = data.agent || null;
+  if (agent) {
+    agentStepLines(agent).forEach((line) => appendAiChat("system", line));
+    if (agent.stopped) appendAiChat("system", "Durduruldu: " + agent.stopped);
+    if (!data.final_status) {
+      // No design yet: the model is asking something or explaining why it could not build.
+      hideAiBlocked();
+      const text = String(agent.message || (data.look_again || [])[0] || "Model bir tasarım üretmedi.");
+      appendAiChat("assistant", text);
+      setStatus(text.slice(0, 160));
+      return false;
+    }
+  }
   const blocked = data.final_status === "BLOCKED"
     || data.export_allowed === false
     || data.ok === false
@@ -2804,7 +2854,7 @@ function applyAiResult(data, { fromChat } = {}) {
   // Only model/box summaries describe the design; the generic planner's summary is a note
   // to an assistant ("Compose the mill/house…") and must not reach the user.
   const job = data.plan_job || {};
-  const userSummary = ["workshop_llm", "workshop_llm_cache", "studio_box", "studio_maker"].includes(job.method) ? job.summary : "";
+  const userSummary = ["workshop_llm", "workshop_llm_cache", "studio_box", "studio_maker", "studio_agent"].includes(job.method) ? job.summary : "";
   const okLine = "Hazır. " + (userSummary || "Tasarım kontrolden geçti, indirebilirsin.");
   appendAiChat("assistant", okLine, "ok");
   setStatus(okLine, "ok");
@@ -3316,6 +3366,17 @@ function wireUi() {
     api("/api/studio/ai_cost", { method: "POST", body: JSON.stringify({ prompt: "", model: "" }) })
       .then(({ data }) => syncAiModels(data && data.studio_models))
       .catch(() => {});
+  }
+  if ($("ai-agent")) {
+    const paintAgent = () => {
+      if ($("ai-nicks-row")) $("ai-nicks-row").classList.toggle("hide", !$("ai-agent").checked);
+    };
+    try { $("ai-agent").checked = localStorage.getItem("lasermcp-ai-agent") === "1"; } catch (e) { /* private mode */ }
+    $("ai-agent").onchange = () => {
+      try { localStorage.setItem("lasermcp-ai-agent", $("ai-agent").checked ? "1" : "0"); } catch (e) { /* private mode */ }
+      paintAgent();
+    };
+    paintAgent();
   }
   if ($("ai-w")) $("ai-w").addEventListener("change", scheduleAiCost);
   $("dim-pop-cancel").onclick = hideDimPop;

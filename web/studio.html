@@ -547,6 +547,17 @@
               <option value="claude-sonnet-4.5">Claude Sonnet</option>
             </select>
           </label>
+          <label style="display:flex;align-items:center;gap:8px;margin:6px 0 2px">
+            <input id="ai-agent" type="checkbox" style="width:auto;margin:0">
+            <span>Adım adım çalış (ajan)</span>
+          </label>
+          <p class="hint" style="margin:0 0 6px">Model planlar, sunucunun araçlarını sırayla kullanır, kontrol notlarını okuyup düzeltir. Yüklediğin görseli de görür. Daha yavaş ve biraz daha pahalıdır; güçlü modelle (GPT‑4o, Claude Sonnet) en iyi sonucu verir.</p>
+          <label id="ai-nicks-row" class="hide">Noç (parçayı levhada tutan köprü)
+            <select id="ai-nicks">
+              <option value="true" selected>Noçlu</option>
+              <option value="false">Noçsuz</option>
+            </select>
+          </label>
           <p class="hint" id="ai-own-key" style="margin:4px 0 8px">Daha güçlü model (GPT‑6 Astra, Claude) için <a href="/account">kendi API anahtarını bağla</a>.</p>
           <div class="row2">
             <button class="btn ghost" type="button" id="ai-cost-btn">Maliyet tahmin</button>
@@ -685,7 +696,7 @@
     }
   }
   </script>
-  <script type="module" src="/studio-3d.js?v=43"></script>
+  <script type="module" src="/studio-3d.js?v=44"></script>
   <script src="/nav-auth.js?v=6"></script>
 </body>
 </html>
