@@ -204,6 +204,12 @@ _FLAT = re.compile(r"\b(isimli\w*|sign|kadran\w*|clock face|şasi\w*|chassis|tab
 _FEATURE_RULES: tuple[tuple[re.Pattern[str], str, str], ...] = (
     (re.compile(r"bölme|compartment|katlı|raflı|\bshel(?:f|ves)\b|\btiers?\b|çekmece|drawer|kanca|hook|ayaklı|arkadan destekli|with a stand|back support", re.I), "parts", "is one part, but the request needs more (compartments, shelves, a drawer, hooks or a support)"),
     (re.compile(r"tekerlek|\bwheels?\b", re.I), "round", "has no wheel"),
+    # A slot or a window does not answer these; each asks for a specific kind of cutout.
+    (re.compile(r"vida|screw|\bm3\b|mounting holes?|duvara|wall mount|for the wall", re.I), "screw", "has fewer than 2 round holes although screw or mounting holes were asked for"),
+    (re.compile(r"pencere|window|\blcd\b|ekran", re.I), "window", "has no slot for the requested window"),
+    (re.compile(r"\busb|\bports?\b|girişi|connector", re.I), "port", "has no port or slot for the requested connector"),
+    (re.compile(r"havalandırma|\bvent", re.I), "vent", "has fewer than 3 cutouts for the requested vent"),
+    (re.compile(r"\bsap\w*|\bhandles?\b|tutma yeri", re.I), "handle", "has no handle (no hand slot and no extra part)"),
     (re.compile(r"delik|\bholes?\b|havalandırma|\bvent|kablo|cable|tahliye|drain|pencere|window|giriş|entrance|door opening|para yuvası|coin slot|\busb|\bports?\b|vida|screw|\bm3\b|duvara|wall mounted|for the wall", re.I), "cutout", "has no hole, slot or port although one was asked for"),
     (re.compile(r"desen|pattern", re.I), "pattern", "has no pattern"),
     (re.compile(r"kapak|\blid\b", re.I), "lid", "has no lid"),
@@ -215,13 +221,17 @@ _SIZE_KEYS = {"box": ("x", "y", "h"), "panel": ("w", "h"), "triangle": ("w", "h"
 
 def design_facts(primitives: list[Any]) -> dict[str, Any]:
     """What a design physically holds, read from its primitives."""
-    facts: dict[str, Any] = {"parts": 0, "boxes": 0, "types": set(), "cutouts": 0, "marks": 0, "lid": False, "broken": []}
+    facts: dict[str, Any] = {
+        "parts": 0, "boxes": 0, "types": set(), "cutouts": 0, "holes": 0, "slots": 0, "ports": 0,
+        "marks": 0, "lid": False, "broken": [],
+    }
 
     def walk(node: Any) -> None:
         if isinstance(node, dict):
             for key, value in node.items():
                 if key in ("holes", "slots", "ports") and isinstance(value, list):
                     facts["cutouts"] += len(value)  # finger_holes are joints, not cutouts
+                    facts[key] += len(value)
                 elif key == "markings" and isinstance(value, list):
                     facts["marks"] += len(value)
                 walk(value)
@@ -277,6 +287,11 @@ def shape_problems(prompt: str, primitives: list[Any]) -> list[str]:
         "pattern": facts["cutouts"] >= 3 or facts["marks"] >= 1,
         "lid": facts["lid"] or facts["parts"] >= 2,
         "marks": facts["marks"] >= 1,
+        "screw": facts["holes"] >= 2,
+        "window": facts["slots"] >= 1,
+        "port": facts["ports"] + facts["slots"] >= 1,
+        "vent": facts["cutouts"] >= 3,
+        "handle": facts["slots"] >= 1 or facts["parts"] >= 2,
     }
     for pattern, need, why in _FEATURE_RULES:
         if pattern.search(prompt) and not have[need]:

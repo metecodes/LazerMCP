@@ -101,7 +101,9 @@ Studio kendiliğinden ücretsiz yerel planlayıcıya düşer. Bu adım henüz ku
   istemindeki örneği kopyalayan, yazılan ölçüyü ya da yazıyı yok sayan, stand, raf, sandalye,
   köprü ya da düzenleyici için tek bir kutu çizen, 3B bir nesne için tek bir düz levha çizen,
   istenen bölme/raf/çekmece/delik/kapak/tekerlek/desen/rakamı içermeyen ve bozuk ya da sıfır
-  ölçülü parça taşıyan taslaklar. `build` aynı kuralı eski satırlara da uygular.
+  ölçülü parça taşıyan taslaklar. Kesim türü de doğru olmalı: vida için en az 2 yuvarlak delik,
+  pencere/LCD için bir yuva, USB/giriş için port ya da yuva, havalandırma için en az 3 kesim,
+  sap için el yuvası ya da ek parça. `build` aynı kuralı eski satırlara da uygular.
 - **Kısa sistem istemi**: Eğitilmiş model grameri örneklerden öğrenir; hem eğitimde hem
   kullanımda gramersiz kısa istem kullanılır (`llm_client.tuned_system_prompt`). Bu istem
   değişirse model yeniden eğitilmelidir.
@@ -124,11 +126,19 @@ Studio kendiliğinden ücretsiz yerel planlayıcıya düşer. Bu adım henüz ku
   hiçbiri kaldı. Geri kalanların çoğu doğru ölçüde düz bir kutuydu. Gerçek verim düşük:
   300 iyi örnek için binlerce istek gerekebilir.
 - Hız: tahminen istek başı 30–90 saniye, yani 2000 istek birkaç gece sürebilir.
-- `tools/kaggle_finetune.py` hiç çalıştırılmadı. Konuşma işaretlerini taban modelin kendi
-  şablonundan okur, eski ve yeni TRL argüman adlarına uyum sağlar ve bu yardımcılar
-  testlidir. Eğitimin kendisi denenmedi.
-- Ollama, GGUF içindeki sohbet şablonunu okuyamazsa `Modelfile.tuned` dosyasına taban
-  modelin `TEMPLATE` satırı eklenmelidir.
+- İlk tam tur (16 Kasım 2026): öğretmen qwen3:8b, 1927 istekten 380 örnek (%20). Örneklerin
+  hepsi tek kutu ya da tek levha; çok parçalı hiç örnek yok. Filtre sonrası 351 eğitim + 40
+  doğrulama satırı, Kaggle T4'te Qwen3-4B Instruct, 3 tur, yaklaşık 20 dakika. 58 soruluk
+  ölçüm: ücretsiz planlayıcı 24, eğitilmemiş qwen3:8b 28, **eğitilmiş model 34** (istek
+  başına 4–10 sn). Model `metecodes/lasermcp-model`, adaptör `metecodes/lasermcp-lora`
+  (gizli Kaggle veri setleri).
+- Kaggle'da indirme: notebook panelinden ve veri seti sayfasından tarayıcıyla inmedi.
+  Çalışan yol: notebook'ta `kagglehub.dataset_upload`, bilgisayarda `kaggle datasets
+  download` (anahtar `~/.kaggle/access_token`).
+- Qwen3 sohbet şablonu eğitimde her cevabın önüne boş bir düşünme bloğu koyar. GGUF içindeki
+  şablon bunu kullanımda koymadığı için model cevaba `</tool_call>` ile başlıyordu. Çözüm:
+  GGUF'tan `tokenizer.chat_template` silinir (`gguf-new-metadata --remove-metadata
+  tokenizer.chat_template`), `Modelfile.tuned` içindeki şablon bloğu kendisi ekler.
 - Küçük bir model büyük ihtimalle gpt-4o-mini kadar iyi olmayacak. Hedef, ücretsiz yerel
   planlayıcıdan belirgin iyi olması.
 

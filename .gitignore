@@ -8,3 +8,6 @@ output/*
 !output/.gitkeep
 .vercel
 .env*
+
+# Fine-tuned model weights (several GB, downloaded from Kaggle)
+tools/local_model/*.gguf

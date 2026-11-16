@@ -48,5 +48,20 @@ class TrlArgumentTests(unittest.TestCase):
         self.assertEqual(kf.tokenizer_key(OldTrainer), "tokenizer")
 
 
+class DataDirTests(unittest.TestCase):
+    def test_finds_the_uploaded_folder_whatever_kaggle_names_it(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            data = root / "datasets" / "someone" / "lasermcp-data"
+            data.mkdir(parents=True)
+            (data / "train.jsonl").write_text("{}\n", encoding="utf-8")
+            self.assertEqual(kf.find_data_dir(root / "lasermcp-train", root), data)
+            self.assertEqual(kf.find_data_dir(data, root / "missing"), data)
+            with self.assertRaises(SystemExit):
+                kf.find_data_dir(root / "x", root / "missing")
+
+
 if __name__ == "__main__":
     unittest.main()

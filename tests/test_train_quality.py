@@ -80,6 +80,24 @@ class ShapeTests(unittest.TestCase):
         self.assertEqual(train.shape_problems("kapaklı takı kutusu", [{**self.PLAIN, "lid": True}]), [])
         self.assertIn("has no lid", train.shape_problems("kapaklı takı kutusu", [{**self.PLAIN, "lid": "false"}]))
 
+    def test_specific_cutouts_must_be_the_right_kind(self):
+        # Collected rows: a window slot stood in for screw holes, a plain box for a carry handle.
+        window_only = {**self.PLAIN, "walls": {"front": {"slots": [{"w": 13, "h": 8, "x": 60, "y": 50}], "holes": []}}}
+        got = train.shape_problems("control box with an LCD window with M3 mounting holes", [window_only])
+        self.assertIn("has fewer than 2 round holes although screw or mounting holes were asked for", got)
+        self.assertNotIn("has no slot for the requested window", got)
+        self.assertIn("has no handle (no hand slot and no extra part)", train.shape_problems("carry caddy with a handle, 320x150x165 mm", [self.PLAIN]))
+        self.assertIn("has no slot for the requested window", train.shape_problems("pencereli mumluk", [{**self.PLAIN, "walls": {"front": {"holes": [{"x": 10, "y": 10, "d": 4}]}}}]))
+        self.assertIn("has no port or slot for the requested connector", train.shape_problems("yanında USB-C girişi olan ESP32 kutusu", [{**self.PLAIN, "walls": {"left": {"holes": [{"x": 10, "y": 10, "d": 8}]}}}]))
+        self.assertIn("has fewer than 3 cutouts for the requested vent", train.shape_problems("havalandırma delikli devre kutusu", [{**self.PLAIN, "walls": {"back": {"holes": [{"x": 10, "y": 10, "d": 4}]}}}]))
+        good = {**self.PLAIN, "walls": {
+            "front": {"slots": [{"w": 40, "h": 20, "x": 30, "y": 40}], "holes": [{"x": 10, "y": 10, "d": 3.2}, {"x": 100, "y": 10, "d": 3.2}]},
+            "back": {"slots": [{"w": 30, "h": 12, "x": 20, "y": 20}]},
+        }}
+        self.assertEqual(train.shape_problems("control box with an LCD window with M3 mounting holes", [good]), [])
+        self.assertEqual(train.shape_problems("carry caddy with a handle", [good]), [])
+        self.assertEqual(train.shape_problems("yanında USB-C girişi olan ESP32 kutusu", [good]), [])
+
     def test_broken_parts_never_train(self):
         got = train.quality_problems("takı kutusu", ["box", {"type": "box", "x": 175, "y": 0, "h": 175}])
         self.assertIn("has a part that is not an object with a type", got)

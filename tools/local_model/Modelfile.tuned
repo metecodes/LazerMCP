@@ -3,6 +3,20 @@
 #   ollama create lasermcp -f tools/local_model/Modelfile.tuned
 # It was trained with the short system prompt, so a smaller context is enough.
 FROM ./lasermcp.gguf
+# Qwen3 Instruct chat format (ChatML), the same turns the model was trained on. Written out
+# so Ollama does not have to guess it from the GGUF. The Qwen3 chat template put an empty
+# think block before every trained answer; without it here the model starts by emitting
+# that block itself (shows up as "</tool_call>") instead of the design JSON.
+TEMPLATE """{{- range .Messages }}<|im_start|>{{ .Role }}
+{{ .Content }}<|im_end|>
+{{ end }}<|im_start|>assistant
+<think>
+
+</think>
+
+"""
+PARAMETER stop "<|im_end|>"
+PARAMETER stop "<|im_start|>"
 PARAMETER num_ctx 4096
 PARAMETER temperature 0.2
 PARAMETER num_predict 2500

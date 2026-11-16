@@ -38,6 +38,21 @@ MAX_TOKENS = 4096                      # prompt + design; longer examples are sk
 EPOCHS = 3
 RANK = 16
 
+
+def find_data_dir(preferred: Path, search_root: Path = Path("/kaggle/input")) -> Path:
+    """DATA_DIR if train.jsonl is there, else the one folder under /kaggle/input that holds it.
+
+    Kaggle names the mount after the dataset (and has changed its layout before), so a fixed
+    path is the most common reason a first run fails.
+    """
+    if (preferred / "train.jsonl").is_file():
+        return preferred
+    found = sorted(p.parent for p in search_root.rglob("train.jsonl")) if search_root.is_dir() else []
+    if len(found) == 1:
+        return found[0]
+    where = ", ".join(map(str, found)) or "nowhere"
+    raise SystemExit(f"train.jsonl found {where}; set DATA_DIR to the folder with train.jsonl and valid.jsonl")
+
 # (user turn start, assistant turn start) for the chat formats of common small models.
 KNOWN_MARKERS: tuple[tuple[str, str], ...] = (
     ("<|im_start|>user\n", "<|im_start|>assistant\n"),  # Qwen2.5 / Qwen3, ChatML
@@ -127,9 +142,11 @@ def main() -> None:
         print(f"kept {len(texts)} of {len(rows)} examples under {MAX_TOKENS} tokens")
         return Dataset.from_dict({"text": texts})
 
-    train_rows = load_rows(DATA_DIR / "train.jsonl")
+    data_dir = find_data_dir(DATA_DIR)
+    print(f"data: {data_dir}")
+    train_rows = load_rows(data_dir / "train.jsonl")
     train = as_text(train_rows)
-    valid_rows = load_rows(DATA_DIR / "valid.jsonl")
+    valid_rows = load_rows(data_dir / "valid.jsonl")
     valid = as_text(valid_rows) if valid_rows else None
     if len(train) < 50:
         raise SystemExit("too few examples to train on; collect more first")
@@ -146,6 +163,10 @@ def main() -> None:
     # Learn only the design JSON (the assistant turn), not to recite the system prompt.
     trainer = train_on_responses_only(trainer, instruction_part=user_marker, response_part=assistant_marker)
     trainer.train()
+
+    # The small adapter first: if the GGUF step fails, the training is not lost.
+    model.save_pretrained(str(OUT_DIR / "lora"))
+    tokenizer.save_pretrained(str(OUT_DIR / "lora"))
 
     # One 4-bit GGUF file that Ollama / llama.cpp can serve on a 4 GB GPU.
     model.save_pretrained_gguf(str(OUT_DIR / "gguf"), tokenizer, quantization_method="q4_k_m")
