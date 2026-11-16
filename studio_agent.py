@@ -34,6 +34,7 @@ CORE = (
     "inspect_design", "export_dxf", "export_svg",
 )
 PARAMETER_TOOLS = frozenset({"create_design", "create_from_reference"})
+PHOTO_KEYS = frozenset({"what_you_see", "reference", "has_photo", "reference_image", "reference_id"})
 RESULT_CHARS = 6000  # what the model reads back from one tool call
 STRING_CHARS = 600   # one string inside a result (SVG, base64 and file bodies are far longer)
 
@@ -42,6 +43,11 @@ You are working inside LaserMCP Studio for one user request. Work step by step:
 1. Say in one or two sentences what you see or what is asked, and the parts you plan.
 2. Call the tools to plan and build it. Read every result: when final_status is BLOCKED,
    read look_again / blocking_reasons, change only what they name and try again.
+   Bookshelves, shelf units, wall shelves, benches, side tables, risers and divided trays
+   are ONE kit primitive each: {"type":"shelf_unit","w":300,"d":150,"h":400,"shelves":3},
+   {"type":"bench","w":300,"d":120,"h":150}, {"type":"organizer","w":240,"d":120,"h":60,
+   "compartments":3}. Do not place their panels by hand. A BLOCKED design is not an answer:
+   try again at least twice before giving up, and never offer the files of a BLOCKED design.
 3. A design that is not BLOCKED already carries its files (dxf_url, svg_url): stop calling
    tools then. Never pass SVG or DXF text through a tool yourself.
 4. When a tool answers NEEDS_INPUT with questions and the request does not already answer
@@ -382,6 +388,12 @@ def run_agent(
                 # to pass them on; what the model sets explicitly still wins.
                 given = arguments.get("parameters") if isinstance(arguments.get("parameters"), dict) else {}
                 arguments = {**arguments, "parameters": {**choices, **given}}
+            if not image and name in PARAMETER_TOOLS and isinstance(arguments.get("parameters"), dict):
+                # A typed request is not a photo: a what_you_see or reference here makes the
+                # reviewer demand a comparison with a picture that does not exist.
+                arguments = {**arguments, "parameters": {k: v for k, v in arguments["parameters"].items() if k not in PHOTO_KEYS}}
+            if not image and name == "plan_laser_job":
+                arguments = {**arguments, "has_photo": False}
             data = tool(name, arguments) if name in known else {"error": f"unknown tool {name}; use one of the listed tools"}
             transcript.append({"role": "tool", "id": call["id"], "name": name, "text": result_text(data)})
             steps.append(_step_note(name, arguments, data))

@@ -115,6 +115,16 @@ class LoopTests(unittest.TestCase):
         self.assertTrue(run["success"], run["steps"])
         self.assertEqual(run["questions"], [])
 
+    def test_a_typed_request_is_never_treated_as_a_photo(self):
+        photoish = {"primitives": SHELF["primitives"], "parameters": {**SHELF["parameters"], "what_you_see": "kitaplık", "reference": {"mm": 300}}}
+        step = scripted(call("create_design", photoish), say("Hazır."))
+        run = sa.run_agent("kitaplık", model="local:test", step=step)
+        self.assertTrue(run["success"], run["steps"])
+        seen = {}
+        step = scripted(call("plan_laser_job", {"user_request": "kitaplık", "has_photo": True}), say("Tamam."))
+        sa.run_agent("kitaplık", model="local:test", step=step, tool=lambda name, args: seen.update(args) or {"ok": True}, tools=[{"name": "plan_laser_job", "description": "", "parameters": {"type": "object"}}], system="s")
+        self.assertIs(seen["has_photo"], False)
+
     def test_an_unknown_tool_name_is_answered_not_run(self):
         step = scripted(call("delete_everything", {}), say("Peki."))
         run = sa.run_agent("x", model="local:test", step=step)
