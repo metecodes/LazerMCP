@@ -73,7 +73,14 @@ kaydeder ve gerçek kontrolden bir tasarım geçirerek dener:
 .venv/Scripts/python.exe tools/local_model/install_tuned.py
 ```
 
-Stüdyo'da kullanmak için sunucunun çalıştığı yerde `LASERMCP_TUNED_MODEL=lasermcp` ve
+Stüdyo'yu bu modelle açmanın en kısa yolu (sağlayıcı anahtarı ve fatura yok):
+
+```bash
+.venv/Scripts/python.exe tools/local_model/run_studio.py --no-auth
+```
+
+Tarayıcıda `http://127.0.0.1:8765/studio` açılır; model listesinde yalnızca `LaserMCP (eğitilmiş)`
+vardır. Elle ayarlamak için sunucunun çalıştığı yerde `LASERMCP_TUNED_MODEL=lasermcp` ve
 `LASERMCP_TUNED_BASE_URL=http://127.0.0.1:11434/v1` ayarla; model listesine `lasermcp-tuned`
 eklenir. Güncel model üçüncü turun modelidir (58 soruda 41, istek başına ~6 sn). Yalnızca
 yazılı isteklerde çalışır: görsel görmez ve Stüdyo ajanının araç döngüsünü süremez.

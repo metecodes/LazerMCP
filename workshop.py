@@ -1538,6 +1538,18 @@ def _agent_requested(payload: dict[str, Any]) -> bool:
     return str(os.environ.get("LASERMCP_STUDIO_AGENT") or "").strip().lower() in {"1", "true", "on", "yes"}
 
 
+def _is_own_small_model(payload: dict[str, Any]) -> bool:
+    """The fine-tuned local model writes one design per turn; it cannot drive the tool loop.
+
+    Requests for it keep the draft-and-repair path it was trained for, also when the
+    Studio's agent switch is on.
+    """
+    from llm_guard import TUNED_ID, default_model
+
+    wanted = str(payload.get("model") or "").strip().lower() or str(default_model() or "").lower()
+    return wanted == TUNED_ID
+
+
 def _studio_agent_run(payload: dict[str, Any], *, request: str, parameters: dict[str, Any], cost: dict[str, Any],
                       gate: dict[str, Any], base: str, client_ip: str) -> dict[str, Any]:
     """One Studio request handled by studio_agent.run_agent (same tools as an MCP client)."""
@@ -1655,7 +1667,7 @@ def create_studio_ai(body: dict[str, Any] | None = None, *, public_base_url: str
     )
 
     # --- Agent: the model works with the server's own tools, step by step ---
-    if _agent_requested(payload):
+    if _agent_requested(payload) and not _is_own_small_model(payload):
         return _studio_agent_run(
             payload, request=request or raw_prompt, parameters=parameters, cost=cost,
             gate=design_gate, base=base, client_ip=client_ip,
