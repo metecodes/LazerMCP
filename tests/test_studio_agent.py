@@ -108,6 +108,13 @@ class LoopTests(unittest.TestCase):
         self.assertEqual(first["image"], image)
         self.assertIn('"holding_nicks": false', first["text"])
 
+    def test_choices_reach_the_design_tool_even_when_the_model_forgets_them(self):
+        bare = {"primitives": SHELF["primitives"], "parameters": {"thickness": 3}}
+        step = scripted(call("create_design", bare), say("Hazır."))
+        run = sa.run_agent("kitaplık", model="local:test", step=step, choices={"holding_nicks": False, "surface_texts": []})
+        self.assertTrue(run["success"], run["steps"])
+        self.assertEqual(run["questions"], [])
+
     def test_an_unknown_tool_name_is_answered_not_run(self):
         step = scripted(call("delete_everything", {}), say("Peki."))
         run = sa.run_agent("x", model="local:test", step=step)

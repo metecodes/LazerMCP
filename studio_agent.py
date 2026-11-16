@@ -33,6 +33,7 @@ CORE = (
     "payas_defaults", "search_joint_templates", "get_generator_schema", "generate_svg", "render_preview",
     "inspect_design", "export_dxf", "export_svg",
 )
+PARAMETER_TOOLS = frozenset({"create_design", "create_from_reference"})
 RESULT_CHARS = 6000  # what the model reads back from one tool call
 STRING_CHARS = 600   # one string inside a result (SVG, base64 and file bodies are far longer)
 
@@ -45,7 +46,8 @@ You are working inside LaserMCP Studio for one user request. Work step by step:
    tools then. Never pass SVG or DXF text through a tool yourself.
 4. When a tool answers NEEDS_INPUT with questions and the request does not already answer
    them, stop and ask the user those questions in your final answer.
-5. Finish with a short answer in the user's language: what was built, its size and part
+5. Finish with a short answer in the language the user wrote in (a Turkish request gets a
+   Turkish answer): what was built, its size and part
    count, and anything the user must check by hand. Never claim a physical fit was verified.
 If the request cannot be built after several attempts, say plainly what blocked it.
 """
@@ -375,6 +377,11 @@ def run_agent(
             break
         for call in calls:
             name, arguments = call["name"], call.get("arguments") or {}
+            if choices and name in PARAMETER_TOOLS:
+                # Settings the user already made reach the tool even when the model forgets
+                # to pass them on; what the model sets explicitly still wins.
+                given = arguments.get("parameters") if isinstance(arguments.get("parameters"), dict) else {}
+                arguments = {**arguments, "parameters": {**choices, **given}}
             data = tool(name, arguments) if name in known else {"error": f"unknown tool {name}; use one of the listed tools"}
             transcript.append({"role": "tool", "id": call["id"], "name": name, "text": result_text(data)})
             steps.append(_step_note(name, arguments, data))
