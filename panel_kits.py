@@ -111,8 +111,11 @@ def carcass(W: float, D: float, H: float, t: float, middle: int, top: bool = Tru
         parts.insert(1, panel("top", wi, di, [0, 0, hi], X, Y))   # thickness above
         pairs += [("top", "left"), ("top", "right"), ("back", "top")]
     tab_len = r1(di / 3)
+    # Equal clear bays. The slot centres are then symmetric about the middle of the side, so a
+    # side panel fits either way up (z = hi*i/(n+1) put every slot t/2 high: one way only).
+    bay = (hi - middle * t) / (middle + 1)
     for i in range(1, middle + 1):
-        z = r1(hi * i / (middle + 1))
+        z = r1(i * bay + (i - 1) * t)
         label = f"shelf-{i}"
         parts.append(panel(label, wi, di, [0, 0, z], X, Y))
         tab_into(parts, label, "L", (-t / 2, di / 2, t, tab_len), "left", (di / 2, z + t / 2, tab_len, t))

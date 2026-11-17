@@ -795,6 +795,11 @@ class PayasToolbox(Boxes):
         b = "e" if raised_active else ("F" if bottom_on else "e")
         walls = part.get("walls") if isinstance(part.get("walls"), dict) else {}
         ignore = [] if raised_active else ([1, 6] if bottom_on else [])
+        # A finger-jointed lid closes the top corners the same way the floor closes the bottom
+        # ones. Extending only the bottom shifted every corner finger t/2 down, so a wall fitted
+        # one way up only: with both ends extended the corner joint is centred and reversible.
+        if wall_top == "F" and side_top == "F" and ignore == [1, 6]:
+            ignore = [1, 2, 5, 6]
 
         from studio_box import divider_positions
 
@@ -804,9 +809,12 @@ class PayasToolbox(Boxes):
         y_div_pos = divider_positions([float(v) for v in sy], t) if len(sy) > 1 else []
         joint_walls = bool(part.get("divider_joint_walls", True))
         joint_bottom = bool(part.get("divider_joint_bottom", True))
-        div_h = max(8.0, h - raised - (t if lid_on and lid_type in {"finger", "finger_joint", "fixed"} else 0.0))
+        # h is the inner height: a finger-jointed lid sits on top of it (the walls are h + 2t),
+        # so it takes nothing from the dividers or the shelf spacing. Taking t off put every
+        # divider and shelf hole t/2 low, and the wall fitted one way up only.
+        div_h = max(8.0, h - raised)
         shelf_n = max(0, min(6, int(part.get("shelves") or 0)))
-        lid_eat = t if lid_on and lid_type in {"finger", "finger_joint", "fixed"} else 0.0
+        lid_eat = 0.0
         shelf_span = max(0.0, h - raised - lid_eat)
         shelf_z: list[float] = []
         if shelf_n and shelf_span > 0:

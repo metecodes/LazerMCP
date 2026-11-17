@@ -512,7 +512,8 @@ def build_studio_box(payload: dict[str, Any] | None = None) -> dict[str, Any]:
 
     shelves = _i(body.get("shelves") or body.get("araf"), 0, lo=0, hi=6)
     # Usable inner height for shelf spacing (below lid / above raised floor)
-    lid_eat = 0.0 if lid_raw == "open" else thickness
+    # A finger lid sits on top of the inner height (the walls are hi + 2t), so it takes none of it.
+    lid_eat = 0.0 if lid_raw in {"open", "finger", "finger_joint", "fixed"} else thickness
     shelf_span = hi - raised - lid_eat
     if shelves and shelf_span < (shelves + 1) * 12:
         raise ValueError("too many shelves for this box height — reduce shelves or grow H")

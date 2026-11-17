@@ -223,7 +223,7 @@ def _box(parent: dict[str, Any], index: int, thickness: float):
             )
         )
     shelf_n = max(0, min(6, int(parent.get("shelves") or 0)))
-    lid_eat = t if lid_on and lid_type in {"finger", "finger_joint", "fixed"} else 0.0
+    lid_eat = 0.0  # a finger lid sits on top of the inner height h (toolbox._box)
     shelf_span = max(0.0, h - raised - lid_eat)
     if shelf_n and shelf_span > 0:
         step = shelf_span / (shelf_n + 1)

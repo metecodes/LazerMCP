@@ -41,7 +41,7 @@ class KitTests(unittest.TestCase):
         self.assertEqual(pose["back"]["v"], [0, 1, 0])
         self.assertEqual(pose["back"]["origin"][2], 0)             # back wall away from the viewer
         self.assertEqual(pose["bottom"]["origin"][2], 147)         # open front towards the viewer
-        self.assertEqual(pose["shelf-1"]["origin"][1], 197)
+        self.assertEqual(pose["shelf-1"]["origin"][1], 195.5)       # centred: 195.5 + t/2 = 394 / 2
         tray, _ = pk.expand_kits([{"type": "organizer", "w": 240, "d": 120, "h": 60, "compartments": 2}], {"thickness": 3})
         self.assertEqual(next(p for p in tray if p["label"] == "bottom")["placement"]["v"], [0, 1, 0])
 

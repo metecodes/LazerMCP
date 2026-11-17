@@ -99,7 +99,8 @@ def assembly_sheet(
         n = len(connections or [])
         if n:
             lines.append(f"Connections recorded: {n}")
-        lines.append("Do not flip or rotate parts.")
+        # Cutting advice, not assembly: box walls and shelf sides are drawn to fit either way up.
+        lines.append("Do not mirror parts in the laser software.")
     if use:
         if lines:
             lines.append("")
