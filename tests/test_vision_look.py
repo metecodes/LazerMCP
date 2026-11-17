@@ -50,6 +50,14 @@ class RequestTests(unittest.TestCase):
                          "isim levhası 200x80x3 mm, üstünde 'ADA' yazsın")
         self.assertEqual(vl.tidy("kutu 100x100x50 mm, 3 bölme, açık üst"), "kutu 100x100x50 mm, 3 bölme, açık üst")
 
+    def test_placeholder_text_is_not_engraved(self):
+        # Seen on real photos: the model fills the text field to say "no text".
+        for placeholder in ("yazı yazma", "YAZI", "metin yok", "'yazı'"):
+            with self.subTest(placeholder=placeholder):
+                self.assertEqual(vl.to_request({"request": "kutu 300x200x100 mm, yazı yaz, açık üst", "text": placeholder}),
+                                 "kutu 300x200x100 mm, açık üst")
+        self.assertEqual(vl.engraving(" 'Ada Nur' "), "Ada Nur")
+
     def test_the_persons_words_come_first(self):
         seen = {"request": "300x150x400 mm kitaplık", "sizes_mm": [], "text": ""}
         self.assertEqual(vl.to_request(seen, " 5 mm  kontrplak "), "5 mm kontrplak. Görselde: 300x150x400 mm kitaplık")

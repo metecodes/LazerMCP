@@ -196,6 +196,150 @@
         "shelf_unit"
       ],
       "synthetic": true
+    },
+    {
+      "id": "photo-stool-01",
+      "file": "photo-stool-01.jpg",
+      "kind": "product",
+      "about": "küçük ahşap tabure/sehpa: üst tabla ve iki ayak",
+      "min_panels": 3,
+      "max_panels": 5,
+      "types": [
+        "bench"
+      ],
+      "source": "https://commons.wikimedia.org/wiki/File:(stool),_doll%27s_(AM_2013.51.4.7-1).jpg",
+      "license": "CC BY 4.0",
+      "author": "unknown author"
+    },
+    {
+      "id": "photo-acrylic-box-01",
+      "file": "photo-acrylic-box-01.jpg",
+      "kind": "photo",
+      "about": "lazer kesim akrilik proje kutusu (Arduino), şeffaf kapaklı",
+      "min_panels": 4,
+      "max_panels": 8,
+      "source": "https://commons.wikimedia.org/wiki/File:ADBO_-_Project_Box_for_Arduino_(laser_cut).jpg",
+      "license": "CC BY-SA 2.0",
+      "author": "oomlout"
+    },
+    {
+      "id": "photo-wall-shelf-02",
+      "file": "photo-wall-shelf-02.jpg",
+      "kind": "product",
+      "about": "Shaker tipi duvar rafı çizimi: arkalık, iki yan, alt raf, üstü açık",
+      "min_panels": 3,
+      "max_panels": 6,
+      "types": [
+        "shelf_unit"
+      ],
+      "source": "https://commons.wikimedia.org/wiki/File:Alois_E._Ulrich,_Shaker_Wooden_Wall_Shelf,_c._1937,_NGA_25648.jpg",
+      "license": "CC0",
+      "author": "Alois E. Ulrich"
+    },
+    {
+      "id": "photo-paint-box-01",
+      "file": "photo-paint-box-01.jpg",
+      "kind": "photo",
+      "about": "bölmeli boya kutusu, menteşeli kapaklı",
+      "min_panels": 5,
+      "max_panels": 16,
+      "source": "https://commons.wikimedia.org/wiki/File:Box,_paint_(51360295178).jpg",
+      "license": "CC BY 2.0",
+      "author": "Auckland Museum  Collections from Auckland, Aotearoa New Zealand"
+    },
+    {
+      "id": "photo-holey-cube-01",
+      "file": "photo-holey-cube-01.jpg",
+      "kind": "photo",
+      "about": "yüzleri delikli küp kutu (6 panel)",
+      "min_panels": 5,
+      "max_panels": 7,
+      "source": "https://commons.wikimedia.org/wiki/File:Holey_cube_in_birch_plywood.jpg",
+      "license": "CC BY 2.0",
+      "author": "Jared Tarbell"
+    },
+    {
+      "id": "photo-hutch-01",
+      "file": "photo-hutch-01.jpg",
+      "kind": "product",
+      "about": "oyuncak dolap/raf: üstte açık raf, altta iki kapak",
+      "min_panels": 5,
+      "max_panels": 10,
+      "types": [
+        "shelf_unit"
+      ],
+      "source": "https://commons.wikimedia.org/wiki/File:Hutch_dresser,_doll%27s_(AM_2013.51.4.2-1).jpg",
+      "license": "CC BY 4.0",
+      "author": "unknown author"
+    },
+    {
+      "id": "photo-discs-01",
+      "file": "photo-discs-01.jpg",
+      "kind": "photo",
+      "about": "delikli yuvarlak lazer kesim kontrplak diskler",
+      "min_panels": 1,
+      "max_panels": 6,
+      "source": "https://commons.wikimedia.org/wiki/File:Lased_-_Flickr_-_jared.jpg",
+      "license": "CC BY 2.0",
+      "author": "Jared Tarbell from Awesometown, United States of America"
+    },
+    {
+      "id": "photo-living-hinge-01",
+      "file": "photo-living-hinge-01.jpg",
+      "kind": "photo",
+      "about": "esnek menteşeli (living hinge) kontrplak kutu",
+      "min_panels": 3,
+      "max_panels": 7,
+      "source": "https://commons.wikimedia.org/wiki/File:Living_hinge_(wood).jpg",
+      "license": "CC BY-SA 3.0",
+      "author": "Autopilot"
+    },
+    {
+      "id": "photo-medicine-box-01",
+      "file": "photo-medicine-box-01.jpg",
+      "kind": "photo",
+      "about": "bölmeli ahşap ilaç kutusu, kapaklı",
+      "min_panels": 6,
+      "max_panels": 16,
+      "source": "https://commons.wikimedia.org/wiki/File:The_wooden_rectangular_medicinal_box.jpg",
+      "license": "CC0",
+      "author": "Pakideadithya"
+    },
+    {
+      "id": "photo-type-case-01",
+      "file": "photo-type-case-01.jpg",
+      "kind": "photo",
+      "about": "çok bölmeli ahşap tepsi (matbaa harf kasası)",
+      "min_panels": 6,
+      "max_panels": 30,
+      "types": [
+        "organizer"
+      ],
+      "source": "https://commons.wikimedia.org/wiki/File:Typesetters_sort_case.jpg",
+      "license": "CC BY 2.0",
+      "author": "Edinburgh City of Print"
+    },
+    {
+      "id": "photo-sliding-box-01",
+      "file": "photo-sliding-box-01.jpg",
+      "kind": "product",
+      "about": "sürgü kapaklı eski ahşap kutu",
+      "min_panels": 5,
+      "max_panels": 7,
+      "source": "https://commons.wikimedia.org/wiki/File:Wooden_box_with_sliding_lid_-_Museo_Egizio,_Turin_S_14396_c_p01.jpg",
+      "license": "CC0",
+      "author": "unknown"
+    },
+    {
+      "id": "photo-wall-shelf-01",
+      "file": "photo-wall-shelf-01.jpg",
+      "kind": "photo",
+      "about": "duvara monte tek raf, iki destek ayağı",
+      "min_panels": 2,
+      "max_panels": 5,
+      "source": "https://commons.wikimedia.org/wiki/File:Wooden_shelf_with_wooden_brackets_affixed_to_wall_face_on.jpg",
+      "license": "CC0",
+      "author": "Cupofjoy"
     }
   ]
 }

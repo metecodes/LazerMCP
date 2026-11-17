@@ -116,6 +116,16 @@ def parse(content: str) -> dict[str, Any]:
 # Clauses a small vision model adds about things that are NOT there ("0 delik", "yazı yazma",
 # "metin yok"). The planner reads every clause as a wish, so they are dropped.
 _ABSENT = re.compile(r"(^|\s)(0|sıfır)\s|\byok\b|yazı yazma|metin yazma|yazısız|\bnone\b|\bno\s", re.I)
+# "Text" fields that only name the idea of text, or say there is none.
+_NOT_TEXT = {"yazı", "yazi", "metin", "text", "yazı yaz", "yazı yazın", "isim", "name", "logo"}
+
+
+def engraving(text: Any) -> str:
+    """The letters to engrave, or "" when the field is a placeholder or says there are none."""
+    value = " ".join(str(text or "").split()).strip(" '\"")
+    if not value or _ABSENT.search(value) or value.casefold() in _NOT_TEXT:
+        return ""
+    return value
 
 
 def tidy(request: str, text: str = "") -> str:
@@ -127,8 +137,10 @@ def tidy(request: str, text: str = "") -> str:
 
 def to_request(seen: dict[str, Any], user_text: str = "") -> str:
     """The sentence the tuned model receives: the person's own words win, the picture fills in."""
-    text = str(seen.get("text") or "").strip()
+    text = engraving(seen.get("text"))
     request = tidy(seen.get("request") or seen.get("what") or "", text)
+    # A placeholder the model also wrote into the sentence ("yazı yaz") goes too.
+    request = ", ".join(c for c in request.split(", ") if not re.fullmatch(r"(yazı|metin)\s+yaz\w*", c.strip(), re.I))
     sizes = seen.get("sizes_mm") or []
     if len(sizes) == 3 and not re.search(r"\d+\s*[x×*]\s*\d+", request):
         request += f", {sizes[0]:g}x{sizes[1]:g}x{sizes[2]:g} mm"
