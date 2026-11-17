@@ -82,7 +82,7 @@ Stüdyo'yu bu modelle açmanın en kısa yolu (sağlayıcı anahtarı ve fatura 
 Tarayıcıda `http://127.0.0.1:8765/studio` açılır; model listesinde yalnızca `LaserMCP (eğitilmiş)`
 vardır. Elle ayarlamak için sunucunun çalıştığı yerde `LASERMCP_TUNED_MODEL=lasermcp` ve
 `LASERMCP_TUNED_BASE_URL=http://127.0.0.1:11434/v1` ayarla; model listesine `lasermcp-tuned`
-eklenir. Güncel model üçüncü turun modelidir (58 soruda 41, istek başına ~6 sn). Yalnızca
+eklenir. Güncel model üçüncü turun modelidir (58 soruda 51, istek başına ~6 sn). Yalnızca
 yazılı isteklerde çalışır: görsel görmez ve Stüdyo ajanının araç döngüsünü süremez.
 
 ### 6. Eğitilmiş modeli kurmak ve ölçmek
@@ -201,6 +201,16 @@ planı resimlerini üretir; `tools/vision_eval.py --model studio` her resmi Stü
   (örnek başına ~316 karakter). Sonuç **41/58 (%71)**, istek başına ortalama 6 sn. Varsayılan
   `lasermcp` artık bu model; öncekiler `lasermcp-v1` ve `lasermcp-v2`. Kalan hatalar:
   çekmeceli tasarımlar, düz tek parçalar için hiç parça çizmeme, kutu duvarından taşan yuvalar.
+- Kod onarımları (17 Kasım 2026): yazı sığdırma, yuva içindeki deliği silme, saklama
+  isteklerini koddan kurma ve düz plakayı tek parça sayan ölçüm. Aynı üçüncü tur modeli
+  **51/58 (%88)** oldu.
+- Dördüncü tur (17 Kasım 2026): `tools/synth_weak.py` ile 240 örnek eklendi (ekranlı kutu,
+  kartvizitlik, tutucu, saksı kılıfı, robot ve devre tabanı). Toplam 838 eğitim ve 93
+  doğrulama satırı kullanıldı, eval_loss 0.29 çıktı. Sonuç **42/58**: tutucularda 11'den 4'e
+  düştü, çok parçalı isteklere tek düz plaka çiziyor. Terfi ettirilmedi; `lasermcp-v4`
+  olarak duruyor, varsayılan hâlâ üçüncü tur. Ders: düz plaka örnekleri çok parçalı
+  tutucuları bastırıyor. Tek parçalı örnekleri azaltıp tutucuları kalıp (`organizer`)
+  biçiminde çoğaltmak gerekiyor.
 - Kaggle'da indirme: notebook panelinden ve veri seti sayfasından tarayıcıyla inmedi.
   Çalışan yol: notebook'ta `kagglehub.dataset_upload`, bilgisayarda `kaggle datasets
   download` (anahtar `~/.kaggle/access_token`).
