@@ -102,12 +102,24 @@ Sonra bu terminalde `LASERMCP_TUNED_MODEL=lasermcp` ve
 
 ### 8. Yayın
 
-Vercel senin bilgisayarına doğrudan ulaşamaz; arada şifre korumalı bir tünel gerekir
-(örneğin Cloudflare Tunnel). Vercel'e üç değişken eklenir: `LASERMCP_TUNED_MODEL`,
-`LASERMCP_TUNED_BASE_URL` (tünel adresi, `/v1` ile biter) ve `LASERMCP_LOCAL_API_KEY`
-(tünelin beklediği anahtar). Varsayılan model olması için
-`LASERMCP_LLM_DEFAULT_MODEL=lasermcp-tuned`. Bilgisayar kapalıyken istekler hata alır ve
-Studio kendiliğinden ücretsiz yerel planlayıcıya düşer. Bu adım henüz kurulmadı.
+Vercel senin bilgisayarına doğrudan ulaşamaz; arada anahtarlı bir kapı ve bir tünel var:
+
+```
+canlı site (Vercel) → ngrok sabit adres → tunnel_proxy.py (127.0.0.1:8790, anahtar ister) → Ollama
+```
+
+1. Anahtar: `python tools/local_model/tunnel_proxy.py --new-key` (`.env`'e yazar).
+2. ngrok: hesap aç, `ngrok config add-authtoken ...`, panelden ücretsiz sabit adresi al ve
+   `.env`'e `LASERMCP_TUNNEL_URL=https://<adres>` yaz. ngrok en az 3.29 olmalı (`ngrok update`).
+3. Windows'la başlasın: `powershell -ExecutionPolicy Bypass -File tools\local_model\start_tunnel.ps1 -Install`.
+   Betik kapıyı ve tüneli açar, dakikada bir bakar, kapananı yeniden başlatır
+   (kayıt: `output/start_tunnel.log`). Kaldırmak için `-Uninstall`.
+4. Vercel (Production): `LASERMCP_TUNED_MODEL=lasermcp`,
+   `LASERMCP_TUNED_BASE_URL=https://<adres>/v1`, `LASERMCP_LOCAL_API_KEY=<.env'deki değer>`;
+   sonra yeni bir yayın (ayarlar yalnızca sonraki yayınlara geçer). Varsayılan model olması için
+   `LASERMCP_LLM_DEFAULT_MODEL=lasermcp-tuned`.
+
+Bilgisayar kapalı ya da uykudayken bu model "LLM HTTP 404" verir; diğer modeller etkilenmez.
 
 ## Nasıl çalışır
 
