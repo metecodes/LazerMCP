@@ -24,6 +24,7 @@ import argparse
 import base64
 import json
 import os
+import re
 import sys
 import tempfile
 import time
@@ -169,6 +170,86 @@ def run(model: str, rows: list[dict[str, Any]], image_dir: Path, thickness: floa
     return out
 
 
+# What a kit's parts are called once it is built; the reply carries panels, not primitives.
+TYPE_LABELS = {"shelf_unit": ("shelf",), "organizer": ("divider",), "bench": ("leg",)}
+
+
+def score_reply(row: dict[str, Any], reply: dict[str, Any], error: str = "") -> dict[str, Any]:
+    """One image's verdict for the Studio route (look, then plan). Pure: no I/O, no model.
+
+    The reply is what create_studio_ai returns. Sizes and text are judged on what the vision
+    model read from the picture (that is the part this route adds); parts and kind of object
+    on what was built.
+    """
+    seen = reply.get("look") if isinstance(reply.get("look"), dict) else {}
+    gate_ok = bool(reply.get("success")) and str(reply.get("final_status") or "BLOCKED") not in {"BLOCKED", "FAIL"}
+    labels = [str(p.get("label") or p.get("part_id") or "").lower() for p in ((reply.get("assembly") or {}).get("panels") or [])]
+    # A flat design (a plate, a sign) has no 3D assembly, yet a design that passed has a part.
+    panels = len(labels) or (1 if gate_ok else 0)
+    problems: list[str] = []
+    if error:
+        problems.append("error:" + error[:80])
+    elif not seen:
+        problems.append("traced")      # the picture went to the tracer, not to the model
+    elif not gate_ok:
+        problems.append("blocked")
+    if gate_ok and seen:
+        if panels < int(row["min_panels"]):
+            problems.append(f"parts:{panels}<{row['min_panels']}")
+        if panels > int(row["max_panels"]):
+            problems.append(f"parts:{panels}>{row['max_panels']}")
+        want = [t for t in row.get("types") or [] if t in TYPE_LABELS]
+        if want and not any(hint in label for t in want for hint in TYPE_LABELS[t] for label in labels):
+            problems.append("type")
+    request = str(seen.get("request") or "")
+    if seen and row.get("size_mm"):
+        found = [float(n) for n in re.findall(r"\d+(?:[.,]\d+)?", request.replace(",", "."))]
+        near = sum(any(abs(s - v) <= 0.1 * v for s in found) for v in row["size_mm"])
+        if near < 3:
+            problems.append("size")
+    text = str(row.get("text") or "").strip()
+    if seen and text and text.casefold() not in request.casefold():
+        problems.append("text")
+    return {"id": row.get("id"), "kind": row.get("kind"), "about": row.get("about"), "gate_ok": gate_ok,
+            "passed": not problems, "panels": panels, "problems": problems,
+            "saw": seen.get("what"), "request": request, "look_seconds": seen.get("seconds")}
+
+
+def run_studio(rows: list[dict[str, Any]], image_dir: Path, thickness: float = 3.0) -> list[dict[str, Any]]:
+    """Every picture through the same function the Studio calls, with the tuned model chosen."""
+    import workshop
+
+    out = []
+    for i, row in enumerate(rows, 1):
+        file = image_dir / row["file"]
+        data = base64.b64encode(file.read_bytes()).decode("ascii")
+        body = {"image_base64": f"data:{MEDIA[file.suffix.lower()]};base64,{data}", "file_kind": "photo",
+                "prompt": "", "messages": [], "thickness": thickness, "model": "lasermcp-tuned"}
+        started = time.time()
+        reply, error = {}, ""
+        try:
+            reply = workshop.create_studio_ai(body, client_ip=f"vision-{i}")
+        except Exception as exc:  # one bad picture must not lose the run
+            error = str(exc)
+        verdict = score_reply(row, reply, error)
+        verdict["seconds"] = round(time.time() - started, 1)
+        out.append(verdict)
+        print(f"[{i:02d}/{len(rows)}] {'ok ' if verdict['passed'] else 'BAD'} {verdict['id']:<20} {row['kind']:<9} "
+              f"{verdict['panels']:>2}p {verdict['seconds']:>5}s {','.join(verdict['problems'])}  <- {verdict['request'][:90]}", flush=True)
+    return out
+
+
+def use_local_models(vision: str) -> None:
+    """Point the Studio at this machine's Ollama: tuned model plans, `vision` looks. No sign-in."""
+    os.environ["LASERMCP_TUNED_MODEL"] = os.environ.get("LASERMCP_TUNED_MODEL_NAME", "lasermcp")
+    os.environ["LASERMCP_TUNED_BASE_URL"] = "http://127.0.0.1:11434/v1"
+    os.environ["LASERMCP_VISION_MODEL"] = vision
+    os.environ.pop("LASERMCP_VISION_BASE_URL", None)
+    os.environ.pop("LASERMCP_LOCAL_API_KEY", None)
+    for key in ("SUPABASE_URL", "SUPABASE_ANON_KEY", "SUPABASE_PUBLISHABLE_KEY", "SUPABASE_SERVICE_ROLE_KEY", "MCP_AUTH_TOKEN"):
+        os.environ[key] = ""
+
+
 def summarize(results: list[dict[str, Any]]) -> dict[str, Any]:
     def block(items: list[dict[str, Any]]) -> dict[str, int]:
         return {"n": len(items), "passed": sum(r["passed"] for r in items), "gate_ok": sum(r["gate_ok"] for r in items)}
@@ -179,7 +260,8 @@ def summarize(results: list[dict[str, Any]]) -> dict[str, Any]:
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("--model", default="", help="local:<vision model in Ollama>")
+    ap.add_argument("--model", default="", help="local:<vision model in Ollama>, or 'studio' for the look-then-plan route")
+    ap.add_argument("--vision", default="qwen3-vl:4b-instruct", help="with --model studio: the Ollama vision model that looks")
     ap.add_argument("--check", action="store_true", help="validate the image set and stop")
     ap.add_argument("--only", default="", help="comma list of kinds")
     ap.add_argument("--set", default=str(MANIFEST), help="manifest path")
@@ -205,7 +287,12 @@ def main(argv: list[str] | None = None) -> int:
         rows = [r for r in rows if r["kind"] in keep]
     os.environ["MCP_DATA_DIR"] = tempfile.mkdtemp(prefix="lasermcp-vision-")
     model = args.model.strip()
-    results = run(model, rows, image_dir)
+    if model == "studio":
+        use_local_models(args.vision)
+        model = f"studio-{args.vision}"
+        results = run_studio(rows, image_dir)
+    else:
+        results = run(model, rows, image_dir)
     summary = summarize(results)
     out = Path(args.out) if args.out else ROOT / "output" / "vision_eval" / f"{model.replace(':', '-')}-{time.strftime('%Y%m%d-%H%M%S')}.json"
     out.parent.mkdir(parents=True, exist_ok=True)

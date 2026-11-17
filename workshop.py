@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import re
 import secrets
@@ -20,6 +21,8 @@ from profiles import MATERIALS, apply_profiles, list_profiles, resolve_machine, 
 from projects import list_projects, project_by_file, project_history, save_version
 from review import FAIL, NOT_VERIFIED, PASS, WARNING, build_scorecard
 from studio_store import now_iso, read_json, write_json
+
+log = logging.getLogger(__name__)
 
 STEPS = ("machine", "bed", "material", "thickness", "coupon")
 FITS = ("seated", "loose", "tight", "collision", "hole_small", "hole_large", "other")
@@ -1601,6 +1604,49 @@ def _studio_agent_run(payload: dict[str, Any], *, request: str, parameters: dict
     return result
 
 
+_IMAGE_KEYS = ("image_base64", "photo_base64", "image_media", "photo", "has_photo", "file_kind", "attach_kind", "file_name")
+
+
+def _look_then_plan(payload: dict[str, Any], *, raw_prompt: str, public_base_url: str, client_ip: str) -> dict[str, Any] | None:
+    """A picture for the workshop's own model: the vision model describes it, the tuned model builds it.
+
+    None means "trace the picture as before": no vision model is set up, the picture is
+    art (a logo or a figure), or the look failed (the reply then says why).
+    """
+    import vision_look
+    from plans import gate_job
+
+    if payload.get("_seen") or not vision_look.ready():
+        return None
+    photo_gate = gate_job("photo")
+    if not photo_gate.get("ok"):
+        return {**photo_gate, "ok": False, "success": True}
+    image_b64 = str(payload.get("image_base64") or payload.get("photo_base64") or "")
+    media = str(payload.get("image_media") or "image/jpeg")
+    if image_b64.strip().lower().startswith("data:") and "," in image_b64:
+        head, image_b64 = image_b64.split(",", 1)
+        media = head[5:].split(";", 1)[0] or media
+    try:
+        seen = vision_look.look(image_b64, media, raw_prompt)
+    except ValueError as exc:
+        log.warning("vision look failed: %s", exc)
+        payload["_look_note"] = f"Görsel model resme bakamadı ({exc}); resim iz sürülerek çizildi."
+        return None
+    if seen["kind"] == "art":
+        payload["_look_note"] = f"Görsel model bunu bir motif olarak gördü ({seen['what'] or 'resim'}); iz sürülerek çizildi."
+        return None
+    request = vision_look.to_request(seen, raw_prompt)
+    body = {key: value for key, value in payload.items() if key not in _IMAGE_KEYS}
+    body.update({"prompt": request, "messages": [{"role": "user", "text": request}], "_seen": seen})
+    reply = create_studio_ai(body, public_base_url=public_base_url, client_ip=client_ip)
+    look = {"what": seen["what"], "kind": seen["kind"], "request": request, "seconds": seen["seconds"], "model": seen["model"]}
+    if isinstance(reply, dict):
+        reply["look"] = look
+        notes = list(reply.get("look_again") or [])
+        reply["look_again"] = [f"Görselde gördüğüm: {seen['what'] or seen['kind']}. Şöyle çizdim: {request}", *notes]
+    return reply
+
+
 def create_studio_ai(body: dict[str, Any] | None = None, *, public_base_url: str | None = None, client_ip: str = "") -> dict[str, Any]:
     """Studio AI: prompt and/or uploaded photo|svg|plt|dxf → 3D panels. Gated by platform_ai + quota.
 
@@ -1673,6 +1719,12 @@ def create_studio_ai(body: dict[str, Any] | None = None, *, public_base_url: str
             gate=design_gate, base=base, client_ip=client_ip,
         )
 
+    # --- Photo / image → our own model: a local vision model looks, the tuned model plans ---
+    if has_image and _is_own_small_model(payload):
+        seen_reply = _look_then_plan(payload, raw_prompt=raw_prompt, public_base_url=base, client_ip=client_ip)
+        if seen_reply is not None:
+            return seen_reply
+
     # --- Photo / image → trace ---
     if has_image:
         photo_gate = gate_job("photo")
@@ -1700,6 +1752,7 @@ def create_studio_ai(body: dict[str, Any] | None = None, *, public_base_url: str
             public_base_url=base,
             source="photo",
             extra_look=[
+                *([payload["_look_note"]] if payload.get("_look_note") else []),
                 "Photo was traced to CUT/ENGRAVE — not a parametric 3D box kit.",
                 "Digital only. Measure kerf before production.",
             ],

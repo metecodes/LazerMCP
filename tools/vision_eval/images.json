@@ -8,6 +8,194 @@
       "about": "İki katlı bebek evi kesim planı: pencereli ön duvar, arka duvar, taban, yan duvarlar, çatı ve süs parçaları (taç, kapı, yıldız)",
       "min_panels": 5,
       "max_panels": 10
+    },
+    {
+      "id": "render-shelf-01",
+      "file": "render-shelf-01.png",
+      "kind": "render",
+      "about": "3 raflı kitaplık (taban dahil), üstü kapalı, arkalıklı",
+      "min_panels": 6,
+      "max_panels": 8,
+      "types": [
+        "shelf_unit"
+      ],
+      "synthetic": true
+    },
+    {
+      "id": "render-wallshelf-01",
+      "file": "render-wallshelf-01.png",
+      "kind": "render",
+      "about": "üstü açık duvar rafı, arkada iki vida deliği",
+      "min_panels": 3,
+      "max_panels": 5,
+      "types": [
+        "shelf_unit"
+      ],
+      "synthetic": true
+    },
+    {
+      "id": "render-bench-01",
+      "file": "render-bench-01.png",
+      "kind": "render",
+      "about": "iki ayaklı küçük sehpa, arkada destek levhası",
+      "min_panels": 3,
+      "max_panels": 5,
+      "types": [
+        "bench"
+      ],
+      "synthetic": true
+    },
+    {
+      "id": "render-organizer-01",
+      "file": "render-organizer-01.png",
+      "kind": "render",
+      "about": "3 bölmeli masaüstü düzenleyici tepsi",
+      "min_panels": 6,
+      "max_panels": 8,
+      "types": [
+        "organizer"
+      ],
+      "synthetic": true
+    },
+    {
+      "id": "render-box-01",
+      "file": "render-box-01.png",
+      "kind": "render",
+      "about": "kapaklı dikdörtgen kutu",
+      "min_panels": 5,
+      "max_panels": 7,
+      "synthetic": true
+    },
+    {
+      "id": "render-box-02",
+      "file": "render-box-02.png",
+      "kind": "render",
+      "about": "üstü açık küp kutu",
+      "min_panels": 4,
+      "max_panels": 6,
+      "synthetic": true
+    },
+    {
+      "id": "sketch-shelf-01",
+      "file": "sketch-shelf-01.png",
+      "kind": "sketch",
+      "about": "kitaplık çizimi, 4 raf, ölçüler yazılı",
+      "min_panels": 6,
+      "max_panels": 10,
+      "types": [
+        "shelf_unit"
+      ],
+      "size_mm": [
+        400,
+        200,
+        600
+      ],
+      "synthetic": true
+    },
+    {
+      "id": "sketch-box-01",
+      "file": "sketch-box-01.png",
+      "kind": "sketch",
+      "about": "kapaklı kutu çizimi, ölçüler yazılı",
+      "min_panels": 5,
+      "max_panels": 7,
+      "size_mm": [
+        150,
+        100,
+        80
+      ],
+      "synthetic": true
+    },
+    {
+      "id": "sketch-organizer-01",
+      "file": "sketch-organizer-01.png",
+      "kind": "sketch",
+      "about": "4 bölmeli düzenleyici çizimi, ölçüler yazılı",
+      "min_panels": 6,
+      "max_panels": 10,
+      "types": [
+        "organizer"
+      ],
+      "size_mm": [
+        300,
+        100,
+        80
+      ],
+      "synthetic": true
+    },
+    {
+      "id": "sketch-bench-01",
+      "file": "sketch-bench-01.png",
+      "kind": "sketch",
+      "about": "sehpa çizimi: üst tabla ve iki ayak, ölçüler yazılı",
+      "min_panels": 3,
+      "max_panels": 5,
+      "types": [
+        "bench"
+      ],
+      "size_mm": [
+        350,
+        200,
+        250
+      ],
+      "synthetic": true
+    },
+    {
+      "id": "sketch-holder-01",
+      "file": "sketch-holder-01.png",
+      "kind": "sketch",
+      "about": "üstü açık kalemlik çizimi, ölçüler yazılı",
+      "min_panels": 4,
+      "max_panels": 6,
+      "size_mm": [
+        80,
+        80,
+        100
+      ],
+      "synthetic": true
+    },
+    {
+      "id": "sketch-plaque-01",
+      "file": "sketch-plaque-01.png",
+      "kind": "sketch",
+      "about": "üzerinde ADA yazan isim levhası çizimi",
+      "min_panels": 1,
+      "max_panels": 2,
+      "text": "ADA",
+      "synthetic": true
+    },
+    {
+      "id": "cut-syn-box-01",
+      "file": "cut-syn-box-01.png",
+      "kind": "cut_sheet",
+      "about": "kapaklı kutunun kesim planı (6 parça, parmak geçmeli)",
+      "min_panels": 5,
+      "max_panels": 7,
+      "synthetic": true
+    },
+    {
+      "id": "cut-syn-organizer-01",
+      "file": "cut-syn-organizer-01.png",
+      "kind": "cut_sheet",
+      "about": "3 bölmeli düzenleyicinin kesim planı",
+      "min_panels": 6,
+      "max_panels": 8,
+      "types": [
+        "organizer"
+      ],
+      "synthetic": true
+    },
+    {
+      "id": "cut-syn-shelf-01",
+      "file": "cut-syn-shelf-01.png",
+      "kind": "cut_sheet",
+      "about": "2 raflı kitaplığın kesim planı",
+      "min_panels": 5,
+      "max_panels": 7,
+      "types": [
+        "shelf_unit"
+      ],
+      "synthetic": true
     }
   ]
 }

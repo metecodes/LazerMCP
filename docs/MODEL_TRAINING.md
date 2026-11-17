@@ -121,6 +121,28 @@ canlı site (Vercel) → ngrok sabit adres → tunnel_proxy.py (127.0.0.1:8790, 
 
 Bilgisayar kapalı ya da uykudayken bu model "LLM HTTP 404" verir; diğer modeller etkilenmez.
 
+### 9. Görseller: önce bak, sonra planla
+
+Eğitilmiş model yalnız yazı okur. Stüdyo'da bu model seçiliyken resim eklenirse
+(`vision_look.py`):
+
+```
+resim → yerel görsel model (qwen3-vl:4b-instruct) → "400x200x600 mm 4 raflı kitaplık" → lasermcp → kontrol → DXF
+```
+
+Görsel model resmin ne olduğunu, üstünde yazan ölçüleri, raf/bölme sayısını ve kazınacak
+yazıyı tek bir istek cümlesine döker; tasarımı yine eğitilmiş model yapar. Logo, figür ya da
+siluet gibi düz motifler ("art") eskisi gibi iz sürülür. Kurulum:
+
+1. `ollama pull qwen3-vl:4b-instruct` (3,3 GB). "Düşünen" `qwen3-vl:4b` değil: gizli
+   akıl yürütmesi cevaba yer bırakmıyor.
+2. `.env` ve Vercel'e `LASERMCP_VISION_MODEL=qwen3-vl:4b-instruct`. Adres ve anahtar
+   eğitilmiş modelinkiyle aynı; kapı bu modele de izin verir (kapıyı yeniden başlat).
+
+Ölçüm: `tools/vision_eval/make_synthetic.py` ölçüleri bilinen çizim, el çizimi ve kesim
+planı resimlerini üretir; `tools/vision_eval.py --model studio` her resmi Stüdyo'nun
+çağırdığı fonksiyondan geçirip puanlar.
+
 ## Nasıl çalışır
 
 - **İstekler** (`tools/train_prompts.py`): 60 nesne türü, ölçü, özellik ve Türkçe/İngilizce

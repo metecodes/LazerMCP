@@ -35,7 +35,8 @@ KEY_NAME = "LASERMCP_LOCAL_API_KEY"
 UPSTREAM = "http://127.0.0.1:11434"
 ALLOWED_PATH = "/v1/chat/completions"
 ALLOWED_MODELS = frozenset({"lasermcp"})
-MAX_BODY = 200_000
+# Pictures for the vision model come base64-encoded; the site shrinks them to 1024 px first.
+MAX_BODY = 6_000_000
 
 
 def read_key(env_path: Path = ENV) -> str:
@@ -59,7 +60,24 @@ def write_new_key(env_path: Path = ENV) -> str:
     return key
 
 
-def check(method: str, path: str, auth: str, body: bytes, key: str) -> tuple[int, str]:
+def env_value(name: str, env_path: Path = ENV) -> str:
+    value = str(os.environ.get(name) or "").strip()
+    if value or not env_path.is_file():
+        return value
+    for line in env_path.read_text(encoding="utf-8").splitlines():
+        key, _, rest = line.partition("=")
+        if key.strip() == name:
+            return rest.strip().strip('"').strip("'")
+    return ""
+
+
+def served_models(env_path: Path = ENV) -> frozenset[str]:
+    """The tuned model, plus the vision model that looks at pictures when one is set up."""
+    vision = env_value("LASERMCP_VISION_MODEL", env_path)
+    return ALLOWED_MODELS | ({vision} if vision else set())
+
+
+def check(method: str, path: str, auth: str, body: bytes, key: str, models: frozenset[str] = ALLOWED_MODELS) -> tuple[int, str]:
     """(status, reason) for a request. 200 means it may be passed on. Pure: no I/O."""
     if not key:
         return 503, "proxy has no key configured"
@@ -74,7 +92,7 @@ def check(method: str, path: str, auth: str, body: bytes, key: str) -> tuple[int
         data = json.loads(body.decode("utf-8"))
     except (ValueError, UnicodeDecodeError):
         return 400, "body is not JSON"
-    if not isinstance(data, dict) or str(data.get("model")) not in ALLOWED_MODELS:
+    if not isinstance(data, dict) or str(data.get("model")) not in models:
         return 403, "model not served here"
     if data.get("stream"):
         return 400, "streaming is not supported"
@@ -83,6 +101,7 @@ def check(method: str, path: str, auth: str, body: bytes, key: str) -> tuple[int
 
 class Handler(BaseHTTPRequestHandler):
     key = ""
+    models = ALLOWED_MODELS
     upstream = UPSTREAM
 
     def _reply(self, status: int, payload: dict) -> None:
@@ -102,7 +121,7 @@ class Handler(BaseHTTPRequestHandler):
             self._reply(413, {"error": {"message": "request too large"}})
             return
         body = self.rfile.read(length) if length else b""
-        status, reason = check(self.command, self.path, self.headers.get("authorization") or "", body, self.key)
+        status, reason = check(self.command, self.path, self.headers.get("authorization") or "", body, self.key, self.models)
         if status != 200:
             self._reply(status, {"error": {"message": reason}})
             return
@@ -140,8 +159,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"No {KEY_NAME} yet. Run with --new-key first.")
         return 1
     Handler.key = key
+    Handler.models = served_models()
     server = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
-    print(f"proxy for the local model on http://127.0.0.1:{args.port} (key required)", flush=True)
+    print(f"proxy for {', '.join(sorted(Handler.models))} on http://127.0.0.1:{args.port} (key required)", flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
