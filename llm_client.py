@@ -251,17 +251,36 @@ _CM_SIZE = re.compile(
 )
 
 
+# Common workshop parts by name. A small model read "16x2 LCD" as a 16×2 mm plate; these
+# are the usual module sizes (outer board / body, mm), so the plan starts from real parts.
+_PART_FACTS = (
+    (re.compile(r"16\s*[x×]\s*2\s*lcd|lcd\s*16\s*[x×]\s*2|1602", re.I),
+     "16x2 LCD is a part name, not a size: board 80x36 mm, display window 71x24 mm, 4 M3 holes 75x31 mm apart"),
+    (re.compile(r"\bsg\s*90\b", re.I), "SG90 servo: body 23x12.2 mm (cut-out 23.5x12.5 mm), mounting tabs 32 mm wide, 2 screw holes 28 mm apart"),
+    (re.compile(r"breadboard", re.I), "breadboard: half size 83x55 mm, full size 165x55 mm"),
+    (re.compile(r"arduino\s*uno|\buno\b", re.I), "Arduino Uno: board 68.6x53.4 mm, 4 M3 mounting holes"),
+    (re.compile(r"\bdc\s*motor|tt\s*motor|sarı\s*motor|sari\s*motor", re.I), "TT DC gear motor: body 70x22x19 mm, 2 M3 holes 17.5 mm apart, shaft 5.4 mm"),
+)
+
+
+def part_facts(prompt: str) -> list[str]:
+    return [fact for pattern, fact in _PART_FACTS if pattern.search(str(prompt or ""))]
+
+
 def request_text(prompt: str, thickness: Any = None) -> str:
     """The exact user message for one planning call. Training files are built with it too.
 
     Sizes typed in centimetres get a millimetre line: small models copied "27.5x3x10.5 cm"
-    as millimetres and drew a 3 mm deep box.
+    as millimetres and drew a 3 mm deep box. Named parts (16x2 LCD, SG90…) get their sizes.
     """
     user = str(prompt or "").strip()
     sizes = _CM_SIZE.search(user)
     if sizes and "Sizes in mm:" not in user:
         mm = "x".join(f"{float(v.replace(',', '.')) * 10:g}" for v in sizes.groups())
         user += f"\nSizes in mm: {mm}"
+    facts = [f for f in part_facts(user.split("\nPart sizes:")[0]) if f not in user]
+    if facts:
+        user += "\nPart sizes: " + "; ".join(facts)
     if thickness not in (None, ""):
         user += f"\nMaterial thickness_mm={float(thickness)}"
     return user

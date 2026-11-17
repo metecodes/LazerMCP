@@ -1210,6 +1210,7 @@ def _gate_issues(result: dict[str, Any], limit: int = 10) -> list[str]:
 
 
 _EDGE_NOTE = re.compile(r"^(?:female|male) edge (\S+)\.(bottom|right|top|left) \(", re.I)
+_DIMS_TYPED = re.compile(r"\d\s*(?:mm|cm)?\s*[x×*]\s*\d", re.I)
 _EDGE_INDEX = {"bottom": 0, "right": 1, "top": 2, "left": 3}
 
 
@@ -1354,25 +1355,201 @@ def _declare_mount_holes(primitives: list[Any], notes: list[str], request: str) 
         return None
     changed = False
     out: list[Any] = []
-    for part in primitives:
-        walls = part.get("walls") if isinstance(part, dict) and str(part.get("type") or "").lower() == "box" else None
-        front = walls.get("front") if isinstance(walls, dict) else None
-        holes = front.get("holes") if isinstance(front, dict) else None
+    def mark(holes: Any) -> Any:
         if isinstance(holes, list) and any(isinstance(h, dict) and not h.get("purpose") for h in holes):
-            marked = [{**h, "purpose": "mount"} if isinstance(h, dict) and not h.get("purpose") else h for h in holes]
+            return [{**h, "purpose": "mount"} if isinstance(h, dict) and not h.get("purpose") else h for h in holes]
+        return None
+
+    for part in primitives:
+        kind = str(part.get("type") or "").lower() if isinstance(part, dict) else ""
+        walls = part.get("walls") if kind == "box" else None
+        front = walls.get("front") if isinstance(walls, dict) else None
+        marked = mark(front.get("holes")) if isinstance(front, dict) else None
+        if marked is not None:
             part = {**part, "walls": {**walls, "front": {**front, "holes": marked}}}
             changed = True
+        elif kind == "panel":
+            # A lone plate is read as a "front" face too; its bare holes are screw holes.
+            marked = mark(part.get("holes"))
+            if marked is not None:
+                part = {**part, "holes": marked}
+                changed = True
         out.append(part)
+    return out if changed else None
+
+
+_ENGRAVE_NOTE = re.compile(r"^engraving (?:violates .* edge clearance|extends outside every outer CUT contour)", re.I)
+
+
+def _face_keepout(features: dict[str, Any], width: float, height: float, pad: float):
+    """Material of one face where an engraving may go: inside the margin, clear of holes and slots."""
+    from shapely.geometry import Point, box as rect
+
+    free = rect(pad, pad, width - pad, height - pad)
+    if free.is_empty:
+        return free
+    for row in features.get("holes") or []:
+        x, y, d = (_number(row.get(k)) for k in ("x", "y", "d")) if isinstance(row, dict) else (None, None, None)
+        if x is not None and y is not None and d:
+            free = free.difference(Point(x, y).buffer(d / 2.0 + 1.5))
+    for row in features.get("slots") or []:
+        x, y, w, h = (_number(row.get(k)) for k in ("x", "y", "w", "h")) if isinstance(row, dict) else (None,) * 4
+        if None not in (x, y, w, h):
+            free = free.difference(rect(x - w / 2 - 1.5, y - h / 2 - 1.5, x + w / 2 + 1.5, y + h / 2 + 1.5))
+    return free
+
+
+def _fit_marks(features: Any, width: float, height: float, pad: float) -> tuple[Any, bool]:
+    """Text and icon engravings of one face, moved and if needed shrunk into its free material.
+
+    The real text outline is measured (markings.marking_geom), so a long word on a short
+    plate gets smaller instead of running over the edge or across a screw hole. Nothing is
+    ever dropped: when a mark cannot fit even at 3 mm the face is left as it was, the gate
+    keeps blocking it, and the model gets its turn. A 16×2 mm "plate" stays refused.
+    """
+    from markings import marking_geom
+
+    if not isinstance(features, dict) or not isinstance(features.get("markings"), list):
+        return features, False
+    if width - 2 * pad < 10 or height - 2 * pad < 5:
+        return features, False
+    free = _face_keepout(features, width, height, pad)
+    if free.is_empty:
+        return features, False
+    fx0, fy0, fx1, fy1 = free.bounds
+    kept, changed = [], False
+    for mark in features["markings"]:
+        op = str((mark or {}).get("operation") or "engrave").lower() if isinstance(mark, dict) else ""
+        if op not in {"engrave", "etch", "score"}:
+            kept.append(mark)
+            continue
+        try:
+            geom = marking_geom(mark)
+        except Exception:
+            kept.append(mark)
+            continue
+        # The word's whole rectangle must be clear: letters are never threaded around a hole.
+        if geom is None or geom.is_empty or free.covers(geom.envelope):
+            kept.append(mark)
+            if geom is not None and not geom.is_empty:
+                free = free.difference(geom.envelope.buffer(1.0))
+            continue
+        x0, y0 = _number(mark.get("x")) or width / 2, _number(mark.get("y")) or height / 2
+        size = _number(mark.get("height")) or _number(mark.get("h")) or 6.0
+        placed = None
+        while size >= 3.0 and placed is None:
+            trial = {**mark, "height": round(size, 1)}
+            trial.pop("h", None)
+            if trial.get("width") not in (None, ""):
+                trial["width"] = round(min(float(trial["width"]), fx1 - fx0), 1)
+            # Nearest spot first: the model's own position, then outwards on a 2 mm grid.
+            spots = sorted(
+                ((fx0 + i * 2.0, fy0 + j * 2.0) for i in range(int((fx1 - fx0) / 2) + 1) for j in range(int((fy1 - fy0) / 2) + 1)),
+                key=lambda p: (p[0] - x0) ** 2 + (p[1] - y0) ** 2,
+            )
+            for sx, sy in [(x0, y0), *spots]:
+                g = marking_geom({**trial, "x": round(sx, 1), "y": round(sy, 1)})
+                if g is not None and not g.is_empty and free.covers(g.envelope):
+                    placed = {**trial, "x": round(sx, 1), "y": round(sy, 1)}
+                    free = free.difference(g.envelope.buffer(1.0))
+                    break
+            size *= 0.85
+        if placed is None:
+            return features, False
+        kept.append(placed)
+        changed = True
+    return ({**features, "markings": kept}, True) if changed else (features, False)
+
+
+def _fit_engravings(primitives: list[Any], notes: list[str], thickness: float) -> list[Any] | None:
+    """Free repair: engravings the gate says leave the material or crowd its edge are refitted."""
+    if not any(_ENGRAVE_NOTE.match(str(note)) for note in notes):
+        return None
+    pad = float(thickness or 3.0) + 1.5
+    changed = False
+    out: list[Any] = []
+    for part in primitives:
+        if not isinstance(part, dict):
+            out.append(part)
+            continue
+        kind = str(part.get("type") or "").lower()
+        new = part
+        if kind == "panel":
+            width, height = _number(part.get("w")), _number(part.get("h"))
+            if width and height:
+                fitted, moved = _fit_marks(part, width, height, pad)
+                if moved:
+                    new, changed = fitted, True
+        elif kind == "box":
+            sizes = {k: _number(part.get(k)) for k in ("x", "y", "h")}
+            walls = part.get("walls") if isinstance(part.get("walls"), dict) else {}
+            if all(v and v > 0 for v in sizes.values()) and walls:
+                fixed_walls = dict(walls)
+                for face, (wk, hk) in _BOX_FACES.items():
+                    fitted, moved = _fit_marks(walls.get(face), sizes[wk], sizes[hk], pad)
+                    if moved:
+                        fixed_walls[face], changed = fitted, True
+                if fixed_walls != walls:
+                    new = {**part, "walls": fixed_walls}
+        out.append(new)
+    return out if changed else None
+
+
+_CLASH_NOTE = re.compile(r"^shaft/window clash on (\S+)/(\w+): hole at ([\d.]+),([\d.]+) d=([\d.]+) sits inside slot", re.I)
+
+
+def _drop_holes_in_slots(primitives: list[Any], notes: list[str]) -> list[Any] | None:
+    """Free repair: a hole that sits inside a slot is cut away by the slot anyway: leave it out."""
+    clashes = []
+    for note in notes:
+        hit = _CLASH_NOTE.match(str(note))
+        if hit:
+            clashes.append((float(hit.group(3)), float(hit.group(4)), float(hit.group(5))))
+    if not clashes:
+        return None
+
+    def keep(row: Any) -> bool:
+        if not isinstance(row, dict):
+            return True
+        x, y, d = _number(row.get("x")), _number(row.get("y")), _number(row.get("d"))
+        return not any(x is not None and y is not None and abs(x - cx) < 0.01 and abs(y - cy) < 0.01 and abs((d or 0) - cd) < 0.01 for cx, cy, cd in clashes)
+
+    def strip(features: Any) -> tuple[Any, bool]:
+        if not isinstance(features, dict) or not isinstance(features.get("holes"), list):
+            return features, False
+        holes = [h for h in features["holes"] if keep(h)]
+        return ({**features, "holes": holes}, True) if len(holes) != len(features["holes"]) else (features, False)
+
+    changed = False
+    out: list[Any] = []
+    for part in primitives:
+        new = part
+        if isinstance(part, dict):
+            fixed, moved = strip(part)
+            if moved:
+                new, changed = fixed, True
+            walls = new.get("walls") if isinstance(new.get("walls"), dict) else None
+            if walls:
+                fixed_walls = dict(walls)
+                for face, features in walls.items():
+                    fixed, moved = strip(features)
+                    if moved:
+                        fixed_walls[face], changed = fixed, True
+                if fixed_walls != walls:
+                    new = {**new, "walls": fixed_walls}
+        out.append(new)
     return out if changed else None
 
 
 def _free_repairs(primitives: list[Any], notes: list[str], thickness: float, request: str = "") -> list[Any] | None:
     """Every code-only fix that applies to these gate notes, or None when none does."""
-    current, changed = primitives, False
+    current, changed = [p for p in primitives if isinstance(p, dict)], len(primitives) != len([p for p in primitives if isinstance(p, dict)])
     for fix in (
         lambda p: _straighten_unmatched_edges(p, notes),
         lambda p: _pull_features_inside(p, notes, thickness),
+        lambda p: _drop_holes_in_slots(p, notes),
         lambda p: _declare_mount_holes(p, notes, request),
+        lambda p: _fit_engravings(p, notes, thickness),
     ):
         fixed = fix(current)
         if fixed:
@@ -1845,9 +2022,13 @@ def create_studio_ai(body: dict[str, Any] | None = None, *, public_base_url: str
             }
     # A plain "W×D×H box" is drafted as well by the local planner: never pay a model for it.
     simple_box = fresh and simple_box_request(raw_prompt)
+    # Drawers, compartments, levels: the box engine draws them; the small model only drew the shell.
+    from ai_cache import parse_storage_request
+
+    storage_request = parse_storage_request(raw_prompt) if fresh and not force_local and not simple_box else None
     guard: dict[str, Any]
     cached = None
-    if force_local or simple_box:
+    if force_local or simple_box or storage_request:
         guard = {"allow": False, "reason": "local", "note": ""}
     else:
         verdict = access(payload.get("model"))
@@ -1943,7 +2124,25 @@ def create_studio_ai(body: dict[str, Any] | None = None, *, public_base_url: str
     from ai_cache import parse_box_request
 
     box_request = parse_box_request(raw_prompt) if simple_box else None
-    if box_request:
+    if storage_request:
+        from studio_box import build_studio_box
+
+        spec = {k: v for k, v in storage_request.items() if k != "what"}
+        built = build_studio_box(
+            {
+                **spec,
+                "thickness": float(thickness) if thickness not in (None, "") else 3,
+                "material": payload.get("material") or "poplar_3mm",
+                "machine": payload.get("machine") or "payas_workshop",
+            }
+        )
+        dims = f"{spec['x']:g}×{spec['y']:g}×{spec['h']:g} mm"
+        plan = {
+            "method": "studio_box",
+            "summary": f"{dims} {storage_request['what']} kutu, kapak: {spec['lid']} — Kutu sekmesinden değiştirilebilir.",
+            "next_arguments": {"primitives": built["primitives"], "parameters": built["parameters"]},
+        }
+    elif box_request:
         # Same parametric engine as the Box tab: it honours the typed sizes and passes the
         # gate, where the generic planner drew a default-sized box.
         from studio_box import build_studio_box
@@ -2035,6 +2234,9 @@ def create_studio_ai(body: dict[str, Any] | None = None, *, public_base_url: str
         looks.insert(0, f"Workshop LLM failed ({llm_error}); fell back to local planner.")
     if simple_box:
         looks.insert(0, "Plain box with all three sizes → drafted by the local planner at $0 (the Box tab edits it live).")
+    if storage_request:
+        looks.insert(0, f"{storage_request['what'].capitalize()} kutu, Kutu sekmesinin motoruyla çizildi ($0). "
+                        + ("Ölçü yazılmadığı için tipik ölçü kullanıldı; Kutu sekmesinden değiştir." if not _DIMS_TYPED.search(raw_prompt) else ""))
     return _studio_ai_result(
         result,
         cost=cost,

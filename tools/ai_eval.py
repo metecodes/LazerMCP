@@ -41,8 +41,12 @@ def score(row: dict[str, Any], reply: dict[str, Any]) -> dict[str, Any]:
     method = str(job.get("method") or "")
     repair = reply.get("auto_repair") if isinstance(reply.get("auto_repair"), dict) else {}
     usage = job.get("usage") if isinstance(job.get("usage"), dict) else {}
-    panels = len(((reply.get("assembly") or {}).get("panels")) or [])
+    assembly = reply.get("assembly") if isinstance(reply.get("assembly"), dict) else {}
+    panels = len(assembly.get("panels") or [])
     gate_ok = bool(reply.get("success")) and str(reply.get("final_status") or "BLOCKED") not in {"BLOCKED", "FAIL"}
+    if not panels and gate_ok and assembly.get("code") == "PART_TRANSFORM_MISSING":
+        # A flat job (sign, plate, clock face) has no 3D pose; it is still at least one part.
+        panels = 1
     problems: list[str] = []
     if not gate_ok:
         problems.append("blocked")

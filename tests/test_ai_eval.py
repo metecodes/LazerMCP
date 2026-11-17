@@ -44,6 +44,13 @@ class ScoreTests(unittest.TestCase):
         self.assertTrue(got["gate_ok"])
         self.assertFalse(got["passed"])
 
+    def test_a_flat_plate_counts_as_one_part(self):
+        flat = {**_reply(panels=0), "assembly": {"success": False, "code": "PART_TRANSFORM_MISSING", "panels": []}}
+        self.assertTrue(ai_eval.score({"id": "a", "category": "c", "prompt": "p", "min_panels": 1}, flat)["passed"])
+        self.assertFalse(ai_eval.score({"id": "a", "category": "c", "prompt": "p", "min_panels": 3}, flat)["passed"])
+        blocked = {**flat, "final_status": "BLOCKED"}
+        self.assertEqual(ai_eval.score({"id": "a", "category": "c", "prompt": "p"}, blocked)["panels"], 0)
+
     def test_paid_call_for_a_recipe_or_plain_box_fails(self):
         row = {"id": "a", "category": "c", "prompt": "p", "expect_method": "studio_maker", "expect_maker": "birdhouse"}
         self.assertFalse(ai_eval.score(row, _reply())["passed"])

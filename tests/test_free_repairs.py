@@ -95,6 +95,74 @@ class GateTests(unittest.TestCase):
         self.assertTrue(info.get("free"))
 
 
+ENGRAVE_NOTE = "engraving violates 1 mm edge clearance"
+
+
+class EngravingFitTests(unittest.TestCase):
+    def _plate(self, **extra):
+        return {"type": "panel", "w": 170, "h": 60, "edges": "eeee", "holes": [{"x": 85, "y": 30, "d": 4}],
+                "markings": [{"kind": "text", "value": "Breadboard", "x": 85, "y": 55, "height": 10, "align": "center", "operation": "engrave"}], **extra}
+
+    def test_text_over_the_edge_moves_inside_clear_of_the_hole(self):
+        from markings import marking_geom
+        from shapely.geometry import Point, box
+
+        mark = workshop._fit_engravings([self._plate()], [ENGRAVE_NOTE], 3.0)[0]["markings"][0]
+        outline = marking_geom(mark).envelope
+        self.assertTrue(box(4.5, 4.5, 170 - 4.5, 60 - 4.5).covers(outline))
+        self.assertFalse(outline.intersects(Point(85, 30).buffer(3.5)))
+        self.assertEqual(mark["value"], "Breadboard")
+
+    def test_long_text_on_a_small_plate_gets_smaller(self):
+        plate = {"type": "panel", "w": 60, "h": 30, "edges": "eeee",
+                 "markings": [{"kind": "text", "value": "Algoritma Atolyesi", "x": 30, "y": 15, "height": 12, "operation": "engrave"}]}
+        mark = workshop._fit_engravings([plate], [ENGRAVE_NOTE], 3.0)[0]["markings"][0]
+        self.assertLess(mark["height"], 12)
+        self.assertGreaterEqual(mark["height"], 3)
+
+    def test_text_that_fits_is_left_alone_and_other_notes_do_nothing(self):
+        ok = self._plate()
+        ok["markings"][0]["y"] = 15
+        self.assertIsNone(workshop._fit_engravings([ok], [ENGRAVE_NOTE], 3.0))
+        self.assertIsNone(workshop._fit_engravings([self._plate()], [HOLE_NOTE], 3.0))
+
+
+class HoleInSlotTests(unittest.TestCase):
+    def test_a_hole_inside_a_slot_is_left_out(self):
+        plate = {"type": "panel", "w": 40, "h": 30, "edges": "eeee", "holes": [{"d": 4, "x": 20, "y": 15}, {"d": 3, "x": 5, "y": 5}],
+                 "slots": [{"w": 13, "h": 8, "x": 20, "y": 20}]}
+        note = "shaft/window clash on P01/front: hole at 20.0,15.0 d=4.0 sits inside slot 13.0×8.0 at 20.0,20.0"
+        fixed = workshop._drop_holes_in_slots([plate], [note])
+        self.assertEqual(fixed[0]["holes"], [{"d": 3, "x": 5, "y": 5}])
+
+
+class SmallModelGateTests(GateTests):
+    """Drafts the local 4B model really wrote (benchmark, 2026-11-17)."""
+
+    def test_labelled_plates_pass_without_a_model_call(self):
+        cases = {
+            "duvara asılan 5 kancalı anahtar askılığı": {"type": "panel", "w": 200, "h": 100, "edges": "eeee",
+                "holes": [{"x": 100, "y": y, "d": 4} for y in (50, 20, 80, 10, 90)],
+                "markings": [{"kind": "text", "value": "Anahtar", "x": 100, "y": 50, "height": 10, "align": "center", "operation": "engrave"}]},
+            "güneş paneli için eğimli stant": {"type": "panel", "w": 110, "h": 60, "edges": "eeee", "holes": [{"x": 55, "y": 30, "d": 4}],
+                "markings": [{"kind": "text", "value": "Güneş Paneli", "x": 55, "y": 55, "height": 10, "align": "center", "operation": "engrave"}]},
+            "SG90 servo için braket": {"type": "panel", "w": 40, "h": 30, "edges": "eFeF", "holes": [{"d": 4, "x": 20, "y": 15}],
+                "markings": [{"kind": "text", "value": "SG90", "x": 20, "y": 25, "height": 6, "align": "center", "operation": "engrave"}],
+                "slots": [{"w": 13, "h": 8, "x": 20, "y": 20}]},
+        }
+        for request, plate in cases.items():
+            with self.subTest(request):
+                result, info = self._repair([plate], request)
+                self.assertFalse(workshop._draft_blocked(result))
+                self.assertTrue(info.get("free"))
+
+    def test_a_stray_word_in_the_part_list_is_dropped(self):
+        box = _box(front={"holes": [{"d": 4, "x": 40, "y": 40}], "slots": [{"w": 10, "h": 20, "x": 40, "y": 40}]})
+        result, info = self._repair([box, "bottom_edges"], "altı delikli saksı kılıfı")
+        self.assertFalse(workshop._draft_blocked(result))
+        self.assertTrue(info.get("free"))
+
+
 class DoorSignTests(unittest.TestCase):
     def _fails(self, text):
         return [r for r in seen.check_what_you_see([{"type": "panel", "w": 200, "h": 60, "edges": "eeee"}], text) if r["status"] == "FAIL"]

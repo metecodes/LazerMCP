@@ -93,6 +93,82 @@ def parse_box_request(prompt: str) -> dict[str, Any] | None:
     return {"x": x, "y": y, "h": h, "unit": unit, "lid": lid}
 
 
+_STORAGE_WORDS = re.compile(
+    r"(kutu|box|organi[sz]er|düzenleyici|duzenleyici|kasa|sandık|sandik|dolap|cabinet|kalemlik|takı|taki|jewel)", re.I
+)
+_COUNT_WORDS = {"bir": 1, "iki": 2, "üç": 3, "uc": 3, "üc": 3, "dört": 4, "dort": 4, "beş": 5, "bes": 5, "altı": 6, "alti": 6,
+                "a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6}
+_COUNT = r"(\d+|" + "|".join(sorted(_COUNT_WORDS, key=len, reverse=True)) + r")"
+_DRAWERS = re.compile(r"(?:" + _COUNT + r"\s*)?(?:çekmece|cekmece|drawers?)", re.I)
+_CELLS = re.compile(r"(?:" + _COUNT + r"\s*)?(?:bölme|bolme|compartments?|sections?)", re.I)
+_LEVELS = re.compile(_COUNT + r"\s*(?:katlı|katli|kat\b|levels?|tiers?)", re.I)
+# Asks the box engine cannot add: those stay with the model.
+_STORAGE_EXTRA = re.compile(
+    r"(tekerlek|wheel|motor|servo|lcd|ekran|arduino|led|pil|battery|menteşe|mentese|hinge|yaz|engrave|kazı|kazi|logo|"
+    r"isim|name|delik|hole|pencere|window|ayak|leg|sap|kulp|handle|eğim|egim|slope)",
+    re.I,
+)
+# Typical outer sizes when none are typed.
+_STORAGE_DEFAULTS = (
+    (re.compile(r"(takı|taki|jewel)", re.I), (160.0, 110.0, 70.0)),
+    (re.compile(r"(çay|cay|tea)", re.I), (220.0, 150.0, 80.0)),
+    (re.compile(r"(masaüstü|masaustu|desk|organi[sz]er|düzenleyici|duzenleyici)", re.I), (240.0, 140.0, 100.0)),
+)
+
+
+def _count(raw: str | None, default: int) -> int:
+    if not raw:
+        return default
+    raw = raw.lower()
+    return int(raw) if raw.isdigit() else _COUNT_WORDS.get(raw, default)
+
+
+def _grid(cells: int) -> tuple[int, int]:
+    """Dividers (along x, along y) for a number of equal compartments: 6 → 3×2."""
+    if cells >= 4 and cells % 2 == 0:
+        return cells // 2 - 1, 1
+    return cells - 1, 0
+
+
+def parse_storage_request(prompt: str) -> dict[str, Any] | None:
+    """A storage box with drawers, compartments or levels, for the parametric box engine.
+
+    The small model drew only the outer box for "çekmeceli kutu" and "6 bölmeli çay
+    kutusu": it does not know the engine's drawers and dividers. These requests get the
+    same engine as the Box tab, which draws the trays and dividers and passes the gate.
+    Returns build_studio_box arguments (sizes in mm) or None for anything else.
+    """
+    text = str(prompt or "").strip()
+    if not text or len(text) > 160 or "\n" in text or not _STORAGE_WORDS.search(text) or _STORAGE_EXTRA.search(text):
+        return None
+    drawers, cells, levels = _DRAWERS.search(text), _CELLS.search(text), _LEVELS.search(text)
+    if not (drawers or cells or levels):
+        return None
+    if drawers and cells:
+        return None  # trays and open compartments together: the engine puts a drawer in every bay
+    match = _DIMS3.search(text)
+    if match:
+        scale = 10.0 if re.search(r"\d\s*cm\b", text, re.I) else 1.0
+        x, y, h = (float(v.replace(",", ".")) * scale for v in match.groups())
+    else:
+        x, y, h = next((size for pattern, size in _STORAGE_DEFAULTS if pattern.search(text)), (200.0, 150.0, 80.0))
+    if min(x, y, h) < 30 or max(x, y, h) > 1000:
+        return None
+    out: dict[str, Any] = {"x": x, "y": y, "h": h, "unit": "mm"}
+    if drawers or levels:
+        n = _count(drawers.group(1) if drawers else None, 0) or _count(levels.group(1) if levels else None, 1)
+        n = max(1, min(n, 4))
+        out.update({"lid": "finger", "shelves": n - 1, "drawers": True, "dividers_x": 0, "dividers_y": 0})
+        out["what"] = f"{n} çekmeceli" if drawers else f"{n} katlı (her kat bir çekmece)"
+    else:
+        n = max(2, min(_count(cells.group(1), 2), 12))
+        dx, dy = _grid(n)
+        lid = next((name for name, pattern in _LIDS if pattern.search(text)), "open")
+        out.update({"lid": lid, "dividers_x": dx, "dividers_y": dy, "shelves": 0, "drawers": False})
+        out["what"] = f"{n} bölmeli"
+    return out
+
+
 _MAKER_WORDS = (
     ("birdhouse", re.compile(r"(kuş\s*ev|kus\s*ev|kuş\s*yuva|kus\s*yuva|bird\s*house)", re.I)),
     ("named_gift", re.compile(r"(hediye\s*kutu|gift\s*box)", re.I)),

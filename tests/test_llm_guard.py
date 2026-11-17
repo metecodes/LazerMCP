@@ -29,7 +29,8 @@ DESIGN = {"success": True, "final_status": "PROTOTYPE READY", "file_id": "t.svg"
 # Not a plain box: plain "W×D×H kutu" prompts are drafted locally at $0 and never reach a model.
 ASK = "telefon standı ve kartvizitlik"
 # Not a plain box either, but one the local planner can still draft when no model answers.
-LOCAL_OK = "kapaklı kalemlik 3 bölmeli"
+# Not a compartment box: those go to the box engine and never reach the model guard.
+LOCAL_OK = "kapaklı kalemlik"
 
 
 class _Iso(unittest.TestCase):
