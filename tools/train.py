@@ -576,9 +576,12 @@ def cmd_build(args: argparse.Namespace) -> int:
     from llm_client import tuned_system_prompt
 
     out = Path(args.out)
-    synthetic = _read_jsonl(out / SYNTHETIC)
-    if synthetic:
-        print(f"+ {len(synthetic)} synthetic multi-part rows from {out / SYNTHETIC}")
+    # synthetic.jsonl (synth_multipart.py) and every synthetic_*.jsonl (synth_weak.py, …).
+    synthetic: list[dict[str, Any]] = []
+    for path in sorted(out.glob("synthetic*.jsonl")):
+        rows = _read_jsonl(path)
+        synthetic += rows
+        print(f"+ {len(rows)} synthetic rows from {path}")
     train, valid = split(_read_jsonl(out / EXAMPLES) + synthetic)
     if len(train) < MIN_EXAMPLES:
         print(f"only {len(train)} usable examples in {out / EXAMPLES}; need at least {MIN_EXAMPLES} (a few hundred to be useful). Run collect first.")

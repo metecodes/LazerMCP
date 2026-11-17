@@ -256,6 +256,9 @@ _CM_SIZE = re.compile(
 _PART_FACTS = (
     (re.compile(r"16\s*[x×]\s*2\s*lcd|lcd\s*16\s*[x×]\s*2|1602", re.I),
      "16x2 LCD is a part name, not a size: board 80x36 mm, display window 71x24 mm, 4 M3 holes 75x31 mm apart"),
+    (re.compile(r"20\s*[x×]\s*4\s*lcd|lcd\s*20\s*[x×]\s*4|2004\s*lcd", re.I),
+     "20x4 LCD is a part name, not a size: board 98x60 mm, display window 77x26 mm, 4 M3 holes 93x55 mm apart"),
+    (re.compile(r"\boled\b", re.I), "0.96 inch OLED: board about 27x27 mm, display window 26x15 mm, 4 M2 holes about 23.5x23.8 mm apart"),
     (re.compile(r"\bsg\s*90\b", re.I), "SG90 servo: body 23x12.2 mm (cut-out 23.5x12.5 mm), mounting tabs 32 mm wide, 2 screw holes 28 mm apart"),
     (re.compile(r"breadboard", re.I), "breadboard: half size 83x55 mm, full size 165x55 mm"),
     (re.compile(r"arduino\s*uno|\buno\b", re.I), "Arduino Uno: board 68.6x53.4 mm, 4 M3 mounting holes"),
